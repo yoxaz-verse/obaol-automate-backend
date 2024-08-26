@@ -1,220 +1,257 @@
 #!/bin/bash
 
 # Create model
-cat <<EOT > src/database/models/admin.ts
+cat <<EOT > src/database/models/projectStatus.ts
 import mongoose from "mongoose";
 
-interface IAdmin extends mongoose.Document {
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
+interface IProjectStatus extends mongoose.Document {
   name: string;
-  password: string;
+  priority?: number;
 }
 
-const AdminSchema = new mongoose.Schema(
+const ProjectStatusSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
-    isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
     name: { type: String, required: true },
-    password: { type: String, required: true }
+    priority: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const ProjectStatusModel = mongoose.model<IProjectStatus>("ProjectStatus", ProjectStatusSchema);
 EOT
 
 # Create repository
-cat <<EOT > src/database/repositories/admin.ts
+cat <<EOT > src/database/repositories/projectStatus.ts
 import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
+import { ProjectStatusModel } from "../models/projectStatus";
+import { IProjectStatus, ICreateProjectStatus, IUpdateProjectStatus } from "../../interfaces/projectStatus";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
+class ProjectStatusRepository {
+  public async getProjectStatuses(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: IProjectStatus[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
-    }
-  }
-
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
+      let query: any = {};
+      if (search) {
+        query.name = { $regex: search, $options: "i" };
       }
-      return admin;
+      const projectStatuses = await ProjectStatusModel.find(query)
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await ProjectStatusModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: projectStatuses,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
+      await logError(error, req, "ProjectStatusRepository-getProjectStatuses");
       throw error;
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async getProjectStatusById(req: Request, id: string): Promise<IProjectStatus> {
     try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
+      const projectStatus = await ProjectStatusModel.findById(id).lean();
+      if (!projectStatus) {
+        throw new Error("Project Status not found");
+      }
+      return projectStatus;
     } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
+      await logError(error, req, "ProjectStatusRepository-getProjectStatusById");
       throw error;
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async createProjectStatus(
+    req: Request,
+    projectStatusData: ICreateProjectStatus
+  ): Promise<IProjectStatus> {
     try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
+      const newProjectStatus = await ProjectStatusModel.create(projectStatusData);
+      return newProjectStatus.toObject();
+    } catch (error) {
+      await logError(error, req, "ProjectStatusRepository-createProjectStatus");
+      throw error;
+    }
+  }
+
+  public async updateProjectStatus(
+    req: Request,
+    id: string,
+    projectStatusData: Partial<IUpdateProjectStatus>
+  ): Promise<IProjectStatus> {
+    try {
+      const updatedProjectStatus = await ProjectStatusModel.findByIdAndUpdate(id, projectStatusData, {
         new: true,
       });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
+      if (!updatedProjectStatus) {
+        throw new Error("Failed to update project status");
       }
-      return updatedAdmin.toObject();
+      return updatedProjectStatus.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
+      await logError(error, req, "ProjectStatusRepository-updateProjectStatus");
       throw error;
     }
   }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
+  public async deleteProjectStatus(req: Request, id: string): Promise<IProjectStatus> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
+      const deletedProjectStatus = await ProjectStatusModel.findByIdAndDelete(id);
+      if (!deletedProjectStatus) {
+        throw new Error("Failed to delete project status");
       }
-      return deletedAdmin.toObject();
+      return deletedProjectStatus.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
+      await logError(error, req, "ProjectStatusRepository-deleteProjectStatus");
       throw error;
     }
   }
 }
 
-export default AdminRepository;
+export default ProjectStatusRepository;
 EOT
 
 # Create service
-cat <<EOT > src/services/admin.ts
+cat <<EOT > src/services/projectStatus.ts
 import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
+import ProjectStatusRepository from "../database/repositories/projectStatus";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
-class AdminService {
-  private adminRepository: AdminRepository;
+class ProjectStatusService {
+  private projectStatusRepository: ProjectStatusRepository;
 
   constructor() {
-    this.adminRepository = new AdminRepository();
+    this.projectStatusRepository = new ProjectStatusRepository();
   }
 
-  public async getAdmins(req: Request, res: Response) {
+  public async getProjectStatuses(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const projectStatuses = await this.projectStatusRepository.getProjectStatuses(
+        req,
+        pagination,
+        search
+      );
+      res.sendArrayFormatted(projectStatuses, "Project Statuses retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+      await logError(error, req, "ProjectStatusService-getProjectStatuses");
+      res.sendError(error, "Project Statuses retrieval failed");
     }
   }
 
-  public async getAdmin(req: Request, res: Response) {
+  public async getProjectStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      const projectStatus = await this.projectStatusRepository.getProjectStatusById(req, id);
+      res.sendFormatted(projectStatus, "Project Status retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+      await logError(error, req, "ProjectStatusService-getProjectStatus");
+      res.sendError(error, "Project Status retrieval failed");
     }
   }
 
-  public async createAdmin(req: Request, res: Response) {
+  public async createProjectStatus(req: Request, res: Response) {
     try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
+      const projectStatusData = req.body;
+      const newProjectStatus = await this.projectStatusRepository.createProjectStatus(req, projectStatusData);
+      res.sendFormatted(newProjectStatus, "Project Status created successfully", 201);
     } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+      await logError(error, req, "ProjectStatusService-createProjectStatus");
+      res.sendError(error, "Project Status creation failed");
     }
   }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response) {
+  public async updateProjectStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
+      const projectStatusData = req.body;
+      const updatedProjectStatus = await this.projectStatusRepository.updateProjectStatus(
+        req,
+        id,
+        projectStatusData
+      );
+      res.sendFormatted(updatedProjectStatus, "Project Status updated successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+      await logError(error, req, "ProjectStatusService-updateProjectStatus");
+      res.sendError(error, "Project Status update failed");
+    }
+  }
+
+  public async deleteProjectStatus(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedProjectStatus = await this.projectStatusRepository.deleteProjectStatus(req, id);
+      res.sendFormatted(deletedProjectStatus, "Project Status deleted successfully");
+    } catch (error) {
+      await logError(error, req, "ProjectStatusService-deleteProjectStatus");
+      res.sendError(error, "Project Status deletion failed");
     }
   }
 }
 
-export default AdminService;
+export default ProjectStatusService;
 EOT
 
 # Create middleware
-cat <<EOT > src/middlewares/admin.ts
+cat <<EOT > src/middlewares/projectStatus.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class ProjectStatusMiddleware {
+  public async createProjectStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { name } = req.body;
+      if (!name) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Name must be provided",
+          "Name must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-ProjectStatusCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateProjectStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { name } = req.body;
+      if (!name) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Name must be provided",
+          "Name must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-ProjectStatusUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteProjectStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -227,12 +264,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
+      await logError(error, req, "Middleware-ProjectStatusDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async getProjectStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -245,85 +282,71 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-ProjectStatusGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
 
-export default AdminMiddleware;
+export default ProjectStatusMiddleware;
 EOT
 
 # Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
+cat <<EOT > src/interfaces/projectStatus.ts
+export interface IProjectStatus {
   _id: string;
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
   name: string;
-  password: string;
+  priority?: number;
 }
 
-export interface ICreateAdmin {
-  email: string;
-  isActive?: boolean; 
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
+export interface ICreateProjectStatus {
   name: string;
-  password: string;
+  priority?: number;
 }
 
-export interface IUpdateAdmin {
-  email?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
+export interface IUpdateProjectStatus {
   name?: string;
-  password?: string;
+  priority?: number;
 }
 EOT
 
 # Create routes
-cat <<EOT > src/routes/adminRoute.ts
+cat <<EOT > src/routes/projectStatusRoute.ts
 import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+import ProjectStatusService from "../services/projectStatus";
+import ProjectStatusMiddleware from "../middlewares/projectStatus";
 
 const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const projectStatusService = new ProjectStatusService();
+const projectStatusMiddleware = new ProjectStatusMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-
-
+  projectStatusMiddleware.getProjectStatus.bind(projectStatusMiddleware),
+  projectStatusService.getProjectStatuses.bind(projectStatusService)
 );
 router.get(
   "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
+  projectStatusMiddleware.getProjectStatus.bind(projectStatusMiddleware),
+  projectStatusService.getProjectStatus.bind(projectStatusService)
 );
 router.post(
   "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
+  projectStatusMiddleware.createProjectStatus.bind(projectStatusMiddleware),
+  projectStatusService.createProjectStatus.bind(projectStatusService)
 );
 router.put(
   "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
+  projectStatusMiddleware.updateProjectStatus.bind(projectStatusMiddleware),
+  projectStatusService.updateProjectStatus.bind(projectStatusService)
 );
 router.delete(
   "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
+  projectStatusMiddleware.deleteProjectStatus.bind(projectStatusMiddleware),
+  projectStatusService.deleteProjectStatus.bind(projectStatusService)
 );
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+echo "ProjectStatus module generated successfully."

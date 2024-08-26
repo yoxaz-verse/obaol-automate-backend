@@ -34,11 +34,37 @@ import { Request } from "express";
 import { AdminModel } from "../models/admin";
 import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
 class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
+  public async getAdmins(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: IAdmin[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      return await AdminModel.find({ isDeleted: false }).lean();
+      let query: any = {};
+      if (search) {
+        query.name = { $regex: search, $options: "i" };
+      }
+      const admins = await AdminModel.find(query)
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await AdminModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: admins,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
       await logError(error, req, "AdminRepository-getAdmins");
       throw error;
@@ -58,7 +84,10 @@ class AdminRepository {
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async createAdmin(
+    req: Request,
+    adminData: ICreateAdmin
+  ): Promise<IAdmin> {
     try {
       const newAdmin = await AdminModel.create(adminData);
       return newAdmin.toObject();
@@ -68,7 +97,11 @@ class AdminRepository {
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async updateAdmin(
+    req: Request,
+    id: string,
+    adminData: Partial<IUpdateAdmin>
+  ): Promise<IAdmin> {
     try {
       const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
         new: true,
@@ -85,7 +118,11 @@ class AdminRepository {
 
   public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+      const deletedAdmin = await AdminModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      );
       if (!deletedAdmin) {
         throw new Error("Failed to delete admin");
       }
@@ -105,6 +142,8 @@ cat <<EOT > src/services/admin.ts
 import { Request, Response } from "express";
 import AdminRepository from "../database/repositories/admin";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
 class AdminService {
   private adminRepository: AdminRepository;
@@ -115,7 +154,13 @@ class AdminService {
 
   public async getAdmins(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const admins = await this.adminRepository.getAdmins(
+        req,
+        pagination,
+        search
+      );
       res.sendArrayFormatted(admins, "Admins retrieved successfully");
     } catch (error) {
       await logError(error, req, "AdminService-getAdmins");
@@ -149,7 +194,11 @@ class AdminService {
     try {
       const { id } = req.params;
       const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
+      const updatedAdmin = await this.adminRepository.updateAdmin(
+        req,
+        id,
+        adminData
+      );
       res.sendFormatted(updatedAdmin, "Admin updated successfully");
     } catch (error) {
       await logError(error, req, "AdminService-updateAdmin");

@@ -1,329 +1,159 @@
 #!/bin/bash
 
-# Create model
-cat <<EOT > src/database/models/admin.ts
-import mongoose from "mongoose";
+# Define base paths
+MODEL_DIR="src/models"
+REPO_DIR="src/repositories"
+SERVICE_DIR="src/services"
+MIDDLEWARE_DIR="src/middleware"
+INTERFACE_DIR="src/interfaces"
+ROUTE_DIR="src/routes"
 
-interface IAdmin extends mongoose.Document {
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
-}
+# Location Model
+echo "Creating Location model..."
+cat <<EOT > $MODEL_DIR/location.ts
+import mongoose from 'mongoose';
 
-const AdminSchema = new mongoose.Schema(
-  {
-    email: { type: String, required: true, unique: true },
-    isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
+const locationSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    password: { type: String, required: true }
-  },
-  { timestamps: true }
-);
+    description: { type: String },
+    latitude: { type: String },
+    longitude: { type: String },
+    map: { type: String },
+    address: { type: String, required: true },
+    isActive: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false }
+});
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export default mongoose.model('Location', locationSchema);
 EOT
 
-# Create repository
-cat <<EOT > src/database/repositories/admin.ts
-import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
-import { logError } from "../../utils/errorLogger";
+# Location Repository
+echo "Creating Location repository..."
+cat <<EOT > $REPO_DIR/locationRepository.ts
+import Location from '../models/location';
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
-    try {
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
+class LocationRepository {
+    async findAll() {
+        return Location.find({ isDeleted: false });
     }
-  }
 
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
-      }
-      return admin;
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
-      throw error;
+    async findById(id) {
+        return Location.findById(id);
     }
-  }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
-    try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
-      throw error;
+    async create(data) {
+        const location = new Location(data);
+        return location.save();
     }
-  }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
-    try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
-        new: true,
-      });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
-      }
-      return updatedAdmin.toObject();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
-      throw error;
+    async update(id, data) {
+        return Location.findByIdAndUpdate(id, data, { new: true });
     }
-  }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
-      }
-      return deletedAdmin.toObject();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
-      throw error;
+    async delete(id) {
+        return Location.findByIdAndDelete(id);
     }
-  }
 }
 
-export default AdminRepository;
+export default new LocationRepository();
 EOT
 
-# Create service
-cat <<EOT > src/services/admin.ts
-import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
-import { logError } from "../utils/errorLogger";
+# Location Service
+echo "Creating Location service..."
+cat <<EOT > $SERVICE_DIR/locationService.ts
+import locationRepository from '../repositories/locationRepository';
 
-class AdminService {
-  private adminRepository: AdminRepository;
-
-  constructor() {
-    this.adminRepository = new AdminRepository();
-  }
-
-  public async getAdmins(req: Request, res: Response) {
-    try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+class LocationService {
+    getAll() {
+        return locationRepository.findAll();
     }
-  }
 
-  public async getAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+    getOne(id) {
+        return locationRepository.findById(id);
     }
-  }
 
-  public async createAdmin(req: Request, res: Response) {
-    try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
-    } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+    create(data) {
+        return locationRepository.create(data);
     }
-  }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
+    update(id, data) {
+        return locationRepository.update(id, data);
     }
-  }
 
-  public async deleteAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+    delete(id) {
+        return locationRepository.delete(id);
     }
-  }
 }
 
-export default AdminService;
+export default new LocationService();
 EOT
 
-# Create middleware
-cat <<EOT > src/middlewares/admin.ts
-import { Request, Response, NextFunction } from "express";
-import { logError } from "../utils/errorLogger";
+# Location Middleware
+echo "Creating Location middleware..."
+cat <<EOT > $MIDDLEWARE_DIR/locationMiddleware.ts
+import { Request, Response, NextFunction } from 'express';
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
-        res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
-          400
-        );
+export function validateLocation(req: Request, res: Response, next: NextFunction) {
+    const { name, address } = req.body;
+    if (!name || !address) {
+        res.status(400).json({ message: 'Validation Error: Missing required fields: name or address.' });
         return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
-      res.sendError(error, "An unexpected error occurred", 500);
     }
-  }
-
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
-        res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-}
-
-export default AdminMiddleware;
-EOT
-
-# Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
-  _id: string;
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
-}
-
-export interface ICreateAdmin {
-  email: string;
-  isActive?: boolean; 
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name: string;
-  password: string;
-}
-
-export interface IUpdateAdmin {
-  email?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name?: string;
-  password?: string;
+    next();
 }
 EOT
 
-# Create routes
-cat <<EOT > src/routes/adminRoute.ts
-import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+# Location Routes
+echo "Creating Location routes..."
+cat <<EOT > $ROUTE_DIR/locationRoutes.ts
+import express from 'express';
+import locationService from '../services/locationService';
+import { validateLocation } from '../middleware/locationMiddleware';
 
-const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const router = express.Router();
 
-router.get(
-  "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
+router.get('/', async (req, res) => {
+    const locations = await locationService.getAll();
+    res.json(locations);
+});
 
+router.get('/:id', async (req, res) => {
+    const location = await locationService.getOne(req.params.id);
+    res.json(location);
+});
 
-);
-router.get(
-  "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
-);
-router.post(
-  "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
-);
-router.put(
-  "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
-);
-router.delete(
-  "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
-);
+router.post('/', validateLocation, async (req, res) => {
+    const location = await locationService.create(req.body);
+    res.status(201).json(location);
+});
+
+router.put('/:id', validateLocation, async (req, res) => {
+    const location = await locationService.update(req.params.id, req.body);
+    res.json(location);
+});
+
+router.delete('/:id', async (req, res) => {
+    await locationService.delete(req.params.id);
+    res.status(204).end();
+});
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+# Location Interface (TypeScript)
+echo "Creating TypeScript interface for Location..."
+cat <<EOT > $INTERFACE_DIR/locationInterface.ts
+export interface ILocation {
+    _id?: string;
+    name: string;
+    description?: string;
+    latitude?: string;
+    longitude?: string;
+    map?: string;
+    address: string;
+    isActive: boolean;
+    isDeleted: boolean;
+}
+EOT
+
+echo "All Location components have been generated successfully."

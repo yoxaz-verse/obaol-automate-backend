@@ -1,220 +1,308 @@
 #!/bin/bash
 
 # Create model
-cat <<EOT > src/database/models/admin.ts
+cat <<EOT > src/database/models/timesheet.ts
 import mongoose from "mongoose";
+import { ActivityModel } from "./activity";
+import { WorkerModel } from "./worker";
+import { ManagerModel } from "./manager";
+import { StatusHistoryModel } from "./statusHistory";
 
-interface IAdmin extends mongoose.Document {
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
+interface ITimesheet extends mongoose.Document {
+  activity: mongoose.Schema.Types.ObjectId;
+  worker: mongoose.Schema.Types.ObjectId;
+  manager: mongoose.Schema.Types.ObjectId;
+  startTime: Date;
+  endTime: Date;
+  hoursSpent: number;
+  date: Date;
+  file: string;
+  isPending: boolean;
+  isRejected: boolean;
+  isAccepted: boolean;
+  isResubmitted: boolean;
+  rejectionReason: string[];
+  statusHistory: mongoose.Schema.Types.ObjectId[];
 }
 
-const AdminSchema = new mongoose.Schema(
+const TimesheetSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
-    isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
-    name: { type: String, required: true },
-    password: { type: String, required: true }
+    activity: { type: mongoose.Schema.Types.ObjectId, ref: "Activity", required: true },
+    worker: { type: mongoose.Schema.Types.ObjectId, ref: "Worker", required: true },
+    manager: { type: mongoose.Schema.Types.ObjectId, ref: "Manager", required: true },
+    startTime: { type: Date, required: true },
+    endTime: { type: Date, required: true },
+    hoursSpent: { type: Number, required: true },
+    date: { type: Date, required: true },
+    file: { type: String, required: true },
+    isPending: { type: Boolean, default: true },
+    isRejected: { type: Boolean, default: false },
+    isAccepted: { type: Boolean, default: false },
+    isResubmitted: { type: Boolean, default: false },
+    rejectionReason: { type: [String] },
+    statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "StatusHistory", required: true }]
   },
   { timestamps: true }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const TimesheetModel = mongoose.model<ITimesheet>("Timesheet", TimesheetSchema);
 EOT
 
 # Create repository
-cat <<EOT > src/database/repositories/admin.ts
+cat <<EOT > src/database/repositories/timesheet.ts
 import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
+import { TimesheetModel } from "../models/timesheet";
+import { ITimesheet, ICreateTimesheet, IUpdateTimesheet } from "../../interfaces/timesheet";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
+class TimesheetRepository {
+  public async getTimesheets(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: ITimesheet[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
-    }
-  }
-
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
+      let query: any = {};
+      if (search) {
+        query.file = { $regex: search, $options: "i" };
       }
-      return admin;
+      const timesheets = await TimesheetModel.find(query)
+        .populate("activity worker manager statusHistory")
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await TimesheetModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: timesheets,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
+      await logError(error, req, "TimesheetRepository-getTimesheets");
       throw error;
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async getTimesheetById(req: Request, id: string): Promise<ITimesheet> {
     try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
+      const timesheet = await TimesheetModel.findById(id)
+        .populate("activity worker manager statusHistory")
+        .lean();
+      if (!timesheet) {
+        throw new Error("Timesheet not found");
+      }
+      return timesheet;
     } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
+      await logError(error, req, "TimesheetRepository-getTimesheetById");
       throw error;
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async createTimesheet(
+    req: Request,
+    timesheetData: ICreateTimesheet
+  ): Promise<ITimesheet> {
     try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
+      const newTimesheet = await TimesheetModel.create(timesheetData);
+      return newTimesheet.toObject();
+    } catch (error) {
+      await logError(error, req, "TimesheetRepository-createTimesheet");
+      throw error;
+    }
+  }
+
+  public async updateTimesheet(
+    req: Request,
+    id: string,
+    timesheetData: Partial<IUpdateTimesheet>
+  ): Promise<ITimesheet> {
+    try {
+      const updatedTimesheet = await TimesheetModel.findByIdAndUpdate(id, timesheetData, {
         new: true,
-      });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
+      }).populate("activity worker manager statusHistory");
+      if (!updatedTimesheet) {
+        throw new Error("Failed to update timesheet");
       }
-      return updatedAdmin.toObject();
+      return updatedTimesheet.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
+      await logError(error, req, "TimesheetRepository-updateTimesheet");
       throw error;
     }
   }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
+  public async deleteTimesheet(req: Request, id: string): Promise<ITimesheet> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
+      const deletedTimesheet = await TimesheetModel.findByIdAndDelete(id).populate(
+        "activity worker manager statusHistory"
+      );
+      if (!deletedTimesheet) {
+        throw new Error("Failed to delete timesheet");
       }
-      return deletedAdmin.toObject();
+      return deletedTimesheet.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
+      await logError(error, req, "TimesheetRepository-deleteTimesheet");
       throw error;
     }
   }
 }
 
-export default AdminRepository;
+export default TimesheetRepository;
 EOT
 
 # Create service
-cat <<EOT > src/services/admin.ts
+cat <<EOT > src/services/timesheet.ts
 import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
+import TimesheetRepository from "../database/repositories/timesheet";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
-class AdminService {
-  private adminRepository: AdminRepository;
+class TimesheetService {
+  private timesheetRepository: TimesheetRepository;
 
   constructor() {
-    this.adminRepository = new AdminRepository();
+    this.timesheetRepository = new TimesheetRepository();
   }
 
-  public async getAdmins(req: Request, res: Response) {
+  public async getTimesheets(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const timesheets = await this.timesheetRepository.getTimesheets(
+        req,
+        pagination,
+        search
+      );
+      res.sendArrayFormatted(timesheets, "Timesheets retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+      await logError(error, req, "TimesheetService-getTimesheets");
+      res.sendError(error, "Timesheets retrieval failed");
     }
   }
 
-  public async getAdmin(req: Request, res: Response) {
+  public async getTimesheet(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      const timesheet = await this.timesheetRepository.getTimesheetById(req, id);
+      res.sendFormatted(timesheet, "Timesheet retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+      await logError(error, req, "TimesheetService-getTimesheet");
+      res.sendError(error, "Timesheet retrieval failed");
     }
   }
 
-  public async createAdmin(req: Request, res: Response) {
+  public async createTimesheet(req: Request, res: Response) {
     try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
+      const timesheetData = req.body;
+      const newTimesheet = await this.timesheetRepository.createTimesheet(req, timesheetData);
+      res.sendFormatted(newTimesheet, "Timesheet created successfully", 201);
     } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+      await logError(error, req, "TimesheetService-createTimesheet");
+      res.sendError(error, "Timesheet creation failed");
     }
   }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response) {
+  public async updateTimesheet(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
+      const timesheetData = req.body;
+      const updatedTimesheet = await this.timesheetRepository.updateTimesheet(
+        req,
+        id,
+        timesheetData
+      );
+      res.sendFormatted(updatedTimesheet, "Timesheet updated successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+      await logError(error, req, "TimesheetService-updateTimesheet");
+      res.sendError(error, "Timesheet update failed");
+    }
+  }
+
+  public async deleteTimesheet(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedTimesheet = await this.timesheetRepository.deleteTimesheet(req, id);
+      res.sendFormatted(deletedTimesheet, "Timesheet deleted successfully");
+    } catch (error) {
+      await logError(error, req, "TimesheetService-deleteTimesheet");
+      res.sendError(error, "Timesheet deletion failed");
     }
   }
 }
 
-export default AdminService;
+export default TimesheetService;
 EOT
 
 # Create middleware
-cat <<EOT > src/middlewares/admin.ts
+cat <<EOT > src/middlewares/timesheet.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class TimesheetMiddleware {
+  public async createTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const {
+        activity,
+        worker,
+        manager,
+        startTime,
+        endTime,
+        hoursSpent,
+        date,
+        file,
+      } = req.body;
+      if (!activity || !worker || !manager || !startTime || !endTime || !hoursSpent || !date || !file) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
+          "Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-TimesheetCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const {
+        activity,
+        worker,
+        manager,
+        startTime,
+        endTime,
+        hoursSpent,
+        date,
+        file,
+      } = req.body;
+      if (!activity || !worker || !manager || !startTime || !endTime || !hoursSpent || !date || !file) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
+          "Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-TimesheetUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -227,12 +315,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
+      await logError(error, req, "Middleware-TimesheetDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async getTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -245,85 +333,112 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-TimesheetGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
 
-export default AdminMiddleware;
+export default TimesheetMiddleware;
 EOT
 
 # Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
+cat <<EOT > src/interfaces/timesheet.ts
+import { IActivity } from "./activity";
+import { IWorker } from "./worker";
+import { IManager } from "./manager";
+import { IStatusHistory } from "./statusHistory";
+
+export interface ITimesheet {
   _id: string;
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
+  activity: IActivity;
+  worker: IWorker;
+  manager: IManager;
+  startTime: Date;
+  endTime: Date;
+  hoursSpent: number;
+  date: Date;
+  file: string;
+  isPending: boolean;
+  isRejected: boolean;
+  isAccepted: boolean;
+  isResubmitted: boolean;
+  rejectionReason: string[];
+  statusHistory: IStatusHistory[];
 }
 
-export interface ICreateAdmin {
-  email: string;
-  isActive?: boolean; 
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name: string;
-  password: string;
+export interface ICreateTimesheet {
+  activity: string;
+  worker: string;
+  manager: string;
+  startTime: Date;
+  endTime: Date;
+  hoursSpent: number;
+  date: Date;
+  file: string;
+  isPending?: boolean;
+  isRejected?: boolean;
+  isAccepted?: boolean;
+  isResubmitted?: boolean;
+  rejectionReason?: string[];
+  statusHistory: string[];
 }
 
-export interface IUpdateAdmin {
-  email?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name?: string;
-  password?: string;
+export interface IUpdateTimesheet {
+  activity?: string;
+  worker?: string;
+  manager?: string;
+  startTime?: Date;
+  endTime?: Date;
+  hoursSpent?: number;
+  date?: Date;
+  file?: string;
+  isPending?: boolean;
+  isRejected?: boolean;
+  isAccepted?: boolean;
+  isResubmitted?: boolean;
+  rejectionReason?: string[];
+  statusHistory?: string[];
 }
 EOT
 
 # Create routes
-cat <<EOT > src/routes/adminRoute.ts
+cat <<EOT > src/routes/timesheetRoute.ts
 import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+import TimesheetService from "../services/timesheet";
+import TimesheetMiddleware from "../middlewares/timesheet";
 
 const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const timesheetService = new TimesheetService();
+const timesheetMiddleware = new TimesheetMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-
-
+  timesheetMiddleware.getTimesheet.bind(timesheetMiddleware),
+  timesheetService.getTimesheets.bind(timesheetService)
 );
 router.get(
   "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
+  timesheetMiddleware.getTimesheet.bind(timesheetMiddleware),
+  timesheetService.getTimesheet.bind(timesheetService)
 );
 router.post(
   "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
+  timesheetMiddleware.createTimesheet.bind(timesheetMiddleware),
+  timesheetService.createTimesheet.bind(timesheetService)
 );
 router.put(
   "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
+  timesheetMiddleware.updateTimesheet.bind(timesheetMiddleware),
+  timesheetService.updateTimesheet.bind(timesheetService)
 );
 router.delete(
   "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
+  timesheetMiddleware.deleteTimesheet.bind(timesheetMiddleware),
+  timesheetService.deleteTimesheet.bind(timesheetService)
 );
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+echo "Timesheet module generated successfully."

@@ -1,220 +1,289 @@
 #!/bin/bash
 
 # Create model
-cat <<EOT > src/database/models/admin.ts
+cat <<EOT > src/database/models/project.ts
 import mongoose from "mongoose";
+import { AdminModel } from "./admin";
+import { CustomerModel } from "./customer";
+import { ManagerModel } from "./manager";
+import { StatusModel } from "./status";
+import { LocationModel } from "./location";
 
-interface IAdmin extends mongoose.Document {
-  email: string;
+interface IProject extends mongoose.Document {
+  admin: mongoose.Schema.Types.ObjectId;
+  customer: mongoose.Schema.Types.ObjectId;
+  customId: string;
+  description: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
+  manager: mongoose.Schema.Types.ObjectId;
+  previoudCustomId?: string;
+  statusHistory: mongoose.Schema.Types.ObjectId[];
+  title: string;
+  status: mongoose.Schema.Types.ObjectId;
+  location: mongoose.Schema.Types.ObjectId;
 }
 
-const AdminSchema = new mongoose.Schema(
+const ProjectSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
+    admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true },
+    customId: { type: String, required: true, unique: true },
+    description: { type: String, required: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
-    name: { type: String, required: true },
-    password: { type: String, required: true }
+    manager: { type: mongoose.Schema.Types.ObjectId, ref: "Manager", required: true },
+    previoudCustomId: { type: String },
+    statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "StatusHistory", required: true }],
+    title: { type: String, required: true },
+    status: { type: mongoose.Schema.Types.ObjectId, ref: "Status", required: true },
+    location: { type: mongoose.Schema.Types.ObjectId, ref: "Location", required: true }
   },
   { timestamps: true }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const ProjectModel = mongoose.model<IProject>("Project", ProjectSchema);
 EOT
 
 # Create repository
-cat <<EOT > src/database/repositories/admin.ts
+cat <<EOT > src/database/repositories/project.ts
 import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
+import { ProjectModel } from "../models/project";
+import { IProject, ICreateProject, IUpdateProject } from "../../interfaces/project";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
+class ProjectRepository {
+  public async getProjects(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: IProject[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
-    }
-  }
-
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
+      let query: any = {};
+      if (search) {
+        query.title = { $regex: search, $options: "i" };
       }
-      return admin;
+      const projects = await ProjectModel.find(query)
+        .populate("admin customer manager status location")
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await ProjectModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: projects,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
+      await logError(error, req, "ProjectRepository-getProjects");
       throw error;
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async getProjectById(req: Request, id: string): Promise<IProject> {
     try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
+      const project = await ProjectModel.findById(id)
+        .populate("admin customer manager status location")
+        .lean();
+      if (!project || project.isDeleted) {
+        throw new Error("Project not found");
+      }
+      return project;
     } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
+      await logError(error, req, "ProjectRepository-getProjectById");
       throw error;
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async createProject(
+    req: Request,
+    projectData: ICreateProject
+  ): Promise<IProject> {
     try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
+      const newProject = await ProjectModel.create(projectData);
+      return newProject.toObject();
+    } catch (error) {
+      await logError(error, req, "ProjectRepository-createProject");
+      throw error;
+    }
+  }
+
+  public async updateProject(
+    req: Request,
+    id: string,
+    projectData: Partial<IUpdateProject>
+  ): Promise<IProject> {
+    try {
+      const updatedProject = await ProjectModel.findByIdAndUpdate(id, projectData, {
         new: true,
-      });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
+      }).populate("admin customer manager status location");
+      if (!updatedProject || updatedProject.isDeleted) {
+        throw new Error("Failed to update project");
       }
-      return updatedAdmin.toObject();
+      return updatedProject.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
+      await logError(error, req, "ProjectRepository-updateProject");
       throw error;
     }
   }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
+  public async deleteProject(req: Request, id: string): Promise<IProject> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
+      const deletedProject = await ProjectModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      ).populate("admin customer manager status location");
+      if (!deletedProject) {
+        throw new Error("Failed to delete project");
       }
-      return deletedAdmin.toObject();
+      return deletedProject.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
+      await logError(error, req, "ProjectRepository-deleteProject");
       throw error;
     }
   }
 }
 
-export default AdminRepository;
+export default ProjectRepository;
 EOT
 
 # Create service
-cat <<EOT > src/services/admin.ts
+cat <<EOT > src/services/project.ts
 import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
+import ProjectRepository from "../database/repositories/project";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
-class AdminService {
-  private adminRepository: AdminRepository;
+class ProjectService {
+  private projectRepository: ProjectRepository;
 
   constructor() {
-    this.adminRepository = new AdminRepository();
+    this.projectRepository = new ProjectRepository();
   }
 
-  public async getAdmins(req: Request, res: Response) {
+  public async getProjects(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const projects = await this.projectRepository.getProjects(
+        req,
+        pagination,
+        search
+      );
+      res.sendArrayFormatted(projects, "Projects retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+      await logError(error, req, "ProjectService-getProjects");
+      res.sendError(error, "Projects retrieval failed");
     }
   }
 
-  public async getAdmin(req: Request, res: Response) {
+  public async getProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      const project = await this.projectRepository.getProjectById(req, id);
+      res.sendFormatted(project, "Project retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+      await logError(error, req, "ProjectService-getProject");
+      res.sendError(error, "Project retrieval failed");
     }
   }
 
-  public async createAdmin(req: Request, res: Response) {
+  public async createProject(req: Request, res: Response) {
     try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
+      const projectData = req.body;
+      const newProject = await this.projectRepository.createProject(req, projectData);
+      res.sendFormatted(newProject, "Project created successfully", 201);
     } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+      await logError(error, req, "ProjectService-createProject");
+      res.sendError(error, "Project creation failed");
     }
   }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response) {
+  public async updateProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
+      const projectData = req.body;
+      const updatedProject = await this.projectRepository.updateProject(
+        req,
+        id,
+        projectData
+      );
+      res.sendFormatted(updatedProject, "Project updated successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+      await logError(error, req, "ProjectService-updateProject");
+      res.sendError(error, "Project update failed");
+    }
+  }
+
+  public async deleteProject(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedProject = await this.projectRepository.deleteProject(req, id);
+      res.sendFormatted(deletedProject, "Project deleted successfully");
+    } catch (error) {
+      await logError(error, req, "ProjectService-deleteProject");
+      res.sendError(error, "Project deletion failed");
     }
   }
 }
 
-export default AdminService;
+export default ProjectService;
 EOT
 
 # Create middleware
-cat <<EOT > src/middlewares/admin.ts
+cat <<EOT > src/middlewares/project.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class ProjectMiddleware {
+  public async createProject(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { admin, customer, customId, description, manager, status, title, location } = req.body;
+      if (!admin || !customer || !customId || !description || !manager || !status || !title || !location) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
+          "Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-ProjectCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateProject(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { admin, customer, customId, description, manager, status, title, location } = req.body;
+      if (!admin || !customer || !customId || !description || !manager || !status || !title || !location) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
+          "Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-ProjectUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteProject(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -227,12 +296,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
+      await logError(error, req, "Middleware-ProjectDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async getProject(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -245,85 +314,107 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-ProjectGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
 
-export default AdminMiddleware;
+export default ProjectMiddleware;
 EOT
 
 # Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
+cat <<EOT > src/interfaces/project.ts
+import { IAdmin } from "./admin";
+import { ICustomer } from "./customer";
+import { IManager } from "./manager";
+import { IStatus } from "./status";
+import { ILocation } from "./location";
+
+export interface IProject {
   _id: string;
-  email: string;
+  admin: IAdmin;
+  customer: ICustomer;
+  customId: string;
+  description: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
+  manager: IManager;
+  previoudCustomId?: string;
+  statusHistory: mongoose.Schema.Types.ObjectId[];
+  title: string;
+  status: IStatus;
+  location: ILocation;
 }
 
-export interface ICreateAdmin {
-  email: string;
+export interface ICreateProject {
+  admin: string;
+  customer: string;
+  customId: string;
+  description: string;
   isActive?: boolean; 
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name: string;
-  password: string;
+  manager: string;
+  previoudCustomId?: string;
+  statusHistory: string[];
+  title: string;
+  status: string;
+  location: string;
 }
 
-export interface IUpdateAdmin {
-  email?: string;
+export interface IUpdateProject {
+  admin?: string;
+  customer?: string;
+  customId?: string;
+  description?: string;
   isActive?: boolean;
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name?: string;
-  password?: string;
+  manager?: string;
+  previoudCustomId?: string;
+  statusHistory?: string[];
+  title?: string;
+  status?: string;
+  location?: string;
 }
 EOT
 
 # Create routes
-cat <<EOT > src/routes/adminRoute.ts
+cat <<EOT > src/routes/projectRoute.ts
 import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+import ProjectService from "../services/project";
+import ProjectMiddleware from "../middlewares/project";
 
 const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const projectService = new ProjectService();
+const projectMiddleware = new ProjectMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-
-
+  projectMiddleware.getProject.bind(projectMiddleware),
+  projectService.getProjects.bind(projectService)
 );
 router.get(
   "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
+  projectMiddleware.getProject.bind(projectMiddleware),
+  projectService.getProject.bind(projectService)
 );
 router.post(
   "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
+  projectMiddleware.createProject.bind(projectMiddleware),
+  projectService.createProject.bind(projectService)
 );
 router.put(
   "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
+  projectMiddleware.updateProject.bind(projectMiddleware),
+  projectService.updateProject.bind(projectService)
 );
 router.delete(
   "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
+  projectMiddleware.deleteProject.bind(projectMiddleware),
+  projectService.deleteProject.bind(projectService)
 );
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+echo "Project module generated successfully."

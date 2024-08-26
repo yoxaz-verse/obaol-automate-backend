@@ -1,184 +1,231 @@
 #!/bin/bash
 
 # Create model
-cat <<EOT > src/database/models/admin.ts
+cat <<EOT > src/database/models/customer.ts
 import mongoose from "mongoose";
 
-interface IAdmin extends mongoose.Document {
+interface ICustomer extends mongoose.Document {
   email: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
   name: string;
   password: string;
 }
 
-const AdminSchema = new mongoose.Schema(
+const CustomerSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
     name: { type: String, required: true },
     password: { type: String, required: true }
   },
   { timestamps: true }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const CustomerModel = mongoose.model<ICustomer>("Customer", CustomerSchema);
 EOT
 
 # Create repository
-cat <<EOT > src/database/repositories/admin.ts
+cat <<EOT > src/database/repositories/customer.ts
 import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
+import { CustomerModel } from "../models/customer";
+import { ICustomer, ICreateCustomer, IUpdateCustomer } from "../../interfaces/customer";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
+class CustomerRepository {
+  public async getCustomers(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: ICustomer[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
-    }
-  }
-
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
+      let query: any = {};
+      if (search) {
+        query.name = { $regex: search, $options: "i" };
       }
-      return admin;
+      const customers = await CustomerModel.find(query)
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await CustomerModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: customers,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
+      await logError(error, req, "CustomerRepository-getCustomers");
       throw error;
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async getCustomerById(req: Request, id: string): Promise<ICustomer> {
     try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
+      const customer = await CustomerModel.findById(id).lean();
+      if (!customer || customer.isDeleted) {
+        throw new Error("Customer not found");
+      }
+      return customer;
     } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
+      await logError(error, req, "CustomerRepository-getCustomerById");
       throw error;
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async createCustomer(
+    req: Request,
+    customerData: ICreateCustomer
+  ): Promise<ICustomer> {
     try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
+      const newCustomer = await CustomerModel.create(customerData);
+      return newCustomer.toObject();
+    } catch (error) {
+      await logError(error, req, "CustomerRepository-createCustomer");
+      throw error;
+    }
+  }
+
+  public async updateCustomer(
+    req: Request,
+    id: string,
+    customerData: Partial<IUpdateCustomer>
+  ): Promise<ICustomer> {
+    try {
+      const updatedCustomer = await CustomerModel.findByIdAndUpdate(id, customerData, {
         new: true,
       });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
+      if (!updatedCustomer || updatedCustomer.isDeleted) {
+        throw new Error("Failed to update customer");
       }
-      return updatedAdmin.toObject();
+      return updatedCustomer.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
+      await logError(error, req, "CustomerRepository-updateCustomer");
       throw error;
     }
   }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
+  public async deleteCustomer(req: Request, id: string): Promise<ICustomer> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
+      const deletedCustomer = await CustomerModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      );
+      if (!deletedCustomer) {
+        throw new Error("Failed to delete customer");
       }
-      return deletedAdmin.toObject();
+      return deletedCustomer.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
+      await logError(error, req, "CustomerRepository-deleteCustomer");
       throw error;
     }
   }
 }
 
-export default AdminRepository;
+export default CustomerRepository;
 EOT
 
 # Create service
-cat <<EOT > src/services/admin.ts
+cat <<EOT > src/services/customer.ts
 import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
+import CustomerRepository from "../database/repositories/customer";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
-class AdminService {
-  private adminRepository: AdminRepository;
+class CustomerService {
+  private customerRepository: CustomerRepository;
 
   constructor() {
-    this.adminRepository = new AdminRepository();
+    this.customerRepository = new CustomerRepository();
   }
 
-  public async getAdmins(req: Request, res: Response) {
+  public async getCustomers(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const customers = await this.customerRepository.getCustomers(
+        req,
+        pagination,
+        search
+      );
+      res.sendArrayFormatted(customers, "Customers retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+      await logError(error, req, "CustomerService-getCustomers");
+      res.sendError(error, "Customers retrieval failed");
     }
   }
 
-  public async getAdmin(req: Request, res: Response) {
+  public async getCustomer(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      const customer = await this.customerRepository.getCustomerById(req, id);
+      res.sendFormatted(customer, "Customer retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+      await logError(error, req, "CustomerService-getCustomer");
+      res.sendError(error, "Customer retrieval failed");
     }
   }
 
-  public async createAdmin(req: Request, res: Response) {
+  public async createCustomer(req: Request, res: Response) {
     try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
+      const customerData = req.body;
+      const newCustomer = await this.customerRepository.createCustomer(req, customerData);
+      res.sendFormatted(newCustomer, "Customer created successfully", 201);
     } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+      await logError(error, req, "CustomerService-createCustomer");
+      res.sendError(error, "Customer creation failed");
     }
   }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response) {
+  public async updateCustomer(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
+      const customerData = req.body;
+      const updatedCustomer = await this.customerRepository.updateCustomer(
+        req,
+        id,
+        customerData
+      );
+      res.sendFormatted(updatedCustomer, "Customer updated successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+      await logError(error, req, "CustomerService-updateCustomer");
+      res.sendError(error, "Customer update failed");
+    }
+  }
+
+  public async deleteCustomer(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedCustomer = await this.customerRepository.deleteCustomer(req, id);
+      res.sendFormatted(deletedCustomer, "Customer deleted successfully");
+    } catch (error) {
+      await logError(error, req, "CustomerService-deleteCustomer");
+      res.sendError(error, "Customer deletion failed");
     }
   }
 }
 
-export default AdminService;
+export default CustomerService;
 EOT
 
 # Create middleware
-cat <<EOT > src/middlewares/admin.ts
+cat <<EOT > src/middlewares/customer.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class CustomerMiddleware {
+  public async createCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, name, password } = req.body;
       if (!email || !name || !password) {
@@ -191,12 +238,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-CustomerCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, name, password } = req.body;
       if (!email || !name || !password) {
@@ -209,12 +256,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-CustomerUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -227,12 +274,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
+      await logError(error, req, "Middleware-CustomerDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async getCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -245,85 +292,80 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-CustomerGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
 
-export default AdminMiddleware;
+export default CustomerMiddleware;
 EOT
 
 # Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
+cat <<EOT > src/interfaces/customer.ts
+export interface ICustomer {
   _id: string;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
   name: string;
   password: string;
 }
 
-export interface ICreateAdmin {
+export interface ICreateCustomer {
   email: string;
   isActive?: boolean; 
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
   name: string;
   password: string;
 }
 
-export interface IUpdateAdmin {
+export interface IUpdateCustomer {
   email?: string;
   isActive?: boolean;
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
   name?: string;
   password?: string;
 }
 EOT
 
 # Create routes
-cat <<EOT > src/routes/adminRoute.ts
+cat <<EOT > src/routes/customerRoute.ts
 import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+import CustomerService from "../services/customer";
+import CustomerMiddleware from "../middlewares/customer";
 
 const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const customerService = new CustomerService();
+const customerMiddleware = new CustomerMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-
-
+  customerMiddleware.getCustomer.bind(customerMiddleware),
+  customerService.getCustomers.bind(customerService)
 );
 router.get(
   "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
+  customerMiddleware.getCustomer.bind(customerMiddleware),
+  customerService.getCustomer.bind(customerService)
 );
 router.post(
   "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
+  customerMiddleware.createCustomer.bind(customerMiddleware),
+  customerService.createCustomer.bind(customerService)
 );
 router.put(
   "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
+  customerMiddleware.updateCustomer.bind(customerMiddleware),
+  customerService.updateCustomer.bind(customerService)
 );
 router.delete(
   "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
+  customerMiddleware.deleteCustomer.bind(customerMiddleware),
+  customerService.deleteCustomer.bind(customerService)
 );
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+echo "Customer module generated successfully."

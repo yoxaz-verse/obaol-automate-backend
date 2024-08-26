@@ -1,220 +1,287 @@
 #!/bin/bash
 
 # Create model
-cat <<EOT > src/database/models/admin.ts
+cat <<EOT > src/database/models/projectAnalytics.ts
 import mongoose from "mongoose";
+import { ProjectModel } from "./project";
 
-interface IAdmin extends mongoose.Document {
-  email: string;
+interface IProjectAnalytics extends mongoose.Document {
+  project: mongoose.Schema.Types.ObjectId;
+  title: string;
+  customId: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
+  startDate: Date;
+  endDate: Date;
+  forecastDate: Date;
+  progress: number;
+  hoursSpent: number;
+  prevCustomId: string;
+  activityCount: string[];
+  workerCount: number;
 }
 
-const AdminSchema = new mongoose.Schema(
+const ProjectAnalyticsSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
+    project: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
+    title: { type: String, required: true },
+    customId: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
-    name: { type: String, required: true },
-    password: { type: String, required: true }
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    forecastDate: { type: Date, required: true },
+    progress: { type: Number, required: true },
+    hoursSpent: { type: Number, required: true },
+    prevCustomId: { type: String },
+    activityCount: { type: [String], required: true },
+    workerCount: { type: Number, required: true }
   },
   { timestamps: true }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const ProjectAnalyticsModel = mongoose.model<IProjectAnalytics>("ProjectAnalytics", ProjectAnalyticsSchema);
 EOT
 
 # Create repository
-cat <<EOT > src/database/repositories/admin.ts
+cat <<EOT > src/database/repositories/projectAnalytics.ts
 import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
+import { ProjectAnalyticsModel } from "../models/projectAnalytics";
+import { IProjectAnalytics, ICreateProjectAnalytics, IUpdateProjectAnalytics } from "../../interfaces/projectAnalytics";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
+class ProjectAnalyticsRepository {
+  public async getProjectAnalytics(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: IProjectAnalytics[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
-    }
-  }
-
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
+      let query: any = {};
+      if (search) {
+        query.title = { $regex: search, $options: "i" };
       }
-      return admin;
+      const projectAnalytics = await ProjectAnalyticsModel.find(query)
+        .populate("project")
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await ProjectAnalyticsModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: projectAnalytics,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
+      await logError(error, req, "ProjectAnalyticsRepository-getProjectAnalytics");
       throw error;
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async getProjectAnalyticsById(req: Request, id: string): Promise<IProjectAnalytics> {
     try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
+      const projectAnalytics = await ProjectAnalyticsModel.findById(id)
+        .populate("project")
+        .lean();
+      if (!projectAnalytics || projectAnalytics.isDeleted) {
+        throw new Error("Project Analytics not found");
+      }
+      return projectAnalytics;
     } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
+      await logError(error, req, "ProjectAnalyticsRepository-getProjectAnalyticsById");
       throw error;
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async createProjectAnalytics(
+    req: Request,
+    projectAnalyticsData: ICreateProjectAnalytics
+  ): Promise<IProjectAnalytics> {
     try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
+      const newProjectAnalytics = await ProjectAnalyticsModel.create(projectAnalyticsData);
+      return newProjectAnalytics.toObject();
+    } catch (error) {
+      await logError(error, req, "ProjectAnalyticsRepository-createProjectAnalytics");
+      throw error;
+    }
+  }
+
+  public async updateProjectAnalytics(
+    req: Request,
+    id: string,
+    projectAnalyticsData: Partial<IUpdateProjectAnalytics>
+  ): Promise<IProjectAnalytics> {
+    try {
+      const updatedProjectAnalytics = await ProjectAnalyticsModel.findByIdAndUpdate(id, projectAnalyticsData, {
         new: true,
-      });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
+      }).populate("project");
+      if (!updatedProjectAnalytics || updatedProjectAnalytics.isDeleted) {
+        throw new Error("Failed to update project analytics");
       }
-      return updatedAdmin.toObject();
+      return updatedProjectAnalytics.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
+      await logError(error, req, "ProjectAnalyticsRepository-updateProjectAnalytics");
       throw error;
     }
   }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
+  public async deleteProjectAnalytics(req: Request, id: string): Promise<IProjectAnalytics> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
+      const deletedProjectAnalytics = await ProjectAnalyticsModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      ).populate("project");
+      if (!deletedProjectAnalytics) {
+        throw new Error("Failed to delete project analytics");
       }
-      return deletedAdmin.toObject();
+      return deletedProjectAnalytics.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
+      await logError(error, req, "ProjectAnalyticsRepository-deleteProjectAnalytics");
       throw error;
     }
   }
 }
 
-export default AdminRepository;
+export default ProjectAnalyticsRepository;
 EOT
 
 # Create service
-cat <<EOT > src/services/admin.ts
+cat <<EOT > src/services/projectAnalytics.ts
 import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
+import ProjectAnalyticsRepository from "../database/repositories/projectAnalytics";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
-class AdminService {
-  private adminRepository: AdminRepository;
+class ProjectAnalyticsService {
+  private projectAnalyticsRepository: ProjectAnalyticsRepository;
 
   constructor() {
-    this.adminRepository = new AdminRepository();
+    this.projectAnalyticsRepository = new ProjectAnalyticsRepository();
   }
 
-  public async getAdmins(req: Request, res: Response) {
+  public async getProjectAnalytics(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const projectAnalytics = await this.projectAnalyticsRepository.getProjectAnalytics(
+        req,
+        pagination,
+        search
+      );
+      res.sendArrayFormatted(projectAnalytics, "Project Analytics retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+      await logError(error, req, "ProjectAnalyticsService-getProjectAnalytics");
+      res.sendError(error, "Project Analytics retrieval failed");
     }
   }
 
-  public async getAdmin(req: Request, res: Response) {
+  public async getProjectAnalyticsById(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      const projectAnalytics = await this.projectAnalyticsRepository.getProjectAnalyticsById(req, id);
+      res.sendFormatted(projectAnalytics, "Project Analytics retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+      await logError(error, req, "ProjectAnalyticsService-getProjectAnalyticsById");
+      res.sendError(error, "Project Analytics retrieval failed");
     }
   }
 
-  public async createAdmin(req: Request, res: Response) {
+  public async createProjectAnalytics(req: Request, res: Response) {
     try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
+      const projectAnalyticsData = req.body;
+      const newProjectAnalytics = await this.projectAnalyticsRepository.createProjectAnalytics(req, projectAnalyticsData);
+      res.sendFormatted(newProjectAnalytics, "Project Analytics created successfully", 201);
     } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+      await logError(error, req, "ProjectAnalyticsService-createProjectAnalytics");
+      res.sendError(error, "Project Analytics creation failed");
     }
   }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response) {
+  public async updateProjectAnalytics(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
+      const projectAnalyticsData = req.body;
+      const updatedProjectAnalytics = await this.projectAnalyticsRepository.updateProjectAnalytics(
+        req,
+        id,
+        projectAnalyticsData
+      );
+      res.sendFormatted(updatedProjectAnalytics, "Project Analytics updated successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+      await logError(error, req, "ProjectAnalyticsService-updateProjectAnalytics");
+      res.sendError(error, "Project Analytics update failed");
+    }
+  }
+
+  public async deleteProjectAnalytics(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedProjectAnalytics = await this.projectAnalyticsRepository.deleteProjectAnalytics(req, id);
+      res.sendFormatted(deletedProjectAnalytics, "Project Analytics deleted successfully");
+    } catch (error) {
+      await logError(error, req, "ProjectAnalyticsService-deleteProjectAnalytics");
+      res.sendError(error, "Project Analytics deletion failed");
     }
   }
 }
 
-export default AdminService;
+export default ProjectAnalyticsService;
 EOT
 
 # Create middleware
-cat <<EOT > src/middlewares/admin.ts
+cat <<EOT > src/middlewares/projectAnalytics.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class ProjectAnalyticsMiddleware {
+  public async createProjectAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { project, title, customId, startDate, endDate, forecastDate, progress, hoursSpent, activityCount, workerCount } = req.body;
+      if (!project || !title || !customId || !startDate || !endDate || !forecastDate || progress === undefined || !hoursSpent || !activityCount || workerCount === undefined) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Project, Title, CustomId, StartDate, EndDate, ForecastDate, Progress, HoursSpent, ActivityCount, and WorkerCount must be provided",
+          "Project, Title, CustomId, StartDate, EndDate, ForecastDate, Progress, HoursSpent, ActivityCount, and WorkerCount must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-ProjectAnalyticsCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateProjectAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { project, title, customId, startDate, endDate, forecastDate, progress, hoursSpent, activityCount, workerCount } = req.body;
+      if (!project || !title || !customId || !startDate || !endDate || !forecastDate || progress === undefined || !hoursSpent || !activityCount || workerCount === undefined) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Project, Title, CustomId, StartDate, EndDate, ForecastDate, Progress, HoursSpent, ActivityCount, and WorkerCount must be provided",
+          "Project, Title, CustomId, StartDate, EndDate, ForecastDate, Progress, HoursSpent, ActivityCount, and WorkerCount must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-ProjectAnalyticsUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteProjectAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -227,12 +294,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
+      await logError(error, req, "Middleware-ProjectAnalyticsDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async getProjectAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -245,85 +312,106 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-ProjectAnalyticsGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
 
-export default AdminMiddleware;
+export default ProjectAnalyticsMiddleware;
 EOT
 
 # Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
+cat <<EOT > src/interfaces/projectAnalytics.ts
+import { IProject } from "./project";
+
+export interface IProjectAnalytics {
   _id: string;
-  email: string;
+  project: IProject;
+  title: string;
+  customId: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
+  startDate: Date;
+  endDate: Date;
+  forecastDate: Date;
+  progress: number;
+  hoursSpent: number;
+  prevCustomId: string;
+  activityCount: string[];
+  workerCount: number;
 }
 
-export interface ICreateAdmin {
-  email: string;
+export interface ICreateProjectAnalytics {
+  project: string;
+  title: string;
+  customId: string;
   isActive?: boolean; 
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name: string;
-  password: string;
+  startDate: Date;
+  endDate: Date;
+  forecastDate: Date;
+  progress: number;
+  hoursSpent: number;
+  prevCustomId?: string;
+  activityCount: string[];
+  workerCount: number;
 }
 
-export interface IUpdateAdmin {
-  email?: string;
+export interface IUpdateProjectAnalytics {
+  project?: string;
+  title?: string;
+  customId?: string;
   isActive?: boolean;
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name?: string;
-  password?: string;
+  startDate?: Date;
+  endDate?: Date;
+  forecastDate?: Date;
+  progress?: number;
+  hoursSpent?: number;
+  prevCustomId?: string;
+  activityCount?: string[];
+  workerCount?: number;
 }
 EOT
 
 # Create routes
-cat <<EOT > src/routes/adminRoute.ts
+cat <<EOT > src/routes/projectAnalyticsRoute.ts
 import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+import ProjectAnalyticsService from "../services/projectAnalytics";
+import ProjectAnalyticsMiddleware from "../middlewares/projectAnalytics";
 
 const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const projectAnalyticsService = new ProjectAnalyticsService();
+const projectAnalyticsMiddleware = new ProjectAnalyticsMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-
-
+  projectAnalyticsMiddleware.getProjectAnalytics.bind(projectAnalyticsMiddleware),
+  projectAnalyticsService.getProjectAnalytics.bind(projectAnalyticsService)
 );
 router.get(
   "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
+  projectAnalyticsMiddleware.getProjectAnalytics.bind(projectAnalyticsMiddleware),
+  projectAnalyticsService.getProjectAnalyticsById.bind(projectAnalyticsService)
 );
 router.post(
   "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
+  projectAnalyticsMiddleware.createProjectAnalytics.bind(projectAnalyticsMiddleware),
+  projectAnalyticsService.createProjectAnalytics.bind(projectAnalyticsService)
 );
 router.put(
   "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
+  projectAnalyticsMiddleware.updateProjectAnalytics.bind(projectAnalyticsMiddleware),
+  projectAnalyticsService.updateProjectAnalytics.bind(projectAnalyticsService)
 );
 router.delete(
   "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
+  projectAnalyticsMiddleware.deleteProjectAnalytics.bind(projectAnalyticsMiddleware),
+  projectAnalyticsService.deleteProjectAnalytics.bind(projectAnalyticsService)
 );
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+echo "ProjectAnalytics module generated successfully."

@@ -1,220 +1,273 @@
 #!/bin/bash
 
 # Create model
-cat <<EOT > src/database/models/admin.ts
+cat <<EOT > src/database/models/worker.ts
 import mongoose from "mongoose";
+import { ServiceCompanyModel } from "./serviceCompany";
 
-interface IAdmin extends mongoose.Document {
+interface IWorker extends mongoose.Document {
   email: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
+  isService: boolean;
   name: string;
   password: string;
+  serviceCompany?: mongoose.Schema.Types.ObjectId;
 }
 
-const AdminSchema = new mongoose.Schema(
+const WorkerSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
+    isService: { type: Boolean, required: true },
     name: { type: String, required: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    serviceCompany: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceCompany" }
   },
   { timestamps: true }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const WorkerModel = mongoose.model<IWorker>("Worker", WorkerSchema);
 EOT
 
 # Create repository
-cat <<EOT > src/database/repositories/admin.ts
+cat <<EOT > src/database/repositories/worker.ts
 import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
+import { WorkerModel } from "../models/worker";
+import { IWorker, ICreateWorker, IUpdateWorker } from "../../interfaces/worker";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
+class WorkerRepository {
+  public async getWorkers(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: IWorker[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
-    }
-  }
-
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
-    try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
+      let query: any = {};
+      if (search) {
+        query.name = { $regex: search, $options: "i" };
       }
-      return admin;
+      const workers = await WorkerModel.find(query)
+        .populate("serviceCompany")
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await WorkerModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: workers,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
+      await logError(error, req, "WorkerRepository-getWorkers");
       throw error;
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async getWorkerById(req: Request, id: string): Promise<IWorker> {
     try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
+      const worker = await WorkerModel.findById(id).populate("serviceCompany").lean();
+      if (!worker || worker.isDeleted) {
+        throw new Error("Worker not found");
+      }
+      return worker;
     } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
+      await logError(error, req, "WorkerRepository-getWorkerById");
       throw error;
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async createWorker(
+    req: Request,
+    workerData: ICreateWorker
+  ): Promise<IWorker> {
     try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
+      const newWorker = await WorkerModel.create(workerData);
+      return newWorker.toObject();
+    } catch (error) {
+      await logError(error, req, "WorkerRepository-createWorker");
+      throw error;
+    }
+  }
+
+  public async updateWorker(
+    req: Request,
+    id: string,
+    workerData: Partial<IUpdateWorker>
+  ): Promise<IWorker> {
+    try {
+      const updatedWorker = await WorkerModel.findByIdAndUpdate(id, workerData, {
         new: true,
-      });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
+      }).populate("serviceCompany");
+      if (!updatedWorker || updatedWorker.isDeleted) {
+        throw new Error("Failed to update worker");
       }
-      return updatedAdmin.toObject();
+      return updatedWorker.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
+      await logError(error, req, "WorkerRepository-updateWorker");
       throw error;
     }
   }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
+  public async deleteWorker(req: Request, id: string): Promise<IWorker> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
+      const deletedWorker = await WorkerModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      ).populate("serviceCompany");
+      if (!deletedWorker) {
+        throw new Error("Failed to delete worker");
       }
-      return deletedAdmin.toObject();
+      return deletedWorker.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
+      await logError(error, req, "WorkerRepository-deleteWorker");
       throw error;
     }
   }
 }
 
-export default AdminRepository;
+export default WorkerRepository;
 EOT
 
 # Create service
-cat <<EOT > src/services/admin.ts
+cat <<EOT > src/services/worker.ts
 import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
+import WorkerRepository from "../database/repositories/worker";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
-class AdminService {
-  private adminRepository: AdminRepository;
+class WorkerService {
+  private workerRepository: WorkerRepository;
 
   constructor() {
-    this.adminRepository = new AdminRepository();
+    this.workerRepository = new WorkerRepository();
   }
 
-  public async getAdmins(req: Request, res: Response) {
+  public async getWorkers(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const workers = await this.workerRepository.getWorkers(
+        req,
+        pagination,
+        search
+      );
+      res.sendArrayFormatted(workers, "Workers retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+      await logError(error, req, "WorkerService-getWorkers");
+      res.sendError(error, "Workers retrieval failed");
     }
   }
 
-  public async getAdmin(req: Request, res: Response) {
+  public async getWorker(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      const worker = await this.workerRepository.getWorkerById(req, id);
+      res.sendFormatted(worker, "Worker retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+      await logError(error, req, "WorkerService-getWorker");
+      res.sendError(error, "Worker retrieval failed");
     }
   }
 
-  public async createAdmin(req: Request, res: Response) {
+  public async createWorker(req: Request, res: Response) {
     try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
+      const workerData = req.body;
+      const newWorker = await this.workerRepository.createWorker(req, workerData);
+      res.sendFormatted(newWorker, "Worker created successfully", 201);
     } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+      await logError(error, req, "WorkerService-createWorker");
+      res.sendError(error, "Worker creation failed");
     }
   }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response) {
+  public async updateWorker(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
+      const workerData = req.body;
+      const updatedWorker = await this.workerRepository.updateWorker(
+        req,
+        id,
+        workerData
+      );
+      res.sendFormatted(updatedWorker, "Worker updated successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+      await logError(error, req, "WorkerService-updateWorker");
+      res.sendError(error, "Worker update failed");
+    }
+  }
+
+  public async deleteWorker(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedWorker = await this.workerRepository.deleteWorker(req, id);
+      res.sendFormatted(deletedWorker, "Worker deleted successfully");
+    } catch (error) {
+      await logError(error, req, "WorkerService-deleteWorker");
+      res.sendError(error, "Worker deletion failed");
     }
   }
 }
 
-export default AdminService;
+export default WorkerService;
 EOT
 
 # Create middleware
-cat <<EOT > src/middlewares/admin.ts
+cat <<EOT > src/middlewares/worker.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class WorkerMiddleware {
+  public async createWorker(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { email, name, password, isService } = req.body;
+      if (!email || !name || !password || isService === undefined) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Email, Name, Password, and IsService must be provided",
+          "Email, Name, Password, and IsService must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-WorkerCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateWorker(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { email, name, password, isService } = req.body;
+      if (!email || !name || !password || isService === undefined) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Email, Name, Password, and IsService must be provided",
+          "Email, Name, Password, and IsService must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-WorkerUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteWorker(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -227,12 +280,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
+      await logError(error, req, "Middleware-WorkerDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async getWorker(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -245,85 +298,88 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-WorkerGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
 
-export default AdminMiddleware;
+export default WorkerMiddleware;
 EOT
 
 # Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
+cat <<EOT > src/interfaces/worker.ts
+import { IServiceCompany } from "./serviceCompany";
+
+export interface IWorker {
   _id: string;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
+  isService: boolean;
   name: string;
   password: string;
+  serviceCompany?: IServiceCompany;
 }
 
-export interface ICreateAdmin {
+export interface ICreateWorker {
   email: string;
   isActive?: boolean; 
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
+  isService: boolean;
   name: string;
   password: string;
+  serviceCompany?: string;
 }
 
-export interface IUpdateAdmin {
+export interface IUpdateWorker {
   email?: string;
   isActive?: boolean;
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
+  isService?: boolean;
   name?: string;
   password?: string;
+  serviceCompany?: string;
 }
 EOT
 
 # Create routes
-cat <<EOT > src/routes/adminRoute.ts
+cat <<EOT > src/routes/workerRoute.ts
 import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+import WorkerService from "../services/worker";
+import WorkerMiddleware from "../middlewares/worker";
 
 const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const workerService = new WorkerService();
+const workerMiddleware = new WorkerMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-
-
+  workerMiddleware.getWorker.bind(workerMiddleware),
+  workerService.getWorkers.bind(workerService)
 );
 router.get(
   "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
+  workerMiddleware.getWorker.bind(workerMiddleware),
+  workerService.getWorker.bind(workerService)
 );
 router.post(
   "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
+  workerMiddleware.createWorker.bind(workerMiddleware),
+  workerService.createWorker.bind(workerService)
 );
 router.put(
   "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
+  workerMiddleware.updateWorker.bind(workerMiddleware),
+  workerService.updateWorker.bind(workerService)
 );
 router.delete(
   "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
+  workerMiddleware.deleteWorker.bind(workerMiddleware),
+  workerService.deleteWorker.bind(workerService)
 );
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+echo "Worker module generated successfully."

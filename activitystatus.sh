@@ -1,220 +1,257 @@
 #!/bin/bash
 
 # Create model
-cat <<EOT > src/database/models/admin.ts
+cat <<EOT > src/database/models/activityStatus.ts
 import mongoose from "mongoose";
 
-interface IAdmin extends mongoose.Document {
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
+interface IActivityStatus extends mongoose.Document {
   name: string;
-  password: string;
+  priority?: number;
 }
 
-const AdminSchema = new mongoose.Schema(
+const ActivityStatusSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
-    isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean,  default: false },
     name: { type: String, required: true },
-    password: { type: String, required: true }
+    priority: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const ActivityStatusModel = mongoose.model<IActivityStatus>("ActivityStatus", ActivityStatusSchema);
 EOT
 
 # Create repository
-cat <<EOT > src/database/repositories/admin.ts
+cat <<EOT > src/database/repositories/activityStatus.ts
 import { Request } from "express";
-import { AdminModel } from "../models/admin";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
+import { ActivityStatusModel } from "../models/activityStatus";
+import { IActivityStatus, ICreateActivityStatus, IUpdateActivityStatus } from "../../interfaces/activityStatus";
 import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
 
-class AdminRepository {
-  public async getAdmins(req: Request): Promise<IAdmin[]> {
-    try {  
-      return await AdminModel.find({ isDeleted: false }).lean();
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw error;
-    }
-  }
-
-  public async getAdminById(req: Request, id: string): Promise<IAdmin> {
+class ActivityStatusRepository {
+  public async getActivityStatuses(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: IActivityStatus[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
     try {
-      const admin = await AdminModel.findById(id).lean();
-      if (!admin || admin.isDeleted) {
-        throw new Error("Admin not found");
+      let query: any = {};
+      if (search) {
+        query.name = { $regex: search, $options: "i" };
       }
-      return admin;
+      const activityStatuses = await ActivityStatusModel.find(query)
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
+
+      const totalCount = await ActivityStatusModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: activityStatuses,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
     } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminById");
+      await logError(error, req, "ActivityStatusRepository-getActivityStatuses");
       throw error;
     }
   }
 
-  public async createAdmin(req: Request, adminData: ICreateAdmin): Promise<IAdmin> {
+  public async getActivityStatusById(req: Request, id: string): Promise<IActivityStatus> {
     try {
-      const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject();
+      const activityStatus = await ActivityStatusModel.findById(id).lean();
+      if (!activityStatus) {
+        throw new Error("Activity Status not found");
+      }
+      return activityStatus;
     } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
+      await logError(error, req, "ActivityStatusRepository-getActivityStatusById");
       throw error;
     }
   }
 
-  public async updateAdmin(req: Request, id: string, adminData: Partial<IUpdateAdmin>): Promise<IAdmin> {
+  public async createActivityStatus(
+    req: Request,
+    activityStatusData: ICreateActivityStatus
+  ): Promise<IActivityStatus> {
     try {
-      const updatedAdmin = await AdminModel.findByIdAndUpdate(id, adminData, {
+      const newActivityStatus = await ActivityStatusModel.create(activityStatusData);
+      return newActivityStatus.toObject();
+    } catch (error) {
+      await logError(error, req, "ActivityStatusRepository-createActivityStatus");
+      throw error;
+    }
+  }
+
+  public async updateActivityStatus(
+    req: Request,
+    id: string,
+    activityStatusData: Partial<IUpdateActivityStatus>
+  ): Promise<IActivityStatus> {
+    try {
+      const updatedActivityStatus = await ActivityStatusModel.findByIdAndUpdate(id, activityStatusData, {
         new: true,
       });
-      if (!updatedAdmin || updatedAdmin.isDeleted) {
-        throw new Error("Failed to update admin");
+      if (!updatedActivityStatus) {
+        throw new Error("Failed to update activity status");
       }
-      return updatedAdmin.toObject();
+      return updatedActivityStatus.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
+      await logError(error, req, "ActivityStatusRepository-updateActivityStatus");
       throw error;
     }
   }
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin> {
+  public async deleteActivityStatus(req: Request, id: string): Promise<IActivityStatus> {
     try {
-      const deletedAdmin = await AdminModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!deletedAdmin) {
-        throw new Error("Failed to delete admin");
+      const deletedActivityStatus = await ActivityStatusModel.findByIdAndDelete(id);
+      if (!deletedActivityStatus) {
+        throw new Error("Failed to delete activity status");
       }
-      return deletedAdmin.toObject();
+      return deletedActivityStatus.toObject();
     } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
+      await logError(error, req, "ActivityStatusRepository-deleteActivityStatus");
       throw error;
     }
   }
 }
 
-export default AdminRepository;
+export default ActivityStatusRepository;
 EOT
 
 # Create service
-cat <<EOT > src/services/admin.ts
+cat <<EOT > src/services/activityStatus.ts
 import { Request, Response } from "express";
-import AdminRepository from "../database/repositories/admin";
+import ActivityStatusRepository from "../database/repositories/activityStatus";
 import { logError } from "../utils/errorLogger";
+import { paginationHandler } from "../utils/paginationHandler";
+import { searchHandler } from "../utils/searchHandler";
 
-class AdminService {
-  private adminRepository: AdminRepository;
+class ActivityStatusService {
+  private activityStatusRepository: ActivityStatusRepository;
 
   constructor() {
-    this.adminRepository = new AdminRepository();
+    this.activityStatusRepository = new ActivityStatusRepository();
   }
 
-  public async getAdmins(req: Request, res: Response) {
+  public async getActivityStatuses(req: Request, res: Response) {
     try {
-      const admins = await this.adminRepository.getAdmins(req);
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const activityStatuses = await this.activityStatusRepository.getActivityStatuses(
+        req,
+        pagination,
+        search
+      );
+      res.sendArrayFormatted(activityStatuses, "Activity Statuses retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+      await logError(error, req, "ActivityStatusService-getActivityStatuses");
+      res.sendError(error, "Activity Statuses retrieval failed");
     }
   }
 
-  public async getAdmin(req: Request, res: Response) {
+  public async getActivityStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      const activityStatus = await this.activityStatusRepository.getActivityStatusById(req, id);
+      res.sendFormatted(activityStatus, "Activity Status retrieved successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
+      await logError(error, req, "ActivityStatusService-getActivityStatus");
+      res.sendError(error, "Activity Status retrieval failed");
     }
   }
 
-  public async createAdmin(req: Request, res: Response) {
+  public async createActivityStatus(req: Request, res: Response) {
     try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
+      const activityStatusData = req.body;
+      const newActivityStatus = await this.activityStatusRepository.createActivityStatus(req, activityStatusData);
+      res.sendFormatted(newActivityStatus, "Activity Status created successfully", 201);
     } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+      await logError(error, req, "ActivityStatusService-createActivityStatus");
+      res.sendError(error, "Activity Status creation failed");
     }
   }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(req, id, adminData);
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
-    }
-  }
-
-  public async deleteAdmin(req: Request, res: Response) {
+  public async updateActivityStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
+      const activityStatusData = req.body;
+      const updatedActivityStatus = await this.activityStatusRepository.updateActivityStatus(
+        req,
+        id,
+        activityStatusData
+      );
+      res.sendFormatted(updatedActivityStatus, "Activity Status updated successfully");
     } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+      await logError(error, req, "ActivityStatusService-updateActivityStatus");
+      res.sendError(error, "Activity Status update failed");
+    }
+  }
+
+  public async deleteActivityStatus(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedActivityStatus = await this.activityStatusRepository.deleteActivityStatus(req, id);
+      res.sendFormatted(deletedActivityStatus, "Activity Status deleted successfully");
+    } catch (error) {
+      await logError(error, req, "ActivityStatusService-deleteActivityStatus");
+      res.sendError(error, "Activity Status deletion failed");
     }
   }
 }
 
-export default AdminService;
+export default ActivityStatusService;
 EOT
 
 # Create middleware
-cat <<EOT > src/middlewares/admin.ts
+cat <<EOT > src/middlewares/activityStatus.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class ActivityStatusMiddleware {
+  public async createActivityStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { name } = req.body;
+      if (!name) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Name must be provided",
+          "Name must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-ActivityStatusCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateActivityStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      const { name } = req.body;
+      if (!name) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: Name must be provided",
+          "Name must be provided",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-ActivityStatusUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteActivityStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -227,12 +264,12 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
+      await logError(error, req, "Middleware-ActivityStatusDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async getActivityStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -245,85 +282,71 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-ActivityStatusGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
 
-export default AdminMiddleware;
+export default ActivityStatusMiddleware;
 EOT
 
 # Create interface
-cat <<EOT > src/interfaces/admin.ts
-export interface IAdmin {
+cat <<EOT > src/interfaces/activityStatus.ts
+export interface IActivityStatus {
   _id: string;
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
   name: string;
-  password: string;
+  priority?: number;
 }
 
-export interface ICreateAdmin {
-  email: string;
-  isActive?: boolean; 
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
+export interface ICreateActivityStatus {
   name: string;
-  password: string;
+  priority?: number;
 }
 
-export interface IUpdateAdmin {
-  email?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
+export interface IUpdateActivityStatus {
   name?: string;
-  password?: string;
+  priority?: number;
 }
 EOT
 
 # Create routes
-cat <<EOT > src/routes/adminRoute.ts
+cat <<EOT > src/routes/activityStatusRoute.ts
 import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+import ActivityStatusService from "../services/activityStatus";
+import ActivityStatusMiddleware from "../middlewares/activityStatus";
 
 const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+const activityStatusService = new ActivityStatusService();
+const activityStatusMiddleware = new ActivityStatusMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-
-
+  activityStatusMiddleware.getActivityStatus.bind(activityStatusMiddleware),
+  activityStatusService.getActivityStatuses.bind(activityStatusService)
 );
 router.get(
   "/:id",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
+  activityStatusMiddleware.getActivityStatus.bind(activityStatusMiddleware),
+  activityStatusService.getActivityStatus.bind(activityStatusService)
 );
 router.post(
   "/",
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
+  activityStatusMiddleware.createActivityStatus.bind(activityStatusMiddleware),
+  activityStatusService.createActivityStatus.bind(activityStatusService)
 );
 router.put(
   "/:id",
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
+  activityStatusMiddleware.updateActivityStatus.bind(activityStatusMiddleware),
+  activityStatusService.updateActivityStatus.bind(activityStatusService)
 );
 router.delete(
   "/:id",
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
+  activityStatusMiddleware.deleteActivityStatus.bind(activityStatusMiddleware),
+  activityStatusService.deleteActivityStatus.bind(activityStatusService)
 );
 
 export default router;
 EOT
 
-echo "Admin module generated successfully."
+echo "ActivityStatus module generated successfully."

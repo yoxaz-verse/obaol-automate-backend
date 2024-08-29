@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
-class AdminMiddleware {
-  public async createAdmin(req: Request, res: Response, next: NextFunction) {
+class CustomerMiddleware {
+  public async createCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, name, password } = req.body;
       if (!email || !name || !password) {
@@ -15,48 +15,30 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminCreate");
+      await logError(error, req, "Middleware-CustomerCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateAdmin(req: Request, res: Response, next: NextFunction) {
+  public async updateCustomer(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password } = req.body;
-      if (!email || !name || !password) {
-        res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
-          400
-        );
-        return;
-      }
+      // const { email, name, password } = req.body;
+      // if ( ) {
+      //   res.sendError(
+      //     "ValidationError: Email, Name, and Password must be provided",
+      //     "Email, Name, and Password must be provided",
+      //     400
+      //   );
+      //   return;
+      // }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminUpdate");
+      await logError(error, req, "Middleware-CustomerUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteAdmin(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-AdminDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-
-  public async getAdmin(req: Request, res: Response, next: NextFunction) {
+  public async deleteCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -69,11 +51,29 @@ class AdminMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-AdminGet");
+      await logError(error, req, "Middleware-CustomerDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
-  public async getAllAdmin(req: Request, res: Response, next: NextFunction) {
+
+  public async getCustomer(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.sendError(
+          "ValidationError: ID must be provided",
+          "ID must be provided",
+          400
+        );
+        return;
+      }
+      next();
+    } catch (error) {
+      await logError(error, req, "Middleware-CustomerGet");
+      res.sendError(error, "An unexpected error occurred", 500);
+    }
+  }
+  public async getAllCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       next();
@@ -84,4 +84,4 @@ class AdminMiddleware {
   }
 }
 
-export default AdminMiddleware;
+export default CustomerMiddleware;

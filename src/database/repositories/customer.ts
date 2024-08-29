@@ -1,0 +1,114 @@
+import { Request } from "express";
+import { CustomerModel } from "../models/customer";
+import {
+  ICustomer,
+  ICreateCustomer,
+  IUpdateCustomer,
+} from "../../interfaces/customer";
+import { logError } from "../../utils/errorLogger";
+import { IPagination } from "../../interfaces/pagination";
+import { ObjectId } from "mongoose";
+
+class CustomerRepository {
+  public async getCustomers(
+    req: Request,
+    pagination: IPagination,
+    search: string
+  ): Promise<{
+    data: ICustomer[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
+    try {
+      let query: any = {};
+      if (search) {
+        query.name = { $regex: search, $options: "i" };
+      }
+      const customers = await CustomerModel.find(query)
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean<ICustomer[]>(); // Explicitly define the type
+
+      const totalCount = await CustomerModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      return {
+        data: customers,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
+    } catch (error) {
+      await logError(error, req, "CustomerRepository-getCustomers");
+      throw error;
+    }
+  }
+
+  public async getCustomerById(req: Request, id: string): Promise<ICustomer> {
+    try {
+      const customer = await CustomerModel.findById(id).lean<ICustomer>();
+      if (!customer || customer.isDeleted) {
+        throw new Error("Customer not found");
+      }
+      return customer;
+    } catch (error) {
+      await logError(error, req, "CustomerRepository-getCustomerById");
+      throw error;
+    }
+  }
+
+  public async createCustomer(
+    req: Request,
+    customerData: ICreateCustomer
+  ): Promise<ICustomer> {
+    try {
+      const newCustomer = await CustomerModel.create(customerData);
+      return newCustomer.toObject();
+    } catch (error) {
+      await logError(error, req, "CustomerRepository-createCustomer");
+      throw error;
+    }
+  }
+
+  public async updateCustomer(
+    req: Request,
+    id: string,
+    customerData: Partial<IUpdateCustomer>
+  ): Promise<ICustomer> {
+    try {
+      const updatedCustomer = await CustomerModel.findByIdAndUpdate(
+        id,
+        customerData,
+        {
+          new: true,
+        }
+      ).lean<ICustomer>();
+      if (!updatedCustomer || updatedCustomer.isDeleted) {
+        throw new Error("Failed to update customer");
+      }
+      return updatedCustomer;
+    } catch (error) {
+      await logError(error, req, "CustomerRepository-updateCustomer");
+      throw error;
+    }
+  }
+
+  public async deleteCustomer(req: Request, id: string): Promise<ICustomer> {
+    try {
+      const deletedCustomer = await CustomerModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      ).lean<ICustomer>();
+      if (!deletedCustomer) {
+        throw new Error("Failed to delete customer");
+      }
+      return deletedCustomer;
+    } catch (error) {
+      await logError(error, req, "CustomerRepository-deleteCustomer");
+      throw error;
+    }
+  }
+}
+
+export default CustomerRepository;

@@ -8,10 +8,8 @@ const adminMiddleware = new AdminMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
+  adminMiddleware.getAllAdmin.bind(adminMiddleware),
   adminService.getAdmins.bind(adminService)
-
-
 );
 router.get(
   "/:id",

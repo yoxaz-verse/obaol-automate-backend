@@ -23,7 +23,7 @@ class AdminMiddleware {
   public async updateAdmin(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      if (!email && !name && !password) {
         res.sendError(
           "ValidationError: Email, Name, and Password must be provided",
           "Email, Name, and Password must be provided",

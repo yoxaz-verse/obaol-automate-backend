@@ -248,7 +248,7 @@ class AdminMiddleware {
   public async updateAdmin(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      if (!email && !name && !password) {
         res.sendError(
           "ValidationError: Email, Name, and Password must be provided",
           "Email, Name, and Password must be provided",
@@ -346,7 +346,6 @@ const adminMiddleware = new AdminMiddleware();
 
 router.get(
   "/",
-  adminMiddleware.getAdmin.bind(adminMiddleware),
   adminService.getAdmins.bind(adminService)
 
 
@@ -361,7 +360,7 @@ router.post(
   adminMiddleware.createAdmin.bind(adminMiddleware),
   adminService.createAdmin.bind(adminService)
 );
-router.put(
+router.patch(
   "/:id",
   adminMiddleware.updateAdmin.bind(adminMiddleware),
   adminService.updateAdmin.bind(adminService)

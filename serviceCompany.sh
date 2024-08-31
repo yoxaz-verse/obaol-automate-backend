@@ -22,7 +22,7 @@ const ServiceCompanySchema = new mongoose.Schema(
     map: { type: String },
     url: { type: String },
     isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false }
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -77,7 +77,7 @@ class ServiceCompanyRepository {
     try {
       const serviceCompany = await ServiceCompanyModel.findById(id).lean();
       if (!serviceCompany || serviceCompany.isDeleted) {
-        throw new Error("Service Company not found");
+        throw new Error("ServiceCompany not found");
       }
       return serviceCompany;
     } catch (error) {
@@ -250,7 +250,7 @@ class ServiceCompanyMiddleware {
   public async updateServiceCompany(req: Request, res: Response, next: NextFunction) {
     try {
       const { name, address } = req.body;
-      if (!name || !address) {
+      if (!name && !address) {
         res.sendError(
           "ValidationError: Name and Address must be provided",
           "Name and Address must be provided",
@@ -324,7 +324,7 @@ export interface ICreateServiceCompany {
   description?: string;
   map?: string;
   url?: string;
-  isActive?: boolean;
+  isActive?: boolean; 
   isDeleted?: boolean;
 }
 
@@ -351,7 +351,6 @@ const serviceCompanyMiddleware = new ServiceCompanyMiddleware();
 
 router.get(
   "/",
-  serviceCompanyMiddleware.getServiceCompany.bind(serviceCompanyMiddleware),
   serviceCompanyService.getServiceCompanies.bind(serviceCompanyService)
 );
 router.get(
@@ -364,7 +363,7 @@ router.post(
   serviceCompanyMiddleware.createServiceCompany.bind(serviceCompanyMiddleware),
   serviceCompanyService.createServiceCompany.bind(serviceCompanyService)
 );
-router.put(
+router.patch(
   "/:id",
   serviceCompanyMiddleware.updateServiceCompany.bind(serviceCompanyMiddleware),
   serviceCompanyService.updateServiceCompany.bind(serviceCompanyService)

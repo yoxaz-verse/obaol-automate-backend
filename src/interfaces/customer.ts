@@ -1,5 +1,4 @@
 export interface ICustomer {
-  _id: string;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
@@ -9,7 +8,7 @@ export interface ICustomer {
 
 export interface ICreateCustomer {
   email: string;
-  isActive?: boolean; 
+  isActive?: boolean;
   isDeleted?: boolean;
   name: string;
   password: string;

@@ -12,7 +12,7 @@ interface IWorker extends mongoose.Document {
   isService: boolean;
   name: string;
   password: string;
-  serviceCompany?: mongoose.Schema.Types.ObjectId;
+  serviceCompany: mongoose.Schema.Types.ObjectId | typeof ServiceCompanyModel;
 }
 
 const WorkerSchema = new mongoose.Schema(
@@ -20,10 +20,10 @@ const WorkerSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    isService: { type: Boolean, required: true },
+    isService: { type: Boolean, default: false },
     name: { type: String, required: true },
     password: { type: String, required: true },
-    serviceCompany: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceCompany" }
+    serviceCompany: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceCompany", required: true }
   },
   { timestamps: true }
 );
@@ -64,7 +64,7 @@ class WorkerRepository {
       const totalCount = await WorkerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: workers,
+        data: workers as IWorker[],
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -77,11 +77,13 @@ class WorkerRepository {
 
   public async getWorkerById(req: Request, id: string): Promise<IWorker> {
     try {
-      const worker = await WorkerModel.findById(id).populate("serviceCompany").lean();
+      const worker = await WorkerModel.findById(id)
+        .populate("serviceCompany")
+        .lean();
       if (!worker || worker.isDeleted) {
         throw new Error("Worker not found");
       }
-      return worker;
+      return worker as IWorker;
     } catch (error) {
       await logError(error, req, "WorkerRepository-getWorkerById");
       throw error;
@@ -233,11 +235,11 @@ import { logError } from "../utils/errorLogger";
 class WorkerMiddleware {
   public async createWorker(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password, isService } = req.body;
-      if (!email || !name || !password || isService === undefined) {
+      const { email, name, password, serviceCompany } = req.body;
+      if (!email || !name || !password || !serviceCompany) {
         res.sendError(
-          "ValidationError: Email, Name, Password, and IsService must be provided",
-          "Email, Name, Password, and IsService must be provided",
+          "ValidationError: Email, Name, Password, and ServiceCompany must be provided",
+          "Email, Name, Password, and ServiceCompany must be provided",
           400
         );
         return;
@@ -251,11 +253,11 @@ class WorkerMiddleware {
 
   public async updateWorker(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password, isService } = req.body;
-      if (!email || !name || !password || isService === undefined) {
+      const { email, name, password, serviceCompany } = req.body;
+      if (!email && !name && !password && !serviceCompany) {
         res.sendError(
-          "ValidationError: Email, Name, Password, and IsService must be provided",
-          "Email, Name, Password, and IsService must be provided",
+          "ValidationError: Email, Name, Password, and ServiceCompany must be provided",
+          "Email, Name, Password, and ServiceCompany must be provided",
           400
         );
         return;
@@ -310,6 +312,7 @@ EOT
 # Create interface
 cat <<EOT > src/interfaces/worker.ts
 import { IServiceCompany } from "./serviceCompany";
+import mongoose from "mongoose";
 
 export interface IWorker {
   _id: string;
@@ -319,17 +322,17 @@ export interface IWorker {
   isService: boolean;
   name: string;
   password: string;
-  serviceCompany?: IServiceCompany;
+  serviceCompany: mongoose.Schema.Types.ObjectId | IServiceCompany;
 }
 
 export interface ICreateWorker {
   email: string;
   isActive?: boolean; 
   isDeleted?: boolean;
-  isService: boolean;
+  isService?: boolean;
   name: string;
   password: string;
-  serviceCompany?: string;
+  serviceCompany: string;
 }
 
 export interface IUpdateWorker {
@@ -355,7 +358,6 @@ const workerMiddleware = new WorkerMiddleware();
 
 router.get(
   "/",
-  workerMiddleware.getWorker.bind(workerMiddleware),
   workerService.getWorkers.bind(workerService)
 );
 router.get(
@@ -368,7 +370,7 @@ router.post(
   workerMiddleware.createWorker.bind(workerMiddleware),
   workerService.createWorker.bind(workerService)
 );
-router.put(
+router.patch(
   "/:id",
   workerMiddleware.updateWorker.bind(workerMiddleware),
   workerService.updateWorker.bind(workerService)

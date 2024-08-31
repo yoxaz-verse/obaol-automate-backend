@@ -6,12 +6,11 @@ import mongoose from "mongoose";
 import { ActivityModel } from "./activity";
 import { WorkerModel } from "./worker";
 import { ManagerModel } from "./manager";
-import { StatusHistoryModel } from "./statusHistory";
 
 interface ITimesheet extends mongoose.Document {
-  activity: mongoose.Schema.Types.ObjectId;
-  worker: mongoose.Schema.Types.ObjectId;
-  manager: mongoose.Schema.Types.ObjectId;
+  activity: mongoose.Schema.Types.ObjectId | typeof ActivityModel;
+  worker: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
+  manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
   startTime: Date;
   endTime: Date;
   hoursSpent: number;
@@ -22,7 +21,6 @@ interface ITimesheet extends mongoose.Document {
   isAccepted: boolean;
   isResubmitted: boolean;
   rejectionReason: string[];
-  statusHistory: mongoose.Schema.Types.ObjectId[];
 }
 
 const TimesheetSchema = new mongoose.Schema(
@@ -39,8 +37,7 @@ const TimesheetSchema = new mongoose.Schema(
     isRejected: { type: Boolean, default: false },
     isAccepted: { type: Boolean, default: false },
     isResubmitted: { type: Boolean, default: false },
-    rejectionReason: { type: [String] },
-    statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "StatusHistory", required: true }]
+    rejectionReason: [{ type: String }],
   },
   { timestamps: true }
 );
@@ -73,9 +70,9 @@ class TimesheetRepository {
         query.file = { $regex: search, $options: "i" };
       }
       const timesheets = await TimesheetModel.find(query)
-        .populate("activity worker manager statusHistory")
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
+        .populate("activity")
+        .populate("worker")
+        .populate("manager")
         .lean();
 
       const totalCount = await TimesheetModel.countDocuments(query);
@@ -95,8 +92,11 @@ class TimesheetRepository {
   public async getTimesheetById(req: Request, id: string): Promise<ITimesheet> {
     try {
       const timesheet = await TimesheetModel.findById(id)
-        .populate("activity worker manager statusHistory")
+        .populate("activity")
+        .populate("worker")
+        .populate("manager")
         .lean();
+
       if (!timesheet) {
         throw new Error("Timesheet not found");
       }
@@ -113,7 +113,7 @@ class TimesheetRepository {
   ): Promise<ITimesheet> {
     try {
       const newTimesheet = await TimesheetModel.create(timesheetData);
-      return newTimesheet.toObject();
+      return newTimesheet.toObject() as ITimesheet;
     } catch (error) {
       await logError(error, req, "TimesheetRepository-createTimesheet");
       throw error;
@@ -128,11 +128,16 @@ class TimesheetRepository {
     try {
       const updatedTimesheet = await TimesheetModel.findByIdAndUpdate(id, timesheetData, {
         new: true,
-      }).populate("activity worker manager statusHistory");
+      })
+      .populate("activity")
+      .populate("worker")
+      .populate("manager")
+      .lean();
+
       if (!updatedTimesheet) {
         throw new Error("Failed to update timesheet");
       }
-      return updatedTimesheet.toObject();
+      return updatedTimesheet;
     } catch (error) {
       await logError(error, req, "TimesheetRepository-updateTimesheet");
       throw error;
@@ -141,13 +146,16 @@ class TimesheetRepository {
 
   public async deleteTimesheet(req: Request, id: string): Promise<ITimesheet> {
     try {
-      const deletedTimesheet = await TimesheetModel.findByIdAndDelete(id).populate(
-        "activity worker manager statusHistory"
-      );
+      const deletedTimesheet = await TimesheetModel.findByIdAndDelete(id)
+        .populate("activity")
+        .populate("worker")
+        .populate("manager")
+        .lean();
+
       if (!deletedTimesheet) {
         throw new Error("Failed to delete timesheet");
       }
-      return deletedTimesheet.toObject();
+      return deletedTimesheet;
     } catch (error) {
       await logError(error, req, "TimesheetRepository-deleteTimesheet");
       throw error;
@@ -250,20 +258,11 @@ import { logError } from "../utils/errorLogger";
 class TimesheetMiddleware {
   public async createTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
-      const {
-        activity,
-        worker,
-        manager,
-        startTime,
-        endTime,
-        hoursSpent,
-        date,
-        file,
-      } = req.body;
-      if (!activity || !worker || !manager || !startTime || !endTime || !hoursSpent || !date || !file) {
+      const { activity, worker, manager, startTime, endTime, file } = req.body;
+      if (!activity || !worker || !manager || !startTime || !endTime || !file) {
         res.sendError(
-          "ValidationError: Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
-          "Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
+          "ValidationError: Activity, Worker, Manager, StartTime, EndTime, and File must be provided",
+          "Activity, Worker, Manager, StartTime, EndTime, and File must be provided",
           400
         );
         return;
@@ -277,20 +276,11 @@ class TimesheetMiddleware {
 
   public async updateTimesheet(req: Request, res: Response, next: NextFunction) {
     try {
-      const {
-        activity,
-        worker,
-        manager,
-        startTime,
-        endTime,
-        hoursSpent,
-        date,
-        file,
-      } = req.body;
-      if (!activity || !worker || !manager || !startTime || !endTime || !hoursSpent || !date || !file) {
+      const { activity, worker, manager, startTime, endTime, file } = req.body;
+      if (!activity && !worker && !manager && !startTime && !endTime && !file) {
         res.sendError(
-          "ValidationError: Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
-          "Activity, Worker, Manager, StartTime, EndTime, HoursSpent, Date, and File must be provided",
+          "ValidationError: At least one of Activity, Worker, Manager, StartTime, EndTime, or File must be provided",
+          "At least one of Activity, Worker, Manager, StartTime, EndTime, or File must be provided",
           400
         );
         return;
@@ -344,16 +334,11 @@ EOT
 
 # Create interface
 cat <<EOT > src/interfaces/timesheet.ts
-import { IActivity } from "./activity";
-import { IWorker } from "./worker";
-import { IManager } from "./manager";
-import { IStatusHistory } from "./statusHistory";
-
 export interface ITimesheet {
   _id: string;
-  activity: IActivity;
-  worker: IWorker;
-  manager: IManager;
+  activity: string | IActivity;
+  worker: string | IWorker;
+  manager: string | IManager;
   startTime: Date;
   endTime: Date;
   hoursSpent: number;
@@ -364,7 +349,6 @@ export interface ITimesheet {
   isAccepted: boolean;
   isResubmitted: boolean;
   rejectionReason: string[];
-  statusHistory: IStatusHistory[];
 }
 
 export interface ICreateTimesheet {
@@ -381,7 +365,6 @@ export interface ICreateTimesheet {
   isAccepted?: boolean;
   isResubmitted?: boolean;
   rejectionReason?: string[];
-  statusHistory: string[];
 }
 
 export interface IUpdateTimesheet {
@@ -398,7 +381,6 @@ export interface IUpdateTimesheet {
   isAccepted?: boolean;
   isResubmitted?: boolean;
   rejectionReason?: string[];
-  statusHistory?: string[];
 }
 EOT
 
@@ -408,37 +390,36 @@ import { Router } from "express";
 import TimesheetService from "../services/timesheet";
 import TimesheetMiddleware from "../middlewares/timesheet";
 
-const router = Router();
+const timesheetroute = Router();
 const timesheetService = new TimesheetService();
 const timesheetMiddleware = new TimesheetMiddleware();
 
-router.get(
+timesheetroute.get(
   "/",
-  timesheetMiddleware.getTimesheet.bind(timesheetMiddleware),
   timesheetService.getTimesheets.bind(timesheetService)
 );
-router.get(
+timesheetroute.get(
   "/:id",
   timesheetMiddleware.getTimesheet.bind(timesheetMiddleware),
   timesheetService.getTimesheet.bind(timesheetService)
 );
-router.post(
+timesheetroute.post(
   "/",
   timesheetMiddleware.createTimesheet.bind(timesheetMiddleware),
   timesheetService.createTimesheet.bind(timesheetService)
 );
-router.put(
+timesheetroute.patch(
   "/:id",
   timesheetMiddleware.updateTimesheet.bind(timesheetMiddleware),
   timesheetService.updateTimesheet.bind(timesheetService)
 );
-router.delete(
+timesheetroute.delete(
   "/:id",
   timesheetMiddleware.deleteTimesheet.bind(timesheetMiddleware),
   timesheetService.deleteTimesheet.bind(timesheetService)
 );
 
-export default router;
+export default timesheetroute;
 EOT
 
 echo "Timesheet module generated successfully."

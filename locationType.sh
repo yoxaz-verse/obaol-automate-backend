@@ -10,7 +10,7 @@ interface ILocationType extends mongoose.Document {
 
 const LocationTypeSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
+    name: { type: String, required: true, unique: true },
   },
   { timestamps: true }
 );
@@ -50,7 +50,7 @@ class LocationTypeRepository {
       const totalCount = await LocationTypeModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: locationTypes,
+        data: locationTypes as ILocationType[],
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -67,7 +67,7 @@ class LocationTypeRepository {
       if (!locationType) {
         throw new Error("Location Type not found");
       }
-      return locationType;
+      return locationType as ILocationType;
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-getLocationTypeById");
       throw error;
@@ -97,7 +97,7 @@ class LocationTypeRepository {
         new: true,
       });
       if (!updatedLocationType) {
-        throw new Error("Failed to update Location Type");
+        throw new Error("Failed to update location type");
       }
       return updatedLocationType.toObject();
     } catch (error) {
@@ -110,7 +110,7 @@ class LocationTypeRepository {
     try {
       const deletedLocationType = await LocationTypeModel.findByIdAndDelete(id);
       if (!deletedLocationType) {
-        throw new Error("Failed to delete Location Type");
+        throw new Error("Failed to delete location type");
       }
       return deletedLocationType.toObject();
     } catch (error) {
@@ -317,7 +317,6 @@ const locationTypeMiddleware = new LocationTypeMiddleware();
 
 router.get(
   "/",
-  locationTypeMiddleware.getLocationType.bind(locationTypeMiddleware),
   locationTypeService.getLocationTypes.bind(locationTypeService)
 );
 router.get(
@@ -330,7 +329,7 @@ router.post(
   locationTypeMiddleware.createLocationType.bind(locationTypeMiddleware),
   locationTypeService.createLocationType.bind(locationTypeService)
 );
-router.put(
+router.patch(
   "/:id",
   locationTypeMiddleware.updateLocationType.bind(locationTypeMiddleware),
   locationTypeService.updateLocationType.bind(locationTypeService)

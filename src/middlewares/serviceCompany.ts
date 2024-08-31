@@ -23,7 +23,7 @@ class ServiceCompanyMiddleware {
   public async updateServiceCompany(req: Request, res: Response, next: NextFunction) {
     try {
       const { name, address } = req.body;
-      if (!name || !address) {
+      if (!name && !address) {
         res.sendError(
           "ValidationError: Name and Address must be provided",
           "Name and Address must be provided",

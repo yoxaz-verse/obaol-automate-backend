@@ -1,80 +1,197 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import AdminRepository from "../database/repositories/admin";
 import { logError } from "../utils/errorLogger";
-import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
+import { IAdmin } from "../interfaces/admin";
 
 class AdminService {
-  private adminRepository: AdminRepository;
+    private adminRepository: AdminRepository;
 
-  constructor() {
-    this.adminRepository = new AdminRepository();
-  }
-
-  public async getAdmins(req: Request, res: Response) {
-    try {
-      const pagination = paginationHandler(req);
-      const search = searchHandler(req);
-      const admins = await this.adminRepository.getAdmins(
-        req,
-        pagination,
-        search
-      );
-      res.sendArrayFormatted(admins, "Admins retrieved successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-getAdmins");
-      res.sendError(error, "Admins retrieval failed");
+    constructor() {
+        this.adminRepository = new AdminRepository();
     }
-  }
 
-  public async getAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-getAdmin");
-      res.sendError(error, "Admin retrieval failed");
-    }
-  }
+    // Get all admins
+    public async getAdmins(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const pagination = {
+                limit: Number(req.query.limit) || 10,
+                page: Number(req.query.page) || 1,
+            };
 
-  public async createAdmin(req: Request, res: Response) {
-    try {
-      const adminData = req.body;
-      const newAdmin = await this.adminRepository.createAdmin(req, adminData);
-      res.sendFormatted(newAdmin, "Admin created successfully", 201);
-    } catch (error) {
-      await logError(error, req, "AdminService-createAdmin");
-      res.sendError(error, "Admin creation failed");
+            const result = await this.adminRepository.getAdmins(req, pagination);
+            res.status(200).send(result);
+        } catch (error) {
+            await logError(error, req, "AdminService-getAdmins");
+            res.status(500).send({
+                message: "Failed to retrieve admins",
+                error: error.message,
+            });
+        }
     }
-  }
 
-  public async updateAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const adminData = req.body;
-      const updatedAdmin = await this.adminRepository.updateAdmin(
-        req,
-        id,
-        adminData
-      );
-      res.sendFormatted(updatedAdmin, "Admin updated successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-updateAdmin");
-      res.sendError(error, "Admin update failed");
+    // Get a single admin by ID
+    public async getAdmin(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const admin = await this.adminRepository.getAdmin(req, req.params.id);
+            if (!admin) {
+                return res.status(404).send({ message: "Admin not found" });
+            }
+            res.status(200).send(admin);
+        } catch (error) {
+            await logError(error, req, "AdminService-getAdmin");
+            res.status(500).send({
+                message: "Failed to retrieve admin",
+                error: error.message,
+            });
+        }
     }
-  }
 
-  public async deleteAdmin(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const deletedAdmin = await this.adminRepository.deleteAdmin(req, id);
-      res.sendFormatted(deletedAdmin, "Admin deleted successfully");
-    } catch (error) {
-      await logError(error, req, "AdminService-deleteAdmin");
-      res.sendError(error, "Admin deletion failed");
+    // Create a new admin
+    public async createAdmin(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const adminData = req.body as IAdmin;
+            const admin = await this.adminRepository.createAdmin(req, adminData);
+            if (!admin) {
+                return res.status(400).send({ message: "Failed to create admin" });
+            }
+            res.status(201).send(admin);
+        } catch (error) {
+            await logError(error, req, "AdminService-createAdmin");
+            res.status(500).send({
+                message: "Failed to create admin",
+                error: error.message,
+            });
+        }
     }
-  }
+
+    // Update an existing admin
+    public async updateAdmin(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const adminData = req.body;
+            const admin = await this.adminRepository.updateAdmin(req, req.params.id, adminData);
+            if (!admin) {
+                return res.status(400).send({ message: "Failed to update admin" });
+            }
+            res.status(200).send(admin);
+        } catch (error) {
+            await logError(error, req, "AdminService-updateAdmin");
+            res.status(500).send({
+                message: "Failed to update admin",
+                error: error.message,
+            });
+        }
+    }
+
+    // Delete an admin
+    public async deleteAdmin(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const admin = await this.adminRepository.deleteAdmin(req, req.params.id);
+            if (!admin) {
+                return res.status(400).send({ message: "Failed to delete admin" });
+            }
+            res.status(200).send({ message: "Admin deleted successfully" });
+        } catch (error) {
+            await logError(error, req, "AdminService-deleteAdmin");
+            res.status(500).send({
+                message: "Failed to delete admin",
+                error: error.message,
+            });
+        }
+    }
+
+    // Admin login
+    public async adminLogin(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const { email, password } = req.body;
+
+            const admin = await this.adminRepository.getAdminByEmail(req, email);
+            if (!admin || admin.password !== password) {
+                return res.status(401).send({ message: "Invalid email or password" });
+            }
+
+            // Assume createToken is a function that generates a JWT token
+            const token = createToken({ id: admin._id, email: admin.email, role: "admin" });
+            res.status(200).send({ token });
+        } catch (error) {
+            await logError(error, req, "AdminService-adminLogin");
+            res.status(500).send({
+                message: "Failed to login admin",
+                error: error.message,
+            });
+        }
+    }
+
+    // Admin logout
+    public async adminLogout(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const { id } = req.admin || {};
+            if (!id) {
+                return res.status(400).send({ message: "Invalid admin ID" });
+            }
+
+            await this.adminRepository.clearRefreshToken(req, id);
+            res.status(200).send({ message: "Admin logged out successfully" });
+        } catch (error) {
+            await logError(error, req, "AdminService-adminLogout");
+            res.status(500).send({
+                message: "Failed to logout admin",
+                error: error.message,
+            });
+        }
+    }
+
+    // Refresh token
+    public async adminRefreshToken(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const { refreshToken } = req.body;
+
+            const admin = await this.adminRepository.getAdminByRefreshToken(req, refreshToken);
+            if (!admin) {
+                return res.status(401).send({ message: "Invalid refresh token" });
+            }
+
+            const newToken = createToken({ id: admin._id, email: admin.email, role: "admin" });
+            res.status(200).send({ token: newToken });
+        } catch (error) {
+            await logError(error, req, "AdminService-adminRefreshToken");
+            res.status(500).send({
+                message: "Failed to refresh token",
+                error: error.message,
+            });
+        }
+    }
 }
 
 export default AdminService;

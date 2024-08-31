@@ -41,10 +41,7 @@ class CustomerService {
   public async createCustomer(req: Request, res: Response) {
     try {
       const customerData = req.body;
-      const newCustomer = await this.customerRepository.createCustomer(
-        req,
-        customerData
-      );
+      const newCustomer = await this.customerRepository.createCustomer(req, customerData);
       res.sendFormatted(newCustomer, "Customer created successfully", 201);
     } catch (error) {
       await logError(error, req, "CustomerService-createCustomer");
@@ -71,10 +68,7 @@ class CustomerService {
   public async deleteCustomer(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedCustomer = await this.customerRepository.deleteCustomer(
-        req,
-        id
-      );
+      const deletedCustomer = await this.customerRepository.deleteCustomer(req, id);
       res.sendFormatted(deletedCustomer, "Customer deleted successfully");
     } catch (error) {
       await logError(error, req, "CustomerService-deleteCustomer");

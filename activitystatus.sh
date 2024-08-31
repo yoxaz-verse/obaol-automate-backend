@@ -11,7 +11,7 @@ interface IActivityStatus extends mongoose.Document {
 
 const ActivityStatusSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
+    name: { type: String, required: true, unique: true },
     priority: { type: Number, default: 0 },
   },
   { timestamps: true }
@@ -52,7 +52,7 @@ class ActivityStatusRepository {
       const totalCount = await ActivityStatusModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: activityStatuses,
+        data: activityStatuses as IActivityStatus[],
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -69,7 +69,7 @@ class ActivityStatusRepository {
       if (!activityStatus) {
         throw new Error("Activity Status not found");
       }
-      return activityStatus;
+      return activityStatus as IActivityStatus;
     } catch (error) {
       await logError(error, req, "ActivityStatusRepository-getActivityStatusById");
       throw error;
@@ -322,7 +322,6 @@ const activityStatusMiddleware = new ActivityStatusMiddleware();
 
 router.get(
   "/",
-  activityStatusMiddleware.getActivityStatus.bind(activityStatusMiddleware),
   activityStatusService.getActivityStatuses.bind(activityStatusService)
 );
 router.get(
@@ -335,7 +334,7 @@ router.post(
   activityStatusMiddleware.createActivityStatus.bind(activityStatusMiddleware),
   activityStatusService.createActivityStatus.bind(activityStatusService)
 );
-router.put(
+router.patch(
   "/:id",
   activityStatusMiddleware.updateActivityStatus.bind(activityStatusMiddleware),
   activityStatusService.updateActivityStatus.bind(activityStatusService)

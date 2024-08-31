@@ -6,22 +6,22 @@ import mongoose from "mongoose";
 import { AdminModel } from "./admin";
 
 interface IManager extends mongoose.Document {
-  Admin: mongoose.Schema.Types.ObjectId;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
   name: string;
   password: string;
+  admin: mongoose.Schema.Types.ObjectId;  // Link to Admin
 }
 
 const ManagerSchema = new mongoose.Schema(
   {
-    Admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
     name: { type: String, required: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true }  // Linking to Admin
   },
   { timestamps: true }
 );
@@ -54,7 +54,7 @@ class ManagerRepository {
         query.name = { $regex: search, $options: "i" };
       }
       const managers = await ManagerModel.find(query)
-        .populate("Admin")
+        .populate("admin")  // Populating the Admin field
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
         .lean();
@@ -75,7 +75,9 @@ class ManagerRepository {
 
   public async getManagerById(req: Request, id: string): Promise<IManager> {
     try {
-      const manager = await ManagerModel.findById(id).populate("Admin").lean();
+      const manager = await ManagerModel.findById(id)
+        .populate("admin")  // Populating the Admin field
+        .lean();
       if (!manager || manager.isDeleted) {
         throw new Error("Manager not found");
       }
@@ -107,7 +109,7 @@ class ManagerRepository {
     try {
       const updatedManager = await ManagerModel.findByIdAndUpdate(id, managerData, {
         new: true,
-      }).populate("Admin");
+      }).populate("admin");  // Populating the Admin field
       if (!updatedManager || updatedManager.isDeleted) {
         throw new Error("Failed to update manager");
       }
@@ -124,7 +126,7 @@ class ManagerRepository {
         id,
         { isDeleted: true },
         { new: true }
-      ).populate("Admin");
+      ).populate("admin");  // Populating the Admin field
       if (!deletedManager) {
         throw new Error("Failed to delete manager");
       }
@@ -231,11 +233,11 @@ import { logError } from "../utils/errorLogger";
 class ManagerMiddleware {
   public async createManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { Admin, email, name, password } = req.body;
-      if (!Admin || !email || !name || !password) {
+      const { email, name, password, admin } = req.body;
+      if (!email || !name || !password || !admin) {
         res.sendError(
-          "ValidationError: Admin, Email, Name, and Password must be provided",
-          "Admin, Email, Name, and Password must be provided",
+          "ValidationError: Email, Name, Password, and Admin must be provided",
+          "Email, Name, Password, and Admin must be provided",
           400
         );
         return;
@@ -249,11 +251,11 @@ class ManagerMiddleware {
 
   public async updateManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { Admin, email, name, password } = req.body;
-      if (!Admin || !email || !name || !password) {
+      const { email, name, password, admin } = req.body;
+      if (!email && !name && !password && !admin) {
         res.sendError(
-          "ValidationError: Admin, Email, Name, and Password must be provided",
-          "Admin, Email, Name, and Password must be provided",
+          "ValidationError: Email, Name, Password, and Admin must be provided",
+          "Email, Name, Password, and Admin must be provided",
           400
         );
         return;
@@ -311,30 +313,30 @@ import { IAdmin } from "./admin";
 
 export interface IManager {
   _id: string;
-  Admin: IAdmin;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
   name: string;
   password: string;
+  admin: IAdmin;  // Linking to Admin
 }
 
 export interface ICreateManager {
-  Admin: string;
   email: string;
   isActive?: boolean; 
   isDeleted?: boolean;
   name: string;
   password: string;
+  admin: string;  // Linking to Admin
 }
 
 export interface IUpdateManager {
-  Admin?: string;
   email?: string;
   isActive?: boolean;
   isDeleted?: boolean;
   name?: string;
   password?: string;
+  admin?: string;  // Linking to Admin
 }
 EOT
 
@@ -350,7 +352,6 @@ const managerMiddleware = new ManagerMiddleware();
 
 router.get(
   "/",
-  managerMiddleware.getManager.bind(managerMiddleware),
   managerService.getManagers.bind(managerService)
 );
 router.get(
@@ -363,7 +364,7 @@ router.post(
   managerMiddleware.createManager.bind(managerMiddleware),
   managerService.createManager.bind(managerService)
 );
-router.put(
+router.patch(
   "/:id",
   managerMiddleware.updateManager.bind(managerMiddleware),
   managerService.updateManager.bind(managerService)

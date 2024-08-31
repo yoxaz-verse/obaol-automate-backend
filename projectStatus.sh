@@ -52,7 +52,7 @@ class ProjectStatusRepository {
       const totalCount = await ProjectStatusModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: projectStatuses,
+        data: projectStatuses as IProjectStatus[],
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -69,7 +69,7 @@ class ProjectStatusRepository {
       if (!projectStatus) {
         throw new Error("Project Status not found");
       }
-      return projectStatus;
+      return projectStatus as IProjectStatus;
     } catch (error) {
       await logError(error, req, "ProjectStatusRepository-getProjectStatusById");
       throw error;
@@ -322,7 +322,6 @@ const projectStatusMiddleware = new ProjectStatusMiddleware();
 
 router.get(
   "/",
-  projectStatusMiddleware.getProjectStatus.bind(projectStatusMiddleware),
   projectStatusService.getProjectStatuses.bind(projectStatusService)
 );
 router.get(
@@ -335,7 +334,7 @@ router.post(
   projectStatusMiddleware.createProjectStatus.bind(projectStatusMiddleware),
   projectStatusService.createProjectStatus.bind(projectStatusService)
 );
-router.put(
+router.patch(
   "/:id",
   projectStatusMiddleware.updateProjectStatus.bind(projectStatusMiddleware),
   projectStatusService.updateProjectStatus.bind(projectStatusService)

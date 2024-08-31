@@ -18,7 +18,7 @@ const ServiceCompanySchema = new mongoose.Schema(
     map: { type: String },
     url: { type: String },
     isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false }
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

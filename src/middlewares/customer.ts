@@ -22,15 +22,15 @@ class CustomerMiddleware {
 
   public async updateCustomer(req: Request, res: Response, next: NextFunction) {
     try {
-      // const { email, name, password } = req.body;
-      // if ( ) {
-      //   res.sendError(
-      //     "ValidationError: Email, Name, and Password must be provided",
-      //     "Email, Name, and Password must be provided",
-      //     400
-      //   );
-      //   return;
-      // }
+      const { email, name, password } = req.body;
+      if (!email && !name && !password) {
+        res.sendError(
+          "ValidationError: Email, Name, and Password must be provided",
+          "Email, Name, and Password must be provided",
+          400
+        );
+        return;
+      }
       next();
     } catch (error) {
       await logError(error, req, "Middleware-CustomerUpdate");
@@ -67,15 +67,6 @@ class CustomerMiddleware {
         );
         return;
       }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-CustomerGet");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-  public async getAllCustomer(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
       next();
     } catch (error) {
       await logError(error, req, "Middleware-CustomerGet");

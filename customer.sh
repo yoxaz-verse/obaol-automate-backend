@@ -246,7 +246,7 @@ class CustomerMiddleware {
   public async updateCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, name, password } = req.body;
-      if (!email || !name || !password) {
+      if (!email && !name && !password) {
         res.sendError(
           "ValidationError: Email, Name, and Password must be provided",
           "Email, Name, and Password must be provided",
@@ -341,7 +341,6 @@ const customerMiddleware = new CustomerMiddleware();
 
 router.get(
   "/",
-  customerMiddleware.getCustomer.bind(customerMiddleware),
   customerService.getCustomers.bind(customerService)
 );
 router.get(
@@ -354,7 +353,7 @@ router.post(
   customerMiddleware.createCustomer.bind(customerMiddleware),
   customerService.createCustomer.bind(customerService)
 );
-router.put(
+router.patch(
   "/:id",
   customerMiddleware.updateCustomer.bind(customerMiddleware),
   customerService.updateCustomer.bind(customerService)

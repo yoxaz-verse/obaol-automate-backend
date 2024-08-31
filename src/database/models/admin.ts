@@ -1,24 +1,28 @@
 import mongoose from "mongoose";
 
 interface IAdmin extends mongoose.Document {
+  name: string;
   email: string;
+  password: string;
+  isSuperAdmin: boolean;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
+  refreshToken?: string;
 }
 
-const AdminSchema = new mongoose.Schema(
+const adminSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    password: { type: String, required: true },
+    isSuperAdmin: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    isSuperAdmin: { type: Boolean, default: false },
-    name: { type: String, required: true },
-    password: { type: String, required: true }
+    refreshToken: { type: String },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", AdminSchema);
+export const AdminModel = mongoose.model<IAdmin>("Admin", adminSchema);

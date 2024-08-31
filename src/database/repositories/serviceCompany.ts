@@ -1,6 +1,10 @@
 import { Request } from "express";
 import { ServiceCompanyModel } from "../models/serviceCompany";
-import { IServiceCompany, ICreateServiceCompany, IUpdateServiceCompany } from "../../interfaces/serviceCompany";
+import {
+  IServiceCompany,
+  ICreateServiceCompany,
+  IUpdateServiceCompany,
+} from "../../interfaces/serviceCompany";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 
@@ -18,7 +22,7 @@ class ServiceCompanyRepository {
     try {
       let query: any = {};
       if (search) {
-        query.name = { : search, : "i" };
+        query.name = { $regex: search, $options: "i" };
       }
       const serviceCompanies = await ServiceCompanyModel.find(query)
         .limit(pagination.limit)
@@ -34,20 +38,31 @@ class ServiceCompanyRepository {
         totalPages,
       };
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-getServiceCompanies");
+      await logError(
+        error,
+        req,
+        "ServiceCompanyRepository-getServiceCompanies"
+      );
       throw error;
     }
   }
 
-  public async getServiceCompanyById(req: Request, id: string): Promise<IServiceCompany> {
+  public async getServiceCompanyById(
+    req: Request,
+    id: string
+  ): Promise<IServiceCompany> {
     try {
       const serviceCompany = await ServiceCompanyModel.findById(id).lean();
       if (!serviceCompany || serviceCompany.isDeleted) {
-        throw new Error("Service Company not found");
+        throw new Error("ServiceCompany not found");
       }
       return serviceCompany;
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-getServiceCompanyById");
+      await logError(
+        error,
+        req,
+        "ServiceCompanyRepository-getServiceCompanyById"
+      );
       throw error;
     }
   }
@@ -57,10 +72,16 @@ class ServiceCompanyRepository {
     serviceCompanyData: ICreateServiceCompany
   ): Promise<IServiceCompany> {
     try {
-      const newServiceCompany = await ServiceCompanyModel.create(serviceCompanyData);
+      const newServiceCompany = await ServiceCompanyModel.create(
+        serviceCompanyData
+      );
       return newServiceCompany.toObject();
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-createServiceCompany");
+      await logError(
+        error,
+        req,
+        "ServiceCompanyRepository-createServiceCompany"
+      );
       throw error;
     }
   }
@@ -71,20 +92,31 @@ class ServiceCompanyRepository {
     serviceCompanyData: Partial<IUpdateServiceCompany>
   ): Promise<IServiceCompany> {
     try {
-      const updatedServiceCompany = await ServiceCompanyModel.findByIdAndUpdate(id, serviceCompanyData, {
-        new: true,
-      });
+      const updatedServiceCompany = await ServiceCompanyModel.findByIdAndUpdate(
+        id,
+        serviceCompanyData,
+        {
+          new: true,
+        }
+      );
       if (!updatedServiceCompany || updatedServiceCompany.isDeleted) {
         throw new Error("Failed to update service company");
       }
       return updatedServiceCompany.toObject();
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-updateServiceCompany");
+      await logError(
+        error,
+        req,
+        "ServiceCompanyRepository-updateServiceCompany"
+      );
       throw error;
     }
   }
 
-  public async deleteServiceCompany(req: Request, id: string): Promise<IServiceCompany> {
+  public async deleteServiceCompany(
+    req: Request,
+    id: string
+  ): Promise<IServiceCompany> {
     try {
       const deletedServiceCompany = await ServiceCompanyModel.findByIdAndUpdate(
         id,
@@ -96,7 +128,11 @@ class ServiceCompanyRepository {
       }
       return deletedServiceCompany.toObject();
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-deleteServiceCompany");
+      await logError(
+        error,
+        req,
+        "ServiceCompanyRepository-deleteServiceCompany"
+      );
       throw error;
     }
   }

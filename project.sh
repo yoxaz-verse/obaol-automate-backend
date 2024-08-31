@@ -3,44 +3,51 @@
 # Create model
 cat <<EOT > src/database/models/project.ts
 import mongoose from "mongoose";
-import { AdminModel } from "./admin";
 import { CustomerModel } from "./customer";
+import { AdminModel } from "./admin";
 import { ManagerModel } from "./manager";
-import { StatusModel } from "./status";
-import { LocationModel } from "./location";
+import { ProjectStatusModel } from "./projectStatus";
 
 interface IProject extends mongoose.Document {
-  admin: mongoose.Schema.Types.ObjectId;
-  customer: mongoose.Schema.Types.ObjectId;
-  customId: string;
+  title: string;
   description: string;
+  customId: string;
+  customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
+  admin: mongoose.Schema.Types.ObjectId | typeof AdminModel;
+  manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
+  status: mongoose.Schema.Types.ObjectId | typeof ProjectStatusModel;
+  statusHistory: Array<mongoose.Schema.Types.ObjectId | typeof ProjectStatusModel>;
   isActive: boolean;
   isDeleted: boolean;
-  manager: mongoose.Schema.Types.ObjectId;
-  previoudCustomId?: string;
-  statusHistory: mongoose.Schema.Types.ObjectId[];
-  title: string;
-  status: mongoose.Schema.Types.ObjectId;
-  location: mongoose.Schema.Types.ObjectId;
 }
 
 const ProjectSchema = new mongoose.Schema(
   {
-    admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
-    customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true },
-    customId: { type: String, required: true, unique: true },
-    description: { type: String, required: true },
-    isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
-    manager: { type: mongoose.Schema.Types.ObjectId, ref: "Manager", required: true },
-    previoudCustomId: { type: String },
-    statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "StatusHistory", required: true }],
     title: { type: String, required: true },
-    status: { type: mongoose.Schema.Types.ObjectId, ref: "Status", required: true },
-    location: { type: mongoose.Schema.Types.ObjectId, ref: "Location", required: true }
+    description: { type: String, required: true },
+    customId: { type: String, required: true, unique: true },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true },
+    admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
+    manager: { type: mongoose.Schema.Types.ObjectId, ref: "Manager", required: true },
+    status: { type: mongoose.Schema.Types.ObjectId, ref: "ProjectStatus", required: true },
+    statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "ProjectStatus" }],
+    isActive: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false }
   },
   { timestamps: true }
 );
+
+// Custom ID generator
+ProjectSchema.pre('validate', function(next) {
+  if (!this.customId && this.isNew) {
+    const location = this.get('location');  // Assuming location is provided
+    if (location) {
+      const customId = `${location.nation.slice(0, 2).toUpperCase()}${location.city.slice(0, 2).toUpperCase()}${location.region.slice(0, 2).toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
+      this.customId = customId;
+    }
+  }
+  next();
+});
 
 export const ProjectModel = mongoose.model<IProject>("Project", ProjectSchema);
 EOT
@@ -70,7 +77,10 @@ class ProjectRepository {
         query.title = { $regex: search, $options: "i" };
       }
       const projects = await ProjectModel.find(query)
-        .populate("admin customer manager status location")
+        .populate("customer")
+        .populate("admin")
+        .populate("manager")
+        .populate("status")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
         .lean();
@@ -78,7 +88,7 @@ class ProjectRepository {
       const totalCount = await ProjectModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: projects,
+        data: projects as IProject[],
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -92,12 +102,15 @@ class ProjectRepository {
   public async getProjectById(req: Request, id: string): Promise<IProject> {
     try {
       const project = await ProjectModel.findById(id)
-        .populate("admin customer manager status location")
+        .populate("customer")
+        .populate("admin")
+        .populate("manager")
+        .populate("status")
         .lean();
-      if (!project || project.isDeleted) {
+      if (!project) {
         throw new Error("Project not found");
       }
-      return project;
+      return project as IProject;
     } catch (error) {
       await logError(error, req, "ProjectRepository-getProjectById");
       throw error;
@@ -125,8 +138,12 @@ class ProjectRepository {
     try {
       const updatedProject = await ProjectModel.findByIdAndUpdate(id, projectData, {
         new: true,
-      }).populate("admin customer manager status location");
-      if (!updatedProject || updatedProject.isDeleted) {
+      })
+      .populate("customer")
+      .populate("admin")
+      .populate("manager")
+      .populate("status");
+      if (!updatedProject) {
         throw new Error("Failed to update project");
       }
       return updatedProject.toObject();
@@ -138,11 +155,7 @@ class ProjectRepository {
 
   public async deleteProject(req: Request, id: string): Promise<IProject> {
     try {
-      const deletedProject = await ProjectModel.findByIdAndUpdate(
-        id,
-        { isDeleted: true },
-        { new: true }
-      ).populate("admin customer manager status location");
+      const deletedProject = await ProjectModel.findByIdAndDelete(id);
       if (!deletedProject) {
         throw new Error("Failed to delete project");
       }
@@ -249,11 +262,11 @@ import { logError } from "../utils/errorLogger";
 class ProjectMiddleware {
   public async createProject(req: Request, res: Response, next: NextFunction) {
     try {
-      const { admin, customer, customId, description, manager, status, title, location } = req.body;
-      if (!admin || !customer || !customId || !description || !manager || !status || !title || !location) {
+      const { title, description, customer, admin, manager, status } = req.body;
+      if (!title || !description || !customer || !admin || !manager || !status) {
         res.sendError(
-          "ValidationError: Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
-          "Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
+          "ValidationError: Title, Description, Customer, Admin, Manager, and Status must be provided",
+          "Title, Description, Customer, Admin, Manager, and Status must be provided",
           400
         );
         return;
@@ -267,11 +280,11 @@ class ProjectMiddleware {
 
   public async updateProject(req: Request, res: Response, next: NextFunction) {
     try {
-      const { admin, customer, customId, description, manager, status, title, location } = req.body;
-      if (!admin || !customer || !customId || !description || !manager || !status || !title || !location) {
+      const { title, description, customer, admin, manager, status } = req.body;
+      if (!title && !description && !customer && !admin && !manager && !status) {
         res.sendError(
-          "ValidationError: Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
-          "Admin, Customer, CustomId, Description, Manager, Status, Title, and Location must be provided",
+          "ValidationError: Title, Description, Customer, Admin, Manager, or Status must be provided",
+          "Title, Description, Customer, Admin, Manager, or Status must be provided",
           400
         );
         return;
@@ -325,96 +338,43 @@ EOT
 
 # Create interface
 cat <<EOT > src/interfaces/project.ts
-import { IAdmin } from "./admin";
 import { ICustomer } from "./customer";
+import { IAdmin } from "./admin";
 import { IManager } from "./manager";
-import { IStatus } from "./status";
-import { ILocation } from "./location";
+import { IProjectStatus } from "./projectStatus";
 
 export interface IProject {
   _id: string;
-  admin: IAdmin;
-  customer: ICustomer;
-  customId: string;
+  title: string;
   description: string;
+  customId: string;
+  customer: string | ICustomer;
+  admin: string | IAdmin;
+  manager: string | IManager;
+  status: string | IProjectStatus;
+  statusHistory: string[];
   isActive: boolean;
   isDeleted: boolean;
-  manager: IManager;
-  previoudCustomId?: string;
-  statusHistory: mongoose.Schema.Types.ObjectId[];
-  title: string;
-  status: IStatus;
-  location: ILocation;
 }
 
 export interface ICreateProject {
-  admin: string;
-  customer: string;
-  customId: string;
-  description: string;
-  isActive?: boolean; 
-  isDeleted?: boolean;
-  manager: string;
-  previoudCustomId?: string;
-  statusHistory: string[];
   title: string;
+  description: string;
+  customer: string;
+  admin: string;
+  manager: string;
   status: string;
-  location: string;
 }
 
 export interface IUpdateProject {
-  admin?: string;
-  customer?: string;
-  customId?: string;
-  description?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
-  manager?: string;
-  previoudCustomId?: string;
-  statusHistory?: string[];
   title?: string;
+  description?: string;
+  customer?: string;
+  admin?: string;
+  manager?: string;
   status?: string;
-  location?: string;
 }
 EOT
 
-# Create routes
-cat <<EOT > src/routes/projectRoute.ts
-import { Router } from "express";
-import ProjectService from "../services/project";
-import ProjectMiddleware from "../middlewares/project";
-
-const router = Router();
-const projectService = new ProjectService();
-const projectMiddleware = new ProjectMiddleware();
-
-router.get(
-  "/",
-  projectMiddleware.getProject.bind(projectMiddleware),
-  projectService.getProjects.bind(projectService)
-);
-router.get(
-  "/:id",
-  projectMiddleware.getProject.bind(projectMiddleware),
-  projectService.getProject.bind(projectService)
-);
-router.post(
-  "/",
-  projectMiddleware.createProject.bind(projectMiddleware),
-  projectService.createProject.bind(projectService)
-);
-router.put(
-  "/:id",
-  projectMiddleware.updateProject.bind(projectMiddleware),
-  projectService.updateProject.bind(projectService)
-);
-router.delete(
-  "/:id",
-  projectMiddleware.deleteProject.bind(projectMiddleware),
-  projectService.deleteProject.bind(projectService)
-);
-
-export default router;
-EOT
 
 echo "Project module generated successfully."

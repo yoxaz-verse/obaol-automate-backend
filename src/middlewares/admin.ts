@@ -1,14 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 import { verifyToken } from "../helpers/encrypt";
-import { ACCESS_TOKEN_SECRET } from "../config";
 
 // CustomRequest is an interface that extends the Express Request to include admin information
 interface CustomRequest extends Request {
   admin?: {
     id: string;
     email: string;
-    role: string;
   };
 }
 

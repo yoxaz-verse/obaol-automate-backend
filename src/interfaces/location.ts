@@ -3,7 +3,6 @@ import { ILocationManager } from "./locationManager";
 import mongoose from "mongoose";
 
 export interface ILocation {
-  _id: string;
   name: string;
   address: string;
   city: string;

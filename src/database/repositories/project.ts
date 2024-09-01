@@ -106,7 +106,6 @@ class ProjectRepository {
     try {
       const newProject = await ProjectModel.create(projectData);
       return {
-        _id: newProject._id.toString(),
         title: newProject.title,
         description: newProject.description,
         customId: newProject.customId,

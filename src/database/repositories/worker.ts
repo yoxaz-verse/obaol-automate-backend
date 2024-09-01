@@ -21,21 +21,15 @@ class WorkerRepository {
         query.name = { $regex: search, $options: "i" };
       }
       const workers = await WorkerModel.find(query)
-        .populate("serviceCompany") // Ensure proper population
-        .lean(); // Use lean to return plain JavaScript objects
-
-      // Map the result to the IWorker interface
-      const mappedWorkers = workers.map((worker) => ({
-        ...worker,
-        serviceCompany:
-          worker.serviceCompany?._id?.toString() ||
-          worker.serviceCompany?.toString(),
-      }));
+        .populate("serviceCompany")
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean();
 
       const totalCount = await WorkerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: mappedWorkers as IWorker[],
+        data: workers.map((worker: any) => worker.toObject()) as IWorker[],
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -51,17 +45,10 @@ class WorkerRepository {
       const worker = await WorkerModel.findById(id)
         .populate("serviceCompany")
         .lean();
-
-      if (!worker) {
+      if (!worker || worker.isDeleted) {
         throw new Error("Worker not found");
       }
-
-      return {
-        ...worker,
-        serviceCompany:
-          worker.serviceCompany?._id?.toString() ||
-          worker.serviceCompany?.toString(),
-      } as IWorker;
+      return worker as unknown as IWorker;
     } catch (error) {
       await logError(error, req, "WorkerRepository-getWorkerById");
       throw error;
@@ -74,7 +61,10 @@ class WorkerRepository {
   ): Promise<IWorker> {
     try {
       const newWorker = await WorkerModel.create(workerData);
-      return newWorker.toObject<IWorker>(); // Convert to plain JavaScript object
+      return {
+        ...newWorker.toObject(),
+        serviceCompany: newWorker.serviceCompany.toString(),
+      };
     } catch (error) {
       await logError(error, req, "WorkerRepository-createWorker");
       throw error;
@@ -93,20 +83,14 @@ class WorkerRepository {
         {
           new: true,
         }
-      )
-        .populate("serviceCompany")
-        .lean();
-
-      if (!updatedWorker) {
+      ).populate("serviceCompany");
+      if (!updatedWorker || updatedWorker.isDeleted) {
         throw new Error("Failed to update worker");
       }
-
       return {
-        ...updatedWorker,
-        serviceCompany:
-          updatedWorker.serviceCompany?._id?.toString() ||
-          updatedWorker.serviceCompany?.toString(),
-      } as IWorker;
+        ...updatedWorker.toObject(),
+        serviceCompany: updatedWorker.serviceCompany.toString(),
+      };
     } catch (error) {
       await logError(error, req, "WorkerRepository-updateWorker");
       throw error;
@@ -115,18 +99,18 @@ class WorkerRepository {
 
   public async deleteWorker(req: Request, id: string): Promise<IWorker> {
     try {
-      const deletedWorker = await WorkerModel.findByIdAndDelete(id).lean();
-
+      const deletedWorker = await WorkerModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      ).populate("serviceCompany");
       if (!deletedWorker) {
         throw new Error("Failed to delete worker");
       }
-
       return {
-        ...deletedWorker,
-        serviceCompany:
-          deletedWorker.serviceCompany?._id?.toString() ||
-          deletedWorker.serviceCompany?.toString(),
-      } as IWorker;
+        ...deletedWorker.toObject(),
+        serviceCompany: deletedWorker.serviceCompany.toString(),
+      };
     } catch (error) {
       await logError(error, req, "WorkerRepository-deleteWorker");
       throw error;

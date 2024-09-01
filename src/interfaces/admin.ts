@@ -1,5 +1,5 @@
 export interface IAdmin {
-  _id: string;
+  [x: string]: any;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
@@ -11,7 +11,7 @@ export interface IAdmin {
 
 export interface ICreateAdmin {
   email: string;
-  isActive?: boolean; 
+  isActive?: boolean;
   isDeleted?: boolean;
   isSuperAdmin?: boolean;
   name: string;

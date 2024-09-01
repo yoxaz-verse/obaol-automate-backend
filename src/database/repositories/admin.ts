@@ -58,7 +58,8 @@ class AdminRepository {
     admin: ICreateAdmin
   ): Promise<IAdmin | null> {
     try {
-      return await AdminModel.create(admin);
+      const newAdmin = await AdminModel.create(admin);
+      return newAdmin.toObject();
     } catch (error) {
       await logError(error, req, "AdminRepository-createAdmin");
       throw new Error("Admin creation failed");

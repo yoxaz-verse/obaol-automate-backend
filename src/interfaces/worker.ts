@@ -8,7 +8,7 @@ export interface IWorker {
   isService: boolean;
   name: string;
   password: string;
-  serviceCompany?: mongoose.Schema.Types.ObjectId | IServiceCompany;
+  serviceCompany?: string;
 }
 
 export interface ICreateWorker {

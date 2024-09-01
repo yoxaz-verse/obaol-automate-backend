@@ -2,6 +2,7 @@ import { IServiceCompany } from "./serviceCompany";
 import mongoose from "mongoose";
 
 export interface IWorker {
+  [x: string]: any;
   email: string;
   isActive: boolean;
   isDeleted: boolean;

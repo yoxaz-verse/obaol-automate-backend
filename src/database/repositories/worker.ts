@@ -29,7 +29,7 @@ class WorkerRepository {
       const totalCount = await WorkerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: workers as IWorker[],
+        data: workers.map((worker: any) => worker.toObject()) as IWorker[],
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -48,7 +48,7 @@ class WorkerRepository {
       if (!worker || worker.isDeleted) {
         throw new Error("Worker not found");
       }
-      return worker as IWorker;
+      return worker as unknown as IWorker;
     } catch (error) {
       await logError(error, req, "WorkerRepository-getWorkerById");
       throw error;
@@ -61,7 +61,10 @@ class WorkerRepository {
   ): Promise<IWorker> {
     try {
       const newWorker = await WorkerModel.create(workerData);
-      return newWorker.toObject();
+      return {
+        ...newWorker.toObject(),
+        serviceCompany: newWorker.serviceCompany.toString(),
+      };
     } catch (error) {
       await logError(error, req, "WorkerRepository-createWorker");
       throw error;
@@ -84,7 +87,10 @@ class WorkerRepository {
       if (!updatedWorker || updatedWorker.isDeleted) {
         throw new Error("Failed to update worker");
       }
-      return updatedWorker.toObject();
+      return {
+        ...updatedWorker.toObject(),
+        serviceCompany: updatedWorker.serviceCompany.toString(),
+      };
     } catch (error) {
       await logError(error, req, "WorkerRepository-updateWorker");
       throw error;
@@ -101,7 +107,10 @@ class WorkerRepository {
       if (!deletedWorker) {
         throw new Error("Failed to delete worker");
       }
-      return deletedWorker.toObject();
+      return {
+        ...deletedWorker.toObject(),
+        serviceCompany: deletedWorker.serviceCompany.toString(),
+      };
     } catch (error) {
       await logError(error, req, "WorkerRepository-deleteWorker");
       throw error;

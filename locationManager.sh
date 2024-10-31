@@ -1,373 +1,282 @@
 #!/bin/bash
 
-# Create model
-cat <<EOT > src/database/models/location.ts
-import mongoose from "mongoose";
+# Exit immediately if a command exits with a non-zero status
+set -e
 
-interface ILocation extends mongoose.Document {
-  name: string;
-  address: string;
-  locationType: mongoose.Schema.Types.ObjectId;
-  locationManager: mongoose.Schema.Types.ObjectId;
+# Function to display usage instructions
+usage() {
+  echo "Usage: ./setup_location_manager.sh"
+  exit 1
 }
 
-const LocationSchema = new mongoose.Schema(
+# Check if script is run from the project root by looking for package.json
+if [ ! -f "package.json" ]; then
+  echo "❌ Error: package.json not found. Please run this script from the project root."
+  usage
+fi
+
+echo "✅ Project root confirmed."
+
+# Define directories
+SRC_DIR="src"
+MODEL_DIR="$SRC_DIR/database/models"
+REPO_DIR="$SRC_DIR/database/repositories"
+SERVICE_DIR="$SRC_DIR/services"
+MIDDLEWARE_DIR="$SRC_DIR/middlewares"
+ROUTES_DIR="$SRC_DIR/routes"
+INTERFACES_DIR="$SRC_DIR/interfaces"
+UTILS_DIR="$SRC_DIR/utils"
+TYPES_DIR="$SRC_DIR/types"
+
+# Create directories if they don't exist
+echo "🗂️ Creating necessary directories..."
+mkdir -p "$MODEL_DIR" "$REPO_DIR" "$SERVICE_DIR" "$MIDDLEWARE_DIR" "$ROUTES_DIR" "$INTERFACES_DIR" "$UTILS_DIR" "$TYPES_DIR"
+
+# Function to create or overwrite a file with content
+create_or_overwrite_file() {
+  local FILE_PATH=$1
+  local CONTENT=$2
+
+  if [ -f "$FILE_PATH" ]; then
+    echo "📝 Overwriting existing file at $FILE_PATH."
+  else
+    echo "📝 Creating file at $FILE_PATH."
+  fi
+
+  echo "$CONTENT" > "$FILE_PATH"
+  echo "✅ $FILE_PATH has been set up."
+}
+
+# 1. Create LocationManager Interface
+INTERFACE_FILE="$INTERFACES_DIR/locationManager.ts"
+INTERFACE_CONTENT=$(cat <<'EOL'
+import mongoose from "mongoose";
+import { ILocation } from "./location";
+
+export interface ILocationManager extends mongoose.Document {
+  code: string;
+  name: string;
+  managingLocations: mongoose.Schema.Types.ObjectId[] | ILocation[];
+}
+EOL
+)
+
+create_or_overwrite_file "$INTERFACE_FILE" "$INTERFACE_CONTENT"
+
+# 2. Create LocationManager Model
+MODEL_FILE="$MODEL_DIR/locationManager.ts"
+MODEL_CONTENT=$(cat <<'EOL'
+import mongoose from "mongoose";
+import { ILocationManager } from "../../interfaces/locationManager";
+
+const LocationManagerSchema = new mongoose.Schema<ILocationManager>(
   {
+    code: { type: String, required: true, unique: true },
     name: { type: String, required: true },
-    address: { type: String, required: true },
-    locationType: { type: mongoose.Schema.Types.ObjectId, ref: "LocationType", required: true },
-    locationManager: { type: mongoose.Schema.Types.ObjectId, ref: "LocationManager", required: true }
+    managingLocations: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Location" },
+    ],
   },
   { timestamps: true }
 );
 
-export const LocationModel = mongoose.model<ILocation>("Location", LocationSchema);
-EOT
+export const LocationManagerModel = mongoose.model<ILocationManager>(
+  "LocationManager",
+  LocationManagerSchema
+);
+EOL
+)
 
-# Create repository
-cat <<EOT > src/database/repositories/location.ts
+create_or_overwrite_file "$MODEL_FILE" "$MODEL_CONTENT"
+
+# 3. Create LocationManager Repository
+REPO_FILE="$REPO_DIR/locationManager.ts"
+REPO_CONTENT=$(cat <<'EOL'
 import { Request } from "express";
-import { LocationModel } from "../models/location";
-import { ILocation, ICreateLocation, IUpdateLocation } from "../../interfaces/location";
+import { LocationManagerModel, ILocationManager } from "../models/locationManager";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
 
-class LocationRepository {
-  public async getLocations(
-    req: Request,
-    pagination: IPagination,
-    search: string
-  ): Promise<{
-    data: ILocation[];
-    totalCount: number;
-    currentPage: number;
-    totalPages?: number;
-  }> {
+class LocationManagerRepository {
+  public async getLocationManagers(req: Request): Promise<ILocationManager[]> {
     try {
-      let query: any = {};
-      if (search) {
-        query.name = { $regex: search, $options: "i" };
-      }
-      const locations = await LocationModel.find(query)
-        .populate("locationType")
-        .populate("locationManager")
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
-
-      const totalCount = await LocationModel.countDocuments(query);
-      const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data: locations as ILocation[],
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+      return await LocationManagerModel.find().exec();
     } catch (error) {
-      await logError(error, req, "LocationRepository-getLocations");
+      await logError(error, req, "LocationManagerRepository-getLocationManagers");
       throw error;
     }
   }
 
-  public async getLocationById(req: Request, id: string): Promise<ILocation> {
+  public async getLocationManagerById(req: Request, id: string): Promise<ILocationManager | null> {
     try {
-      const location = await LocationModel.findById(id)
-        .populate("locationType")
-        .populate("locationManager")
-        .lean();
-      if (!location) {
-        throw new Error("Location not found");
-      }
-      return location as ILocation;
+      return await LocationManagerModel.findById(id).exec();
     } catch (error) {
-      await logError(error, req, "LocationRepository-getLocationById");
+      await logError(error, req, "LocationManagerRepository-getLocationManagerById");
       throw error;
     }
   }
 
-  public async createLocation(
-    req: Request,
-    locationData: ICreateLocation
-  ): Promise<ILocation> {
+  public async createLocationManager(req: Request, locationManagerData: ILocationManager): Promise<ILocationManager> {
     try {
-      const newLocation = await LocationModel.create(locationData);
-      return newLocation.toObject();
+      return await LocationManagerModel.create(locationManagerData);
     } catch (error) {
-      await logError(error, req, "LocationRepository-createLocation");
+      await logError(error, req, "LocationManagerRepository-createLocationManager");
       throw error;
     }
   }
 
-  public async updateLocation(
-    req: Request,
-    id: string,
-    locationData: Partial<IUpdateLocation>
-  ): Promise<ILocation> {
+  public async updateLocationManager(req: Request, id: string, locationManagerData: Partial<ILocationManager>): Promise<ILocationManager | null> {
     try {
-      const updatedLocation = await LocationModel.findByIdAndUpdate(id, locationData, {
-        new: true,
-      }).populate("locationType")
-        .populate("locationManager");
-      if (!updatedLocation) {
-        throw new Error("Failed to update location");
-      }
-      return updatedLocation.toObject();
+      return await LocationManagerModel.findByIdAndUpdate(id, locationManagerData, { new: true }).exec();
     } catch (error) {
-      await logError(error, req, "LocationRepository-updateLocation");
+      await logError(error, req, "LocationManagerRepository-updateLocationManager");
       throw error;
     }
   }
 
-  public async deleteLocation(req: Request, id: string): Promise<ILocation> {
+  public async deleteLocationManager(req: Request, id: string): Promise<ILocationManager | null> {
     try {
-      const deletedLocation = await LocationModel.findByIdAndDelete(id)
-        .populate("locationType")
-        .populate("locationManager");
-      if (!deletedLocation) {
-        throw new Error("Failed to delete location");
-      }
-      return deletedLocation.toObject();
+      return await LocationManagerModel.findByIdAndDelete(id).exec();
     } catch (error) {
-      await logError(error, req, "LocationRepository-deleteLocation");
+      await logError(error, req, "LocationManagerRepository-deleteLocationManager");
       throw error;
     }
   }
 }
 
-export default LocationRepository;
-EOT
+export default LocationManagerRepository;
+EOL
+)
 
-# Create service
-cat <<EOT > src/services/location.ts
+create_or_overwrite_file "$REPO_FILE" "$REPO_CONTENT"
+
+# 4. Create LocationManager Service
+SERVICE_FILE="$SERVICE_DIR/locationManager.ts"
+SERVICE_CONTENT=$(cat <<'EOL'
 import { Request, Response } from "express";
-import LocationRepository from "../database/repositories/location";
+import LocationManagerRepository from "../database/repositories/locationManager";
 import { logError } from "../utils/errorLogger";
-import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
 
-class LocationService {
-  private locationRepository: LocationRepository;
+class LocationManagerService {
+  private locationManagerRepository: LocationManagerRepository;
 
   constructor() {
-    this.locationRepository = new LocationRepository();
+    this.locationManagerRepository = new LocationManagerRepository();
   }
 
-  public async getLocations(req: Request, res: Response) {
+  public async getLocationManagers(req: Request, res: Response) {
     try {
-      const pagination = paginationHandler(req);
-      const search = searchHandler(req);
-      const locations = await this.locationRepository.getLocations(
-        req,
-        pagination,
-        search
-      );
-      res.sendArrayFormatted(locations, "Locations retrieved successfully");
+      const locationManagers = await this.locationManagerRepository.getLocationManagers(req);
+      res.sendFormatted(locationManagers, "Location Managers retrieved successfully", 200);
     } catch (error) {
-      await logError(error, req, "LocationService-getLocations");
-      res.sendError(error, "Locations retrieval failed");
+      await logError(error, req, "LocationManagerService-getLocationManagers");
+      res.sendError("Location Managers retrieval failed", 500);
     }
   }
 
-  public async getLocation(req: Request, res: Response) {
+  public async getLocationManager(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const location = await this.locationRepository.getLocationById(req, id);
-      res.sendFormatted(location, "Location retrieved successfully");
-    } catch (error) {
-      await logError(error, req, "LocationService-getLocation");
-      res.sendError(error, "Location retrieval failed");
-    }
-  }
-
-  public async createLocation(req: Request, res: Response) {
-    try {
-      const locationData = req.body;
-      const newLocation = await this.locationRepository.createLocation(req, locationData);
-      res.sendFormatted(newLocation, "Location created successfully", 201);
-    } catch (error) {
-      await logError(error, req, "LocationService-createLocation");
-      res.sendError(error, "Location creation failed");
-    }
-  }
-
-  public async updateLocation(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const locationData = req.body;
-      const updatedLocation = await this.locationRepository.updateLocation(
-        req,
-        id,
-        locationData
-      );
-      res.sendFormatted(updatedLocation, "Location updated successfully");
-    } catch (error) {
-      await logError(error, req, "LocationService-updateLocation");
-      res.sendError(error, "Location update failed");
-    }
-  }
-
-  public async deleteLocation(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const deletedLocation = await this.locationRepository.deleteLocation(req, id);
-      res.sendFormatted(deletedLocation, "Location deleted successfully");
-    } catch (error) {
-      await logError(error, req, "LocationService-deleteLocation");
-      res.sendError(error, "Location deletion failed");
-    }
-  }
-}
-
-export default LocationService;
-EOT
-
-# Create middleware
-cat <<EOT > src/middlewares/location.ts
-import { Request, Response, NextFunction } from "express";
-import { logError } from "../utils/errorLogger";
-
-class LocationMiddleware {
-  public async createLocation(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { name, address, locationType, locationManager } = req.body;
-      if (!name || !address || !locationType || !locationManager) {
-        res.sendError(
-          "ValidationError: Name, Address, LocationType, and LocationManager must be provided",
-          "Name, Address, LocationType, and LocationManager must be provided",
-          400
-        );
-        return;
+      const locationManager = await this.locationManagerRepository.getLocationManagerById(req, id);
+      if (locationManager) {
+        res.sendFormatted(locationManager, "Location Manager retrieved successfully", 200);
+      } else {
+        res.sendError("Location Manager not found", 404);
       }
-      next();
     } catch (error) {
-      await logError(error, req, "Middleware-LocationCreate");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, "LocationManagerService-getLocationManager");
+      res.sendError("Location Manager retrieval failed", 500);
     }
   }
 
-  public async updateLocation(req: Request, res: Response, next: NextFunction) {
+  public async createLocationManager(req: Request, res: Response) {
     try {
-      const { name, address, locationType, locationManager } = req.body;
-      if (!name && !address && !locationType && !locationManager) {
-        res.sendError(
-          "ValidationError: At least one field must be provided",
-          "At least one field must be provided",
-          400
-        );
-        return;
-      }
-      next();
+      const locationManagerData = req.body;
+      const newLocationManager = await this.locationManagerRepository.createLocationManager(req, locationManagerData);
+      res.sendFormatted(newLocationManager, "Location Manager created successfully", 201);
     } catch (error) {
-      await logError(error, req, "Middleware-LocationUpdate");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, "LocationManagerService-createLocationManager");
+      res.sendError("Location Manager creation failed", 500);
     }
   }
 
-  public async deleteLocation(req: Request, res: Response, next: NextFunction) {
+  public async updateLocationManager(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
+      const locationManagerData = req.body;
+      const updatedLocationManager = await this.locationManagerRepository.updateLocationManager(req, id, locationManagerData);
+      if (updatedLocationManager) {
+        res.sendFormatted(updatedLocationManager, "Location Manager updated successfully", 200);
+      } else {
+        res.sendError("Location Manager not found", 404);
       }
-      next();
     } catch (error) {
-      await logError(error, req, "Middleware-LocationDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, "LocationManagerService-updateLocationManager");
+      res.sendError("Location Manager update failed", 500);
     }
   }
 
-  public async getLocation(req: Request, res: Response, next: NextFunction) {
+  public async deleteLocationManager(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
+      const deletedLocationManager = await this.locationManagerRepository.deleteLocationManager(req, id);
+      if (deletedLocationManager) {
+        res.sendFormatted(deletedLocationManager, "Location Manager deleted successfully", 200);
+      } else {
+        res.sendError("Location Manager not found", 404);
       }
-      next();
     } catch (error) {
-      await logError(error, req, "Middleware-LocationGet");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, "LocationManagerService-deleteLocationManager");
+      res.sendError("Location Manager deletion failed", 500);
     }
   }
 }
 
-export default LocationMiddleware;
-EOT
+export default LocationManagerService;
+EOL
+)
 
-# Create interface
-cat <<EOT > src/interfaces/location.ts
-import { ILocationType } from "./locationType";
-import { ILocationManager } from "./locationManager";
-import mongoose from "mongoose";
+create_or_overwrite_file "$SERVICE_FILE" "$SERVICE_CONTENT"
 
-export interface ILocation {
-  _id: string;
-  name: string;
-  address: string;
-  locationType: mongoose.Schema.Types.ObjectId | ILocationType;
-  locationManager: mongoose.Schema.Types.ObjectId | ILocationManager;
-}
-
-export interface ICreateLocation {
-  name: string;
-  address: string;
-  locationType: string;
-  locationManager: string;
-}
-
-export interface IUpdateLocation {
-  name?: string;
-  address?: string;
-  locationType?: string;
-  locationManager?: string;
-}
-EOT
-
-# Create routes
-cat <<EOT > src/routes/locationRoute.ts
+# 5. Create LocationManager Route
+ROUTE_FILE="$ROUTES_DIR/locationManager.ts"
+ROUTE_CONTENT=$(cat <<'EOL'
 import { Router } from "express";
-import LocationService from "../services/location";
-import LocationMiddleware from "../middlewares/location";
+import LocationManagerService from "../services/locationManager";
+
+const locationManagerRoute = Router();
+const locationManagerService = new LocationManagerService();
+
+locationManagerRoute.get("/", locationManagerService.getLocationManagers.bind(locationManagerService));
+locationManagerRoute.get("/:id", locationManagerService.getLocationManager.bind(locationManagerService));
+locationManagerRoute.post("/", locationManagerService.createLocationManager.bind(locationManagerService));
+locationManagerRoute.patch("/:id", locationManagerService.updateLocationManager.bind(locationManagerService));
+locationManagerRoute.delete("/:id", locationManagerService.deleteLocationManager.bind(locationManagerService));
+
+export default locationManagerRoute;
+EOL
+)
+
+create_or_overwrite_file "$ROUTE_FILE" "$ROUTE_CONTENT"
+
+# 6. Integrate LocationManager Routes into Main Router
+MAIN_ROUTE_FILE="$ROUTES_DIR/index.ts"
+
+if [ ! -f "$MAIN_ROUTE_FILE" ]; then
+  MAIN_ROUTE_CONTENT=$(cat <<'EOL'
+import { Router } from "express";
+import locationManagerRoute from "./locationManager";
 
 const router = Router();
-const locationService = new LocationService();
-const locationMiddleware = new LocationMiddleware();
 
-router.get(
-  "/",
-  locationService.getLocations.bind(locationService)
-);
-router.get(
-  "/:id",
-  locationMiddleware.getLocation.bind(locationMiddleware),
-  locationService.getLocation.bind(locationService)
-);
-router.post(
-  "/",
-  locationMiddleware.createLocation.bind(locationMiddleware),
-  locationService.createLocation.bind(locationService)
-);
-router.patch(
-  "/:id",
-  locationMiddleware.updateLocation.bind(locationMiddleware),
-  locationService.updateLocation.bind(locationService)
-);
-router.delete(
-  "/:id",
-  locationMiddleware.deleteLocation.bind(locationMiddleware),
-  locationService.deleteLocation.bind(locationService)
-);
+router.use("/location-managers", locationManagerRoute);
 
 export default router;
-EOT
+EOL
+)
+  create_or_overwrite_file "$MAIN_ROUTE_FILE" "$MAIN_ROUTE_CONTENT"
+else
+  echo "🔄 Main route file already exists. Adding LocationManager route."
+  sed -i '/^const router = Router()/a router.use("/location-managers", locationManagerRoute);' "$MAIN_ROUTE_FILE"
+fi
 
-echo "Location module generated successfully."
+echo "🎉 Setup complete for LocationManager model, interface, repository, service, and route."

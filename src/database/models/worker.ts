@@ -9,6 +9,7 @@ interface IWorker extends mongoose.Document {
   name: string;
   password: string;
   serviceCompany: mongoose.Schema.Types.ObjectId | typeof ServiceCompanyModel;
+  role: string; // Assign default role
 }
 
 const WorkerSchema = new mongoose.Schema(
@@ -19,7 +20,12 @@ const WorkerSchema = new mongoose.Schema(
     isService: { type: Boolean, default: false },
     name: { type: String, required: true },
     password: { type: String, required: true },
-    serviceCompany: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceCompany", required: true }
+    serviceCompany: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ServiceCompany",
+      required: true,
+    },
+    role: { type: String, default: "Worker" }, // Assign default role
   },
   { timestamps: true }
 );

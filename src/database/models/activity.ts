@@ -15,6 +15,7 @@ interface IActivity extends mongoose.Document {
   targetDate: Date;
   workers: Array<mongoose.Schema.Types.ObjectId | typeof WorkerModel>;
   updatedBy: mongoose.Schema.Types.ObjectId | typeof WorkerModel | typeof ManagerModel;
+  updatedByModel: string; // Field to support refPath
   hoursSpent: number;
   statusHistory: Array<mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel>;
   status: mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel;
@@ -42,7 +43,8 @@ const ActivitySchema = new mongoose.Schema(
     actualDate: { type: Date, required: true },
     targetDate: { type: Date, required: true },
     workers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Worker" }],
-    updatedBy: { type: mongoose.Schema.Types.ObjectId, refPath: 'updatedByModel', required: true },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, refPath: "updatedByModel", required: true },
+    updatedByModel: { type: String, required: true, enum: ["Worker", "Manager"] }, // Define possible models
     hoursSpent: { type: Number, required: true },
     statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "ActivityStatus" }],
     status: { type: mongoose.Schema.Types.ObjectId, ref: "ActivityStatus", required: true },

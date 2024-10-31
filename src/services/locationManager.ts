@@ -20,10 +20,10 @@ class LocationManagerService {
         pagination,
         search
       );
-      res.sendArrayFormatted(locationManagers, "Location Managers retrieved successfully");
+      res.sendArrayFormatted(locationManagers, "LocationManagers retrieved successfully");
     } catch (error) {
       await logError(error, req, "LocationManagerService-getLocationManagers");
-      res.sendError(error, "Location Managers retrieval failed");
+      res.sendError(error, "LocationManagers retrieval failed");
     }
   }
 
@@ -31,10 +31,10 @@ class LocationManagerService {
     try {
       const { id } = req.params;
       const locationManager = await this.locationManagerRepository.getLocationManagerById(req, id);
-      res.sendFormatted(locationManager, "Location Manager retrieved successfully");
+      res.sendFormatted(locationManager, "LocationManager retrieved successfully");
     } catch (error) {
       await logError(error, req, "LocationManagerService-getLocationManager");
-      res.sendError(error, "Location Manager retrieval failed");
+      res.sendError(error, "LocationManager retrieval failed");
     }
   }
 
@@ -42,10 +42,10 @@ class LocationManagerService {
     try {
       const locationManagerData = req.body;
       const newLocationManager = await this.locationManagerRepository.createLocationManager(req, locationManagerData);
-      res.sendFormatted(newLocationManager, "Location Manager created successfully", 201);
+      res.sendFormatted(newLocationManager, "LocationManager created successfully", 201);
     } catch (error) {
       await logError(error, req, "LocationManagerService-createLocationManager");
-      res.sendError(error, "Location Manager creation failed");
+      res.sendError(error, "LocationManager creation failed");
     }
   }
 
@@ -58,10 +58,10 @@ class LocationManagerService {
         id,
         locationManagerData
       );
-      res.sendFormatted(updatedLocationManager, "Location Manager updated successfully");
+      res.sendFormatted(updatedLocationManager, "LocationManager updated successfully");
     } catch (error) {
       await logError(error, req, "LocationManagerService-updateLocationManager");
-      res.sendError(error, "Location Manager update failed");
+      res.sendError(error, "LocationManager update failed");
     }
   }
 
@@ -69,12 +69,13 @@ class LocationManagerService {
     try {
       const { id } = req.params;
       const deletedLocationManager = await this.locationManagerRepository.deleteLocationManager(req, id);
-      res.sendFormatted(deletedLocationManager, "Location Manager deleted successfully");
+      res.sendFormatted(deletedLocationManager, "LocationManager deleted successfully");
     } catch (error) {
       await logError(error, req, "LocationManagerService-deleteLocationManager");
-      res.sendError(error, "Location Manager deletion failed");
+      res.sendError(error, "LocationManager deletion failed");
     }
   }
 }
 
 export default LocationManagerService;
+

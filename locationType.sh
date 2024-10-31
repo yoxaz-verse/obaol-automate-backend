@@ -1,14 +1,72 @@
 #!/bin/bash
 
-# Create model
-cat <<EOT > src/database/models/locationType.ts
-import mongoose from "mongoose";
+# Exit immediately if a command exits with a non-zero status
+set -e
 
-interface ILocationType extends mongoose.Document {
-  name: string;
+# Function to display usage instructions
+usage() {
+  echo "Usage: ./setup_location_type.sh"
+  exit 1
 }
 
-const LocationTypeSchema = new mongoose.Schema(
+# Check if script is run from the project root by looking for package.json
+if [ ! -f "package.json" ]; then
+  echo "❌ Error: package.json not found. Please run this script from the project root."
+  usage
+fi
+
+echo "✅ Project root confirmed."
+
+# Define directories
+SRC_DIR="src"
+MODEL_DIR="$SRC_DIR/database/models"
+REPO_DIR="$SRC_DIR/database/repositories"
+SERVICE_DIR="$SRC_DIR/services"
+MIDDLEWARE_DIR="$SRC_DIR/middlewares"
+ROUTES_DIR="$SRC_DIR/routes"
+INTERFACES_DIR="$SRC_DIR/interfaces"
+UTILS_DIR="$SRC_DIR/utils"
+TYPES_DIR="$SRC_DIR/types"
+
+# Create directories if they don't exist
+echo "🗂️ Creating necessary directories..."
+mkdir -p "$MODEL_DIR" "$REPO_DIR" "$SERVICE_DIR" "$MIDDLEWARE_DIR" "$ROUTES_DIR" "$INTERFACES_DIR" "$UTILS_DIR" "$TYPES_DIR"
+
+# Function to create or overwrite a file with content
+create_or_overwrite_file() {
+  local FILE_PATH=$1
+  local CONTENT=$2
+
+  if [ -f "$FILE_PATH" ]; then
+    echo "📝 Overwriting existing file at $FILE_PATH."
+  else
+    echo "📝 Creating file at $FILE_PATH."
+  fi
+
+  echo "$CONTENT" > "$FILE_PATH"
+  echo "✅ $FILE_PATH has been set up."
+}
+
+# 1. Create LocationType Interface
+INTERFACE_FILE="$INTERFACES_DIR/locationType.ts"
+INTERFACE_CONTENT=$(cat <<'EOL'
+import mongoose from "mongoose";
+
+export interface ILocationType extends mongoose.Document {
+  name: string;
+}
+EOL
+)
+
+create_or_overwrite_file "$INTERFACE_FILE" "$INTERFACE_CONTENT"
+
+# 2. Create LocationType Model
+MODEL_FILE="$MODEL_DIR/locationType.ts"
+MODEL_CONTENT=$(cat <<'EOL'
+import mongoose from "mongoose";
+import { ILocationType } from "../../interfaces/locationType";
+
+const LocationTypeSchema = new mongoose.Schema<ILocationType>(
   {
     name: { type: String, required: true, unique: true },
   },
@@ -16,103 +74,58 @@ const LocationTypeSchema = new mongoose.Schema(
 );
 
 export const LocationTypeModel = mongoose.model<ILocationType>("LocationType", LocationTypeSchema);
-EOT
+EOL
+)
 
-# Create repository
-cat <<EOT > src/database/repositories/locationType.ts
+create_or_overwrite_file "$MODEL_FILE" "$MODEL_CONTENT"
+
+# 3. Create LocationType Repository
+REPO_FILE="$REPO_DIR/locationType.ts"
+REPO_CONTENT=$(cat <<'EOL'
 import { Request } from "express";
-import { LocationTypeModel } from "../models/locationType";
-import { ILocationType, ICreateLocationType, IUpdateLocationType } from "../../interfaces/locationType";
+import { LocationTypeModel, ILocationType } from "../models/locationType";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
 
 class LocationTypeRepository {
-  public async getLocationTypes(
-    req: Request,
-    pagination: IPagination,
-    search: string
-  ): Promise<{
-    data: ILocationType[];
-    totalCount: number;
-    currentPage: number;
-    totalPages?: number;
-  }> {
+  public async getLocationTypes(req: Request): Promise<ILocationType[]> {
     try {
-      let query: any = {};
-      if (search) {
-        query.name = { $regex: search, $options: "i" };
-      }
-      const locationTypes = await LocationTypeModel.find(query)
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
-
-      const totalCount = await LocationTypeModel.countDocuments(query);
-      const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data: locationTypes as ILocationType[],
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+      return await LocationTypeModel.find().exec();
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-getLocationTypes");
       throw error;
     }
   }
 
-  public async getLocationTypeById(req: Request, id: string): Promise<ILocationType> {
+  public async getLocationTypeById(req: Request, id: string): Promise<ILocationType | null> {
     try {
-      const locationType = await LocationTypeModel.findById(id).lean();
-      if (!locationType) {
-        throw new Error("Location Type not found");
-      }
-      return locationType as ILocationType;
+      return await LocationTypeModel.findById(id).exec();
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-getLocationTypeById");
       throw error;
     }
   }
 
-  public async createLocationType(
-    req: Request,
-    locationTypeData: ICreateLocationType
-  ): Promise<ILocationType> {
+  public async createLocationType(req: Request, locationTypeData: ILocationType): Promise<ILocationType> {
     try {
-      const newLocationType = await LocationTypeModel.create(locationTypeData);
-      return newLocationType.toObject();
+      return await LocationTypeModel.create(locationTypeData);
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-createLocationType");
       throw error;
     }
   }
 
-  public async updateLocationType(
-    req: Request,
-    id: string,
-    locationTypeData: Partial<IUpdateLocationType>
-  ): Promise<ILocationType> {
+  public async updateLocationType(req: Request, id: string, locationTypeData: Partial<ILocationType>): Promise<ILocationType | null> {
     try {
-      const updatedLocationType = await LocationTypeModel.findByIdAndUpdate(id, locationTypeData, {
-        new: true,
-      });
-      if (!updatedLocationType) {
-        throw new Error("Failed to update location type");
-      }
-      return updatedLocationType.toObject();
+      return await LocationTypeModel.findByIdAndUpdate(id, locationTypeData, { new: true }).exec();
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-updateLocationType");
       throw error;
     }
   }
 
-  public async deleteLocationType(req: Request, id: string): Promise<ILocationType> {
+  public async deleteLocationType(req: Request, id: string): Promise<ILocationType | null> {
     try {
-      const deletedLocationType = await LocationTypeModel.findByIdAndDelete(id);
-      if (!deletedLocationType) {
-        throw new Error("Failed to delete location type");
-      }
-      return deletedLocationType.toObject();
+      return await LocationTypeModel.findByIdAndDelete(id).exec();
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-deleteLocationType");
       throw error;
@@ -121,15 +134,17 @@ class LocationTypeRepository {
 }
 
 export default LocationTypeRepository;
-EOT
+EOL
+)
 
-# Create service
-cat <<EOT > src/services/locationType.ts
+create_or_overwrite_file "$REPO_FILE" "$REPO_CONTENT"
+
+# 4. Create LocationType Service
+SERVICE_FILE="$SERVICE_DIR/locationType.ts"
+SERVICE_CONTENT=$(cat <<'EOL'
 import { Request, Response } from "express";
 import LocationTypeRepository from "../database/repositories/locationType";
 import { logError } from "../utils/errorLogger";
-import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
 
 class LocationTypeService {
   private locationTypeRepository: LocationTypeRepository;
@@ -140,17 +155,11 @@ class LocationTypeService {
 
   public async getLocationTypes(req: Request, res: Response) {
     try {
-      const pagination = paginationHandler(req);
-      const search = searchHandler(req);
-      const locationTypes = await this.locationTypeRepository.getLocationTypes(
-        req,
-        pagination,
-        search
-      );
-      res.sendArrayFormatted(locationTypes, "Location Types retrieved successfully");
+      const locationTypes = await this.locationTypeRepository.getLocationTypes(req);
+      res.sendFormatted(locationTypes, "Location Types retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "LocationTypeService-getLocationTypes");
-      res.sendError(error, "Location Types retrieval failed");
+      res.sendError("Location Types retrieval failed", 500);
     }
   }
 
@@ -158,10 +167,14 @@ class LocationTypeService {
     try {
       const { id } = req.params;
       const locationType = await this.locationTypeRepository.getLocationTypeById(req, id);
-      res.sendFormatted(locationType, "Location Type retrieved successfully");
+      if (locationType) {
+        res.sendFormatted(locationType, "Location Type retrieved successfully", 200);
+      } else {
+        res.sendError("Location Type not found", 404);
+      }
     } catch (error) {
       await logError(error, req, "LocationTypeService-getLocationType");
-      res.sendError(error, "Location Type retrieval failed");
+      res.sendError("Location Type retrieval failed", 500);
     }
   }
 
@@ -172,7 +185,7 @@ class LocationTypeService {
       res.sendFormatted(newLocationType, "Location Type created successfully", 201);
     } catch (error) {
       await logError(error, req, "LocationTypeService-createLocationType");
-      res.sendError(error, "Location Type creation failed");
+      res.sendError("Location Type creation failed", 500);
     }
   }
 
@@ -180,15 +193,15 @@ class LocationTypeService {
     try {
       const { id } = req.params;
       const locationTypeData = req.body;
-      const updatedLocationType = await this.locationTypeRepository.updateLocationType(
-        req,
-        id,
-        locationTypeData
-      );
-      res.sendFormatted(updatedLocationType, "Location Type updated successfully");
+      const updatedLocationType = await this.locationTypeRepository.updateLocationType(req, id, locationTypeData);
+      if (updatedLocationType) {
+        res.sendFormatted(updatedLocationType, "Location Type updated successfully", 200);
+      } else {
+        res.sendError("Location Type not found", 404);
+      }
     } catch (error) {
       await logError(error, req, "LocationTypeService-updateLocationType");
-      res.sendError(error, "Location Type update failed");
+      res.sendError("Location Type update failed", 500);
     }
   }
 
@@ -196,151 +209,43 @@ class LocationTypeService {
     try {
       const { id } = req.params;
       const deletedLocationType = await this.locationTypeRepository.deleteLocationType(req, id);
-      res.sendFormatted(deletedLocationType, "Location Type deleted successfully");
+      if (deletedLocationType) {
+        res.sendFormatted(deletedLocationType, "Location Type deleted successfully", 200);
+      } else {
+        res.sendError("Location Type not found", 404);
+      }
     } catch (error) {
       await logError(error, req, "LocationTypeService-deleteLocationType");
-      res.sendError(error, "Location Type deletion failed");
+      res.sendError("Location Type deletion failed", 500);
     }
   }
 }
 
 export default LocationTypeService;
-EOT
+EOL
+)
 
-# Create middleware
-cat <<EOT > src/middlewares/locationType.ts
-import { Request, Response, NextFunction } from "express";
-import { logError } from "../utils/errorLogger";
+create_or_overwrite_file "$SERVICE_FILE" "$SERVICE_CONTENT"
 
-class LocationTypeMiddleware {
-  public async createLocationType(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { name } = req.body;
-      if (!name) {
-        res.sendError(
-          "ValidationError: Name must be provided",
-          "Name must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-LocationTypeCreate");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-
-  public async updateLocationType(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { name } = req.body;
-      if (!name) {
-        res.sendError(
-          "ValidationError: Name must be provided",
-          "Name must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-LocationTypeUpdate");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-
-  public async deleteLocationType(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-LocationTypeDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-
-  public async getLocationType(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-LocationTypeGet");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-}
-
-export default LocationTypeMiddleware;
-EOT
-
-# Create interface
-cat <<EOT > src/interfaces/locationType.ts
-export interface ILocationType {
-  _id: string;
-  name: string;
-}
-
-export interface ICreateLocationType {
-  name: string;
-}
-
-export interface IUpdateLocationType {
-  name?: string;
-}
-EOT
-
-# Create routes
-cat <<EOT > src/routes/locationTypeRoute.ts
+# 5. Create LocationType Route
+ROUTE_FILE="$ROUTES_DIR/locationType.ts"
+ROUTE_CONTENT=$(cat <<'EOL'
 import { Router } from "express";
 import LocationTypeService from "../services/locationType";
-import LocationTypeMiddleware from "../middlewares/locationType";
 
-const router = Router();
+const locationTypeRoute = Router();
 const locationTypeService = new LocationTypeService();
-const locationTypeMiddleware = new LocationTypeMiddleware();
 
-router.get(
-  "/",
-  locationTypeService.getLocationTypes.bind(locationTypeService)
-);
-router.get(
-  "/:id",
-  locationTypeMiddleware.getLocationType.bind(locationTypeMiddleware),
-  locationTypeService.getLocationType.bind(locationTypeService)
-);
-router.post(
-  "/",
-  locationTypeMiddleware.createLocationType.bind(locationTypeMiddleware),
-  locationTypeService.createLocationType.bind(locationTypeService)
-);
-router.patch(
-  "/:id",
-  locationTypeMiddleware.updateLocationType.bind(locationTypeMiddleware),
-  locationTypeService.updateLocationType.bind(locationTypeService)
-);
-router.delete(
-  "/:id",
-  locationTypeMiddleware.deleteLocationType.bind(locationTypeMiddleware),
-  locationTypeService.deleteLocationType.bind(locationTypeService)
-);
+locationTypeRoute.get("/", locationTypeService.getLocationTypes.bind(locationTypeService));
+locationTypeRoute.get("/:id", locationTypeService.getLocationType.bind(locationTypeService));
+locationTypeRoute.post("/", locationTypeService.createLocationType.bind(locationTypeService));
+locationTypeRoute.patch("/:id", locationTypeService.updateLocationType.bind(locationTypeService));
+locationTypeRoute.delete("/:id", locationTypeService.deleteLocationType.bind(locationTypeService));
 
-export default router;
-EOT
+export default locationTypeRoute;
+EOL
+)
 
-echo "LocationType module generated successfully."
+
+
+echo "🎉 Setup complete for LocationType model, interface, repository, service, and route."

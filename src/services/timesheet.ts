@@ -15,11 +15,7 @@ class TimesheetService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const timesheets = await this.timesheetRepository.getTimesheets(
-        req,
-        pagination,
-        search
-      );
+      const timesheets = await this.timesheetRepository.getTimesheets(req, pagination, search);
       res.sendArrayFormatted(timesheets, "Timesheets retrieved successfully");
     } catch (error) {
       await logError(error, req, "TimesheetService-getTimesheets");
@@ -53,11 +49,7 @@ class TimesheetService {
     try {
       const { id } = req.params;
       const timesheetData = req.body;
-      const updatedTimesheet = await this.timesheetRepository.updateTimesheet(
-        req,
-        id,
-        timesheetData
-      );
+      const updatedTimesheet = await this.timesheetRepository.updateTimesheet(req, id, timesheetData);
       res.sendFormatted(updatedTimesheet, "Timesheet updated successfully");
     } catch (error) {
       await logError(error, req, "TimesheetService-updateTimesheet");

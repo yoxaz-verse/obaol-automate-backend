@@ -1,8 +1,23 @@
 import { Request } from "express";
 
-export const paginationHandler = (req: Request) => {
-  const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-  const page = req.query.page ? parseInt(req.query.page as string) : 1;
-  return { limit, page };
-};
+export interface IPagination {
+  page: number;
+  limit: number;
+}
 
+export const paginationHandler = (req: Request): IPagination => {
+  let { page, limit } = req.query;
+
+  let pageNumber = parseInt(page as string, 10);
+  let limitNumber = parseInt(limit as string, 10);
+
+  if (isNaN(pageNumber) || pageNumber < 1) {
+    pageNumber = 1;
+  }
+
+  if (isNaN(limitNumber) || limitNumber < 1) {
+    limitNumber = 10;
+  }
+
+  return { page: pageNumber, limit: limitNumber };
+};

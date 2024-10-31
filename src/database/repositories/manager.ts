@@ -1,39 +1,37 @@
 import { Request } from "express";
 import { ManagerModel } from "../models/manager";
-import { IManager, ICreateManager, IUpdateManager } from "../../interfaces/manager";
+import { ICreateManager, IUpdateManager } from "../../interfaces/manager";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+import { IManager } from "../../interfaces/manager";
 
 class ManagerRepository {
   public async getManagers(
     req: Request,
-    pagination: IPagination,
+    pagination: { page: number; limit: number },
     search: string
   ): Promise<{
     data: IManager[];
     totalCount: number;
     currentPage: number;
-    totalPages?: number;
+    totalPages: number;
   }> {
     try {
-      let query: any = {};
+      const query: any = { isDeleted: false };
       if (search) {
         query.name = { $regex: search, $options: "i" };
       }
-      const managers = await ManagerModel.find(query)
-        .populate("admin")
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
 
       const totalCount = await ManagerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data: managers as IManager[],
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+      const currentPage = pagination.page;
+
+      const managers = await ManagerModel.find(query)
+        .populate("admin", "name")
+        .skip((pagination.page - 1) * pagination.limit)
+        .limit(pagination.limit)
+        .exec();
+
+      return { data: managers, totalCount, currentPage, totalPages };
     } catch (error) {
       await logError(error, req, "ManagerRepository-getManagers");
       throw error;
@@ -42,13 +40,16 @@ class ManagerRepository {
 
   public async getManagerById(req: Request, id: string): Promise<IManager> {
     try {
-      const manager = await ManagerModel.findById(id)
-        .populate("admin")
-        .lean();
-      if (!manager || manager.isDeleted) {
+      const managerDoc = await ManagerModel.findOne({
+        _id: id,
+        isDeleted: false,
+      }).populate("admin", "name");
+
+      if (!managerDoc) {
         throw new Error("Manager not found");
       }
-      return manager as IManager;
+
+      return managerDoc;
     } catch (error) {
       await logError(error, req, "ManagerRepository-getManagerById");
       throw error;
@@ -61,7 +62,7 @@ class ManagerRepository {
   ): Promise<IManager> {
     try {
       const newManager = await ManagerModel.create(managerData);
-      return newManager.toObject();
+      return newManager;
     } catch (error) {
       await logError(error, req, "ManagerRepository-createManager");
       throw error;
@@ -74,13 +75,15 @@ class ManagerRepository {
     managerData: Partial<IUpdateManager>
   ): Promise<IManager> {
     try {
-      const updatedManager = await ManagerModel.findByIdAndUpdate(id, managerData, {
-        new: true,
-      }).populate("admin");
-      if (!updatedManager || updatedManager.isDeleted) {
+      const updatedManager = await ManagerModel.findOneAndUpdate(
+        { _id: id, isDeleted: false },
+        managerData,
+        { new: true }
+      ).populate("admin", "name");
+      if (!updatedManager) {
         throw new Error("Failed to update manager");
       }
-      return updatedManager.toObject();
+      return updatedManager;
     } catch (error) {
       await logError(error, req, "ManagerRepository-updateManager");
       throw error;
@@ -89,15 +92,15 @@ class ManagerRepository {
 
   public async deleteManager(req: Request, id: string): Promise<IManager> {
     try {
-      const deletedManager = await ManagerModel.findByIdAndUpdate(
-        id,
+      const deletedManager = await ManagerModel.findOneAndUpdate(
+        { _id: id, isDeleted: false },
         { isDeleted: true },
         { new: true }
-      ).populate("admin");
+      ).populate("admin", "name");
       if (!deletedManager) {
         throw new Error("Failed to delete manager");
       }
-      return deletedManager.toObject();
+      return deletedManager;
     } catch (error) {
       await logError(error, req, "ManagerRepository-deleteManager");
       throw error;

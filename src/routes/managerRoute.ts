@@ -14,11 +14,13 @@ managerRoute.get(
 );
 managerRoute.post(
   "/",
+  // managerMiddleware.uploadProfilePicture, // Handle file upload
   managerMiddleware.createManager.bind(managerMiddleware),
   managerService.createManager.bind(managerService)
 );
 managerRoute.patch(
   "/:id",
+  // managerMiddleware.uploadProfilePicture, // Handle file upload
   managerMiddleware.updateManager.bind(managerMiddleware),
   managerService.updateManager.bind(managerService)
 );

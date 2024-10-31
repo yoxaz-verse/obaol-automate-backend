@@ -15,11 +15,7 @@ class ActivityService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const activities = await this.activityRepository.getActivities(
-        req,
-        pagination,
-        search
-      );
+      const activities = await this.activityRepository.getActivities(req, pagination, search);
       res.sendArrayFormatted(activities, "Activities retrieved successfully");
     } catch (error) {
       await logError(error, req, "ActivityService-getActivities");
@@ -53,11 +49,7 @@ class ActivityService {
     try {
       const { id } = req.params;
       const activityData = req.body;
-      const updatedActivity = await this.activityRepository.updateActivity(
-        req,
-        id,
-        activityData
-      );
+      const updatedActivity = await this.activityRepository.updateActivity(req, id, activityData);
       res.sendFormatted(updatedActivity, "Activity updated successfully");
     } catch (error) {
       await logError(error, req, "ActivityService-updateActivity");

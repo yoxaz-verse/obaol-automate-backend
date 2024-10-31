@@ -1,8 +1,12 @@
-import { Request } from "express";
-import { WorkerModel } from "../models/worker";
-import { IWorker, ICreateWorker, IUpdateWorker } from "../../interfaces/worker";
-import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+import { Request } from 'express';
+import { WorkerModel } from '../models/worker';
+import {
+  IWorker,
+  ICreateWorker,
+  IUpdateWorker,
+} from '../../interfaces/worker';
+import { logError } from '../../utils/errorLogger';
+import { IPagination } from '../../interfaces/pagination';
 
 class WorkerRepository {
   public async getWorkers(
@@ -16,41 +20,44 @@ class WorkerRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = {};
+      let query: any = { isDeleted: false };
       if (search) {
-        query.name = { $regex: search, $options: "i" };
+        query.name = { $regex: search, $options: 'i' };
       }
-      const workers = await WorkerModel.find(query)
-        .populate("serviceCompany")
+
+      const workersDoc = await WorkerModel.find(query)
+        .populate('serviceCompany', 'name')
         .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .skip((pagination.page - 1) * pagination.limit);
+
+      const workers = workersDoc.map((doc) => doc.toObject() as IWorker);
 
       const totalCount = await WorkerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
+
       return {
-        data: workers.map((worker: any) => worker.toObject()) as IWorker[],
+        data: workers,
         totalCount,
         currentPage: pagination.page,
         totalPages,
       };
     } catch (error) {
-      await logError(error, req, "WorkerRepository-getWorkers");
+      await logError(error, req, 'WorkerRepository-getWorkers');
       throw error;
     }
   }
 
   public async getWorkerById(req: Request, id: string): Promise<IWorker> {
     try {
-      const worker = await WorkerModel.findById(id)
-        .populate("serviceCompany")
-        .lean();
-      if (!worker || worker.isDeleted) {
-        throw new Error("Worker not found");
+      const workerDoc = await WorkerModel.findById(id).populate('serviceCompany', 'name');
+
+      if (!workerDoc) {
+        throw new Error('Worker not found');
       }
-      return worker as unknown as IWorker;
+
+      return workerDoc.toObject() as IWorker;
     } catch (error) {
-      await logError(error, req, "WorkerRepository-getWorkerById");
+      await logError(error, req, 'WorkerRepository-getWorkerById');
       throw error;
     }
   }
@@ -61,12 +68,9 @@ class WorkerRepository {
   ): Promise<IWorker> {
     try {
       const newWorker = await WorkerModel.create(workerData);
-      return {
-        ...newWorker.toObject(),
-        serviceCompany: newWorker.serviceCompany.toString(),
-      };
+      return newWorker.toObject();
     } catch (error) {
-      await logError(error, req, "WorkerRepository-createWorker");
+      await logError(error, req, 'WorkerRepository-createWorker');
       throw error;
     }
   }
@@ -80,42 +84,31 @@ class WorkerRepository {
       const updatedWorker = await WorkerModel.findByIdAndUpdate(
         id,
         workerData,
-        {
-          new: true,
-        }
-      ).populate("serviceCompany");
-      if (!updatedWorker || updatedWorker.isDeleted) {
-        throw new Error("Failed to update worker");
+        { new: true }
+      ).populate('serviceCompany');
+      if (!updatedWorker) {
+        throw new Error('Failed to update Worker');
       }
-      return {
-        ...updatedWorker.toObject(),
-        serviceCompany: updatedWorker.serviceCompany.toString(),
-      };
+      return updatedWorker.toObject();
     } catch (error) {
-      await logError(error, req, "WorkerRepository-updateWorker");
+      await logError(error, req, 'WorkerRepository-updateWorker');
       throw error;
     }
   }
 
   public async deleteWorker(req: Request, id: string): Promise<IWorker> {
     try {
-      const deletedWorker = await WorkerModel.findByIdAndUpdate(
-        id,
-        { isDeleted: true },
-        { new: true }
-      ).populate("serviceCompany");
+      const deletedWorker = await WorkerModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true }).populate('serviceCompany');
       if (!deletedWorker) {
-        throw new Error("Failed to delete worker");
+        throw new Error('Failed to delete Worker');
       }
-      return {
-        ...deletedWorker.toObject(),
-        serviceCompany: deletedWorker.serviceCompany.toString(),
-      };
+      return deletedWorker.toObject();
     } catch (error) {
-      await logError(error, req, "WorkerRepository-deleteWorker");
+      await logError(error, req, 'WorkerRepository-deleteWorker');
       throw error;
     }
   }
 }
 
 export default WorkerRepository;
+

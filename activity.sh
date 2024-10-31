@@ -1,6 +1,23 @@
 #!/bin/bash
 
-# Create model
+# create-activity.sh - A script to generate the Activity module with boilerplate code
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Function to display informational messages
+function echo_info {
+  echo -e "\e[34m[CREATE]\e[0m $1"
+}
+
+# Function to display error messages
+function echo_error {
+  echo -e "\e[31m[ERROR]\e[0m $1"
+}
+
+# 1. Create Model
+echo_info "Creating Model for Activity..."
+
 cat <<EOT > src/database/models/activity.ts
 import mongoose from "mongoose";
 import { ProjectModel } from "./project";
@@ -19,6 +36,7 @@ interface IActivity extends mongoose.Document {
   targetDate: Date;
   workers: Array<mongoose.Schema.Types.ObjectId | typeof WorkerModel>;
   updatedBy: mongoose.Schema.Types.ObjectId | typeof WorkerModel | typeof ManagerModel;
+  updatedByModel: string; // Field to support refPath
   hoursSpent: number;
   statusHistory: Array<mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel>;
   status: mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel;
@@ -46,7 +64,8 @@ const ActivitySchema = new mongoose.Schema(
     actualDate: { type: Date, required: true },
     targetDate: { type: Date, required: true },
     workers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Worker" }],
-    updatedBy: { type: mongoose.Schema.Types.ObjectId, refPath: 'updatedByModel', required: true },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, refPath: "updatedByModel", required: true },
+    updatedByModel: { type: String, required: true, enum: ["Worker", "Manager"] }, // Define possible models
     hoursSpent: { type: Number, required: true },
     statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "ActivityStatus" }],
     status: { type: mongoose.Schema.Types.ObjectId, ref: "ActivityStatus", required: true },
@@ -69,7 +88,93 @@ const ActivitySchema = new mongoose.Schema(
 export const ActivityModel = mongoose.model<IActivity>("Activity", ActivitySchema);
 EOT
 
-# Create repository
+# 2. Create Interface
+echo_info "Creating Interface for Activity..."
+
+cat <<EOT > src/interfaces/activity.ts
+import { IProject } from "./project";
+import { IWorker } from "./worker";
+import { IManager } from "./manager";
+import { ICustomer } from "./customer";
+import { IActivityStatus } from "./activityStatus";
+
+export interface IActivity {
+  _id: string;
+  title: string;
+  description: string;
+  project: IProject;
+  budget: number;
+  forecastDate: Date;
+  actualDate: Date;
+  targetDate: Date;
+  workers: IWorker[];
+  updatedBy: IWorker | IManager;
+  hoursSpent: number;
+  statusHistory: IActivityStatus[];
+  status: IActivityStatus;
+  workCompleteStatus: boolean;
+  managerFullStatus: boolean;
+  customerStatus: boolean;
+  isSubmitted: boolean;
+  isAccepted: boolean;
+  isRejected: boolean;
+  rejectionReason: string;
+  customer: ICustomer;
+  isPending: boolean;
+  isOnHold: boolean;
+  isDisabled: boolean;
+  isDeleted: boolean;
+}
+
+export interface ICreateActivity {
+  title: string;
+  description: string;
+  project: string; // Project ID
+  budget: number;
+  forecastDate: Date;
+  actualDate: Date;
+  targetDate: Date;
+  workers: string[]; // Worker IDs
+  updatedBy: string; // Worker or Manager ID
+  updatedByModel: "Worker" | "Manager";
+  hoursSpent: number;
+  status: string; // ActivityStatus ID
+  customer: string; // Customer ID
+  // Add any additional fields if necessary
+}
+
+export interface IUpdateActivity {
+  title?: string;
+  description?: string;
+  project?: string; // Project ID
+  budget?: number;
+  forecastDate?: Date;
+  actualDate?: Date;
+  targetDate?: Date;
+  workers?: string[]; // Worker IDs
+  updatedBy?: string; // Worker or Manager ID
+  updatedByModel?: "Worker" | "Manager";
+  hoursSpent?: number;
+  status?: string; // ActivityStatus ID
+  workCompleteStatus?: boolean;
+  managerFullStatus?: boolean;
+  customerStatus?: boolean;
+  isSubmitted?: boolean;
+  isAccepted?: boolean;
+  isRejected?: boolean;
+  rejectionReason?: string;
+  customer?: string; // Customer ID
+  isPending?: boolean;
+  isOnHold?: boolean;
+  isDisabled?: boolean;
+  isDeleted?: boolean;
+  // Add any additional fields if necessary
+}
+EOT
+
+# 3. Create Repository
+echo_info "Creating Repository for Activity..."
+
 cat <<EOT > src/database/repositories/activity.ts
 import { Request } from "express";
 import { ActivityModel } from "../models/activity";
@@ -91,7 +196,7 @@ class ActivityRepository {
     try {
       let query: any = {};
       if (search) {
-        query.title = { $regex: search, $options: "i" };
+        query.title = { \$regex: search, \$options: "i" };
       }
       const activities = await ActivityModel.find(query)
         .populate("project")
@@ -102,12 +207,12 @@ class ActivityRepository {
         .populate("customer")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .lean<IActivity[]>();
 
       const totalCount = await ActivityModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: activities as IActivity[],
+        data: activities,
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -127,11 +232,11 @@ class ActivityRepository {
         .populate("status")
         .populate("statusHistory")
         .populate("customer")
-        .lean();
-      if (!activity) {
+        .lean<IActivity>();
+      if (!activity || activity.isDeleted) {
         throw new Error("Activity not found");
       }
-      return activity as IActivity;
+      return activity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivityById");
       throw error;
@@ -144,7 +249,7 @@ class ActivityRepository {
   ): Promise<IActivity> {
     try {
       const newActivity = await ActivityModel.create(activityData);
-      return newActivity.toObject();
+      return newActivity.toObject() as IActivity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-createActivity");
       throw error;
@@ -154,22 +259,23 @@ class ActivityRepository {
   public async updateActivity(
     req: Request,
     id: string,
-    activityData: Partial<IUpdateActivity>
+    activityData: IUpdateActivity
   ): Promise<IActivity> {
     try {
       const updatedActivity = await ActivityModel.findByIdAndUpdate(id, activityData, {
         new: true,
       })
-      .populate("project")
-      .populate("workers")
-      .populate("updatedBy")
-      .populate("status")
-      .populate("statusHistory")
-      .populate("customer");
-      if (!updatedActivity) {
+        .populate("project")
+        .populate("workers")
+        .populate("updatedBy")
+        .populate("status")
+        .populate("statusHistory")
+        .populate("customer")
+        .lean<IActivity>();
+      if (!updatedActivity || updatedActivity.isDeleted) {
         throw new Error("Failed to update activity");
       }
-      return updatedActivity.toObject();
+      return updatedActivity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-updateActivity");
       throw error;
@@ -178,11 +284,22 @@ class ActivityRepository {
 
   public async deleteActivity(req: Request, id: string): Promise<IActivity> {
     try {
-      const deletedActivity = await ActivityModel.findByIdAndDelete(id);
+      const deletedActivity = await ActivityModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      )
+        .populate("project")
+        .populate("workers")
+        .populate("updatedBy")
+        .populate("status")
+        .populate("statusHistory")
+        .populate("customer")
+        .lean<IActivity>();
       if (!deletedActivity) {
         throw new Error("Failed to delete activity");
       }
-      return deletedActivity.toObject();
+      return deletedActivity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-deleteActivity");
       throw error;
@@ -193,7 +310,9 @@ class ActivityRepository {
 export default ActivityRepository;
 EOT
 
-# Create service
+# 4. Create Service
+echo_info "Creating Service for Activity..."
+
 cat <<EOT > src/services/activity.ts
 import { Request, Response } from "express";
 import ActivityRepository from "../database/repositories/activity";
@@ -212,11 +331,7 @@ class ActivityService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const activities = await this.activityRepository.getActivities(
-        req,
-        pagination,
-        search
-      );
+      const activities = await this.activityRepository.getActivities(req, pagination, search);
       res.sendArrayFormatted(activities, "Activities retrieved successfully");
     } catch (error) {
       await logError(error, req, "ActivityService-getActivities");
@@ -250,11 +365,7 @@ class ActivityService {
     try {
       const { id } = req.params;
       const activityData = req.body;
-      const updatedActivity = await this.activityRepository.updateActivity(
-        req,
-        id,
-        activityData
-      );
+      const updatedActivity = await this.activityRepository.updateActivity(req, id, activityData);
       res.sendFormatted(updatedActivity, "Activity updated successfully");
     } catch (error) {
       await logError(error, req, "ActivityService-updateActivity");
@@ -277,49 +388,53 @@ class ActivityService {
 export default ActivityService;
 EOT
 
-# Create middleware
+# 5. Create Middleware
+echo_info "Creating Middleware for Activity..."
+
 cat <<EOT > src/middlewares/activity.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
 class ActivityMiddleware {
-  public async createActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateCreate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, description, project, budget, forecastDate, actualDate, targetDate, status, customer } = req.body;
-      if (!title || !description || !project || !budget || !forecastDate || !actualDate || !targetDate || !status || !customer) {
+      const { title, description, budget, project, workers, updatedBy, updatedByModel, status, customer } = req.body;
+      if (!title || !description || !budget || !project || !updatedBy || !updatedByModel || !status || !customer) {
         res.sendError(
-          "ValidationError: Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, and Customer must be provided",
-          "Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, and Customer must be provided",
+          "ValidationError: Title, Description, Budget, Project, UpdatedBy, UpdatedByModel, Status, and Customer are required",
+          "All required fields must be provided",
           400
         );
         return;
       }
+      // Add more validation as needed (e.g., check data types, references existence)
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityCreate");
+      await logError(error, req, "ActivityMiddleware-validateCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateUpdate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, description, project, budget, forecastDate, actualDate, targetDate, status, customer } = req.body;
-      if (!title && !description && !project && !budget && !forecastDate && !actualDate && !targetDate && !status && !customer) {
+      const { title, description, budget, project, workers, updatedBy, updatedByModel, status, customer, isActive, isDeleted } = req.body;
+      if (!title && !description && !budget && !project && !workers && !updatedBy && !updatedByModel && !status && !customer && isActive === undefined && isDeleted === undefined) {
         res.sendError(
-          "ValidationError: Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, or Customer must be provided",
-          "Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, or Customer must be provided",
+          "ValidationError: At least one field must be provided for update",
+          "At least one field must be provided for update",
           400
         );
         return;
       }
+      // Add more validation as needed
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityUpdate");
+      await logError(error, req, "ActivityMiddleware-validateUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateDelete(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -332,12 +447,12 @@ class ActivityMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityDelete");
+      await logError(error, req, "ActivityMiddleware-validateDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateGet(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -350,7 +465,7 @@ class ActivityMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityGet");
+      await logError(error, req, "ActivityMiddleware-validateGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
@@ -359,72 +474,9 @@ class ActivityMiddleware {
 export default ActivityMiddleware;
 EOT
 
-# Create interface
-cat <<EOT > src/interfaces/activity.ts
-import { IProject } from "./project";
-import { IWorker } from "./worker";
-import { IManager } from "./manager";
-import { ICustomer } from "./customer";
-import { IActivityStatus } from "./activityStatus";
+# 6. Create Routes
+echo_info "Creating Routes for Activity..."
 
-export interface IActivity {
-  _id: string;
-  title: string;
-  description: string;
-  project: string | IProject;
-  budget: number;
-  forecastDate: Date;
-  actualDate: Date;
-  targetDate: Date;
-  workers: string[] | IWorker[];
-  updatedBy: string | IWorker | IManager;
-  hoursSpent: number;
-  statusHistory: string[] | IActivityStatus[];
-  status: string | IActivityStatus;
-  workCompleteStatus: boolean;
-  managerFullStatus: boolean;
-  customerStatus: boolean;
-  isSubmitted: boolean;
-  isAccepted: boolean;
-  isRejected: boolean;
-  rejectionReason: string;
-  customer: string | ICustomer;
-  isPending: boolean;
-  isOnHold: boolean;
-  isDisabled: boolean;
-  isDeleted: boolean;
-}
-
-export interface ICreateActivity {
-  title: string;
-  description: string;
-  project: string;
-  budget: number;
-  forecastDate: Date;
-  actualDate: Date;
-  targetDate: Date;
-  workers: string[];
-  updatedBy: string;
-  status: string;
-  customer: string;
-}
-
-export interface IUpdateActivity {
-  title?: string;
-  description?: string;
-  project?: string;
-  budget?: number;
-  forecastDate?: Date;
-  actualDate?: Date;
-  targetDate?: Date;
-  workers?: string[];
-  updatedBy?: string;
-  status?: string;
-  customer?: string;
-}
-EOT
-
-# Create routes
 cat <<EOT > src/routes/activityRoute.ts
 import { Router } from "express";
 import ActivityService from "../services/activity";
@@ -434,32 +486,136 @@ const router = Router();
 const activityService = new ActivityService();
 const activityMiddleware = new ActivityMiddleware();
 
+// GET all activities
 router.get(
   "/",
   activityService.getActivities.bind(activityService)
 );
+
+// GET activity by ID
 router.get(
   "/:id",
-  activityMiddleware.getActivity.bind(activityMiddleware),
+  activityMiddleware.validateGet.bind(activityMiddleware),
   activityService.getActivity.bind(activityService)
 );
+
+// CREATE a new activity
 router.post(
   "/",
-  activityMiddleware.createActivity.bind(activityMiddleware),
+  activityMiddleware.validateCreate.bind(activityMiddleware),
   activityService.createActivity.bind(activityService)
 );
+
+// UPDATE an activity
 router.patch(
   "/:id",
-  activityMiddleware.updateActivity.bind(activityMiddleware),
+  activityMiddleware.validateUpdate.bind(activityMiddleware),
   activityService.updateActivity.bind(activityService)
 );
+
+// DELETE an activity
 router.delete(
   "/:id",
-  activityMiddleware.deleteActivity.bind(activityMiddleware),
+  activityMiddleware.validateDelete.bind(activityMiddleware),
   activityService.deleteActivity.bind(activityService)
 );
 
 export default router;
 EOT
 
-echo "Activity module generated successfully."
+# 7. Register Routes in Main Routes File
+echo_info "Registering Activity routes in the main routes file..."
+
+MAIN_ROUTE_FILE="src/routes/index.ts"
+
+if [ ! -f "$MAIN_ROUTE_FILE" ]; then
+  echo_info "Creating main routes file..."
+  mkdir -p src/routes
+  cat <<EOT > "$MAIN_ROUTE_FILE"
+import { Router } from "express";
+import projectRoute from "./projectRoute";
+import managerRoute from "./managerRoute";
+import activityRoute from "./activityRoute";
+import activityStatusRoute from "./activityStatusRoute";
+// Import other routes here
+
+const router = Router();
+
+// Register Project routes
+router.use("/projects", projectRoute);
+
+// Register Manager routes
+router.use("/managers", managerRoute);
+
+// Register Activity routes
+router.use("/activities", activityRoute);
+
+// Register ActivityStatus routes
+router.use("/activityStatuses", activityStatusRoute);
+
+// Register other routes here
+
+export default router;
+EOT
+
+  # Update src/index.ts to use the main routes
+  echo_info "Updating src/index.ts to use the main routes..."
+
+  cat <<EOT >> src/index.ts
+
+// Import routes
+import routes from "./routes";
+
+// Use routes
+app.use("/api", routes);
+EOT
+
+else
+  echo_info "Main routes file already exists. Adding Activity routes if not already present."
+
+  # Detect OS
+  OS_TYPE=$(uname)
+  if [ "$OS_TYPE" == "Darwin" ]; then
+    # macOS
+    echo_info "Detected macOS. Using BSD sed."
+    # Check if Activity routes are already registered
+    if grep -q 'router.use("/activities", activityRoute);' "$MAIN_ROUTE_FILE"; then
+      echo_info "Activity routes are already registered in the main routes file."
+    else
+      # Add Activity routes using sed
+      echo_info "Adding Activity routes to the main routes file..."
+      sed -i '' '/\/\/ Register other routes here/a\
+      \
+      // Register Activity routes\
+      router.use("/activities", activityRoute);\
+      ' "$MAIN_ROUTE_FILE"
+    fi
+  elif [ "$OS_TYPE" == "Linux" ]; then
+    # Linux
+    echo_info "Detected Linux. Using GNU sed."
+    # Check if Activity routes are already registered
+    if grep -q 'router.use("/activities", activityRoute);' "$MAIN_ROUTE_FILE"; then
+      echo_info "Activity routes are already registered in the main routes file."
+    else
+      # Add Activity routes using sed
+      echo_info "Adding Activity routes to the main routes file..."
+      sed -i '/\/\/ Register other routes here/a \
+      \
+      // Register Activity routes\
+      router.use("/activities", activityRoute);' "$MAIN_ROUTE_FILE"
+    fi
+  else
+    echo_info "Unsupported OS. Using awk to append Activity routes."
+    # Using awk to append Activity routes
+    if grep -q 'router.use("/activities", activityRoute);' "$MAIN_ROUTE_FILE"; then
+      echo_info "Activity routes are already registered in the main routes file."
+    else
+      echo_info "Adding Activity routes to the main routes file using awk..."
+      awk '/\/\/ Register other routes here/ {print; print "// Register Activity routes"; print "router.use(\"/activities\", activityRoute);"; next}1' "$MAIN_ROUTE_FILE" > tmp && mv tmp "$MAIN_ROUTE_FILE"
+    fi
+  fi
+fi
+
+# 8. Final Message
+echo_info "Activity module generated successfully."
+echo_info "You can now start using the Activity routes at '/api/activities'."

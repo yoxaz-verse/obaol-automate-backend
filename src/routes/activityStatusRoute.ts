@@ -2,33 +2,42 @@ import { Router } from "express";
 import ActivityStatusService from "../services/activityStatus";
 import ActivityStatusMiddleware from "../middlewares/activityStatus";
 
-const activityStatusroute = Router();
+const router = Router();
 const activityStatusService = new ActivityStatusService();
 const activityStatusMiddleware = new ActivityStatusMiddleware();
 
-activityStatusroute.get(
+// GET all activity statuses
+router.get(
   "/",
   activityStatusService.getActivityStatuses.bind(activityStatusService)
 );
-activityStatusroute.get(
+
+// GET activity status by ID
+router.get(
   "/:id",
-  activityStatusMiddleware.getActivityStatus.bind(activityStatusMiddleware),
+  activityStatusMiddleware.validateGet.bind(activityStatusMiddleware),
   activityStatusService.getActivityStatus.bind(activityStatusService)
 );
-activityStatusroute.post(
+
+// CREATE a new activity status
+router.post(
   "/",
-  activityStatusMiddleware.createActivityStatus.bind(activityStatusMiddleware),
+  activityStatusMiddleware.validateCreate.bind(activityStatusMiddleware),
   activityStatusService.createActivityStatus.bind(activityStatusService)
 );
-activityStatusroute.patch(
+
+// UPDATE an activity status
+router.patch(
   "/:id",
-  activityStatusMiddleware.updateActivityStatus.bind(activityStatusMiddleware),
+  activityStatusMiddleware.validateUpdate.bind(activityStatusMiddleware),
   activityStatusService.updateActivityStatus.bind(activityStatusService)
 );
-activityStatusroute.delete(
+
+// DELETE an activity status
+router.delete(
   "/:id",
-  activityStatusMiddleware.deleteActivityStatus.bind(activityStatusMiddleware),
+  activityStatusMiddleware.validateDelete.bind(activityStatusMiddleware),
   activityStatusService.deleteActivityStatus.bind(activityStatusService)
 );
 
-export default activityStatusroute;
+export default router;

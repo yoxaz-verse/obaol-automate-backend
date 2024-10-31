@@ -25,8 +25,8 @@ class CustomerMiddleware {
       const { email, name, password } = req.body;
       if (!email && !name && !password) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: At least one field (Email, Name, or Password) must be provided",
+          "At least one field (Email, Name, or Password) must be provided",
           400
         );
         return;

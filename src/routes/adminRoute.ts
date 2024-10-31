@@ -1,38 +1,70 @@
 import { Router } from "express";
 import AdminService from "../services/admin";
+import AuthMiddleware from "../middlewares/auth";
 import AdminMiddleware from "../middlewares/admin";
+import authorizeRoles from "../middlewares/roleMiddleware";
+import authenticateToken from "../middlewares/auth";
 
 const router = Router();
 const adminService = new AdminService();
 const adminMiddleware = new AdminMiddleware();
 
-router.get("/", adminService.getAdmins.bind(adminService));
-router.get(
-  "/:id",
-  adminMiddleware.validateAdminOrSuperAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
-);
-router.post(
-  "/",
-  adminMiddleware.validateAdminOrSuperAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
-);
-router.put(
-  "/:id",
-  adminMiddleware.validateAdminOrSuperAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
-);
-router.delete(
-  "/:id",
-  adminMiddleware.validateAdminOrSuperAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
-);
+// LOGIN an admin (Public route)
 router.post(
   "/login",
-  adminMiddleware.adminLogin.bind(adminMiddleware),
-  adminService.adminLogin.bind(adminService)
+  // authorizeRoles("Admin"),
+  adminMiddleware.validateLogin.bind(adminMiddleware),
+  adminService.login.bind(adminService)
 );
-// router.post("/logout", adminMiddleware.validateAdminOrSuperAdmin.bind(adminMiddleware), adminService.adminLogout.bind(adminService));
-// router.post("/refresh-token", adminMiddleware.refreshToken.bind(adminMiddleware), adminService.adminRefreshToken.bind(adminService));
+
+router.get(
+  "/user",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  adminService.getCurrentUser.bind(adminService)
+);
+
+// GET all admins
+router.get("/", adminService.getAdmins.bind(adminService));
+
+// GET admin by ID
+router.get(
+  "/:id",
+  adminMiddleware.validateGet.bind(adminMiddleware),
+  adminService.getAdmin.bind(adminService)
+);
+
+// CREATE a new admin
+router.post(
+  "/",
+  adminMiddleware.validateCreate.bind(adminMiddleware),
+  adminService.createAdmin.bind(adminService)
+);
+
+// UPDATE an admin
+router.patch(
+  "/:id",
+  adminMiddleware.validateUpdate.bind(adminMiddleware),
+  adminService.updateAdmin.bind(adminService)
+);
+
+// DELETE an admin
+router.delete(
+  "/:id",
+  adminMiddleware.validateDelete.bind(adminMiddleware),
+  adminService.deleteAdmin.bind(adminService)
+);
+
+router.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  });
+  res.status(200).json({
+    success: true,
+    message: "Logged out successfully",
+  });
+});
 
 export default router;

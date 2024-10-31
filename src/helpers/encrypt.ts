@@ -1,11 +1,7 @@
 import argon2 from "argon2";
 import jwt from "jsonwebtoken";
-import {
-  JWT_SECRET,
-  JWT_EXPIRE,
-  JWT_REFRESH_EXPIRE,
-  JWT_REFRESH_SECRET,
-} from "../config";
+import { JWT_EXPIRE, JWT_REFRESH_EXPIRE, JWT_REFRESH_SECRET, JWT_SECRET } from "../config";
+
 const secret_key: string = JWT_SECRET || "";
 const expire_time: string = JWT_EXPIRE || "";
 const refresh_secret_key: string = JWT_REFRESH_SECRET;

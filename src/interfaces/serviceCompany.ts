@@ -14,8 +14,6 @@ export interface ICreateServiceCompany {
   description?: string;
   map?: string;
   url?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
 }
 
 export interface IUpdateServiceCompany {
@@ -24,6 +22,5 @@ export interface IUpdateServiceCompany {
   description?: string;
   map?: string;
   url?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
 }
+

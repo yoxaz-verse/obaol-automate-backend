@@ -1,6 +1,10 @@
 import { Request } from "express";
 import { CustomerModel } from "../models/customer";
-import { ICustomer, ICreateCustomer, IUpdateCustomer } from "../../interfaces/customer";
+import {
+  ICustomer,
+  ICreateCustomer,
+  IUpdateCustomer,
+} from "../../interfaces/customer";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 
@@ -16,17 +20,20 @@ class CustomerRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = {};
+      let query: any = { isDeleted: false };
       if (search) {
         query.name = { $regex: search, $options: "i" };
       }
-      const customers = await CustomerModel.find(query)
+
+      const customersDoc = await CustomerModel.find(query)
         .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .skip((pagination.page - 1) * pagination.limit);
+
+      const customers = customersDoc.map((doc) => doc.toObject() as ICustomer);
 
       const totalCount = await CustomerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
+
       return {
         data: customers,
         totalCount,
@@ -41,10 +48,17 @@ class CustomerRepository {
 
   public async getCustomerById(req: Request, id: string): Promise<ICustomer> {
     try {
-      const customer = await CustomerModel.findById(id).lean();
-      if (!customer || customer.isDeleted) {
+      const customerDoc = await CustomerModel.findOne({
+        _id: id,
+        isDeleted: false,
+      });
+
+      if (!customerDoc) {
         throw new Error("Customer not found");
       }
+
+      const customer = customerDoc.toObject() as ICustomer;
+
       return customer;
     } catch (error) {
       await logError(error, req, "CustomerRepository-getCustomerById");
@@ -71,10 +85,12 @@ class CustomerRepository {
     customerData: Partial<IUpdateCustomer>
   ): Promise<ICustomer> {
     try {
-      const updatedCustomer = await CustomerModel.findByIdAndUpdate(id, customerData, {
-        new: true,
-      });
-      if (!updatedCustomer || updatedCustomer.isDeleted) {
+      const updatedCustomer = await CustomerModel.findOneAndUpdate(
+        { _id: id, isDeleted: false },
+        customerData,
+        { new: true }
+      );
+      if (!updatedCustomer) {
         throw new Error("Failed to update customer");
       }
       return updatedCustomer.toObject();
@@ -86,8 +102,8 @@ class CustomerRepository {
 
   public async deleteCustomer(req: Request, id: string): Promise<ICustomer> {
     try {
-      const deletedCustomer = await CustomerModel.findByIdAndUpdate(
-        id,
+      const deletedCustomer = await CustomerModel.findOneAndUpdate(
+        { _id: id, isDeleted: false },
         { isDeleted: true },
         { new: true }
       );

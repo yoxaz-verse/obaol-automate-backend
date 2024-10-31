@@ -2,30 +2,42 @@ import { Router } from "express";
 import ProjectService from "../services/project";
 import ProjectMiddleware from "../middlewares/project";
 
-const projectroute = Router();
+const router = Router();
 const projectService = new ProjectService();
 const projectMiddleware = new ProjectMiddleware();
 
-projectroute.get("/", projectService.getProjects.bind(projectService));
-projectroute.get(
+// GET all projects
+router.get(
+  "/",
+  projectService.getProjects.bind(projectService)
+);
+
+// GET project by ID
+router.get(
   "/:id",
-  projectMiddleware.getProject.bind(projectMiddleware),
+  projectMiddleware.validateGet.bind(projectMiddleware),
   projectService.getProject.bind(projectService)
 );
-projectroute.post(
+
+// CREATE a new project
+router.post(
   "/",
-  projectMiddleware.createProject.bind(projectMiddleware),
+  projectMiddleware.validateCreate.bind(projectMiddleware),
   projectService.createProject.bind(projectService)
 );
-projectroute.patch(
+
+// UPDATE a project
+router.patch(
   "/:id",
-  projectMiddleware.updateProject.bind(projectMiddleware),
+  projectMiddleware.validateUpdate.bind(projectMiddleware),
   projectService.updateProject.bind(projectService)
 );
-projectroute.delete(
+
+// DELETE a project
+router.delete(
   "/:id",
-  projectMiddleware.deleteProject.bind(projectMiddleware),
+  projectMiddleware.validateDelete.bind(projectMiddleware),
   projectService.deleteProject.bind(projectService)
 );
 
-export default projectroute;
+export default router;

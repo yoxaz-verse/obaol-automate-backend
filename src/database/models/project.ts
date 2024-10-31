@@ -8,6 +8,8 @@ interface IProject extends mongoose.Document {
   title: string;
   description: string;
   customId: string;
+  budget: string;
+  prevCustomId: string;
   customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
   admin: mongoose.Schema.Types.ObjectId | typeof AdminModel;
   manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
@@ -15,6 +17,7 @@ interface IProject extends mongoose.Document {
   statusHistory: mongoose.Schema.Types.ObjectId[];
   isActive: boolean;
   isDeleted: boolean;
+  // Add any additional fields if necessary
 }
 
 const ProjectSchema = new mongoose.Schema(
@@ -22,6 +25,8 @@ const ProjectSchema = new mongoose.Schema(
     title: { type: String, required: true },
     description: { type: String, required: true },
     customId: { type: String, required: true, unique: true },
+    budget: { type: String, required: true, unique: true },
+    prevCustomId: { type: String, unique: true },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
@@ -47,22 +52,17 @@ const ProjectSchema = new mongoose.Schema(
     ],
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
+    // Add any additional fields if necessary
   },
   { timestamps: true }
 );
 
 // Custom ID generator
-ProjectSchema.pre("validate", function (next) {
+ProjectSchema.pre<IProject>("validate", function (next) {
   if (!this.customId && this.isNew) {
-    const location = this.get("location"); // Assuming location is provided
+    const location = this.get("location"); // Ensure 'location' is handled appropriately
     if (location) {
-      const customId = `${location.nation
-        .slice(0, 2)
-        .toUpperCase()}${location.city
-        .slice(0, 2)
-        .toUpperCase()}${location.region
-        .slice(0, 2)
-        .toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
+      const customId = `${location.nation.slice(0, 2).toUpperCase()}${location.city.slice(0, 2).toUpperCase()}${location.region.slice(0, 2).toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
       this.customId = customId;
     }
   }

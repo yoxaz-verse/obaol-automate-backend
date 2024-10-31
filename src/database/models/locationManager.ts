@@ -1,20 +1,24 @@
 import mongoose from "mongoose";
+import { ILocation } from "./location";
 
 interface ILocationManager extends mongoose.Document {
   code: string;
   name: string;
-  manager: mongoose.Schema.Types.ObjectId;
-  managingLocations: mongoose.Schema.Types.ObjectId[];
+  managingLocations: mongoose.Schema.Types.ObjectId[] | ILocation[];
 }
 
 const LocationManagerSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, unique: true },
     name: { type: String, required: true },
-    manager: { type: mongoose.Schema.Types.ObjectId, ref: "Manager", required: true },
-    managingLocations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Location" }]
+    managingLocations: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Location" },
+    ],
   },
   { timestamps: true }
 );
 
-export const LocationManagerModel = mongoose.model<ILocationManager>("LocationManager", LocationManagerSchema);
+export const LocationManagerModel = mongoose.model<ILocationManager>(
+  "LocationManager",
+  LocationManagerSchema
+);

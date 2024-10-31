@@ -1,42 +1,38 @@
 import { Request } from "express";
 import { LocationTypeModel } from "../models/locationType";
-import {
-  ILocationType,
-  ICreateLocationType,
-  IUpdateLocationType,
-} from "../../interfaces/locationType";
+import {} from "../../interfaces/locationType";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+import { ILocationType } from "../../interfaces/locationType";
 
 class LocationTypeRepository {
   public async getLocationTypes(
     req: Request,
-    pagination: IPagination,
+    pagination: { page: number; limit: number },
     search: string
   ): Promise<{
     data: ILocationType[];
     totalCount: number;
     currentPage: number;
-    totalPages?: number;
+    totalPages: number;
   }> {
     try {
-      let query: any = {};
+      const query: any = {};
       if (search) {
         query.name = { $regex: search, $options: "i" };
       }
-      const locationTypes = await LocationTypeModel.find(query)
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
 
       const totalCount = await LocationTypeModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data: locationTypes as ILocationType[],
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+      const currentPage = pagination.page;
+      console.log(totalCount);
+      console.log(totalPages);
+      console.log(currentPage);
+
+      const locationTypes = await LocationTypeModel.find(query);
+
+      console.log(locationTypes);
+
+      return { data: locationTypes, totalCount, currentPage, totalPages };
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-getLocationTypes");
       throw error;
@@ -48,11 +44,15 @@ class LocationTypeRepository {
     id: string
   ): Promise<ILocationType> {
     try {
-      const locationType = await LocationTypeModel.findById(id).lean();
-      if (!locationType) {
+      const locationTypeDoc = await LocationTypeModel.findOne({
+        _id: id,
+      });
+
+      if (!locationTypeDoc) {
         throw new Error("Location Type not found");
       }
-      return locationType as ILocationType;
+
+      return locationTypeDoc;
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-getLocationTypeById");
       throw error;
@@ -61,11 +61,13 @@ class LocationTypeRepository {
 
   public async createLocationType(
     req: Request,
-    locationTypeData: ICreateLocationType
+    locationTypeData: any
   ): Promise<ILocationType> {
     try {
+      console.log(locationTypeData);
+
       const newLocationType = await LocationTypeModel.create(locationTypeData);
-      return newLocationType.toObject();
+      return newLocationType;
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-createLocationType");
       throw error;
@@ -75,20 +77,18 @@ class LocationTypeRepository {
   public async updateLocationType(
     req: Request,
     id: string,
-    locationTypeData: Partial<IUpdateLocationType>
+    locationTypeData: Partial<ILocationType>
   ): Promise<ILocationType> {
     try {
-      const updatedLocationType = await LocationTypeModel.findByIdAndUpdate(
-        id,
+      const updatedLocationType = await LocationTypeModel.findOneAndUpdate(
+        { _id: id },
         locationTypeData,
-        {
-          new: true,
-        }
+        { new: true }
       );
       if (!updatedLocationType) {
-        throw new Error("Failed to update location type");
+        throw new Error("Failed to update Location Type");
       }
-      return updatedLocationType.toObject();
+      return updatedLocationType;
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-updateLocationType");
       throw error;
@@ -100,11 +100,13 @@ class LocationTypeRepository {
     id: string
   ): Promise<ILocationType> {
     try {
-      const deletedLocationType = await LocationTypeModel.findByIdAndDelete(id);
+      const deletedLocationType = await LocationTypeModel.findByIdAndDelete({
+        _id: id,
+      });
       if (!deletedLocationType) {
-        throw new Error("Failed to delete location type");
+        throw new Error("Failed to delete Location Type");
       }
-      return deletedLocationType.toObject();
+      return deletedLocationType;
     } catch (error) {
       await logError(error, req, "LocationTypeRepository-deleteLocationType");
       throw error;

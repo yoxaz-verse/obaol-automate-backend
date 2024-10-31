@@ -2,33 +2,39 @@ import { Router } from "express";
 import TimesheetService from "../services/timesheet";
 import TimesheetMiddleware from "../middlewares/timesheet";
 
-const timesheetroute = Router();
+const router = Router();
 const timesheetService = new TimesheetService();
 const timesheetMiddleware = new TimesheetMiddleware();
 
-timesheetroute.get(
-  "/",
-  timesheetService.getTimesheets.bind(timesheetService)
-);
-timesheetroute.get(
+// GET all timesheets
+router.get("/", timesheetService.getTimesheets.bind(timesheetService));
+
+// GET timesheet by ID
+router.get(
   "/:id",
-  timesheetMiddleware.getTimesheet.bind(timesheetMiddleware),
+  timesheetMiddleware.validateGet.bind(timesheetMiddleware),
   timesheetService.getTimesheet.bind(timesheetService)
 );
-timesheetroute.post(
+
+// CREATE a new timesheet
+router.post(
   "/",
-  timesheetMiddleware.createTimesheet.bind(timesheetMiddleware),
+  timesheetMiddleware.validateCreate.bind(timesheetMiddleware),
   timesheetService.createTimesheet.bind(timesheetService)
 );
-timesheetroute.patch(
+
+// UPDATE a timesheet
+router.patch(
   "/:id",
-  timesheetMiddleware.updateTimesheet.bind(timesheetMiddleware),
+  timesheetMiddleware.validateUpdate.bind(timesheetMiddleware),
   timesheetService.updateTimesheet.bind(timesheetService)
 );
-timesheetroute.delete(
+
+// DELETE a timesheet
+router.delete(
   "/:id",
-  timesheetMiddleware.deleteTimesheet.bind(timesheetMiddleware),
+  timesheetMiddleware.validateDelete.bind(timesheetMiddleware),
   timesheetService.deleteTimesheet.bind(timesheetService)
 );
 
-export default timesheetroute;
+export default router;

@@ -6,6 +6,7 @@ interface ICustomer extends mongoose.Document {
   isDeleted: boolean;
   name: string;
   password: string;
+  role: string; // Assign default role
 }
 
 const CustomerSchema = new mongoose.Schema(
@@ -14,9 +15,13 @@ const CustomerSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
     name: { type: String, required: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    role: { type: String, default: "Customer" }, // Assign default role
   },
   { timestamps: true }
 );
 
-export const CustomerModel = mongoose.model<ICustomer>("Customer", CustomerSchema);
+export const CustomerModel = mongoose.model<ICustomer>(
+  "Customer",
+  CustomerSchema
+);

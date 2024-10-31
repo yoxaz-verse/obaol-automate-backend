@@ -2,33 +2,34 @@ import { Router } from "express";
 import LocationTypeService from "../services/locationType";
 import LocationTypeMiddleware from "../middlewares/locationType";
 
-const locationTyperoute = Router();
+const locationTypeRoute = Router();
 const locationTypeService = new LocationTypeService();
 const locationTypeMiddleware = new LocationTypeMiddleware();
 
-locationTyperoute.get(
+// GET /api/location-types - Retrieve all location types
+locationTypeRoute.get(
   "/",
   locationTypeService.getLocationTypes.bind(locationTypeService)
 );
-locationTyperoute.get(
-  "/:id",
-  locationTypeMiddleware.getLocationType.bind(locationTypeMiddleware),
-  locationTypeService.getLocationType.bind(locationTypeService)
-);
-locationTyperoute.post(
+
+// GET /api/location-types/:id - Retrieve a specific location type
+locationTypeRoute.get("/:id", locationTypeService.getLocationType.bind(locationTypeService));
+
+// // POST /api/location-types - Create a new location type
+locationTypeRoute.post(
   "/",
-  locationTypeMiddleware.createLocationType.bind(locationTypeMiddleware),
+  locationTypeMiddleware.validateLocationTypeData.bind(locationTypeMiddleware),
   locationTypeService.createLocationType.bind(locationTypeService)
 );
-locationTyperoute.patch(
+
+// // PATCH /api/location-types/:id - Update an existing location type
+locationTypeRoute.patch(
   "/:id",
-  locationTypeMiddleware.updateLocationType.bind(locationTypeMiddleware),
+  locationTypeMiddleware.validateLocationTypeData.bind(locationTypeMiddleware),
   locationTypeService.updateLocationType.bind(locationTypeService)
 );
-locationTyperoute.delete(
-  "/:id",
-  locationTypeMiddleware.deleteLocationType.bind(locationTypeMiddleware),
-  locationTypeService.deleteLocationType.bind(locationTypeService)
-);
 
-export default locationTyperoute;
+// // DELETE /api/location-types/:id - Delete a location type
+locationTypeRoute.delete("/:id", locationTypeService.deleteLocationType.bind(locationTypeService));
+
+export default locationTypeRoute;

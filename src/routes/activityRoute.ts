@@ -6,28 +6,37 @@ const router = Router();
 const activityService = new ActivityService();
 const activityMiddleware = new ActivityMiddleware();
 
+// GET all activities
 router.get(
   "/",
   activityService.getActivities.bind(activityService)
 );
+
+// GET activity by ID
 router.get(
   "/:id",
-  activityMiddleware.getActivity.bind(activityMiddleware),
+  activityMiddleware.validateGet.bind(activityMiddleware),
   activityService.getActivity.bind(activityService)
 );
+
+// CREATE a new activity
 router.post(
   "/",
-  activityMiddleware.createActivity.bind(activityMiddleware),
+  activityMiddleware.validateCreate.bind(activityMiddleware),
   activityService.createActivity.bind(activityService)
 );
+
+// UPDATE an activity
 router.patch(
   "/:id",
-  activityMiddleware.updateActivity.bind(activityMiddleware),
+  activityMiddleware.validateUpdate.bind(activityMiddleware),
   activityService.updateActivity.bind(activityService)
 );
+
+// DELETE an activity
 router.delete(
   "/:id",
-  activityMiddleware.deleteActivity.bind(activityMiddleware),
+  activityMiddleware.validateDelete.bind(activityMiddleware),
   activityService.deleteActivity.bind(activityService)
 );
 

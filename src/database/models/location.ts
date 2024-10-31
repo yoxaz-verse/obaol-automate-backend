@@ -1,11 +1,14 @@
+import { IFile } from "@/interfaces/file";
+import { ILocationManager } from "@/interfaces/locationManager";
+import { ILocationType } from "@/interfaces/locationType";
 import mongoose from "mongoose";
 
-interface ILocation extends mongoose.Document {
+export interface ILocation extends mongoose.Document {
   name: string;
   address: string;
   city: string;
   description?: string;
-  image: string;  // Assuming you'll store the file path as a string
+  image: mongoose.Schema.Types.ObjectId | IFile;
   latitude: string;
   longitude: string;
   map: string;
@@ -13,8 +16,8 @@ interface ILocation extends mongoose.Document {
   owner: mongoose.Schema.Types.ObjectId;
   province: string;
   region: string;
-  locationType: mongoose.Schema.Types.ObjectId;
-  locationManagers: mongoose.Schema.Types.ObjectId[];
+  locationType: mongoose.Schema.Types.ObjectId | ILocationType;
+  locationManagers: mongoose.Schema.Types.ObjectId[] | ILocationManager[];
 }
 
 const LocationSchema = new mongoose.Schema(
@@ -23,18 +26,35 @@ const LocationSchema = new mongoose.Schema(
     address: { type: String, required: true },
     city: { type: String, required: true },
     description: { type: String },
-    image: { type: String, required: true },  // Assuming you'll store the file path as a string
+    image: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "File",
+      required: true,
+    },
     latitude: { type: String, required: true },
     longitude: { type: String, required: true },
     map: { type: String, required: true },
     nation: { type: String, required: true },
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: "Owner", required: true },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Owner",
+      required: true,
+    },
     province: { type: String, required: true },
     region: { type: String, required: true },
-    locationType: { type: mongoose.Schema.Types.ObjectId, ref: "LocationType", required: true },
-    locationManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "LocationManager" }]
+    locationType: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "LocationType",
+      required: true,
+    },
+    locationManagers: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "LocationManager" },
+    ],
   },
   { timestamps: true }
 );
 
-export const LocationModel = mongoose.model<ILocation>("Location", LocationSchema);
+export const LocationModel = mongoose.model<ILocation>(
+  "Location",
+  LocationSchema
+);

@@ -1,6 +1,10 @@
 import { Request } from "express";
 import { LocationManagerModel } from "../models/locationManager";
-import { ILocationManager, ICreateLocationManager, IUpdateLocationManager } from "../../interfaces/locationManager";
+import {
+  ILocationManager,
+  ICreateLocationManager,
+  IUpdateLocationManager,
+} from "../../interfaces/locationManager";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 
@@ -20,39 +24,55 @@ class LocationManagerRepository {
       if (search) {
         query.name = { $regex: search, $options: "i" };
       }
-      const locationManagers = await LocationManagerModel.find(query)
-        .populate("manager")
+
+      const locationManagersDoc = await LocationManagerModel.find(query)
         .populate("managingLocations")
         .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .skip((pagination.page - 1) * pagination.limit);
+
+      const locationManagers = locationManagersDoc.map(
+        (doc) => doc.toObject() as ILocationManager
+      );
 
       const totalCount = await LocationManagerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
+
       return {
-        data: locationManagers as ILocationManager[],
+        data: locationManagers,
         totalCount,
         currentPage: pagination.page,
         totalPages,
       };
     } catch (error) {
-      await logError(error, req, "LocationManagerRepository-getLocationManagers");
+      await logError(
+        error,
+        req,
+        "LocationManagerRepository-getLocationManagers"
+      );
       throw error;
     }
   }
 
-  public async getLocationManagerById(req: Request, id: string): Promise<ILocationManager> {
+  public async getLocationManagerById(
+    req: Request,
+    id: string
+  ): Promise<ILocationManager> {
     try {
-      const locationManager = await LocationManagerModel.findById(id)
-        .populate("manager")
-        .populate("managingLocations")
-        .lean();
-      if (!locationManager) {
-        throw new Error("Location Manager not found");
+      const locationManagerDoc = await LocationManagerModel.findById(
+        id
+      ).populate("managingLocations");
+
+      if (!locationManagerDoc) {
+        throw new Error("LocationManager not found");
       }
-      return locationManager as ILocationManager;
+
+      return locationManagerDoc.toObject() as ILocationManager;
     } catch (error) {
-      await logError(error, req, "LocationManagerRepository-getLocationManagerById");
+      await logError(
+        error,
+        req,
+        "LocationManagerRepository-getLocationManagerById"
+      );
       throw error;
     }
   }
@@ -62,10 +82,16 @@ class LocationManagerRepository {
     locationManagerData: ICreateLocationManager
   ): Promise<ILocationManager> {
     try {
-      const newLocationManager = await LocationManagerModel.create(locationManagerData);
+      const newLocationManager = await LocationManagerModel.create(
+        locationManagerData
+      );
       return newLocationManager.toObject();
     } catch (error) {
-      await logError(error, req, "LocationManagerRepository-createLocationManager");
+      await logError(
+        error,
+        req,
+        "LocationManagerRepository-createLocationManager"
+      );
       throw error;
     }
   }
@@ -76,31 +102,43 @@ class LocationManagerRepository {
     locationManagerData: Partial<IUpdateLocationManager>
   ): Promise<ILocationManager> {
     try {
-      const updatedLocationManager = await LocationManagerModel.findByIdAndUpdate(id, locationManagerData, {
-        new: true,
-      }).populate("manager")
-        .populate("managingLocations");
+      const updatedLocationManager =
+        await LocationManagerModel.findByIdAndUpdate(id, locationManagerData, {
+          new: true,
+        }).populate("managingLocations");
       if (!updatedLocationManager) {
-        throw new Error("Failed to update location manager");
+        throw new Error("Failed to update LocationManager");
       }
       return updatedLocationManager.toObject();
     } catch (error) {
-      await logError(error, req, "LocationManagerRepository-updateLocationManager");
+      await logError(
+        error,
+        req,
+        "LocationManagerRepository-updateLocationManager"
+      );
       throw error;
     }
   }
 
-  public async deleteLocationManager(req: Request, id: string): Promise<ILocationManager> {
+  public async deleteLocationManager(
+    req: Request,
+    id: string
+  ): Promise<ILocationManager> {
     try {
-      const deletedLocationManager = await LocationManagerModel.findByIdAndDelete(id)
-        .populate("manager")
-        .populate("managingLocations");
+      const deletedLocationManager =
+        await LocationManagerModel.findByIdAndDelete(id).populate(
+          "managingLocations"
+        );
       if (!deletedLocationManager) {
-        throw new Error("Failed to delete location manager");
+        throw new Error("Failed to delete LocationManager");
       }
       return deletedLocationManager.toObject();
     } catch (error) {
-      await logError(error, req, "LocationManagerRepository-deleteLocationManager");
+      await logError(
+        error,
+        req,
+        "LocationManagerRepository-deleteLocationManager"
+      );
       throw error;
     }
   }

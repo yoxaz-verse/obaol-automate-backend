@@ -1,30 +1,13 @@
-import { ILocationType } from "./locationType";
-import { ILocationManager } from "./locationManager";
 import mongoose from "mongoose";
+import { IFile } from "./file";
 
-export interface ILocation {
+export interface ILocationBase {
+  _id: mongoose.Types.ObjectId;
   name: string;
   address: string;
   city: string;
   description?: string;
-  image: string;
-  latitude: string;
-  longitude: string;
-  map: string;
-  nation: string;
-  owner: mongoose.Schema.Types.ObjectId;
-  province: string;
-  region: string;
-  locationType: mongoose.Schema.Types.ObjectId | ILocationType;
-  locationManagers: mongoose.Schema.Types.ObjectId[] | ILocationManager[];
-}
-
-export interface ICreateLocation {
-  name: string;
-  address: string;
-  city: string;
-  description?: string;
-  image: string;
+  image: mongoose.Types.ObjectId; // Reference to File
   latitude: string;
   longitude: string;
   map: string;
@@ -33,7 +16,26 @@ export interface ICreateLocation {
   province: string;
   region: string;
   locationType: string;
-  locationManagers: string[];
+  locationManagers?: string[];
+}
+export interface ILocationPopulated extends ILocationBase {
+  image: IFile; // Populated image
+}
+export interface ICreateLocation {
+  name: string;
+  address: string;
+  city: string;
+  description?: string;
+  image: string; // Image file ID
+  latitude: string;
+  longitude: string;
+  map: string;
+  nation: string;
+  owner: string;
+  province: string;
+  region: string;
+  locationType: string;
+  locationManagers?: string[];
 }
 
 export interface IUpdateLocation {
@@ -41,7 +43,7 @@ export interface IUpdateLocation {
   address?: string;
   city?: string;
   description?: string;
-  image?: string;
+  image?: string; // Image file ID
   latitude?: string;
   longitude?: string;
   map?: string;

@@ -1,0 +1,271 @@
+2024-10-23T10:15:18.861Z [INFO]: Generating unique filename. {"filename":"1729678518858-887433185-YoxazVerse"}
+2024-10-23T10:15:18.866Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:15:19.102Z [INFO]: File uploaded successfully. {"fileId":"6718ccb63698b366d3390385","filePath":"projects-projectId123\\activities-activityId456\\timesheets-timesheetId789\\1729678518858-887433185-YoxazVerse"}
+2024-10-23T10:16:17.271Z [INFO]: Generating unique filename. {"filename":"1729678577270-988679070-Jacob"}
+2024-10-23T10:16:17.272Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:16:17.382Z [INFO]: File uploaded successfully. {"fileId":"6718ccf13698b366d339038c","filePath":"projects-projectId123\\activities-activityId456\\timesheets-timesheetId789\\1729678577270-988679070-Jacob"}
+2024-10-23T10:22:45.576Z [INFO]: Generating unique filename. {"filename":"1729678965576-330997859-Jacob"}
+2024-10-23T10:22:45.577Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:22:45.757Z [INFO]: Generating unique filename. {"filename":"1729678965757-125572269-Jacob"}
+2024-10-23T10:22:45.759Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:22:46.076Z [INFO]: Generating unique filename. {"filename":"1729678966076-736598346-Jacob"}
+2024-10-23T10:22:46.077Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:22:46.697Z [INFO]: Generating unique filename. {"filename":"1729678966697-817161119-Jacob"}
+2024-10-23T10:22:46.699Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:20.298Z [INFO]: Generating unique filename. {"filename":"1729679000298-910532298-sasas"}
+2024-10-23T10:23:20.301Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:20.476Z [INFO]: Generating unique filename. {"filename":"1729679000476-410013594-sasas"}
+2024-10-23T10:23:20.477Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:20.798Z [INFO]: Generating unique filename. {"filename":"1729679000798-57849831-sasas"}
+2024-10-23T10:23:20.799Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:21.424Z [INFO]: Generating unique filename. {"filename":"1729679001423-467727550-sasas"}
+2024-10-23T10:23:21.424Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:43.699Z [INFO]: Generating unique filename. {"filename":"1729679023698-65851976-sasas"}
+2024-10-23T10:23:43.700Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:43.875Z [INFO]: Generating unique filename. {"filename":"1729679023875-89729362-sasas"}
+2024-10-23T10:23:43.876Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:44.194Z [INFO]: Generating unique filename. {"filename":"1729679024194-396919655-sasas"}
+2024-10-23T10:23:44.195Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T10:23:44.814Z [INFO]: Generating unique filename. {"filename":"1729679024814-111023239-sasas"}
+2024-10-23T10:23:44.815Z [INFO]: Setting upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\"}
+2024-10-23T12:23:36.524Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-23T12:26:32.702Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-23T12:34:28.291Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-23T12:55:21.447Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-23T12:57:53.521Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-23T13:09:46.360Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-23T13:31:21.784Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-23T13:35:01.415Z [ERROR]: Multer Error during multiple file upload. {"error":"\"BASE_URL\" is required"}
+2024-10-23T13:35:28.003Z [ERROR]: Env Missing :  {"error":"\"BASE_URL\" is required"}
+2024-10-23T13:36:22.665Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-10-23T13:37:53.355Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-23T13:55:44.856Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-23T13:59:09.510Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-23T13:59:45.820Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-23T14:00:10.052Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-23T14:00:10.056Z [INFO]: Generating unique filename. {"filename":"1729692010055-758744495-efdvs"}
+2024-10-23T14:00:10.171Z [INFO]: Multiple files uploaded successfully. {"fileIds":["6719016a3a26ba239987cc37"]}
+2024-10-23T17:41:38.386Z [ERROR]: unhandledRejection: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3db.mongodb.net
+MongoServerSelectionError: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3db.mongodb.net
+    at Topology.selectServer (Z:\Project\Web Developing\Works\Backend\Activity_Tracking\activity-tracking-backend\node_modules\mongodb\src\sdam\topology.ts:610:30)
+    at async executeOperation (Z:\Project\Web Developing\Works\Backend\Activity_Tracking\activity-tracking-backend\node_modules\mongodb\src\operations\execute_operation.ts:155:18)
+    at async Collection.insertOne (Z:\Project\Web Developing\Works\Backend\Activity_Tracking\activity-tracking-backend\node_modules\mongodb\src\collection.ts:269:12) {"error":{"reason":{"type":"ReplicaSetNoPrimary","servers":{"italy-activity-shard-00-00.kk3db.mongodb.net:27017":{"address":"italy-activity-shard-00-00.kk3db.mongodb.net:27017","type":"Unknown","hosts":[],"passives":[],"arbiters":[],"tags":{},"minWireVersion":0,"maxWireVersion":0,"roundTripTime":-1,"minRoundTripTime":0,"lastUpdateTime":867074473,"lastWriteDate":0,"error":{},"topologyVersion":null,"setName":null,"setVersion":null,"electionId":null,"logicalSessionTimeoutMinutes":null,"primary":null,"me":null,"$clusterTime":null},"italy-activity-shard-00-01.kk3db.mongodb.net:27017":{"address":"italy-activity-shard-00-01.kk3db.mongodb.net:27017","type":"Unknown","hosts":[],"passives":[],"arbiters":[],"tags":{},"minWireVersion":0,"maxWireVersion":0,"roundTripTime":-1,"minRoundTripTime":0,"lastUpdateTime":867074473,"lastWriteDate":0,"error":{},"topologyVersion":null,"setName":null,"setVersion":null,"electionId":null,"logicalSessionTimeoutMinutes":null,"primary":null,"me":null,"$clusterTime":null},"italy-activity-shard-00-02.kk3db.mongodb.net:27017":{"address":"italy-activity-shard-00-02.kk3db.mongodb.net:27017","type":"Unknown","hosts":[],"passives":[],"arbiters":[],"tags":{},"minWireVersion":0,"maxWireVersion":0,"roundTripTime":-1,"minRoundTripTime":0,"lastUpdateTime":867074473,"lastWriteDate":0,"error":{},"topologyVersion":null,"setName":null,"setVersion":null,"electionId":null,"logicalSessionTimeoutMinutes":null,"primary":null,"me":null,"$clusterTime":null}},"stale":false,"compatible":true,"heartbeatFrequencyMS":10000,"localThresholdMS":15,"setName":"atlas-iwwsbx-shard-0","maxElectionId":{"$oid":"7fffffff0000000000000008"},"maxSetVersion":1,"commonWireVersion":0,"logicalSessionTimeoutMinutes":null}},"stack":"MongoServerSelectionError: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3db.mongodb.net\n    at Topology.selectServer (Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\node_modules\\mongodb\\src\\sdam\\topology.ts:610:30)\n    at async executeOperation (Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\node_modules\\mongodb\\src\\operations\\execute_operation.ts:155:18)\n    at async Collection.insertOne (Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\node_modules\\mongodb\\src\\collection.ts:269:12)","rejection":true,"date":"Wed Oct 23 2024 23:11:38 GMT+0530 (India Standard Time)","process":{"pid":37108,"uid":null,"gid":null,"cwd":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend","execPath":"C:\\Program Files\\nodejs\\node.exe","version":"v20.12.0","argv":["Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\node_modules\\ts-node\\dist\\bin.js","Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\src\\index.ts"],"memoryUsage":{"rss":109543424,"heapTotal":294051840,"heapUsed":286109384,"external":25998295,"arrayBuffers":22983065}},"os":{"loadavg":[0,0,0],"uptime":867041.937},"trace":[{"column":30,"file":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\node_modules\\mongodb\\src\\sdam\\topology.ts","function":"Topology.selectServer","line":610,"method":"selectServer","native":false},{"column":18,"file":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\node_modules\\mongodb\\src\\operations\\execute_operation.ts","function":"async executeOperation","line":155,"method":null,"native":false},{"column":12,"file":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\node_modules\\mongodb\\src\\collection.ts","function":"async Collection.insertOne","line":269,"method":"insertOne","native":false}]}
+2024-10-23T17:45:03.793Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-23T17:46:15.351Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-23T17:46:15.353Z [INFO]: Generating unique filename. {"filename":"1729705575353-534639275-YoxazVerse"}
+2024-10-23T17:46:15.440Z [INFO]: Multiple files uploaded successfully. {"fileIds":["671936676379d96363052370"]}
+2024-10-23T17:55:29.743Z [ERROR]: MongoDB Connection Error: {"error":"connection timed out"}
+2024-10-23T17:56:38.847Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-23T17:58:48.674Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-23T17:58:48.678Z [INFO]: Generating unique filename. {"filename":"1729706328676-642417830-YoxazVersefdfd"}
+2024-10-23T17:58:48.762Z [INFO]: Multiple files uploaded successfully. {"fileIds":["6719395828ba08542cab90cc"]}
+2024-10-23T18:06:28.052Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-23T19:07:02.258Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-23T19:07:02.262Z [INFO]: Generating unique filename. {"filename":"1729710422261-587908214-swsadsa"}
+2024-10-23T20:26:52.339Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-23T21:11:38.889Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T11:07:29.957Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T11:08:17.488Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T11:30:02.352Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-24T11:30:18.520Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-24T12:39:17.541Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T12:40:22.871Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T12:42:55.634Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T12:44:48.337Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T12:53:47.464Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T12:55:25.744Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T13:00:15.796Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T13:00:54.559Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T13:03:35.772Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T13:14:55.254Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-24T13:18:17.681Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-10-24T13:19:09.814Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-10-24T13:23:13.464Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T13:26:36.670Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T13:28:20.255Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T13:34:25.405Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-24T13:36:37.935Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-10-24T13:37:51.461Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T13:40:48.207Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T13:44:55.522Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T13:50:50.164Z [ERROR]: MongoDB Connection Error: {"error":"connection timed out"}
+2024-10-24T13:51:35.330Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-10-24T13:59:46.469Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-10-24T14:00:32.942Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-10-24T14:01:15.320Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-10-24T14:02:21.198Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-10-24T14:05:35.440Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T14:07:15.623Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T16:58:27.987Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T16:58:46.044Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T16:58:46.048Z [INFO]: Generating unique filename. {"filename":"1729789126047-547628915-dsvx"}
+2024-10-24T16:59:59.109Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T17:06:25.106Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-10-24T17:06:59.204Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T17:07:42.546Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:07:42.548Z [INFO]: Generating unique filename. {"filename":"1729789662548-870382729-adffsdsd"}
+2024-10-24T17:08:14.063Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:08:14.066Z [INFO]: Generating unique filename. {"filename":"1729789694065-604474446-ddddd"}
+2024-10-24T17:10:19.094Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T17:11:28.988Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T17:11:48.541Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:11:48.546Z [INFO]: Generating unique filename. {"filename":"1729789908545-468145915-SCxxzc"}
+2024-10-24T17:13:51.159Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:13:51.161Z [INFO]: Generating unique filename. {"filename":"1729790031160-376887076-xcvcvxcc"}
+2024-10-24T17:18:28.554Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T17:22:10.169Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-24T17:24:43.649Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-10-24T17:26:09.897Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T17:29:50.498Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:29:50.502Z [INFO]: Generating unique filename. {"filename":"1729790990501-587694072-dffdfd"}
+2024-10-24T17:30:20.550Z [ERROR]: File Upload Error: {"error":"Failed to create files: connection timed out"}
+2024-10-24T17:30:20.719Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:30:20.720Z [INFO]: Generating unique filename. {"filename":"1729791020720-738006175-dffdfd"}
+2024-10-24T17:30:50.748Z [ERROR]: File Upload Error: {"error":"Failed to create files: connection timed out"}
+2024-10-24T17:34:52.712Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:34:52.714Z [INFO]: Generating unique filename. {"filename":"1729791292714-721761414-eewe"}
+2024-10-24T17:35:14.343Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T17:35:14.346Z [INFO]: Generating unique filename. {"filename":"1729791314345-525515498-YoxazVerse"}
+2024-10-24T18:14:53.963Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-24T18:27:40.982Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-24T18:42:36.740Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T18:42:36.749Z [INFO]: Generating unique filename. {"filename":"1729795356748-171684645-kokokok"}
+2024-10-24T20:11:27.858Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T20:11:27.874Z [INFO]: Generating unique filename. {"filename":"1729800687870-255993422-aaaa"}
+2024-10-24T20:16:59.434Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T20:16:59.436Z [INFO]: Generating unique filename. {"filename":"1729801019435-916050137-ssssfeef"}
+2024-10-24T20:19:12.773Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-24T20:19:12.775Z [INFO]: Generating unique filename. {"filename":"1729801152775-586532740-aereazzz"}
+2024-10-25T10:24:24.890Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-25T11:35:54.093Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-25T17:11:25.674Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-25T18:35:14.842Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-25T18:35:14.845Z [INFO]: Generating unique filename. {"filename":"1729881314845-421630197-WDSEWRGSD"}
+2024-10-25T20:28:08.565Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-25T20:31:54.610Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T10:06:14.555Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T13:15:32.690Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-26T13:15:32.692Z [INFO]: Generating unique filename. {"filename":"1729948532691-764162287-JacobAlwin"}
+2024-10-26T14:41:41.462Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T14:48:06.692Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T14:48:06.724Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T14:53:08.460Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T14:53:19.908Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T14:57:04.210Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T14:57:04.278Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T14:58:17.444Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:03:40.593Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:03:40.607Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:04:56.312Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:04:56.323Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:05:41.048Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:05:41.049Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:26:01.141Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T15:26:01.226Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T15:26:49.326Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T15:26:49.340Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T15:29:03.714Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T15:30:10.137Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T15:30:37.404Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T15:31:39.860Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:41:07.413Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:41:07.617Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:42:52.921Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:42:52.922Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:44:42.470Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:47:23.738Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:47:23.738Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:48:51.123Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:48:51.135Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T15:51:19.608Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T15:51:19.607Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T15:52:23.248Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T15:52:23.248Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T15:53:14.867Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:53:14.877Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:54:05.397Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:54:05.469Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:54:41.076Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T15:54:41.081Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T16:34:20.543Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T16:35:30.688Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:49:33.045Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T16:49:55.895Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T16:51:22.477Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:51:22.477Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:52:28.644Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:52:28.675Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:54:01.818Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T16:54:01.855Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T16:56:09.385Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:56:09.385Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:56:50.944Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T16:56:50.953Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T19:49:18.861Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-26T19:51:01.228Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-26T19:53:09.581Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T19:53:09.590Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T19:58:38.515Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T19:58:38.520Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:01:21.086Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:01:21.121Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:14:47.767Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:14:47.804Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:23:20.515Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:23:20.521Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:27:16.587Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:27:16.592Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:28:40.102Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:28:40.280Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:28:40.598Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:28:41.222Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:29:47.663Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:31:06.305Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T20:31:50.609Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T20:31:50.663Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T20:32:15.878Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:32:16.059Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:32:16.376Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:32:16.998Z [WARN]: Invalid file type attempted. {"mimetype":"image/webp"}
+2024-10-26T20:37:19.363Z [INFO]: Setting dynamic upload destination. {"uploadPath":"Z:\\Project\\Web Developing\\Works\\Backend\\Activity_Tracking\\activity-tracking-backend\\uploads\\projects-projectId123\\activities-activityId456\\timesheets-timesheetId789"}
+2024-10-26T20:37:19.365Z [INFO]: Generating unique filename. {"filename":"1729975039365-775053813-JacobAlwinJoy"}
+2024-10-26T20:43:22.463Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T20:43:22.465Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-26T20:52:54.946Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-26T20:52:54.945Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-27T04:45:59.400Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-27T04:45:59.466Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-27T04:51:14.594Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T04:51:14.614Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T04:58:46.048Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-27T04:58:46.050Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-27T05:00:56.955Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T05:05:38.519Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T05:05:38.519Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T05:10:42.419Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T05:10:42.422Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T06:02:44.652Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-27T06:02:44.707Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-10-27T06:05:01.242Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-27T06:09:03.846Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T06:09:03.868Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T06:12:23.033Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-27T06:13:21.876Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T06:13:21.883Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T06:31:37.962Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T06:31:38.006Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T06:33:20.076Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T06:33:20.100Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-10-27T06:35:16.438Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T06:35:16.448Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T06:39:56.273Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T06:39:56.292Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T06:42:14.815Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-27T06:42:14.855Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-28T15:10:15.036Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-28T15:10:15.063Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-28T15:14:18.222Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-28T15:14:18.256Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-10-28T15:22:57.399Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-28T15:22:57.443Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-10-31T04:02:37.032Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 

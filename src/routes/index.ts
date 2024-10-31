@@ -1,37 +1,56 @@
 import { Router } from "express";
-import exampleRoute from "./exampleRoute";
-import adminRoute from "./adminRoute";
-import errorRoute from "./error";
-import customerRoute from "./customerRoute";
-import serviceCompanyRoute from "./serviceCompanyRoute";
-import managerRoute from "./managerRoute";
-import workerRoute from "./workerRoute";
-import projectStatusroute from "./projectStatusRoute";
-import locationTyperoute from "./locationTypeRoute";
-import locationManagerroute from "./locationManagerRoute";
-import locationroute from "./locationRoute";
-import projectroute from "./projectRoute";
-import activityStatusroute from "./activityStatusRoute";
-import timesheetroute from "./timesheetRoute";
 
+// Import Manager routes
+import managerRoute from "./manager";
+import customerRoute from "./customerRoute";
+import workerRoute from "./workerRoute";
+import adminRoute from "./adminRoute";
+
+import activityStatusRoute from "./activityStatusRoute";
+import activityTypeRoute from "./activityTypeRoute";
+import activityRoute from "./activityRoute";
+import projectTypeRoute from "./projectTypeRoute";
+import locationTypeRoute from "./locationTypeRoute";
+import locationRoute from "./locationRoute";
+import locationManagerRoute from "./locationManagerRoute";
+import fileRoute from "./fileRoute";
+import authRoute from "./authRoute";
+import serviceCompanyRoute from "./serviceCompanyRoute";
+import verifyTokenRoute from "./verifyTokenRoute";
+
+// Initialize the main router
 const router = Router();
 const version = "v1";
 const webRoute = "web";
 export const prefix = `/${version}/${webRoute}`;
 
-router.use(`${prefix}/example`, exampleRoute);
-router.use(`${prefix}/error`, errorRoute);
+//Auth
+router.use(`${prefix}/login`, authRoute);
+router.use(`${prefix}/verify-token`, verifyTokenRoute);
+
+// Users
+router.use(`${prefix}/manager`, managerRoute);
 router.use(`${prefix}/admin`, adminRoute);
 router.use(`${prefix}/customer`, customerRoute);
-router.use(`${prefix}/serviceCompany`, serviceCompanyRoute);
-router.use(`${prefix}/manager`, managerRoute);
 router.use(`${prefix}/worker`, workerRoute);
-router.use(`${prefix}/projectStatus`, projectStatusroute);
-router.use(`${prefix}/locationType`, locationTyperoute);
-router.use(`${prefix}/locationManager`, locationManagerroute);
-router.use(`${prefix}/location`, locationroute);
-router.use(`${prefix}/project`, projectroute);
-router.use(`${prefix}/activityStatus`, activityStatusroute);
-router.use(`${prefix}/timesheet`, timesheetroute );
 
+// router.use(`${prefix}/project`, projectRoute);
+router.use(`${prefix}/projectType`, projectTypeRoute);
+
+router.use(`${prefix}/activity`, activityRoute);
+router.use(`${prefix}/activityStatus`, activityStatusRoute);
+router.use(`${prefix}/activityType`, activityTypeRoute);
+
+router.use(`${prefix}/activityType`, activityTypeRoute);
+
+router.use(`${prefix}/serviceCompany`, serviceCompanyRoute);
+
+router.use(`${prefix}/locationType`, locationTypeRoute);
+router.use(`${prefix}/locationManager`, locationManagerRoute);
+// router.use(`${prefix}/location`, locationRoute);
+
+//file
+router.use(`${prefix}/upload`, fileRoute);
+
+// Export the main router
 export default router;

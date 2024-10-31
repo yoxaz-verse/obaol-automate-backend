@@ -4,19 +4,11 @@ import { logError } from "../utils/errorLogger";
 class LocationManagerMiddleware {
   public async createLocationManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { code, name, manager, managingLocations } = req.body;
-      if (!code || !name || !manager) {
+      const { code, name } = req.body;
+      if (!code || !name) {
         res.sendError(
-          "ValidationError: Code, Name, and Manager must be provided",
-          "Code, Name, and Manager must be provided",
-          400
-        );
-        return;
-      }
-      if (!Array.isArray(managingLocations)) {
-        res.sendError(
-          "ValidationError: Managing Locations must be an array",
-          "Managing Locations must be an array",
+          "ValidationError: Code and Name must be provided",
+          "Code and Name must be provided",
           400
         );
         return;
@@ -30,10 +22,10 @@ class LocationManagerMiddleware {
 
   public async updateLocationManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { code, name, manager, managingLocations } = req.body;
-      if (!code && !name && !manager && !managingLocations) {
+      const { code, name } = req.body;
+      if (!code && !name && !req.body.managingLocations) {
         res.sendError(
-          "ValidationError: At least one field must be provided",
+          "ValidationError: At least one field (Code, Name, or ManagingLocations) must be provided",
           "At least one field must be provided",
           400
         );
@@ -84,3 +76,4 @@ class LocationManagerMiddleware {
 }
 
 export default LocationManagerMiddleware;
+

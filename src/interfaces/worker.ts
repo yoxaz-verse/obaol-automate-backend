@@ -1,15 +1,15 @@
-import { IServiceCompany } from "./serviceCompany";
 import mongoose from "mongoose";
 
 export interface IWorker {
-  [x: string]: any;
+  _id: string;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
   isService: boolean;
   name: string;
   password: string;
-  serviceCompany?: string;
+  serviceCompany: mongoose.Schema.Types.ObjectId | string;
+  role: string;
 }
 
 export interface ICreateWorker {

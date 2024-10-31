@@ -1,6 +1,6 @@
 import * as nodemailer from "nodemailer";
-import { GOOGLE_EMAIL, GOOGLE_PASS } from "../config";
 import { INewAdminPassword } from "../interfaces/admin";
+import { GOOGLE_EMAIL, GOOGLE_PASS } from "../config";
 
 export async function newAdminPasswordEmail(newAdmin: INewAdminPassword) {
   const mailOptions = {

@@ -2,13 +2,17 @@ import mongoose from "mongoose";
 
 interface IActivityStatus extends mongoose.Document {
   name: string;
-  priority?: number;
+  description?: string;
+  isActive: boolean;
+  isDeleted: boolean;
 }
 
 const ActivityStatusSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true },
-    priority: { type: Number, default: 0 },
+    description: { type: String },
+    isActive: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

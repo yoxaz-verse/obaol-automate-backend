@@ -1,8 +1,8 @@
-import { Request, Response } from "express";
-import ServiceCompanyRepository from "../database/repositories/serviceCompany";
-import { logError } from "../utils/errorLogger";
-import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
+import { Request, Response } from 'express';
+import ServiceCompanyRepository from '../database/repositories/serviceCompany';
+import { logError } from '../utils/errorLogger';
+import { paginationHandler } from '../utils/paginationHandler';
+import { searchHandler } from '../utils/searchHandler';
 
 class ServiceCompanyService {
   private serviceCompanyRepository: ServiceCompanyRepository;
@@ -20,10 +20,10 @@ class ServiceCompanyService {
         pagination,
         search
       );
-      res.sendArrayFormatted(serviceCompanies, "Service Companies retrieved successfully");
+      res.sendArrayFormatted(serviceCompanies, 'ServiceCompanies retrieved successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-getServiceCompanies");
-      res.sendError(error, "Service Companies retrieval failed");
+      await logError(error, req, 'ServiceCompanyService-getServiceCompanies');
+      res.sendError(error, 'ServiceCompanies retrieval failed');
     }
   }
 
@@ -31,10 +31,10 @@ class ServiceCompanyService {
     try {
       const { id } = req.params;
       const serviceCompany = await this.serviceCompanyRepository.getServiceCompanyById(req, id);
-      res.sendFormatted(serviceCompany, "Service Company retrieved successfully");
+      res.sendFormatted(serviceCompany, 'ServiceCompany retrieved successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-getServiceCompany");
-      res.sendError(error, "Service Company retrieval failed");
+      await logError(error, req, 'ServiceCompanyService-getServiceCompany');
+      res.sendError(error, 'ServiceCompany retrieval failed');
     }
   }
 
@@ -42,10 +42,10 @@ class ServiceCompanyService {
     try {
       const serviceCompanyData = req.body;
       const newServiceCompany = await this.serviceCompanyRepository.createServiceCompany(req, serviceCompanyData);
-      res.sendFormatted(newServiceCompany, "Service Company created successfully", 201);
+      res.sendFormatted(newServiceCompany, 'ServiceCompany created successfully', 201);
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-createServiceCompany");
-      res.sendError(error, "Service Company creation failed");
+      await logError(error, req, 'ServiceCompanyService-createServiceCompany');
+      res.sendError(error, 'ServiceCompany creation failed');
     }
   }
 
@@ -58,10 +58,10 @@ class ServiceCompanyService {
         id,
         serviceCompanyData
       );
-      res.sendFormatted(updatedServiceCompany, "Service Company updated successfully");
+      res.sendFormatted(updatedServiceCompany, 'ServiceCompany updated successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-updateServiceCompany");
-      res.sendError(error, "Service Company update failed");
+      await logError(error, req, 'ServiceCompanyService-updateServiceCompany');
+      res.sendError(error, 'ServiceCompany update failed');
     }
   }
 
@@ -69,12 +69,13 @@ class ServiceCompanyService {
     try {
       const { id } = req.params;
       const deletedServiceCompany = await this.serviceCompanyRepository.deleteServiceCompany(req, id);
-      res.sendFormatted(deletedServiceCompany, "Service Company deleted successfully");
+      res.sendFormatted(deletedServiceCompany, 'ServiceCompany deleted successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-deleteServiceCompany");
-      res.sendError(error, "Service Company deletion failed");
+      await logError(error, req, 'ServiceCompanyService-deleteServiceCompany');
+      res.sendError(error, 'ServiceCompany deletion failed');
     }
   }
 }
 
 export default ServiceCompanyService;
+

@@ -1,14 +1,16 @@
+// src/middlewares/manager.ts
+
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
 class ManagerMiddleware {
   public async createManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password, admin } = req.body;
-      if (!email || !name || !password || !admin) {
+      const { email, name, password, admin, fileId, fileURL } = req.body;
+      if (!email || !name || !password || !admin || !fileId || !fileURL) {
         res.sendError(
-          "ValidationError: Email, Name, Password, and Admin must be provided",
-          "Email, Name, Password, and Admin must be provided",
+          "error",
+          "Email, Name, Password, Admin,  fileId, and fileURL must be provided",
           400
         );
         return;
@@ -22,11 +24,18 @@ class ManagerMiddleware {
 
   public async updateManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password, admin } = req.body;
-      if (!email && !name && !password && !admin) {
+      const { email, name, password, admin,  fileId, fileURL } = req.body;
+      if (
+        !email &&
+        !name &&
+        !password &&
+        !admin &&
+        !fileId &&
+        !fileURL
+      ) {
         res.sendError(
-          "ValidationError: Email, Name, Password, and Admin must be provided",
-          "Email, Name, Password, and Admin must be provided",
+          "error",
+          "At least one field (Email, Name, Password, Admin, Role, fileId, or fileURL) must be provided",
           400
         );
         return;
@@ -42,11 +51,7 @@ class ManagerMiddleware {
     try {
       const { id } = req.params;
       if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
+        res.sendError(id, "ID must be provided", 400);
         return;
       }
       next();
@@ -60,11 +65,7 @@ class ManagerMiddleware {
     try {
       const { id } = req.params;
       if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
+        res.sendError(id, "ID must be provided", 400);
         return;
       }
       next();

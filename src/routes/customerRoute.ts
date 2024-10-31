@@ -2,33 +2,30 @@ import { Router } from "express";
 import CustomerService from "../services/customer";
 import CustomerMiddleware from "../middlewares/customer";
 
-const router = Router();
+const customerRoute = Router();
 const customerService = new CustomerService();
 const customerMiddleware = new CustomerMiddleware();
 
-router.get(
-  "/",
-  customerService.getCustomers.bind(customerService)
-);
-router.get(
+customerRoute.get("/", customerService.getCustomers.bind(customerService));
+customerRoute.get(
   "/:id",
   customerMiddleware.getCustomer.bind(customerMiddleware),
   customerService.getCustomer.bind(customerService)
 );
-router.post(
+customerRoute.post(
   "/",
   customerMiddleware.createCustomer.bind(customerMiddleware),
   customerService.createCustomer.bind(customerService)
 );
-router.patch(
+customerRoute.patch(
   "/:id",
   customerMiddleware.updateCustomer.bind(customerMiddleware),
   customerService.updateCustomer.bind(customerService)
 );
-router.delete(
+customerRoute.delete(
   "/:id",
   customerMiddleware.deleteCustomer.bind(customerMiddleware),
   customerService.deleteCustomer.bind(customerService)
 );
 
-export default router;
+export default customerRoute;

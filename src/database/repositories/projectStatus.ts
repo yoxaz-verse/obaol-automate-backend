@@ -1,6 +1,11 @@
+// src/database/repositories/projectStatus.ts
 import { Request } from "express";
 import { ProjectStatusModel } from "../models/projectStatus";
-import { IProjectStatus, ICreateProjectStatus, IUpdateProjectStatus } from "../../interfaces/projectStatus";
+import {
+  IProjectStatus,
+  ICreateProjectStatus,
+  IUpdateProjectStatus,
+} from "../../interfaces/projectStatus";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 
@@ -20,15 +25,17 @@ class ProjectStatusRepository {
       if (search) {
         query.name = { $regex: search, $options: "i" };
       }
-      const projectStatuses = await ProjectStatusModel.find(query)
+      const projectStatuses: IProjectStatus[] = await ProjectStatusModel.find(
+        query
+      )
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .lean(); // Correct usage without generic
 
       const totalCount = await ProjectStatusModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: projectStatuses as IProjectStatus[],
+        data: projectStatuses,
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -39,15 +46,24 @@ class ProjectStatusRepository {
     }
   }
 
-  public async getProjectStatusById(req: Request, id: string): Promise<IProjectStatus> {
+  public async getProjectStatusById(
+    req: Request,
+    id: string
+  ): Promise<IProjectStatus> {
     try {
-      const projectStatus = await ProjectStatusModel.findById(id).lean();
+      const projectStatus = await ProjectStatusModel.findById(
+        id
+      ).lean<IProjectStatus>();
       if (!projectStatus) {
-        throw new Error("Project Status not found");
+        throw new Error("ProjectStatus not found");
       }
-      return projectStatus as IProjectStatus;
+      return projectStatus;
     } catch (error) {
-      await logError(error, req, "ProjectStatusRepository-getProjectStatusById");
+      await logError(
+        error,
+        req,
+        "ProjectStatusRepository-getProjectStatusById"
+      );
       throw error;
     }
   }
@@ -57,7 +73,9 @@ class ProjectStatusRepository {
     projectStatusData: ICreateProjectStatus
   ): Promise<IProjectStatus> {
     try {
-      const newProjectStatus = await ProjectStatusModel.create(projectStatusData);
+      const newProjectStatus = await ProjectStatusModel.create(
+        projectStatusData
+      );
       return newProjectStatus.toObject();
     } catch (error) {
       await logError(error, req, "ProjectStatusRepository-createProjectStatus");
@@ -71,26 +89,35 @@ class ProjectStatusRepository {
     projectStatusData: Partial<IUpdateProjectStatus>
   ): Promise<IProjectStatus> {
     try {
-      const updatedProjectStatus = await ProjectStatusModel.findByIdAndUpdate(id, projectStatusData, {
-        new: true,
-      });
+      const updatedProjectStatus = await ProjectStatusModel.findByIdAndUpdate(
+        id,
+        projectStatusData,
+        {
+          new: true,
+        }
+      ).lean<IProjectStatus>();
       if (!updatedProjectStatus) {
         throw new Error("Failed to update project status");
       }
-      return updatedProjectStatus.toObject();
+      return updatedProjectStatus;
     } catch (error) {
       await logError(error, req, "ProjectStatusRepository-updateProjectStatus");
       throw error;
     }
   }
 
-  public async deleteProjectStatus(req: Request, id: string): Promise<IProjectStatus> {
+  public async deleteProjectStatus(
+    req: Request,
+    id: string
+  ): Promise<IProjectStatus> {
     try {
-      const deletedProjectStatus = await ProjectStatusModel.findByIdAndDelete(id);
+      const deletedProjectStatus = await ProjectStatusModel.findByIdAndDelete(
+        id
+      ).lean<IProjectStatus>();
       if (!deletedProjectStatus) {
         throw new Error("Failed to delete project status");
       }
-      return deletedProjectStatus.toObject();
+      return deletedProjectStatus;
     } catch (error) {
       await logError(error, req, "ProjectStatusRepository-deleteProjectStatus");
       throw error;

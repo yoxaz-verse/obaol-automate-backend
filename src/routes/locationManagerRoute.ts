@@ -2,33 +2,31 @@ import { Router } from "express";
 import LocationManagerService from "../services/locationManager";
 import LocationManagerMiddleware from "../middlewares/locationManager";
 
-const locationManagerroute = Router();
+const locationManagerRoute = Router();
 const locationManagerService = new LocationManagerService();
 const locationManagerMiddleware = new LocationManagerMiddleware();
 
-locationManagerroute.get(
-  "/",
-  locationManagerService.getLocationManagers.bind(locationManagerService)
-);
-locationManagerroute.get(
+locationManagerRoute.get("/", locationManagerService.getLocationManagers.bind(locationManagerService));
+locationManagerRoute.get(
   "/:id",
   locationManagerMiddleware.getLocationManager.bind(locationManagerMiddleware),
   locationManagerService.getLocationManager.bind(locationManagerService)
 );
-locationManagerroute.post(
+locationManagerRoute.post(
   "/",
   locationManagerMiddleware.createLocationManager.bind(locationManagerMiddleware),
   locationManagerService.createLocationManager.bind(locationManagerService)
 );
-locationManagerroute.patch(
+locationManagerRoute.patch(
   "/:id",
   locationManagerMiddleware.updateLocationManager.bind(locationManagerMiddleware),
   locationManagerService.updateLocationManager.bind(locationManagerService)
 );
-locationManagerroute.delete(
+locationManagerRoute.delete(
   "/:id",
   locationManagerMiddleware.deleteLocationManager.bind(locationManagerMiddleware),
   locationManagerService.deleteLocationManager.bind(locationManagerService)
 );
 
-export default locationManagerroute;
+export default locationManagerRoute;
+

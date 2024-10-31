@@ -1,9 +1,11 @@
 export interface ICustomer {
+  _id: string;
   email: string;
-  isActive: boolean;
-  isDeleted: boolean;
+  isActive?: boolean;
+  isDeleted?: boolean;
   name: string;
   password: string;
+  role: string;
 }
 
 export interface ICreateCustomer {

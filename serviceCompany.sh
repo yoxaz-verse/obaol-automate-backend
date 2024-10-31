@@ -1,8 +1,26 @@
 #!/bin/bash
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Function to create directories if they don't exist
+create_dir() {
+  mkdir -p "$1"
+}
+
+# Function to create files with content
+create_file() {
+  local path=$1
+  shift
+  cat <<EOT > "$path"
+$*
+EOT
+}
+
 # Create model
-cat <<EOT > src/database/models/serviceCompany.ts
-import mongoose from "mongoose";
+create_dir src/database/models
+create_file src/database/models/serviceCompany.ts \
+"import mongoose from 'mongoose';
 
 interface IServiceCompany extends mongoose.Document {
   name: string;
@@ -27,16 +45,21 @@ const ServiceCompanySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const ServiceCompanyModel = mongoose.model<IServiceCompany>("ServiceCompany", ServiceCompanySchema);
-EOT
+export const ServiceCompanyModel = mongoose.model<IServiceCompany>('ServiceCompany', ServiceCompanySchema);
+"
 
 # Create repository
-cat <<EOT > src/database/repositories/serviceCompany.ts
-import { Request } from "express";
-import { ServiceCompanyModel } from "../models/serviceCompany";
-import { IServiceCompany, ICreateServiceCompany, IUpdateServiceCompany } from "../../interfaces/serviceCompany";
-import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+create_dir src/database/repositories
+create_file src/database/repositories/serviceCompany.ts \
+"import { Request } from 'express';
+import { ServiceCompanyModel } from '../models/serviceCompany';
+import {
+  IServiceCompany,
+  ICreateServiceCompany,
+  IUpdateServiceCompany,
+} from '../../interfaces/serviceCompany';
+import { logError } from '../../utils/errorLogger';
+import { IPagination } from '../../interfaces/pagination';
 
 class ServiceCompanyRepository {
   public async getServiceCompanies(
@@ -52,15 +75,18 @@ class ServiceCompanyRepository {
     try {
       let query: any = {};
       if (search) {
-        query.name = { $regex: search, $options: "i" };
+        query.name = { \$regex: search, \$options: 'i' };
       }
-      const serviceCompanies = await ServiceCompanyModel.find(query)
+
+      const serviceCompaniesDoc = await ServiceCompanyModel.find(query)
         .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .skip((pagination.page - 1) * pagination.limit);
+
+      const serviceCompanies = serviceCompaniesDoc.map((doc) => doc.toObject() as IServiceCompany);
 
       const totalCount = await ServiceCompanyModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
+
       return {
         data: serviceCompanies,
         totalCount,
@@ -68,20 +94,22 @@ class ServiceCompanyRepository {
         totalPages,
       };
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-getServiceCompanies");
+      await logError(error, req, 'ServiceCompanyRepository-getServiceCompanies');
       throw error;
     }
   }
 
   public async getServiceCompanyById(req: Request, id: string): Promise<IServiceCompany> {
     try {
-      const serviceCompany = await ServiceCompanyModel.findById(id).lean();
-      if (!serviceCompany || serviceCompany.isDeleted) {
-        throw new Error("ServiceCompany not found");
+      const serviceCompanyDoc = await ServiceCompanyModel.findById(id);
+
+      if (!serviceCompanyDoc) {
+        throw new Error('ServiceCompany not found');
       }
-      return serviceCompany;
+
+      return serviceCompanyDoc.toObject() as IServiceCompany;
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-getServiceCompanyById");
+      await logError(error, req, 'ServiceCompanyRepository-getServiceCompanyById');
       throw error;
     }
   }
@@ -94,7 +122,7 @@ class ServiceCompanyRepository {
       const newServiceCompany = await ServiceCompanyModel.create(serviceCompanyData);
       return newServiceCompany.toObject();
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-createServiceCompany");
+      await logError(error, req, 'ServiceCompanyRepository-createServiceCompany');
       throw error;
     }
   }
@@ -105,47 +133,46 @@ class ServiceCompanyRepository {
     serviceCompanyData: Partial<IUpdateServiceCompany>
   ): Promise<IServiceCompany> {
     try {
-      const updatedServiceCompany = await ServiceCompanyModel.findByIdAndUpdate(id, serviceCompanyData, {
-        new: true,
-      });
-      if (!updatedServiceCompany || updatedServiceCompany.isDeleted) {
-        throw new Error("Failed to update service company");
+      const updatedServiceCompany = await ServiceCompanyModel.findByIdAndUpdate(
+        id,
+        serviceCompanyData,
+        { new: true }
+      );
+      if (!updatedServiceCompany) {
+        throw new Error('Failed to update ServiceCompany');
       }
       return updatedServiceCompany.toObject();
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-updateServiceCompany");
+      await logError(error, req, 'ServiceCompanyRepository-updateServiceCompany');
       throw error;
     }
   }
 
   public async deleteServiceCompany(req: Request, id: string): Promise<IServiceCompany> {
     try {
-      const deletedServiceCompany = await ServiceCompanyModel.findByIdAndUpdate(
-        id,
-        { isDeleted: true },
-        { new: true }
-      );
+      const deletedServiceCompany = await ServiceCompanyModel.findByIdAndDelete(id);
       if (!deletedServiceCompany) {
-        throw new Error("Failed to delete service company");
+        throw new Error('Failed to delete ServiceCompany');
       }
       return deletedServiceCompany.toObject();
     } catch (error) {
-      await logError(error, req, "ServiceCompanyRepository-deleteServiceCompany");
+      await logError(error, req, 'ServiceCompanyRepository-deleteServiceCompany');
       throw error;
     }
   }
 }
 
 export default ServiceCompanyRepository;
-EOT
+"
 
 # Create service
-cat <<EOT > src/services/serviceCompany.ts
-import { Request, Response } from "express";
-import ServiceCompanyRepository from "../database/repositories/serviceCompany";
-import { logError } from "../utils/errorLogger";
-import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
+create_dir src/services
+create_file src/services/serviceCompany.ts \
+"import { Request, Response } from 'express';
+import ServiceCompanyRepository from '../database/repositories/serviceCompany';
+import { logError } from '../utils/errorLogger';
+import { paginationHandler } from '../utils/paginationHandler';
+import { searchHandler } from '../utils/searchHandler';
 
 class ServiceCompanyService {
   private serviceCompanyRepository: ServiceCompanyRepository;
@@ -163,10 +190,10 @@ class ServiceCompanyService {
         pagination,
         search
       );
-      res.sendArrayFormatted(serviceCompanies, "Service Companies retrieved successfully");
+      res.sendArrayFormatted(serviceCompanies, 'ServiceCompanies retrieved successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-getServiceCompanies");
-      res.sendError(error, "Service Companies retrieval failed");
+      await logError(error, req, 'ServiceCompanyService-getServiceCompanies');
+      res.sendError(error, 'ServiceCompanies retrieval failed');
     }
   }
 
@@ -174,10 +201,10 @@ class ServiceCompanyService {
     try {
       const { id } = req.params;
       const serviceCompany = await this.serviceCompanyRepository.getServiceCompanyById(req, id);
-      res.sendFormatted(serviceCompany, "Service Company retrieved successfully");
+      res.sendFormatted(serviceCompany, 'ServiceCompany retrieved successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-getServiceCompany");
-      res.sendError(error, "Service Company retrieval failed");
+      await logError(error, req, 'ServiceCompanyService-getServiceCompany');
+      res.sendError(error, 'ServiceCompany retrieval failed');
     }
   }
 
@@ -185,10 +212,10 @@ class ServiceCompanyService {
     try {
       const serviceCompanyData = req.body;
       const newServiceCompany = await this.serviceCompanyRepository.createServiceCompany(req, serviceCompanyData);
-      res.sendFormatted(newServiceCompany, "Service Company created successfully", 201);
+      res.sendFormatted(newServiceCompany, 'ServiceCompany created successfully', 201);
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-createServiceCompany");
-      res.sendError(error, "Service Company creation failed");
+      await logError(error, req, 'ServiceCompanyService-createServiceCompany');
+      res.sendError(error, 'ServiceCompany creation failed');
     }
   }
 
@@ -201,10 +228,10 @@ class ServiceCompanyService {
         id,
         serviceCompanyData
       );
-      res.sendFormatted(updatedServiceCompany, "Service Company updated successfully");
+      res.sendFormatted(updatedServiceCompany, 'ServiceCompany updated successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-updateServiceCompany");
-      res.sendError(error, "Service Company update failed");
+      await logError(error, req, 'ServiceCompanyService-updateServiceCompany');
+      res.sendError(error, 'ServiceCompany update failed');
     }
   }
 
@@ -212,21 +239,22 @@ class ServiceCompanyService {
     try {
       const { id } = req.params;
       const deletedServiceCompany = await this.serviceCompanyRepository.deleteServiceCompany(req, id);
-      res.sendFormatted(deletedServiceCompany, "Service Company deleted successfully");
+      res.sendFormatted(deletedServiceCompany, 'ServiceCompany deleted successfully');
     } catch (error) {
-      await logError(error, req, "ServiceCompanyService-deleteServiceCompany");
-      res.sendError(error, "Service Company deletion failed");
+      await logError(error, req, 'ServiceCompanyService-deleteServiceCompany');
+      res.sendError(error, 'ServiceCompany deletion failed');
     }
   }
 }
 
 export default ServiceCompanyService;
-EOT
+"
 
 # Create middleware
-cat <<EOT > src/middlewares/serviceCompany.ts
-import { Request, Response, NextFunction } from "express";
-import { logError } from "../utils/errorLogger";
+create_dir src/middlewares
+create_file src/middlewares/serviceCompany.ts \
+"import { Request, Response, NextFunction } from 'express';
+import { logError } from '../utils/errorLogger';
 
 class ServiceCompanyMiddleware {
   public async createServiceCompany(req: Request, res: Response, next: NextFunction) {
@@ -234,16 +262,16 @@ class ServiceCompanyMiddleware {
       const { name, address } = req.body;
       if (!name || !address) {
         res.sendError(
-          "ValidationError: Name and Address must be provided",
-          "Name and Address must be provided",
+          'ValidationError: Name and Address must be provided',
+          'Name and Address must be provided',
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ServiceCompanyCreate");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, 'Middleware-ServiceCompanyCreate');
+      res.sendError(error, 'An unexpected error occurred', 500);
     }
   }
 
@@ -252,16 +280,16 @@ class ServiceCompanyMiddleware {
       const { name, address } = req.body;
       if (!name && !address) {
         res.sendError(
-          "ValidationError: Name and Address must be provided",
-          "Name and Address must be provided",
+          'ValidationError: At least one field (Name or Address) must be provided',
+          'At least one field (Name or Address) must be provided',
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ServiceCompanyUpdate");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, 'Middleware-ServiceCompanyUpdate');
+      res.sendError(error, 'An unexpected error occurred', 500);
     }
   }
 
@@ -270,45 +298,27 @@ class ServiceCompanyMiddleware {
       const { id } = req.params;
       if (!id) {
         res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
+          'ValidationError: ID must be provided',
+          'ID must be provided',
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ServiceCompanyDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
-    }
-  }
-
-  public async getServiceCompany(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "Middleware-ServiceCompanyGet");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, 'Middleware-ServiceCompanyDelete');
+      res.sendError(error, 'An unexpected error occurred', 500);
     }
   }
 }
 
 export default ServiceCompanyMiddleware;
-EOT
+"
 
 # Create interface
-cat <<EOT > src/interfaces/serviceCompany.ts
-export interface IServiceCompany {
-  _id: string;
+create_dir src/interfaces
+create_file src/interfaces/serviceCompany.ts \
+"export interface IServiceCompany {
   name: string;
   address: string;
   description?: string;
@@ -324,8 +334,6 @@ export interface ICreateServiceCompany {
   description?: string;
   map?: string;
   url?: string;
-  isActive?: boolean; 
-  isDeleted?: boolean;
 }
 
 export interface IUpdateServiceCompany {
@@ -334,47 +342,44 @@ export interface IUpdateServiceCompany {
   description?: string;
   map?: string;
   url?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
 }
-EOT
+"
 
 # Create routes
-cat <<EOT > src/routes/serviceCompanyRoute.ts
-import { Router } from "express";
-import ServiceCompanyService from "../services/serviceCompany";
-import ServiceCompanyMiddleware from "../middlewares/serviceCompany";
+create_dir src/routes
+create_file src/routes/serviceCompanyRoute.ts \
+"import { Router } from 'express';
+import ServiceCompanyService from '../services/serviceCompany';
+import ServiceCompanyMiddleware from '../middlewares/serviceCompany';
 
-const router = Router();
+const serviceCompanyRoute = Router();
 const serviceCompanyService = new ServiceCompanyService();
 const serviceCompanyMiddleware = new ServiceCompanyMiddleware();
 
-router.get(
-  "/",
-  serviceCompanyService.getServiceCompanies.bind(serviceCompanyService)
-);
-router.get(
-  "/:id",
-  serviceCompanyMiddleware.getServiceCompany.bind(serviceCompanyMiddleware),
+serviceCompanyRoute.get('/', serviceCompanyService.getServiceCompanies.bind(serviceCompanyService));
+serviceCompanyRoute.get(
+  '/:id',
+  serviceCompanyMiddleware.deleteServiceCompany.bind(serviceCompanyMiddleware),
   serviceCompanyService.getServiceCompany.bind(serviceCompanyService)
 );
-router.post(
-  "/",
+serviceCompanyRoute.post(
+  '/',
   serviceCompanyMiddleware.createServiceCompany.bind(serviceCompanyMiddleware),
   serviceCompanyService.createServiceCompany.bind(serviceCompanyService)
 );
-router.patch(
-  "/:id",
+serviceCompanyRoute.patch(
+  '/:id',
   serviceCompanyMiddleware.updateServiceCompany.bind(serviceCompanyMiddleware),
   serviceCompanyService.updateServiceCompany.bind(serviceCompanyService)
 );
-router.delete(
-  "/:id",
+serviceCompanyRoute.delete(
+  '/:id',
   serviceCompanyMiddleware.deleteServiceCompany.bind(serviceCompanyMiddleware),
   serviceCompanyService.deleteServiceCompany.bind(serviceCompanyService)
 );
 
-export default router;
-EOT
+export default serviceCompanyRoute;
+"
 
+# Completion Message
 echo "ServiceCompany module generated successfully."

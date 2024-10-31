@@ -2,43 +2,45 @@ import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
 class ProjectMiddleware {
-  public async createProject(req: Request, res: Response, next: NextFunction) {
+  public async validateCreate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, description, customer, admin, manager, status } = req.body;
-      if (!title || !description || !customer || !admin || !manager || !status) {
+      const { title, description, budget, customer, admin, manager, status } = req.body;
+      if (!title || !description || !budget || !customer || !admin || !manager || !status) {
         res.sendError(
-          "ValidationError: Title, Description, Customer, Admin, Manager, and Status must be provided",
-          "Title, Description, Customer, Admin, Manager, and Status must be provided",
+          "ValidationError: Title, Description, Budget, Customer, Admin, Manager, and Status are required",
+          "All required fields must be provided",
           400
         );
         return;
       }
+      // Add more validation as needed
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ProjectCreate");
+      await logError(error, req, "ProjectMiddleware-validateCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateProject(req: Request, res: Response, next: NextFunction) {
+  public async validateUpdate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, description, customer, admin, manager, status } = req.body;
-      if (!title && !description && !customer && !admin && !manager && !status) {
+      const { title, description, budget, customer, admin, manager, status, isActive, isDeleted } = req.body;
+      if (!title && !description && !budget && !customer && !admin && !manager && !status && isActive === undefined && isDeleted === undefined) {
         res.sendError(
-          "ValidationError: Title, Description, Customer, Admin, Manager, or Status must be provided",
-          "Title, Description, Customer, Admin, Manager, or Status must be provided",
+          "ValidationError: At least one field must be provided for update",
+          "At least one field must be provided for update",
           400
         );
         return;
       }
+      // Add more validation as needed
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ProjectUpdate");
+      await logError(error, req, "ProjectMiddleware-validateUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteProject(req: Request, res: Response, next: NextFunction) {
+  public async validateDelete(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -51,12 +53,12 @@ class ProjectMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ProjectDelete");
+      await logError(error, req, "ProjectMiddleware-validateDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getProject(req: Request, res: Response, next: NextFunction) {
+  public async validateGet(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -69,7 +71,7 @@ class ProjectMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ProjectGet");
+      await logError(error, req, "ProjectMiddleware-validateGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }

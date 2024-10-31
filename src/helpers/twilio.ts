@@ -1,4 +1,8 @@
-import { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, SENDER_PHONE } from "../config";
+import {
+  TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN,
+  SENDER_PHONE,
+} from "../database/config";
 import twilio from "twilio";
 
 export async function sendOtpSMS(

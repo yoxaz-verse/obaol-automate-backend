@@ -2,43 +2,45 @@ import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
 class ActivityMiddleware {
-  public async createActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateCreate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, description, project, budget, forecastDate, actualDate, targetDate, status, customer } = req.body;
-      if (!title || !description || !project || !budget || !forecastDate || !actualDate || !targetDate || !status || !customer) {
+      const { title, description, budget, project, workers, updatedBy, updatedByModel, status, customer } = req.body;
+      if (!title || !description || !budget || !project || !updatedBy || !updatedByModel || !status || !customer) {
         res.sendError(
-          "ValidationError: Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, and Customer must be provided",
-          "Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, and Customer must be provided",
+          "ValidationError: Title, Description, Budget, Project, UpdatedBy, UpdatedByModel, Status, and Customer are required",
+          "All required fields must be provided",
           400
         );
         return;
       }
+      // Add more validation as needed (e.g., check data types, references existence)
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityCreate");
+      await logError(error, req, "ActivityMiddleware-validateCreate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async updateActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateUpdate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, description, project, budget, forecastDate, actualDate, targetDate, status, customer } = req.body;
-      if (!title && !description && !project && !budget && !forecastDate && !actualDate && !targetDate && !status && !customer) {
+      const { title, description, budget, project, workers, updatedBy, updatedByModel, status, customer, isActive, isDeleted } = req.body;
+      if (!title && !description && !budget && !project && !workers && !updatedBy && !updatedByModel && !status && !customer && isActive === undefined && isDeleted === undefined) {
         res.sendError(
-          "ValidationError: Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, or Customer must be provided",
-          "Title, Description, Project, Budget, ForecastDate, ActualDate, TargetDate, Status, or Customer must be provided",
+          "ValidationError: At least one field must be provided for update",
+          "At least one field must be provided for update",
           400
         );
         return;
       }
+      // Add more validation as needed
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityUpdate");
+      await logError(error, req, "ActivityMiddleware-validateUpdate");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async deleteActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateDelete(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -51,12 +53,12 @@ class ActivityMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityDelete");
+      await logError(error, req, "ActivityMiddleware-validateDelete");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
-  public async getActivity(req: Request, res: Response, next: NextFunction) {
+  public async validateGet(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -69,7 +71,7 @@ class ActivityMiddleware {
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-ActivityGet");
+      await logError(error, req, "ActivityMiddleware-validateGet");
       res.sendError(error, "An unexpected error occurred", 500);
     }
   }

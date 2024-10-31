@@ -23,4 +23,7 @@ const ServiceCompanySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const ServiceCompanyModel = mongoose.model<IServiceCompany>("ServiceCompany", ServiceCompanySchema);
+export const ServiceCompanyModel = mongoose.model<IServiceCompany>(
+  "ServiceCompany",
+  ServiceCompanySchema
+);

@@ -1,353 +1,334 @@
 #!/bin/bash
 
-# Constants
-INTERFACE_PATH="src/interfaces/admin.ts"
-MODEL_PATH="src/database/models/admin.ts"
-REPOSITORY_PATH="src/database/repositories/admin.ts"
-SERVICE_PATH="src/services/admin.ts"
-MIDDLEWARE_PATH="src/middlewares/admin.ts"
-ROUTE_PATH="src/routes/admin.ts"
+# update-admin-auth.sh - A script to integrate authentication into the Admin module
 
-# Create Interfaces
-cat > $INTERFACE_PATH <<EOL
-export interface IAdmin {
-  _id: string;
-  email: string;
-  isActive: boolean;
-  isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
-  refreshToken?: string;
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Function to display informational messages
+function echo_info {
+  echo -e "\e[34m[UPDATE]\e[0m $1"
 }
 
-export interface ICreateAdmin {
-  email: string;
-  isActive?: boolean; 
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name: string;
-  password: string;
+# Function to display error messages
+function echo_error {
+  echo -e "\e[31m[ERROR]\e[0m $1"
 }
 
-export interface IUpdateAdmin {
-  email?: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name?: string;
-  password?: string;
-  refreshToken?: string;
-}
-EOL
+# 1. Update Routes to Add Login Functionality
+echo_info "Updating adminRoute.ts to add login functionality..."
 
-echo "Interfaces created at $INTERFACE_PATH"
+ADMIN_ROUTE_FILE="src/routes/adminRoute.ts"
 
-# Create Model
-cat > $MODEL_PATH <<EOL
-import mongoose from "mongoose";
+if [ ! -f "$ADMIN_ROUTE_FILE" ]; then
+  echo_error "adminRoute.ts not found. Please make sure the Admin module is generated."
+  exit 1
+fi
 
-interface IAdmin extends mongoose.Document {
-  name: string;
-  email: string;
-  password: string;
-  isSuperAdmin: boolean;
-  isActive: boolean;
-  isDeleted: boolean;
-  refreshToken?: string;
-}
+# Backup the original file
+cp "$ADMIN_ROUTE_FILE" "${ADMIN_ROUTE_FILE}.bak"
 
-const adminSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    email: { type: String, required: true },
-    password: { type: String, required: true },
-    isSuperAdmin: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
-    refreshToken: { type: String },
-  },
-  {
-    timestamps: true,
-  }
-);
+# Add login route and import statements
+sed -i '/import AdminService from/a import AuthMiddleware from "..\/middlewares\/auth";' "$ADMIN_ROUTE_FILE"
 
-export const AdminModel = mongoose.model<IAdmin>("Admin", adminSchema);
-EOL
+sed -i '/const adminMiddleware = new AdminMiddleware();/a const authMiddleware = new AuthMiddleware();' "$ADMIN_ROUTE_FILE"
 
-echo "Model created at $MODEL_PATH"
+# Insert login route after const declarations
+sed -i '/const authMiddleware = new AuthMiddleware();/a \
+\n// LOGIN an admin (Public route)\
+router.post(\
+  "/login",\
+  adminMiddleware.validateLogin.bind(adminMiddleware),\
+  adminService.login.bind(adminService)\
+);\n' "$ADMIN_ROUTE_FILE"
 
-# Create Repository
-cat > $REPOSITORY_PATH <<EOL
-import { Request } from "express";
-import { logError } from "../../utils/errorLogger";
-import { IAdmin, ICreateAdmin, IUpdateAdmin } from "../../interfaces/admin";
-import { AdminModel } from "../models/admin";
-import { IPagination } from "../../interfaces/pagination";
+# Protect routes below login
+sed -i '/router.post(\
+  "\/login",/a \
+// Apply authentication middleware to all routes below\
+router.use(authMiddleware.authenticate.bind(authMiddleware));\n' "$ADMIN_ROUTE_FILE"
 
-class AdminRepository {
-  public async getAdmins(
-    req: Request,
-    pagination: IPagination
-  ): Promise<{
-    data: IAdmin[];
-    totalCount: number;
-    currentPage: number;
-    totalPages?: number;
-  }> {
-    try {
-      const data = await AdminModel.find()
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit);
-      const totalCount = await AdminModel.countDocuments();
-      const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data,
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmins");
-      throw new Error("Admin retrieval failed");
-    }
-  }
+echo_info "adminRoute.ts updated with login functionality."
 
-  public async getAdmin(req: Request, id: string): Promise<IAdmin | null> {
-    try {
-      return await AdminModel.findById(id);
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdmin");
-      throw new Error("Admin retrieval failed");
-    }
-  }
+# 2. Implement validateLogin in AdminMiddleware
+echo_info "Updating admin.ts in middlewares to implement validateLogin..."
 
-  public async getAdminByEmail(
-    req: Request,
-    email: string
-  ): Promise<IAdmin | null> {
-    try {
-      return await AdminModel.findOne({ email });
-    } catch (error) {
-      await logError(error, req, "AdminRepository-getAdminByEmail");
-      throw new Error("Admin retrieval failed");
-    }
-  }
+ADMIN_MIDDLEWARE_FILE="src/middlewares/admin.ts"
 
-  public async createAdmin(
-    req: Request,
-    admin: ICreateAdmin
-  ): Promise<IAdmin | null> {
-    try {
-      return await AdminModel.create(admin);
-    } catch (error) {
-      await logError(error, req, "AdminRepository-createAdmin");
-      throw new Error("Admin creation failed");
-    }
-  }
+if [ ! -f "$ADMIN_MIDDLEWARE_FILE" ]; then
+  echo_error "admin.ts middleware not found."
+  exit 1
+fi
 
-  public async updateAdmin(
-    req: Request,
-    id: string,
-    admin: Partial<IUpdateAdmin>
-  ): Promise<IAdmin | null> {
-    try {
-      return await AdminModel.findByIdAndUpdate(id, admin, { new: true });
-    } catch (error) {
-      await logError(error, req, "AdminRepository-updateAdmin");
-      throw new Error("Admin update failed");
-    }
-  }
+# Backup the original file
+cp "$ADMIN_MIDDLEWARE_FILE" "${ADMIN_MIDDLEWARE_FILE}.bak"
 
-  public async deleteAdmin(req: Request, id: string): Promise<IAdmin | null> {
-    try {
-      return await AdminModel.findByIdAndDelete(id);
-    } catch (error) {
-      await logError(error, req, "AdminRepository-deleteAdmin");
-      throw new Error("Admin deletion failed");
-    }
-  }
+# Add validateLogin method
+sed -i '/class AdminMiddleware {/a \
+\n  public async validateLogin(req: Request, res: Response, next: NextFunction) {\
+    try {\
+      const { email, password } = req.body;\
+      if (!email || !password) {\
+        res.sendError(\
+          "ValidationError: Email and Password are required",\
+          "Email and Password are required",\
+          400\
+        );\
+        return;\
+      }\
+      next();\
+    } catch (error) {\
+      await logError(error, req, "AdminMiddleware-validateLogin");\
+      res.sendError(error, "An unexpected error occurred", 500);\
+    }\
+  }\
+' "$ADMIN_MIDDLEWARE_FILE"
+
+echo_info "validateLogin method added to AdminMiddleware."
+
+# 3. Implement login Method in AdminService
+echo_info "Updating admin.ts in services to implement login method..."
+
+ADMIN_SERVICE_FILE="src/services/admin.ts"
+
+if [ ! -f "$ADMIN_SERVICE_FILE" ]; then
+  echo_error "admin.ts service not found."
+  exit 1
+fi
+
+# Backup the original file
+cp "$ADMIN_SERVICE_FILE" "${ADMIN_SERVICE_FILE}.bak"
+
+# Import necessary utilities
+sed -i '/import { Request, Response } from "express";/a import { comparePasswords } from "../utils/passwordUtils";\nimport { generateJWTToken } from "../utils/tokenUtils";' "$ADMIN_SERVICE_FILE"
+
+# Add login method
+sed -i '/class AdminService {/a \
+\n  public async login(req: Request, res: Response) {\
+    try {\
+      const { email, password } = req.body;\
+      const admin = await this.adminRepository.getAdminByEmail(req, email);\
+      if (!admin) {\
+        res.sendError("Invalid email or password", "Authentication failed", 401);\
+        return;\
+      }\
+      // Compare passwords\
+      const isMatch = await comparePasswords(password, admin.password);\
+      if (!isMatch) {\
+        res.sendError("Invalid email or password", "Authentication failed", 401);\
+        return;\
+      }\
+      // Generate JWT token\
+      const token = generateJWTToken(admin);\
+      res.sendFormatted({ token }, "Login successful");\
+    } catch (error) {\
+      await logError(error, req, "AdminService-login");\
+      res.sendError(error, "Login failed");\
+    }\
+  }\
+' "$ADMIN_SERVICE_FILE"
+
+echo_info "login method added to AdminService."
+
+# 4. Implement Password Utilities
+echo_info "Creating passwordUtils.ts in utils..."
+
+mkdir -p src/utils
+
+cat <<EOT > src/utils/passwordUtils.ts
+import bcrypt from "bcryptjs";
+
+export async function hashPassword(password: string): Promise<string> {
+  const saltRounds = 10;
+  return await bcrypt.hash(password, saltRounds);
 }
 
-export default AdminRepository;
-EOL
+export async function comparePasswords(
+  password: string,
+  hash: string
+): Promise<boolean> {
+  return await bcrypt.compare(password, hash);
+}
+EOT
 
-echo "Repository created at $REPOSITORY_PATH"
+echo_info "passwordUtils.ts created."
 
-# Create Middleware
-cat > $MIDDLEWARE_PATH <<EOL
+# Install bcryptjs if not installed
+if ! npm list bcryptjs >/dev/null 2>&1; then
+  echo_info "Installing bcryptjs..."
+  npm install bcryptjs
+fi
+
+# 5. Implement Token Utilities
+echo_info "Creating tokenUtils.ts in utils..."
+
+cat <<EOT > src/utils/tokenUtils.ts
+import jwt from "jsonwebtoken";
+import { IAdmin } from "../interfaces/admin";
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+
+export function generateJWTToken(admin: IAdmin): string {
+  const payload = {
+    id: admin._id,
+    email: admin.email,
+    isSuperAdmin: admin.isSuperAdmin,
+    // Include other necessary fields
+  };
+
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
+  return token;
+}
+
+export function verifyJWTToken(token: string): any {
+  return jwt.verify(token, JWT_SECRET);
+}
+EOT
+
+echo_info "tokenUtils.ts created."
+
+# Install jsonwebtoken if not installed
+if ! npm list jsonwebtoken >/dev/null 2>&1; then
+  echo_info "Installing jsonwebtoken..."
+  npm install jsonwebtoken
+fi
+
+# 6. Create AuthMiddleware for Authentication
+echo_info "Creating auth.ts in middlewares..."
+
+cat <<EOT > src/middlewares/auth.ts
 import { Request, Response, NextFunction } from "express";
+import { verifyJWTToken } from "../utils/tokenUtils";
 import { logError } from "../utils/errorLogger";
-import { verifyToken } from "../helpers/encrypt";
-import { CustomRequest } from "../interfaces/customRequest";
 
-class AdminMiddleware {
-  public async validateAdmin(
-    req: CustomRequest,
-    res: Response,
-    next: NextFunction
-  ) {
+class AuthMiddleware {
+  public async authenticate(req: Request, res: Response, next: NextFunction) {
     try {
-      const accessToken = req.headers.authorization?.split(" ")[1];
-      if (!accessToken) {
-        return res.status(401).send({ message: "Access token is missing or invalid" });
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        res.sendError(
+          "AuthenticationError: Token not provided",
+          "Authentication failed",
+          401
+        );
+        return;
       }
-      const decoded = verifyToken(accessToken) as { id: string; email: string; role: string; };
-      if (!decoded || decoded.role !== "admin") {
-        return res.status(403).send({ message: "Access forbidden: admins only" });
-      }
-      req.admin = decoded;
+
+      const token = authHeader.substring(7);
+
+      const decoded = verifyJWTToken(token);
+
+      // Attach decoded user to request
+      req.user = decoded;
       next();
     } catch (error) {
-      await logError(error, req, "AdminMiddleware-validateAdmin");
-      res.status(500).send({ message: "An unexpected error occurred" });
-    }
-  }
-
-  public async validateSuperAdmin(
-    req: CustomRequest,
-    res: Response,
-    next: NextFunction
-  ) {
-    try {
-      const accessToken = req.headers.authorization?.split(" ")[1];
-      if (!accessToken) {
-        return res.status(401).send({ message: "Access token is missing or invalid" });
-      }
-      const decoded = verifyToken(accessToken) as { id: string; email: string; role: string; };
-      if (!decoded || decoded.role !== "superAdmin") {
-        return res.status(403).send({ message: "Access forbidden: superadmins only" });
-      }
-      req.admin = decoded;
-      next();
-    } catch (error) {
-      await logError(error, req, "AdminMiddleware-validateSuperAdmin");
-      res.status(500).send({ message: "An unexpected error occurred" });
-    }
-  }
-
-  public async adminLogin(
-    req: CustomRequest,
-    res: Response,
-    next: NextFunction
-  ) {
-    try {
-      const { email, password } = req.body;
-      if (!email || !password) {
-        return res.status(400).send({ message: "Email and password are required" });
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "AdminMiddleware-adminLogin");
-      res.status(500).send({ message: "An unexpected error occurred" });
-    }
-  }
-
-  public async adminLogout(
-    req: CustomRequest,
-    res: Response,
-    next: NextFunction
-  ) {
-    try {
-      const accessToken = req.headers.authorization?.split(" ")[1];
-      if (!accessToken) {
-        return res.status(401).send({ message: "Access token is missing or invalid" });
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "AdminMiddleware-adminLogout");
-      res.status(500).send({ message: "An unexpected error occurred" });
-    }
-  }
-
-  public async refreshToken(
-    req: CustomRequest,
-    res: Response,
-    next: NextFunction
-  ) {
-    try {
-      const refreshToken = req.headers.authorization?.split(" ")[1];
-      if (!refreshToken) {
-        return res.status(401).send({ message: "Refresh token is missing or invalid" });
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "AdminMiddleware-refreshToken");
-      res.status(500).send({ message: "An unexpected error occurred" });
+      await logError(error, req, "AuthMiddleware-authenticate");
+      res.sendError("AuthenticationError: Invalid token", "Authentication failed", 401);
     }
   }
 }
 
-export default AdminMiddleware;
-EOL
+export default AuthMiddleware;
+EOT
 
-echo "Middleware created at $MIDDLEWARE_PATH"
+echo_info "AuthMiddleware created."
 
-# Create Routes
-cat > $ROUTE_PATH <<EOL
-import { Router } from "express";
-import AdminService from "../services/admin";
-import AdminMiddleware from "../middlewares/admin";
+# 7. Extend Express Request Interface
+echo_info "Extending Express Request interface..."
 
-const router = Router();
-const adminService = new AdminService();
-const adminMiddleware = new AdminMiddleware();
+mkdir -p src/types/express
 
-router.get(
-  "/",
-  adminMiddleware.validateSuperAdmin.bind(adminMiddleware),
-  adminService.getAdmins.bind(adminService)
-);
+cat <<EOT > src/types/express/index.d.ts
+declare namespace Express {
+  interface Request {
+    user?: any;
+  }
+}
+EOT
 
-router.get(
-  "/:id",
-  adminMiddleware.validateAdminOrSuperAdmin.bind(adminMiddleware),
-  adminMiddleware.getAdmin.bind(adminMiddleware),
-  adminService.getAdmin.bind(adminService)
-);
+# Update tsconfig.json to include types
+if [ -f "tsconfig.json" ]; then
+  if ! grep -q '"typeRoots": \[' tsconfig.json; then
+    sed -i '/"compilerOptions": {/a \
+    \  "typeRoots": ["./src/types", "./node_modules/@types"],' tsconfig.json
+  else
+    echo_info "typeRoots already specified in tsconfig.json."
+  fi
+else
+  echo_error "tsconfig.json not found. Please ensure TypeScript is properly set up."
+  exit 1
+fi
 
-router.patch(
-  "/:id",
-  adminMiddleware.validateSuperAdmin.bind(adminMiddleware),
-  adminMiddleware.updateAdmin.bind(adminMiddleware),
-  adminService.updateAdmin.bind(adminService)
-);
+echo_info "Express Request interface extended."
 
-router.delete(
-  "/:id",
-  adminMiddleware.validateSuperAdmin.bind(adminMiddleware),
-  adminMiddleware.deleteAdmin.bind(adminMiddleware),
-  adminService.deleteAdmin.bind(adminService)
-);
+# 8. Update AdminRepository
+echo_info "Updating AdminRepository to add getAdminByEmail..."
 
-router.post(
-  "/",
-  adminMiddleware.validateSuperAdmin.bind(adminMiddleware),
-  adminMiddleware.createAdmin.bind(adminMiddleware),
-  adminService.createAdmin.bind(adminService)
-);
+ADMIN_REPOSITORY_FILE="src/database/repositories/admin.ts"
 
-router.post(
-  "/login",
-  adminMiddleware.adminLogin.bind(adminMiddleware),
-  adminService.adminLogin.bind(adminService)
-);
+if [ ! -f "$ADMIN_REPOSITORY_FILE" ]; then
+  echo_error "AdminRepository not found."
+  exit 1
+fi
 
-router.post(
-  "/logout",
-  adminMiddleware.validateAdminOrSuperAdmin.bind(adminMiddleware),
-  adminService.adminLogout.bind(adminService)
-);
+# Backup the original file
+cp "$ADMIN_REPOSITORY_FILE" "${ADMIN_REPOSITORY_FILE}.bak"
 
-router.post(
-  "/refresh-token",
-  adminMiddleware.refreshToken.bind(adminMiddleware),
-  adminService.adminRefreshToken.bind(adminService)
-);
+# Add getAdminByEmail method
+sed -i '/class AdminRepository {/a \
+\n  public async getAdminByEmail(req: Request, email: string): Promise<IAdmin | null> {\
+    try {\
+      const admin = await AdminModel.findOne({ email, isDeleted: false }).lean<IAdmin>();\
+      return admin;\
+    } catch (error) {\
+      await logError(error, req, "AdminRepository-getAdminByEmail");\
+      throw error;\
+    }\
+  }\
+' "$ADMIN_REPOSITORY_FILE"
 
-export default router;
-EOL
+# Update getAdminById and getAdmins to exclude password field
+sed -i 's/findById(id)/findById(id).select("-password")/g' "$ADMIN_REPOSITORY_FILE"
+sed -i 's/lean<IAdmin>();/lean<IAdmin>();/g' "$ADMIN_REPOSITORY_FILE"
 
-echo "Routes created at $ROUTE_PATH"
+sed -i 's/.find(query)/.find(query).select("-password")/g' "$ADMIN_REPOSITORY_FILE"
 
-echo "Admin module setup is complete!"
+echo_info "AdminRepository updated."
+
+# 9. Update createAdmin in AdminService to Hash Password
+echo_info "Updating createAdmin in AdminService to hash password..."
+
+# Import hashPassword
+sed -i '/import { comparePasswords } from "..\/utils\/passwordUtils";/a import { hashPassword } from "../utils/passwordUtils";' "$ADMIN_SERVICE_FILE"
+
+# Add password hashing in createAdmin
+sed -i '/const adminData = req.body;/a \
+    // Hash password\
+    adminData.password = await hashPassword(adminData.password);\
+' "$ADMIN_SERVICE_FILE"
+
+echo_info "createAdmin method updated to hash passwords."
+
+# 10. Install Type Definitions for JSON Web Token
+echo_info "Installing @types/jsonwebtoken..."
+npm install --save-dev @types/jsonwebtoken
+
+# 11. Update .gitignore to Ignore Backup Files
+echo_info "Updating .gitignore to ignore backup files..."
+
+if [ -f ".gitignore" ]; then
+  if ! grep -q "*.bak" .gitignore; then
+    echo "*.bak" >> .gitignore
+  fi
+else
+  echo "*.bak" > .gitignore
+fi
+
+echo_info ".gitignore updated."
+
+# 12. Final Message
+echo_info "Authentication integrated into Admin module successfully."
+echo_info "You can now use the login endpoint at '/api/admins/login'."
+echo_info "Protected routes require a valid JWT token in the Authorization header."
+
+echo_info "Script execution completed."

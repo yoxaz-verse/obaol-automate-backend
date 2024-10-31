@@ -1,29 +1,33 @@
 export interface IAdmin {
-  [x: string]: any;
+  _id: string;
+  name: string;
   email: string;
+  password: string;
+  isSuperAdmin: boolean;
   isActive: boolean;
   isDeleted: boolean;
-  isSuperAdmin: boolean;
-  name: string;
-  password: string;
   refreshToken?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  role: string;
 }
 
 export interface ICreateAdmin {
-  email: string;
-  isActive?: boolean;
-  isDeleted?: boolean;
-  isSuperAdmin?: boolean;
   name: string;
+  email: string;
   password: string;
+  isSuperAdmin?: boolean;
+  isActive?: boolean;
+  // Add any additional fields if necessary
 }
 
 export interface IUpdateAdmin {
+  name?: string;
   email?: string;
+  password?: string;
+  isSuperAdmin?: boolean;
   isActive?: boolean;
   isDeleted?: boolean;
-  isSuperAdmin?: boolean;
-  name?: string;
-  password?: string;
   refreshToken?: string;
+  // Add any additional fields if necessary
 }

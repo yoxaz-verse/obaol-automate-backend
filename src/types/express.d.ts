@@ -1,8 +1,12 @@
-import { IAdmin } from "../database/models/admin"; // Adjust the path as necessary
-import { Request } from "express";
+// src/types/express.d.ts
 
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: IAdmin; // Adjust this type based on your actual user object structure
+import { IAdminAuth } from "../middlewares/auth";
+// src/@types/express/index.d.ts
+
+declare global {
+  namespace Express {
+    interface Request {
+      admin?: any;
+    }
   }
 }

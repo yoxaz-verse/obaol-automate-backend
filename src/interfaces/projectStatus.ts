@@ -1,4 +1,8 @@
+// src/interfaces/projectStatus.ts
+import mongoose from "mongoose";
+
 export interface IProjectStatus {
+  _id: mongoose.Types.ObjectId; // Use mongoose.Types.ObjectId for better type alignment
   name: string;
   priority?: number;
 }

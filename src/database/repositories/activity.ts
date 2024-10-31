@@ -1,10 +1,6 @@
 import { Request } from "express";
 import { ActivityModel } from "../models/activity";
-import {
-  IActivity,
-  ICreateActivity,
-  IUpdateActivity,
-} from "../../interfaces/activity";
+import { IActivity, ICreateActivity, IUpdateActivity } from "../../interfaces/activity";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 
@@ -22,7 +18,7 @@ class ActivityRepository {
     try {
       let query: any = {};
       if (search) {
-        query.name = { $regex: search, $options: "i" };
+        query.title = { $regex: search, $options: "i" };
       }
       const activities = await ActivityModel.find(query)
         .populate("project")
@@ -33,12 +29,12 @@ class ActivityRepository {
         .populate("customer")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .lean<IActivity[]>();
 
       const totalCount = await ActivityModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: activities as IActivity[],
+        data: activities,
         totalCount,
         currentPage: pagination.page,
         totalPages,
@@ -58,11 +54,11 @@ class ActivityRepository {
         .populate("status")
         .populate("statusHistory")
         .populate("customer")
-        .lean();
-      if (!activity) {
+        .lean<IActivity>();
+      if (!activity || activity.isDeleted) {
         throw new Error("Activity not found");
       }
-      return activity as IActivity;
+      return activity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivityById");
       throw error;
@@ -75,7 +71,7 @@ class ActivityRepository {
   ): Promise<IActivity> {
     try {
       const newActivity = await ActivityModel.create(activityData);
-      return newActivity.toObject();
+      return newActivity.toObject() as IActivity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-createActivity");
       throw error;
@@ -85,26 +81,23 @@ class ActivityRepository {
   public async updateActivity(
     req: Request,
     id: string,
-    activityData: Partial<IUpdateActivity>
+    activityData: IUpdateActivity
   ): Promise<IActivity> {
     try {
-      const updatedActivity = await ActivityModel.findByIdAndUpdate(
-        id,
-        activityData,
-        {
-          new: true,
-        }
-      )
+      const updatedActivity = await ActivityModel.findByIdAndUpdate(id, activityData, {
+        new: true,
+      })
         .populate("project")
         .populate("workers")
         .populate("updatedBy")
         .populate("status")
         .populate("statusHistory")
-        .populate("customer");
-      if (!updatedActivity) {
+        .populate("customer")
+        .lean<IActivity>();
+      if (!updatedActivity || updatedActivity.isDeleted) {
         throw new Error("Failed to update activity");
       }
-      return updatedActivity.toObject();
+      return updatedActivity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-updateActivity");
       throw error;
@@ -113,11 +106,22 @@ class ActivityRepository {
 
   public async deleteActivity(req: Request, id: string): Promise<IActivity> {
     try {
-      const deletedActivity = await ActivityModel.findByIdAndDelete(id);
+      const deletedActivity = await ActivityModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true }
+      )
+        .populate("project")
+        .populate("workers")
+        .populate("updatedBy")
+        .populate("status")
+        .populate("statusHistory")
+        .populate("customer")
+        .lean<IActivity>();
       if (!deletedActivity) {
         throw new Error("Failed to delete activity");
       }
-      return deletedActivity.toObject();
+      return deletedActivity;
     } catch (error) {
       await logError(error, req, "ActivityRepository-deleteActivity");
       throw error;

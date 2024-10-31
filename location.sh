@@ -1,15 +1,35 @@
 #!/bin/bash
 
-# Create model
-cat <<EOT > src/database/models/location.ts
-import mongoose from "mongoose";
+# Exit immediately if a command exits with a non-zero status
+set -e
 
-interface ILocation extends mongoose.Document {
+# Function to create directories if they don't exist
+create_dir() {
+  mkdir -p "$1"
+}
+
+# Function to create files with content
+create_file() {
+  local path=$1
+  shift
+  cat <<EOT > "$path"
+$*
+EOT
+}
+
+# Create Model
+create_dir src/database/models
+create_file src/database/models/location.ts \
+"import mongoose from \"mongoose\";
+import { ILocationType } from \"../interfaces/locationType\";
+import { ILocationManager } from \"../interfaces/locationManager\";
+
+export interface ILocation extends mongoose.Document {
   name: string;
   address: string;
   city: string;
   description?: string;
-  image: string;  // Assuming you'll store the file path as a string
+  image: string;
   latitude: string;
   longitude: string;
   map: string;
@@ -17,8 +37,8 @@ interface ILocation extends mongoose.Document {
   owner: mongoose.Schema.Types.ObjectId;
   province: string;
   region: string;
-  locationType: mongoose.Schema.Types.ObjectId;
-  locationManagers: mongoose.Schema.Types.ObjectId[];
+  locationType: mongoose.Schema.Types.ObjectId | ILocationType;
+  locationManagers: mongoose.Schema.Types.ObjectId[] | ILocationManager[];
 }
 
 const LocationSchema = new mongoose.Schema(
@@ -27,30 +47,35 @@ const LocationSchema = new mongoose.Schema(
     address: { type: String, required: true },
     city: { type: String, required: true },
     description: { type: String },
-    image: { type: String, required: true },  // Assuming you'll store the file path as a string
+    image: { type: String, required: true },
     latitude: { type: String, required: true },
     longitude: { type: String, required: true },
     map: { type: String, required: true },
     nation: { type: String, required: true },
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: "Owner", required: true },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: \"Owner\", required: true },
     province: { type: String, required: true },
     region: { type: String, required: true },
-    locationType: { type: mongoose.Schema.Types.ObjectId, ref: "LocationType", required: true },
-    locationManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "LocationManager" }]
+    locationType: { type: mongoose.Schema.Types.ObjectId, ref: \"LocationType\", required: true },
+    locationManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: \"LocationManager\" }],
   },
   { timestamps: true }
 );
 
-export const LocationModel = mongoose.model<ILocation>("Location", LocationSchema);
-EOT
+export const LocationModel = mongoose.model<ILocation>(\"Location\", LocationSchema);
+"
 
-# Create repository
-cat <<EOT > src/database/repositories/location.ts
-import { Request } from "express";
-import { LocationModel } from "../models/location";
-import { ILocation, ICreateLocation, IUpdateLocation } from "../../interfaces/location";
-import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+# Create Repository
+create_dir src/database/repositories
+create_file src/database/repositories/location.ts \
+"import { Request } from \"express\";
+import { LocationModel } from \"../models/location\";
+import {
+  ILocation,
+  ICreateLocation,
+  IUpdateLocation,
+} from \"../../interfaces/location\";
+import { logError } from \"../../utils/errorLogger\";
+import { IPagination } from \"../../interfaces/pagination\";
 
 class LocationRepository {
   public async getLocations(
@@ -66,41 +91,47 @@ class LocationRepository {
     try {
       let query: any = {};
       if (search) {
-        query.name = { $regex: search, $options: "i" };
+        query.name = { \$regex: search, \$options: \"i\" };
       }
-      const locations = await LocationModel.find(query)
-        .populate("locationType")
-        .populate("locationManagers")
+
+      const locationsDoc = await LocationModel.find(query)
+        .populate(\"owner\", \"name email\") // Adjust fields as needed
+        .populate(\"locationType\", \"name\") // Adjust fields as needed
+        .populate(\"locationManagers\", \"code name\") // Adjust fields as needed
         .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .skip((pagination.page - 1) * pagination.limit);
+
+      const locations = locationsDoc.map((doc) => doc.toObject() as ILocation);
 
       const totalCount = await LocationModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
+
       return {
-        data: locations as unknown as ILocation[], // Convert to 'unknown' first, then cast
+        data: locations,
         totalCount,
         currentPage: pagination.page,
         totalPages,
       };
     } catch (error) {
-      await logError(error, req, "LocationRepository-getLocations");
+      await logError(error, req, \"LocationRepository-getLocations\");
       throw error;
     }
   }
 
   public async getLocationById(req: Request, id: string): Promise<ILocation> {
     try {
-      const location = await LocationModel.findById(id)
-        .populate("locationType")
-        .populate("locationManagers")
-        .lean();
-      if (!location) {
-        throw new Error("Location not found");
+      const locationDoc = await LocationModel.findById(id)
+        .populate(\"owner\", \"name email\") // Adjust fields as needed
+        .populate(\"locationType\", \"name\") // Adjust fields as needed
+        .populate(\"locationManagers\", \"code name\"); // Adjust fields as needed
+
+      if (!locationDoc) {
+        throw new Error(\"Location not found\");
       }
-      return location as unknown as ILocation; // Convert to 'unknown' first, then cast
+
+      return locationDoc.toObject() as ILocation;
     } catch (error) {
-      await logError(error, req, "LocationRepository-getLocationById");
+      await logError(error, req, \"LocationRepository-getLocationById\");
       throw error;
     }
   }
@@ -113,7 +144,7 @@ class LocationRepository {
       const newLocation = await LocationModel.create(locationData);
       return newLocation.toObject();
     } catch (error) {
-      await logError(error, req, "LocationRepository-createLocation");
+      await logError(error, req, \"LocationRepository-createLocation\");
       throw error;
     }
   }
@@ -124,16 +155,20 @@ class LocationRepository {
     locationData: Partial<IUpdateLocation>
   ): Promise<ILocation> {
     try {
-      const updatedLocation = await LocationModel.findByIdAndUpdate(id, locationData, {
-        new: true,
-      }).populate("locationType")
-        .populate("locationManagers");
+      const updatedLocation = await LocationModel.findByIdAndUpdate(
+        id,
+        locationData,
+        { new: true }
+      )
+        .populate(\"owner\", \"name email\") // Adjust fields as needed
+        .populate(\"locationType\", \"name\") // Adjust fields as needed
+        .populate(\"locationManagers\", \"code name\"); // Adjust fields as needed
       if (!updatedLocation) {
-        throw new Error("Failed to update location");
+        throw new Error(\"Failed to update Location\");
       }
       return updatedLocation.toObject();
     } catch (error) {
-      await logError(error, req, "LocationRepository-updateLocation");
+      await logError(error, req, \"LocationRepository-updateLocation\");
       throw error;
     }
   }
@@ -141,29 +176,31 @@ class LocationRepository {
   public async deleteLocation(req: Request, id: string): Promise<ILocation> {
     try {
       const deletedLocation = await LocationModel.findByIdAndDelete(id)
-        .populate("locationType")
-        .populate("locationManagers");
+        .populate(\"owner\", \"name email\") // Adjust fields as needed
+        .populate(\"locationType\", \"name\") // Adjust fields as needed
+        .populate(\"locationManagers\", \"code name\"); // Adjust fields as needed
       if (!deletedLocation) {
-        throw new Error("Failed to delete location");
+        throw new Error(\"Failed to delete Location\");
       }
       return deletedLocation.toObject();
     } catch (error) {
-      await logError(error, req, "LocationRepository-deleteLocation");
+      await logError(error, req, \"LocationRepository-deleteLocation\");
       throw error;
     }
   }
 }
 
 export default LocationRepository;
-EOT
+"
 
-# Create service
-cat <<EOT > src/services/location.ts
-import { Request, Response } from "express";
-import LocationRepository from "../database/repositories/location";
-import { logError } from "../utils/errorLogger";
-import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
+# Create Service
+create_dir src/services
+create_file src/services/location.ts \
+"import { Request, Response } from \"express\";
+import LocationRepository from \"../database/repositories/location\";
+import { logError } from \"../utils/errorLogger\";
+import { paginationHandler } from \"../utils/paginationHandler\";
+import { searchHandler } from \"../utils/searchHandler\";
 
 class LocationService {
   private locationRepository: LocationRepository;
@@ -181,10 +218,10 @@ class LocationService {
         pagination,
         search
       );
-      res.sendArrayFormatted(locations, "Locations retrieved successfully");
+      res.sendArrayFormatted(locations, \"Locations retrieved successfully\");
     } catch (error) {
-      await logError(error, req, "LocationService-getLocations");
-      res.sendError(error, "Locations retrieval failed");
+      await logError(error, req, \"LocationService-getLocations\");
+      res.sendError(error, \"Locations retrieval failed\");
     }
   }
 
@@ -192,10 +229,10 @@ class LocationService {
     try {
       const { id } = req.params;
       const location = await this.locationRepository.getLocationById(req, id);
-      res.sendFormatted(location, "Location retrieved successfully");
+      res.sendFormatted(location, \"Location retrieved successfully\");
     } catch (error) {
-      await logError(error, req, "LocationService-getLocation");
-      res.sendError(error, "Location retrieval failed");
+      await logError(error, req, \"LocationService-getLocation\");
+      res.sendError(error, \"Location retrieval failed\");
     }
   }
 
@@ -203,10 +240,10 @@ class LocationService {
     try {
       const locationData = req.body;
       const newLocation = await this.locationRepository.createLocation(req, locationData);
-      res.sendFormatted(newLocation, "Location created successfully", 201);
+      res.sendFormatted(newLocation, \"Location created successfully\", 201);
     } catch (error) {
-      await logError(error, req, "LocationService-createLocation");
-      res.sendError(error, "Location creation failed");
+      await logError(error, req, \"LocationService-createLocation\");
+      res.sendError(error, \"Location creation failed\");
     }
   }
 
@@ -219,10 +256,10 @@ class LocationService {
         id,
         locationData
       );
-      res.sendFormatted(updatedLocation, "Location updated successfully");
+      res.sendFormatted(updatedLocation, \"Location updated successfully\");
     } catch (error) {
-      await logError(error, req, "LocationService-updateLocation");
-      res.sendError(error, "Location update failed");
+      await logError(error, req, \"LocationService-updateLocation\");
+      res.sendError(error, \"Location update failed\");
     }
   }
 
@@ -230,56 +267,111 @@ class LocationService {
     try {
       const { id } = req.params;
       const deletedLocation = await this.locationRepository.deleteLocation(req, id);
-      res.sendFormatted(deletedLocation, "Location deleted successfully");
+      res.sendFormatted(deletedLocation, \"Location deleted successfully\");
     } catch (error) {
-      await logError(error, req, "LocationService-deleteLocation");
-      res.sendError(error, "Location deletion failed");
+      await logError(error, req, \"LocationService-deleteLocation\");
+      res.sendError(error, \"Location deletion failed\");
     }
   }
 }
 
 export default LocationService;
-EOT
+"
 
-# Create middleware
-cat <<EOT > src/middlewares/location.ts
-import { Request, Response, NextFunction } from "express";
-import { logError } from "../utils/errorLogger";
+# Create Middleware
+create_dir src/middlewares
+create_file src/middlewares/location.ts \
+"import { Request, Response, NextFunction } from \"express\";
+import { logError } from \"../utils/errorLogger\";
 
 class LocationMiddleware {
   public async createLocation(req: Request, res: Response, next: NextFunction) {
     try {
-      const { name, address, city, latitude, longitude, nation, owner, province, region, locationType, locationManagers } = req.body;
-      if (!name || !address || !city || !latitude || !longitude || !nation || !owner || !province || !region || !locationType || !locationManagers) {
+      const {
+        name,
+        address,
+        city,
+        image,
+        latitude,
+        longitude,
+        map,
+        nation,
+        owner,
+        province,
+        region,
+        locationType,
+      } = req.body;
+      if (
+        !name ||
+        !address ||
+        !city ||
+        !image ||
+        !latitude ||
+        !longitude ||
+        !map ||
+        !nation ||
+        !owner ||
+        !province ||
+        !region ||
+        !locationType
+      ) {
         res.sendError(
-          "ValidationError: All fields must be provided",
-          "All fields must be provided",
+          \"ValidationError: All required fields must be provided\",
+          \"Missing required fields\",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-LocationCreate");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, \"Middleware-LocationCreate\");
+      res.sendError(error, \"An unexpected error occurred\", 500);
     }
   }
 
   public async updateLocation(req: Request, res: Response, next: NextFunction) {
     try {
-      const { name, address, city, latitude, longitude, nation, owner, province, region, locationType, locationManagers } = req.body;
-      if (!name && !address && !city && !latitude && !longitude && !nation && !owner && !province && !region && !locationType && !locationManagers) {
+      const {
+        name,
+        address,
+        city,
+        image,
+        latitude,
+        longitude,
+        map,
+        nation,
+        owner,
+        province,
+        region,
+        locationType,
+        managingLocations,
+      } = req.body;
+      if (
+        !name &&
+        !address &&
+        !city &&
+        !image &&
+        !latitude &&
+        !longitude &&
+        !map &&
+        !nation &&
+        !owner &&
+        !province &&
+        !region &&
+        !locationType &&
+        !managingLocations
+      ) {
         res.sendError(
-          "ValidationError: At least one field must be provided",
-          "At least one field must be provided",
+          \"ValidationError: At least one field must be provided for update\",
+          \"No fields provided\",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-LocationUpdate");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, \"Middleware-LocationUpdate\");
+      res.sendError(error, \"An unexpected error occurred\", 500);
     }
   }
 
@@ -288,16 +380,16 @@ class LocationMiddleware {
       const { id } = req.params;
       if (!id) {
         res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
+          \"ValidationError: ID must be provided\",
+          \"ID must be provided\",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-LocationDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, \"Middleware-LocationDelete\");
+      res.sendError(error, \"An unexpected error occurred\", 500);
     }
   }
 
@@ -306,31 +398,31 @@ class LocationMiddleware {
       const { id } = req.params;
       if (!id) {
         res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
+          \"ValidationError: ID must be provided\",
+          \"ID must be provided\",
           400
         );
         return;
       }
       next();
     } catch (error) {
-      await logError(error, req, "Middleware-LocationGet");
-      res.sendError(error, "An unexpected error occurred", 500);
+      await logError(error, req, \"Middleware-LocationGet\");
+      res.sendError(error, \"An unexpected error occurred\", 500);
     }
   }
 }
 
 export default LocationMiddleware;
-EOT
+"
 
-# Create interface
-cat <<EOT > src/interfaces/location.ts
-import { ILocationType } from "./locationType";
-import { ILocationManager } from "./locationManager";
-import mongoose from "mongoose";
+# Create Interface
+create_dir src/interfaces
+create_file src/interfaces/location.ts \
+"import mongoose from \"mongoose\";
+import { ILocationType } from \"./locationType\";
+import { ILocationManager } from \"./locationManager\";
 
 export interface ILocation {
-  _id: string;
   name: string;
   address: string;
   city: string;
@@ -340,11 +432,11 @@ export interface ILocation {
   longitude: string;
   map: string;
   nation: string;
-  owner: mongoose.Schema.Types.ObjectId;
+  owner: string; // Assuming owner is referenced by ID as string
   province: string;
   region: string;
-  locationType: mongoose.Schema.Types.ObjectId | ILocationType;
-  locationManagers: mongoose.Schema.Types.ObjectId[] | ILocationManager[];
+  locationType: string; // Assuming locationType is referenced by ID as string
+  locationManagers?: string[]; // Optional array of LocationManager IDs
 }
 
 export interface ICreateLocation {
@@ -361,7 +453,7 @@ export interface ICreateLocation {
   province: string;
   region: string;
   locationType: string;
-  locationManagers: string[];
+  locationManagers?: string[];
 }
 
 export interface IUpdateLocation {
@@ -380,4 +472,43 @@ export interface IUpdateLocation {
   locationType?: string;
   locationManagers?: string[];
 }
-EOT
+"
+
+# Create Routes
+create_dir src/routes
+create_file src/routes/locationRoute.ts \
+"import { Router } from \"express\";
+import LocationService from \"../services/location\";
+import LocationMiddleware from \"../middlewares/location\";
+
+const locationRoute = Router();
+const locationService = new LocationService();
+const locationMiddleware = new LocationMiddleware();
+
+locationRoute.get(\"/\", locationService.getLocations.bind(locationService));
+locationRoute.get(
+  \"/:id\",
+  locationMiddleware.getLocation.bind(locationMiddleware),
+  locationService.getLocation.bind(locationService)
+);
+locationRoute.post(
+  \"/\",
+  locationMiddleware.createLocation.bind(locationMiddleware),
+  locationService.createLocation.bind(locationService)
+);
+locationRoute.patch(
+  \"/:id\",
+  locationMiddleware.updateLocation.bind(locationMiddleware),
+  locationService.updateLocation.bind(locationService)
+);
+locationRoute.delete(
+  \"/:id\",
+  locationMiddleware.deleteLocation.bind(locationMiddleware),
+  locationService.deleteLocation.bind(locationService)
+);
+
+export default locationRoute;
+"
+
+# Completion Message
+echo "Location module generated successfully."

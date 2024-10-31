@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Create model
+# Create updated model
+mkdir -p src/database/models
 cat <<EOT > src/database/models/customer.ts
 import mongoose from "mongoose";
 
@@ -18,7 +19,7 @@ const CustomerSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
     name: { type: String, required: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
   },
   { timestamps: true }
 );
@@ -26,11 +27,16 @@ const CustomerSchema = new mongoose.Schema(
 export const CustomerModel = mongoose.model<ICustomer>("Customer", CustomerSchema);
 EOT
 
-# Create repository
+# Create updated repository
+mkdir -p src/database/repositories
 cat <<EOT > src/database/repositories/customer.ts
 import { Request } from "express";
 import { CustomerModel } from "../models/customer";
-import { ICustomer, ICreateCustomer, IUpdateCustomer } from "../../interfaces/customer";
+import {
+  ICustomer,
+  ICreateCustomer,
+  IUpdateCustomer,
+} from "../../interfaces/customer";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 
@@ -46,17 +52,20 @@ class CustomerRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = {};
+      let query: any = { isDeleted: false };
       if (search) {
-        query.name = { $regex: search, $options: "i" };
+        query.name = { \$regex: search, \$options: "i" };
       }
-      const customers = await CustomerModel.find(query)
+
+      const customersDoc = await CustomerModel.find(query)
         .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean();
+        .skip((pagination.page - 1) * pagination.limit);
+
+      const customers = customersDoc.map((doc) => doc.toObject() as ICustomer);
 
       const totalCount = await CustomerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
+
       return {
         data: customers,
         totalCount,
@@ -71,10 +80,17 @@ class CustomerRepository {
 
   public async getCustomerById(req: Request, id: string): Promise<ICustomer> {
     try {
-      const customer = await CustomerModel.findById(id).lean();
-      if (!customer || customer.isDeleted) {
+      const customerDoc = await CustomerModel.findOne({
+        _id: id,
+        isDeleted: false,
+      });
+
+      if (!customerDoc) {
         throw new Error("Customer not found");
       }
+
+      const customer = customerDoc.toObject() as ICustomer;
+
       return customer;
     } catch (error) {
       await logError(error, req, "CustomerRepository-getCustomerById");
@@ -101,10 +117,12 @@ class CustomerRepository {
     customerData: Partial<IUpdateCustomer>
   ): Promise<ICustomer> {
     try {
-      const updatedCustomer = await CustomerModel.findByIdAndUpdate(id, customerData, {
-        new: true,
-      });
-      if (!updatedCustomer || updatedCustomer.isDeleted) {
+      const updatedCustomer = await CustomerModel.findOneAndUpdate(
+        { _id: id, isDeleted: false },
+        customerData,
+        { new: true }
+      );
+      if (!updatedCustomer) {
         throw new Error("Failed to update customer");
       }
       return updatedCustomer.toObject();
@@ -116,8 +134,8 @@ class CustomerRepository {
 
   public async deleteCustomer(req: Request, id: string): Promise<ICustomer> {
     try {
-      const deletedCustomer = await CustomerModel.findByIdAndUpdate(
-        id,
+      const deletedCustomer = await CustomerModel.findOneAndUpdate(
+        { _id: id, isDeleted: false },
         { isDeleted: true },
         { new: true }
       );
@@ -136,6 +154,7 @@ export default CustomerRepository;
 EOT
 
 # Create service
+mkdir -p src/services
 cat <<EOT > src/services/customer.ts
 import { Request, Response } from "express";
 import CustomerRepository from "../database/repositories/customer";
@@ -220,6 +239,7 @@ export default CustomerService;
 EOT
 
 # Create middleware
+mkdir -p src/middlewares
 cat <<EOT > src/middlewares/customer.ts
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
@@ -248,8 +268,8 @@ class CustomerMiddleware {
       const { email, name, password } = req.body;
       if (!email && !name && !password) {
         res.sendError(
-          "ValidationError: Email, Name, and Password must be provided",
-          "Email, Name, and Password must be provided",
+          "ValidationError: At least one field (Email, Name, or Password) must be provided",
+          "At least one field (Email, Name, or Password) must be provided",
           400
         );
         return;
@@ -302,19 +322,19 @@ export default CustomerMiddleware;
 EOT
 
 # Create interface
+mkdir -p src/interfaces
 cat <<EOT > src/interfaces/customer.ts
 export interface ICustomer {
-  _id: string;
   email: string;
-  isActive: boolean;
-  isDeleted: boolean;
+  isActive?: boolean;
+  isDeleted?: boolean;
   name: string;
   password: string;
 }
 
 export interface ICreateCustomer {
   email: string;
-  isActive?: boolean; 
+  isActive?: boolean;
   isDeleted?: boolean;
   name: string;
   password: string;
@@ -330,41 +350,39 @@ export interface IUpdateCustomer {
 EOT
 
 # Create routes
+mkdir -p src/routes
 cat <<EOT > src/routes/customerRoute.ts
 import { Router } from "express";
 import CustomerService from "../services/customer";
 import CustomerMiddleware from "../middlewares/customer";
 
-const router = Router();
+const customerRoute = Router();
 const customerService = new CustomerService();
 const customerMiddleware = new CustomerMiddleware();
 
-router.get(
-  "/",
-  customerService.getCustomers.bind(customerService)
-);
-router.get(
+customerRoute.get("/", customerService.getCustomers.bind(customerService));
+customerRoute.get(
   "/:id",
   customerMiddleware.getCustomer.bind(customerMiddleware),
   customerService.getCustomer.bind(customerService)
 );
-router.post(
+customerRoute.post(
   "/",
   customerMiddleware.createCustomer.bind(customerMiddleware),
   customerService.createCustomer.bind(customerService)
 );
-router.patch(
+customerRoute.patch(
   "/:id",
   customerMiddleware.updateCustomer.bind(customerMiddleware),
   customerService.updateCustomer.bind(customerService)
 );
-router.delete(
+customerRoute.delete(
   "/:id",
   customerMiddleware.deleteCustomer.bind(customerMiddleware),
   customerService.deleteCustomer.bind(customerService)
 );
 
-export default router;
+export default customerRoute;
 EOT
 
-echo "Customer module generated successfully."
+echo "Updated Customear module generated successfully."

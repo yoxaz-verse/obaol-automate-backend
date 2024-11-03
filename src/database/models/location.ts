@@ -1,45 +1,20 @@
-import { IFile } from "@/interfaces/file";
-import { ILocationManager } from "@/interfaces/locationManager";
-import { ILocationType } from "@/interfaces/locationType";
+import { ILocation } from "../../interfaces/location";
 import mongoose from "mongoose";
 
-export interface ILocation extends mongoose.Document {
-  name: string;
-  address: string;
-  city: string;
-  description?: string;
-  image: mongoose.Schema.Types.ObjectId | IFile;
-  latitude: string;
-  longitude: string;
-  map: string;
-  nation: string;
-  owner: mongoose.Schema.Types.ObjectId;
-  province: string;
-  region: string;
-  locationType: mongoose.Schema.Types.ObjectId | ILocationType;
-  locationManagers: mongoose.Schema.Types.ObjectId[] | ILocationManager[];
-}
-
-const LocationSchema = new mongoose.Schema(
+const LocationSchema = new mongoose.Schema<ILocation>(
   {
     name: { type: String, required: true },
     address: { type: String, required: true },
     city: { type: String, required: true },
     description: { type: String },
-    image: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "File",
-      required: true,
-    },
+    isNearAnotherLocation: { type: Boolean, default: false },
+    fileId: { type: String }, // Identifier for the uploaded file
+    fileURL: { type: String }, // URL to access the uploaded file (optional)
     latitude: { type: String, required: true },
     longitude: { type: String, required: true },
     map: { type: String, required: true },
     nation: { type: String, required: true },
-    owner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Owner",
-      required: true,
-    },
+    owner: { type: String, required: true },
     province: { type: String, required: true },
     region: { type: String, required: true },
     locationType: {
@@ -47,9 +22,6 @@ const LocationSchema = new mongoose.Schema(
       ref: "LocationType",
       required: true,
     },
-    locationManagers: [
-      { type: mongoose.Schema.Types.ObjectId, ref: "LocationManager" },
-    ],
   },
   { timestamps: true }
 );

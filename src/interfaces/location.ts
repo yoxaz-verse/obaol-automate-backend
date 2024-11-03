@@ -1,13 +1,13 @@
 import mongoose from "mongoose";
-import { IFile } from "./file";
+import { ILocationType } from "./locationType";
 
-export interface ILocationBase {
-  _id: mongoose.Types.ObjectId;
+export interface ILocation extends mongoose.Document {
   name: string;
   address: string;
   city: string;
   description?: string;
-  image: mongoose.Types.ObjectId; // Reference to File
+  fileId?: string; // Identifier for the uploaded file
+  fileURL?: string; // URL to access the uploaded file (optional)
   latitude: string;
   longitude: string;
   map: string;
@@ -15,42 +15,6 @@ export interface ILocationBase {
   owner: string;
   province: string;
   region: string;
-  locationType: string;
-  locationManagers?: string[];
-}
-export interface ILocationPopulated extends ILocationBase {
-  image: IFile; // Populated image
-}
-export interface ICreateLocation {
-  name: string;
-  address: string;
-  city: string;
-  description?: string;
-  image: string; // Image file ID
-  latitude: string;
-  longitude: string;
-  map: string;
-  nation: string;
-  owner: string;
-  province: string;
-  region: string;
-  locationType: string;
-  locationManagers?: string[];
-}
-
-export interface IUpdateLocation {
-  name?: string;
-  address?: string;
-  city?: string;
-  description?: string;
-  image?: string; // Image file ID
-  latitude?: string;
-  longitude?: string;
-  map?: string;
-  nation?: string;
-  owner?: string;
-  province?: string;
-  region?: string;
-  locationType?: string;
-  locationManagers?: string[];
+  locationType: mongoose.Schema.Types.ObjectId | ILocationType;
+  isNearAnotherLocation: boolean;
 }

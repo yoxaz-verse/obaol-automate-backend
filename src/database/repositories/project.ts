@@ -1,123 +1,79 @@
 import { Request } from "express";
 import { ProjectModel } from "../models/project";
-import { IProject, ICreateProject, IUpdateProject } from "../../interfaces/project";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+import { IProject } from "@interfaces/project";
 
 class ProjectRepository {
   public async getProjects(
     req: Request,
-    pagination: IPagination,
+    pagination: { page: number; limit: number },
     search: string
-  ): Promise<{
-    data: IProject[];
-    totalCount: number;
-    currentPage: number;
-    totalPages?: number;
-  }> {
+  ) {
     try {
-      let query: any = {};
-      if (search) {
-        query.title = { $regex: search, $options: "i" };
-      }
-      const projects = await ProjectModel.find(query)
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean<IProject[]>();
+      const query: any = { isDeleted: false };
+      if (search) query.title = { $regex: search, $options: "i" };
 
       const totalCount = await ProjectModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data: projects,
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+      const currentPage = pagination.page;
+
+      const projects = await ProjectModel.find(query)
+        .populate("customer admin manager status type")
+        .skip((pagination.page - 1) * pagination.limit)
+        .limit(pagination.limit)
+        .exec();
+
+      return { data: projects, totalCount, currentPage, totalPages };
     } catch (error) {
       await logError(error, req, "ProjectRepository-getProjects");
       throw error;
     }
   }
 
-  public async getProjectById(req: Request, id: string): Promise<IProject> {
+  public async getProject(req: Request, id: string) {
     try {
-      const project = await ProjectModel.findById(id)
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .lean<IProject>();
-      if (!project || project.isDeleted) {
-        throw new Error("Project not found");
-      }
-      return project;
+      return await ProjectModel.findById(id)
+        .populate("customer admin manager status type")
+        .exec();
     } catch (error) {
-      await logError(error, req, "ProjectRepository-getProjectById");
+      await logError(error, req, "ProjectRepository-getProject");
       throw error;
     }
   }
 
-  public async createProject(
-    req: Request,
-    projectData: ICreateProject
-  ): Promise<IProject> {
+  public async createProject(req: Request, projectData: IProject) {
     try {
-      const newProject = await ProjectModel.create(projectData);
-      return newProject.toObject() as IProject;
+      console.log(projectData);
+      const newProject = new ProjectModel(projectData);
+      return await newProject.save();
     } catch (error) {
       await logError(error, req, "ProjectRepository-createProject");
       throw error;
     }
   }
 
-  public async updateProject(
-    req: Request,
-    id: string,
-    projectData: IUpdateProject
-  ): Promise<IProject> {
+  public async updateProject(req: Request, id: string, projectData: any) {
     try {
-      const updatedProject = await ProjectModel.findByIdAndUpdate(id, projectData, {
+      return await ProjectModel.findByIdAndUpdate(id, projectData, {
         new: true,
       })
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .lean<IProject>();
-      if (!updatedProject || updatedProject.isDeleted) {
-        throw new Error("Failed to update project");
-      }
-      return updatedProject;
+        .populate("customer admin manager status type")
+        .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-updateProject");
       throw error;
     }
   }
 
-  public async deleteProject(req: Request, id: string): Promise<IProject> {
+  public async deleteProject(req: Request, id: string) {
     try {
-      const deletedProject = await ProjectModel.findByIdAndUpdate(
+      return await ProjectModel.findByIdAndUpdate(
         id,
         { isDeleted: true },
         { new: true }
       )
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .lean<IProject>();
-      if (!deletedProject) {
-        throw new Error("Failed to delete project");
-      }
-      return deletedProject;
+        .populate("customer admin manager status type")
+        .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-deleteProject");
       throw error;

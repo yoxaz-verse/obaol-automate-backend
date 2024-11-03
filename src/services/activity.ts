@@ -1,47 +1,50 @@
 import { Request, Response } from "express";
 import ActivityRepository from "../database/repositories/activity";
-import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
+import { logError } from "../utils/errorLogger";
 
 class ActivityService {
-  private activityRepository: ActivityRepository;
-
-  constructor() {
-    this.activityRepository = new ActivityRepository();
-  }
+  private activityRepository = new ActivityRepository();
 
   public async getActivities(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const activities = await this.activityRepository.getActivities(req, pagination, search);
-      res.sendArrayFormatted(activities, "Activities retrieved successfully");
+      const activities = await this.activityRepository.getActivities(
+        req,
+        pagination,
+        search
+      );
+      res.sendFormatted(activities, "Activities retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ActivityService-getActivities");
-      res.sendError(error, "Activities retrieval failed");
+      res.sendError(error, "Failed to retrieve activities", 500);
     }
   }
 
   public async getActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const activity = await this.activityRepository.getActivityById(req, id);
-      res.sendFormatted(activity, "Activity retrieved successfully");
+      const activity = await this.activityRepository.getActivity(req, id);
+      res.sendFormatted(activity, "Activity retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ActivityService-getActivity");
-      res.sendError(error, "Activity retrieval failed");
+      res.sendError(error, "Failed to retrieve activity", 500);
     }
   }
 
   public async createActivity(req: Request, res: Response) {
     try {
       const activityData = req.body;
-      const newActivity = await this.activityRepository.createActivity(req, activityData);
+      const newActivity = await this.activityRepository.createActivity(
+        req,
+        activityData
+      );
       res.sendFormatted(newActivity, "Activity created successfully", 201);
     } catch (error) {
       await logError(error, req, "ActivityService-createActivity");
-      res.sendError(error, "Activity creation failed");
+      res.sendError(error, "Activity creation failed", 500);
     }
   }
 
@@ -49,22 +52,29 @@ class ActivityService {
     try {
       const { id } = req.params;
       const activityData = req.body;
-      const updatedActivity = await this.activityRepository.updateActivity(req, id, activityData);
-      res.sendFormatted(updatedActivity, "Activity updated successfully");
+      const updatedActivity = await this.activityRepository.updateActivity(
+        req,
+        id,
+        activityData
+      );
+      res.sendFormatted(updatedActivity, "Activity updated successfully", 200);
     } catch (error) {
       await logError(error, req, "ActivityService-updateActivity");
-      res.sendError(error, "Activity update failed");
+      res.sendError(error, "Activity update failed", 500);
     }
   }
 
   public async deleteActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedActivity = await this.activityRepository.deleteActivity(req, id);
-      res.sendFormatted(deletedActivity, "Activity deleted successfully");
+      const deletedActivity = await this.activityRepository.deleteActivity(
+        req,
+        id
+      );
+      res.sendFormatted(deletedActivity, "Activity deleted successfully", 200);
     } catch (error) {
       await logError(error, req, "ActivityService-deleteActivity");
-      res.sendError(error, "Activity deletion failed");
+      res.sendError(error, "Activity deletion failed", 500);
     }
   }
 }

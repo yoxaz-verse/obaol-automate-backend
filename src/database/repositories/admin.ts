@@ -80,7 +80,7 @@ class AdminRepository {
   ): Promise<IAdmin> {
     try {
       const newAdmin = await AdminModel.create(adminData);
-      return newAdmin.toObject() as IAdmin;
+      return newAdmin.toObject() as any;
     } catch (error) {
       await logError(error, req, "AdminRepository-createAdmin");
       throw error;

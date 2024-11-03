@@ -1,79 +1,81 @@
-#!/bin/bash
+  #!/bin/bash
 
-# create-project.sh - A script to generate the Project module with boilerplate code
-
-# Exit immediately if a command exits with a non-zero status
+# Exit on any command failure
 set -e
 
-# Function to display informational messages
-function echo_info {
-  echo -e "\e[34m[CREATE]\e[0m $1"
-}
+# Define directory and file paths
+BASE_DIR="src"
+MODEL_DIR="$BASE_DIR/database/models"
+INTERFACE_DIR="$BASE_DIR/database/interfaces"
+REPO_DIR="$BASE_DIR/database/repositories"
+SERVICE_DIR="$BASE_DIR/services"
+MIDDLEWARE_DIR="$BASE_DIR/middlewares"
+ROUTE_DIR="$BASE_DIR/routes"
+UTILS_DIR="$BASE_DIR/utils"
 
-# Function to display error messages
-function echo_error {
-  echo -e "\e[31m[ERROR]\e[0m $1"
-}
+# Install necessary packages
+echo "Installing required packages..."
+npm install mongoose joi express --save
+npm install @types/mongoose @types/joi @types/express --save-dev
 
-# 1. Create Model
-echo_info "Creating Model for Project..."
+# Create necessary directories
+echo "Creating directory structure..."
+mkdir -p $MODEL_DIR $INTERFACE_DIR $REPO_DIR $SERVICE_DIR $MIDDLEWARE_DIR $ROUTE_DIR $UTILS_DIR
 
-cat <<EOT > src/database/models/project.ts
+# Project Interface
+echo "Creating project interface..."
+cat <<EOL > $INTERFACE_DIR/project.ts
 import mongoose from "mongoose";
-import { CustomerModel } from "./customer";
-import { AdminModel } from "./admin";
-import { ManagerModel } from "./manager";
-import { ProjectStatusModel } from "./projectStatus";
+import { CustomerModel } from "../models/customer";
+import { AdminModel } from "../models/admin";
+import { ManagerModel } from "../models/manager";
+import { ProjectStatusModel } from "../models/projectStatus";
+import { ProjectTypeModel } from "../models/projectType";
 
-interface IProject extends mongoose.Document {
+export interface IProject extends mongoose.Document {
   title: string;
   description: string;
   customId: string;
-  budget: string;
   prevCustomId: string;
   customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
   admin: mongoose.Schema.Types.ObjectId | typeof AdminModel;
   manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
   status: mongoose.Schema.Types.ObjectId | typeof ProjectStatusModel;
+  type: mongoose.Schema.Types.ObjectId | typeof ProjectTypeModel;
+  task: string;
+  orderNumber: string;
+  assignmentDate: Date;
+  schedaRadioDate: Date;
   statusHistory: mongoose.Schema.Types.ObjectId[];
   isActive: boolean;
   isDeleted: boolean;
-  // Add any additional fields if necessary
 }
+EOL
+
+# Project Model
+echo "Creating project model..."
+cat <<EOL > $MODEL_DIR/project.ts
+import mongoose from "mongoose";
+import { IProject } from "../interfaces/project";
 
 const ProjectSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: { type: String, required: true },
     customId: { type: String, required: true, unique: true },
-    budget: { type: String, required: true, unique: true },
     prevCustomId: { type: String, unique: true },
-    customer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Customer",
-      required: true,
-    },
-    admin: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Admin",
-      required: true,
-    },
-    manager: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Manager",
-      required: true,
-    },
-    status: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "ProjectStatus",
-      required: true,
-    },
-    statusHistory: [
-      { type: mongoose.Schema.Types.ObjectId, ref: "ProjectStatus" },
-    ],
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true },
+    admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
+    manager: { type: mongoose.Schema.Types.ObjectId, ref: "Manager", required: true },
+    status: { type: mongoose.Schema.Types.ObjectId, ref: "ProjectStatus", required: true },
+    type: { type: mongoose.Schema.Types.ObjectId, ref: "ProjectType", required: true },
+    task: { type: String, required: true },
+    orderNumber: { type: String, required: true },
+    assignmentDate: { type: Date, required: true },
+    schedaRadioDate: { type: Date, required: true },
+    statusHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "ProjectStatus" }],
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    // Add any additional fields if necessary
   },
   { timestamps: true }
 );
@@ -81,7 +83,7 @@ const ProjectSchema = new mongoose.Schema(
 // Custom ID generator
 ProjectSchema.pre<IProject>("validate", function (next) {
   if (!this.customId && this.isNew) {
-    const location = this.get("location"); // Ensure 'location' is handled appropriately
+    const location = this.get("location"); 
     if (location) {
       const customId = \`\${location.nation.slice(0, 2).toUpperCase()}\${location.city.slice(0, 2).toUpperCase()}\${location.region.slice(0, 2).toUpperCase()}\${location.province.slice(0, 2).toUpperCase()}\`;
       this.customId = customId;
@@ -91,183 +93,69 @@ ProjectSchema.pre<IProject>("validate", function (next) {
 });
 
 export const ProjectModel = mongoose.model<IProject>("Project", ProjectSchema);
-EOT
+EOL
 
-# 2. Create Interface
-echo_info "Creating Interface for Project..."
-
-cat <<EOT > src/interfaces/project.ts
-import { ICustomer } from "./customer";
-import { IAdmin } from "./admin";
-import { IManager } from "./manager";
-import { IProjectStatus } from "./projectStatus";
-
-export interface IProject {
-  _id: string;
-  title: string;
-  description: string;
-  customId: string;
-  budget: string;
-  prevCustomId: string;
-  customer: ICustomer;
-  admin: IAdmin;
-  manager: IManager;
-  status: IProjectStatus;
-  statusHistory: IProjectStatus[];
-  isActive: boolean;
-  isDeleted: boolean;
-  // Add any additional fields if necessary
-}
-
-export interface ICreateProject {
-  title: string;
-  description: string;
-  budget: string;
-  customer: string; // Customer ID
-  admin: string;    // Admin ID
-  manager: string;  // Manager ID
-  status: string;   // ProjectStatus ID
-  // Add any additional fields if necessary
-}
-
-export interface IUpdateProject {
-  title?: string;
-  description?: string;
-  budget?: string;
-  customer?: string; // Customer ID
-  admin?: string;    // Admin ID
-  manager?: string;  // Manager ID
-  status?: string;   // ProjectStatus ID
-  isActive?: boolean;
-  isDeleted?: boolean;
-  // Add any additional fields if necessary
-}
-EOT
-
-# 3. Create Repository
-echo_info "Creating Repository for Project..."
-
-cat <<EOT > src/database/repositories/project.ts
+# Project Repository
+echo "Creating project repository..."
+cat <<EOL > $REPO_DIR/project.ts
 import { Request } from "express";
 import { ProjectModel } from "../models/project";
-import { IProject, ICreateProject, IUpdateProject } from "../../interfaces/project";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
 
 class ProjectRepository {
-  public async getProjects(
-    req: Request,
-    pagination: IPagination,
-    search: string
-  ): Promise<{
-    data: IProject[];
-    totalCount: number;
-    currentPage: number;
-    totalPages?: number;
-  }> {
+  public async getProjects(req: Request, pagination: { page: number; limit: number }, search: string) {
     try {
-      let query: any = {};
-      if (search) {
-        query.title = { \$regex: search, \$options: "i" };
-      }
-      const projects = await ProjectModel.find(query)
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit)
-        .lean<IProject[]>();
+      const query: any = { isDeleted: false };
+      if (search) query.title = { $regex: search, $options: "i" };
 
       const totalCount = await ProjectModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data: projects,
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+      const currentPage = pagination.page;
+
+      const projects = await ProjectModel.find(query)
+        .populate("customer admin manager status type")
+        .skip((pagination.page - 1) * pagination.limit)
+        .limit(pagination.limit)
+        .exec();
+
+      return { data: projects, totalCount, currentPage, totalPages };
     } catch (error) {
       await logError(error, req, "ProjectRepository-getProjects");
       throw error;
     }
   }
 
-  public async getProjectById(req: Request, id: string): Promise<IProject> {
+  public async getProject(req: Request, id: string) {
     try {
-      const project = await ProjectModel.findById(id)
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .lean<IProject>();
-      if (!project || project.isDeleted) {
-        throw new Error("Project not found");
-      }
-      return project;
+      return await ProjectModel.findById(id).populate("customer admin manager status type").exec();
     } catch (error) {
-      await logError(error, req, "ProjectRepository-getProjectById");
+      await logError(error, req, "ProjectRepository-getProject");
       throw error;
     }
   }
 
-  public async createProject(
-    req: Request,
-    projectData: ICreateProject
-  ): Promise<IProject> {
+  public async createProject(req: Request, projectData: any) {
     try {
-      const newProject = await ProjectModel.create(projectData);
-      return newProject.toObject() as IProject;
+      const newProject = new ProjectModel(projectData);
+      return await newProject.save();
     } catch (error) {
       await logError(error, req, "ProjectRepository-createProject");
       throw error;
     }
   }
 
-  public async updateProject(
-    req: Request,
-    id: string,
-    projectData: IUpdateProject
-  ): Promise<IProject> {
+  public async updateProject(req: Request, id: string, projectData: any) {
     try {
-      const updatedProject = await ProjectModel.findByIdAndUpdate(id, projectData, {
-        new: true,
-      })
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .lean<IProject>();
-      if (!updatedProject || updatedProject.isDeleted) {
-        throw new Error("Failed to update project");
-      }
-      return updatedProject;
+      return await ProjectModel.findByIdAndUpdate(id, projectData, { new: true }).populate("customer admin manager status type").exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-updateProject");
       throw error;
     }
   }
 
-  public async deleteProject(req: Request, id: string): Promise<IProject> {
+  public async deleteProject(req: Request, id: string) {
     try {
-      const deletedProject = await ProjectModel.findByIdAndUpdate(
-        id,
-        { isDeleted: true },
-        { new: true }
-      )
-        .populate("customer")
-        .populate("admin")
-        .populate("manager")
-        .populate("status")
-        .populate("statusHistory")
-        .lean<IProject>();
-      if (!deletedProject) {
-        throw new Error("Failed to delete project");
-      }
-      return deletedProject;
+      return await ProjectModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true }).populate("customer admin manager status type").exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-deleteProject");
       throw error;
@@ -276,45 +164,40 @@ class ProjectRepository {
 }
 
 export default ProjectRepository;
-EOT
+EOL
 
-# 4. Create Service
-echo_info "Creating Service for Project..."
-
-cat <<EOT > src/services/project.ts
+# Project Service
+echo "Creating project service..."
+cat <<EOL > $SERVICE_DIR/project.ts
 import { Request, Response } from "express";
-import ProjectRepository from "../database/repositories/project";
-import { logError } from "../utils/errorLogger";
+import ProjectRepository from "../repositories/project";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
+import { logError } from "../utils/errorLogger";
 
 class ProjectService {
-  private projectRepository: ProjectRepository;
-
-  constructor() {
-    this.projectRepository = new ProjectRepository();
-  }
+  private projectRepository = new ProjectRepository();
 
   public async getProjects(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
       const projects = await this.projectRepository.getProjects(req, pagination, search);
-      res.sendArrayFormatted(projects, "Projects retrieved successfully");
+      res.sendFormatted(projects, "Projects retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-getProjects");
-      res.sendError(error, "Projects retrieval failed");
+      res.sendError("Failed to retrieve projects", 500);
     }
   }
 
   public async getProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const project = await this.projectRepository.getProjectById(req, id);
-      res.sendFormatted(project, "Project retrieved successfully");
+      const project = await this.projectRepository.getProject(req, id);
+      res.sendFormatted(project, "Project retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-getProject");
-      res.sendError(error, "Project retrieval failed");
+      res.sendError("Failed to retrieve project", 500);
     }
   }
 
@@ -325,7 +208,7 @@ class ProjectService {
       res.sendFormatted(newProject, "Project created successfully", 201);
     } catch (error) {
       await logError(error, req, "ProjectService-createProject");
-      res.sendError(error, "Project creation failed");
+      res.sendError("Project creation failed", 500);
     }
   }
 
@@ -334,10 +217,10 @@ class ProjectService {
       const { id } = req.params;
       const projectData = req.body;
       const updatedProject = await this.projectRepository.updateProject(req, id, projectData);
-      res.sendFormatted(updatedProject, "Project updated successfully");
+      res.sendFormatted(updatedProject, "Project updated successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-updateProject");
-      res.sendError(error, "Project update failed");
+      res.sendError("Project update failed", 500);
     }
   }
 
@@ -345,158 +228,109 @@ class ProjectService {
     try {
       const { id } = req.params;
       const deletedProject = await this.projectRepository.deleteProject(req, id);
-      res.sendFormatted(deletedProject, "Project deleted successfully");
+      res.sendFormatted(deletedProject, "Project deleted successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-deleteProject");
-      res.sendError(error, "Project deletion failed");
+      res.sendError("Project deletion failed", 500);
     }
   }
 }
 
 export default ProjectService;
-EOT
+EOL
 
-# 5. Create Middleware
-echo_info "Creating Middleware for Project..."
-
-cat <<EOT > src/middlewares/project.ts
+# Project Middleware
+echo "Creating project middleware..."
+cat <<EOL > $MIDDLEWARE_DIR/project.ts
 import { Request, Response, NextFunction } from "express";
-import { logError } from "../utils/errorLogger";
+import Joi from "joi";
 
 class ProjectMiddleware {
-  public async validateCreate(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { title, description, budget, customer, admin, manager, status } = req.body;
-      if (!title || !description || !budget || !customer || !admin || !manager || !status) {
-        res.sendError(
-          "ValidationError: Title, Description, Budget, Customer, Admin, Manager, and Status are required",
-          "All required fields must be provided",
-          400
-        );
-        return;
-      }
-      // Add more validation as needed
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateCreate");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateCreate(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      title: Joi.string().required(),
+      description: Joi.string().required(),
+      customId: Joi.string().optional(),
+      prevCustomId: Joi.string().optional(),
+      customer: Joi.string().required(),
+      admin: Joi.string().required(),
+      manager: Joi.string().required(),
+      status: Joi.string().required(),
+      type: Joi.string().required(),
+      task: Joi.string().required(),
+      orderNumber: Joi.string().required(),
+      assignmentDate: Joi.date().required(),
+      schedaRadioDate: Joi.date().required(),
+      statusHistory: Joi.array().items(Joi.string()),
+      isActive: Joi.boolean(),
+      isDeleted: Joi.boolean()
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 
-  public async validateUpdate(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { title, description, budget, customer, admin, manager, status, isActive, isDeleted } = req.body;
-      if (!title && !description && !budget && !customer && !admin && !manager && !status && isActive === undefined && isDeleted === undefined) {
-        res.sendError(
-          "ValidationError: At least one field must be provided for update",
-          "At least one field must be provided for update",
-          400
-        );
-        return;
-      }
-      // Add more validation as needed
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateUpdate");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateGet(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      id: Joi.string().required()
+    });
+
+    const { error } = schema.validate(req.params);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 
-  public async validateDelete(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateUpdate(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      title: Joi.string().optional(),
+      description: Joi.string().optional(),
+      customId: Joi.string().optional(),
+      prevCustomId: Joi.string().optional(),
+      customer: Joi.string().optional(),
+      admin: Joi.string().optional(),
+      manager: Joi.string().optional(),
+      status: Joi.string().optional(),
+      type: Joi.string().optional(),
+      task: Joi.string().optional(),
+      orderNumber: Joi.string().optional(),
+      assignmentDate: Joi.date().optional(),
+      schedaRadioDate: Joi.date().optional(),
+      statusHistory: Joi.array().items(Joi.string()).optional(),
+      isActive: Joi.boolean().optional(),
+      isDeleted: Joi.boolean().optional()
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 
-  public async validateGet(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateGet");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateDelete(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      id: Joi.string().required()
+    });
+
+    const { error } = schema.validate(req.params);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 }
 
 export default ProjectMiddleware;
-EOT
+EOL
 
-# 6. Create Interface
-echo_info "Creating Interface for Project..."
-
-cat <<EOT > src/interfaces/project.ts
-import { ICustomer } from "./customer";
-import { IAdmin } from "./admin";
-import { IManager } from "./manager";
-import { IProjectStatus } from "./projectStatus";
-
-export interface IProject {
-  _id: string;
-  title: string;
-  description: string;
-  customId: string;
-  budget: string;
-  prevCustomId: string;
-  customer: ICustomer;
-  admin: IAdmin;
-  manager: IManager;
-  status: IProjectStatus;
-  statusHistory: IProjectStatus[];
-  isActive: boolean;
-  isDeleted: boolean;
-  // Add any additional fields if necessary
-}
-
-export interface ICreateProject {
-  title: string;
-  description: string;
-  budget: string;
-  customer: string; // Customer ID
-  admin: string;    // Admin ID
-  manager: string;  // Manager ID
-  status: string;   // ProjectStatus ID
-  // Add any additional fields if necessary
-}
-
-export interface IUpdateProject {
-  title?: string;
-  description?: string;
-  budget?: string;
-  customer?: string; // Customer ID
-  admin?: string;    // Admin ID
-  manager?: string;  // Manager ID
-  status?: string;   // ProjectStatus ID
-  isActive?: boolean;
-  isDeleted?: boolean;
-  // Add any additional fields if necessary
-}
-EOT
-
-# 7. Create Routes
-echo_info "Creating Routes for Project..."
-
-cat <<EOT > src/routes/projectRoute.ts
+# Project Routes
+echo "Creating project routes..."
+cat <<EOL > $ROUTE_DIR/project.ts
 import { Router } from "express";
 import ProjectService from "../services/project";
 import ProjectMiddleware from "../middlewares/project";
@@ -506,10 +340,7 @@ const projectService = new ProjectService();
 const projectMiddleware = new ProjectMiddleware();
 
 // GET all projects
-router.get(
-  "/",
-  projectService.getProjects.bind(projectService)
-);
+router.get("/", projectService.getProjects.bind(projectService));
 
 // GET project by ID
 router.get(
@@ -540,47 +371,6 @@ router.delete(
 );
 
 export default router;
-EOT
+EOL
 
-# 8. Register Routes in Main Routes File
-echo_info "Registering Project routes in the main routes file..."
-
-MAIN_ROUTE_FILE="src/routes/index.ts"
-
-if [ ! -f "$MAIN_ROUTE_FILE" ]; then
-  echo_info "Creating main routes file..."
-  mkdir -p src/routes
-  cat <<EOT > "$MAIN_ROUTE_FILE"
-import { Router } from "express";
-import projectRoute from "./projectRoute";
-// Import other routes here
-
-const router = Router();
-
-// Register Project routes
-router.use("/projects", projectRoute);
-
-// Register other routes here
-
-export default router;
-EOT
-
-  # Update src/index.ts to use the main routes
-  echo_info "Updating src/index.ts to use the main routes..."
-
-  cat <<EOT >> src/index.ts
-
-// Import routes
-import routes from "./routes";
-
-// Use routes
-app.use("/api", routes);
-EOT
-
-else
-  echo_info "Main routes file already exists. Please ensure that '/api/projects' is correctly registered."
-fi
-
-# 9. Final Message
-echo_info "Project module generated successfully."
-echo_info "You can now start using the Project routes at '/api/projects'."
+echo "Setup complete! All project module components have been created."  

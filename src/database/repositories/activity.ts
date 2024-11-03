@@ -1,127 +1,70 @@
-import { Request } from "express";
 import { ActivityModel } from "../models/activity";
-import { IActivity, ICreateActivity, IUpdateActivity } from "../../interfaces/activity";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+import { Request } from "express";
 
 class ActivityRepository {
-  public async getActivities(
-    req: Request,
-    pagination: IPagination,
-    search: string
-  ): Promise<{
-    data: IActivity[];
-    totalCount: number;
-    currentPage: number;
-    totalPages?: number;
-  }> {
+  public async getActivities(req: Request, pagination: any, search: string) {
     try {
-      let query: any = {};
+      const query: any = {};
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
-      const activities = await ActivityModel.find(query)
-        .populate("project")
-        .populate("workers")
-        .populate("updatedBy")
-        .populate("status")
-        .populate("statusHistory")
-        .populate("customer")
-        .limit(pagination.limit)
+      return await ActivityModel.find(query)
         .skip((pagination.page - 1) * pagination.limit)
-        .lean<IActivity[]>();
-
-      const totalCount = await ActivityModel.countDocuments(query);
-      const totalPages = Math.ceil(totalCount / pagination.limit);
-      return {
-        data: activities,
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+        .limit(pagination.limit)
+        .populate("project workers updatedBy status type customer")
+        .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivities");
       throw error;
     }
   }
 
-  public async getActivityById(req: Request, id: string): Promise<IActivity> {
+  public async getActivity(req: Request, id: string) {
     try {
-      const activity = await ActivityModel.findById(id)
-        .populate("project")
-        .populate("workers")
-        .populate("updatedBy")
-        .populate("status")
-        .populate("statusHistory")
-        .populate("customer")
-        .lean<IActivity>();
-      if (!activity || activity.isDeleted) {
-        throw new Error("Activity not found");
-      }
-      return activity;
+      return await ActivityModel.findById(id)
+        .populate("project workers updatedBy status type customer")
+        .exec();
     } catch (error) {
-      await logError(error, req, "ActivityRepository-getActivityById");
+      await logError(error, req, "ActivityRepository-getActivity");
       throw error;
     }
   }
 
-  public async createActivity(
-    req: Request,
-    activityData: ICreateActivity
-  ): Promise<IActivity> {
+  public async createActivity(req: Request, activityData: any) {
     try {
-      const newActivity = await ActivityModel.create(activityData);
-      return newActivity.toObject() as IActivity;
+      const newActivity = new ActivityModel(activityData);
+      return await newActivity.save();
     } catch (error) {
       await logError(error, req, "ActivityRepository-createActivity");
       throw error;
     }
   }
 
-  public async updateActivity(
-    req: Request,
-    id: string,
-    activityData: IUpdateActivity
-  ): Promise<IActivity> {
+  public async updateActivity(req: Request, id: string, activityData: any) {
     try {
-      const updatedActivity = await ActivityModel.findByIdAndUpdate(id, activityData, {
+      return await ActivityModel.findByIdAndUpdate(id, activityData, {
         new: true,
       })
-        .populate("project")
-        .populate("workers")
-        .populate("updatedBy")
-        .populate("status")
-        .populate("statusHistory")
-        .populate("customer")
-        .lean<IActivity>();
-      if (!updatedActivity || updatedActivity.isDeleted) {
-        throw new Error("Failed to update activity");
-      }
-      return updatedActivity;
+        .populate("project workers updatedBy status type customer")
+        .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-updateActivity");
       throw error;
     }
   }
 
-  public async deleteActivity(req: Request, id: string): Promise<IActivity> {
+  public async deleteActivity(req: Request, id: string) {
     try {
-      const deletedActivity = await ActivityModel.findByIdAndUpdate(
+      return await ActivityModel.findByIdAndUpdate(
         id,
         { isDeleted: true },
-        { new: true }
+        {
+          new: true,
+        }
       )
-        .populate("project")
-        .populate("workers")
-        .populate("updatedBy")
-        .populate("status")
-        .populate("statusHistory")
-        .populate("customer")
-        .lean<IActivity>();
-      if (!deletedActivity) {
-        throw new Error("Failed to delete activity");
-      }
-      return deletedActivity;
+        .populate("project workers updatedBy status type customer")
+        .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-deleteActivity");
       throw error;

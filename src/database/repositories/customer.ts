@@ -72,7 +72,7 @@ class CustomerRepository {
   ): Promise<ICustomer> {
     try {
       const newCustomer = await CustomerModel.create(customerData);
-      return newCustomer.toObject();
+      return newCustomer.toObject() as ICustomer;
     } catch (error) {
       await logError(error, req, "CustomerRepository-createCustomer");
       throw error;
@@ -93,7 +93,7 @@ class CustomerRepository {
       if (!updatedCustomer) {
         throw new Error("Failed to update customer");
       }
-      return updatedCustomer.toObject();
+      return updatedCustomer.toObject() as ICustomer;
     } catch (error) {
       await logError(error, req, "CustomerRepository-updateCustomer");
       throw error;
@@ -110,7 +110,7 @@ class CustomerRepository {
       if (!deletedCustomer) {
         throw new Error("Failed to delete customer");
       }
-      return deletedCustomer.toObject();
+      return deletedCustomer.toObject() as ICustomer;
     } catch (error) {
       await logError(error, req, "CustomerRepository-deleteCustomer");
       throw error;

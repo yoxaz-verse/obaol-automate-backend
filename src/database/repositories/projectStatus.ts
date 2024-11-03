@@ -25,12 +25,10 @@ class ProjectStatusRepository {
       if (search) {
         query.name = { $regex: search, $options: "i" };
       }
-      const projectStatuses: IProjectStatus[] = await ProjectStatusModel.find(
-        query
-      )
+      const projectStatuses = await ProjectStatusModel.find(query)
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
-        .lean(); // Correct usage without generic
+        .lean<IProjectStatus[]>();
 
       const totalCount = await ProjectStatusModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
@@ -76,7 +74,7 @@ class ProjectStatusRepository {
       const newProjectStatus = await ProjectStatusModel.create(
         projectStatusData
       );
-      return newProjectStatus.toObject();
+      return newProjectStatus.toObject() as IProjectStatus;
     } catch (error) {
       await logError(error, req, "ProjectStatusRepository-createProjectStatus");
       throw error;

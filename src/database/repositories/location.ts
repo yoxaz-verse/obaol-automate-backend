@@ -1,73 +1,52 @@
 import { Request } from "express";
-import { LocationModel } from "../models/location";
-import {
-  ICreateLocation,
-  ILocationPopulated,
-  IUpdateLocation,
-} from "../../interfaces/location";
 import { logError } from "../../utils/errorLogger";
-import { IPagination } from "../../interfaces/pagination";
+import { ILocation } from "../../interfaces/location";
+import { LocationModel } from "../../database/models/location";
 
 class LocationRepository {
   public async getLocations(
     req: Request,
-    pagination: IPagination,
+    pagination: { page: number; limit: number },
     search: string
   ): Promise<{
-    data: ILocationPopulated[];
+    data: ILocation[];
     totalCount: number;
     currentPage: number;
-    totalPages?: number;
+    totalPages: number;
   }> {
     try {
-      let query: any = {};
+      const query: any = {};
       if (search) {
         query.name = { $regex: search, $options: "i" };
       }
 
-      const locationsDoc = await LocationModel.find(query)
-        .populate("owner", "name email") // Adjust fields as needed
-        .populate("locationType", "name") // Adjust fields as needed
-        .populate("locationManagers", "code name") // Adjust fields as needed
-        .populate("image") // Populate image field
-        .limit(pagination.limit)
-        .skip((pagination.page - 1) * pagination.limit);
-
-      const locations = locationsDoc.map(
-        (doc) => doc.toObject() as ILocationPopulated
-      );
-
       const totalCount = await LocationModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
+      const currentPage = pagination.page;
 
-      return {
-        data: locations,
-        totalCount,
-        currentPage: pagination.page,
-        totalPages,
-      };
+      const locations = await LocationModel.find(query)
+        .populate("locationType", "name")
+        .skip((pagination.page - 1) * pagination.limit)
+        .limit(pagination.limit)
+        .exec();
+
+      return { data: locations, totalCount, currentPage, totalPages };
     } catch (error) {
       await logError(error, req, "LocationRepository-getLocations");
       throw error;
     }
   }
 
-  public async getLocationById(
-    req: Request,
-    id: string
-  ): Promise<ILocationPopulated> {
+  public async getLocationById(req: Request, id: string): Promise<ILocation> {
     try {
-      const locationDoc = await LocationModel.findById(id)
-        .populate("owner", "name email") // Adjust fields as needed
-        .populate("locationType", "name") // Adjust fields as needed
-        .populate("locationManagers", "code name") // Adjust fields as needed
-        .populate("image"); // Populate image field
-
-      if (!locationDoc) {
+      const location = await LocationModel.findById(id).populate(
+        "locationType",
+        "name"
+      );
+      if (!location) {
         throw new Error("Location not found");
       }
-
-      return locationDoc.toObject() as ILocationPopulated;
+      return location;
     } catch (error) {
       await logError(error, req, "LocationRepository-getLocationById");
       throw error;
@@ -76,11 +55,11 @@ class LocationRepository {
 
   public async createLocation(
     req: Request,
-    locationData: ICreateLocation
-  ): Promise<ILocationPopulated> {
+    locationData: Partial<ILocation>
+  ): Promise<ILocation> {
     try {
       const newLocation = await LocationModel.create(locationData);
-      return newLocation.toObject();
+      return newLocation;
     } catch (error) {
       await logError(error, req, "LocationRepository-createLocation");
       throw error;
@@ -90,42 +69,33 @@ class LocationRepository {
   public async updateLocation(
     req: Request,
     id: string,
-    locationData: Partial<IUpdateLocation>
-  ): Promise<ILocationPopulated> {
+    locationData: Partial<ILocation>
+  ): Promise<ILocation> {
     try {
       const updatedLocation = await LocationModel.findByIdAndUpdate(
         id,
         locationData,
         { new: true }
-      )
-        .populate("owner", "name email") // Adjust fields as needed
-        .populate("locationType", "name") // Adjust fields as needed
-        .populate("locationManagers", "code name") // Adjust fields as needed
-        .populate("image"); // Populate image field
+      ).populate("locationType", "name");
       if (!updatedLocation) {
-        throw new Error("Failed to update Location");
+        throw new Error("Failed to update location");
       }
-      return updatedLocation.toObject();
+      return updatedLocation;
     } catch (error) {
       await logError(error, req, "LocationRepository-updateLocation");
       throw error;
     }
   }
 
-  public async deleteLocation(
-    req: Request,
-    id: string
-  ): Promise<ILocationPopulated> {
+  public async deleteLocation(req: Request, id: string): Promise<ILocation> {
     try {
-      const deletedLocation = await LocationModel.findByIdAndDelete(id)
-        .populate("owner", "name email") // Adjust fields as needed
-        .populate("locationType", "name") // Adjust fields as needed
-        .populate("locationManagers", "code name") // Adjust fields as needed
-        .populate("image"); // Populate image field
+      const deletedLocation = await LocationModel.findByIdAndDelete(
+        id
+      ).populate("locationType", "name");
       if (!deletedLocation) {
-        throw new Error("Failed to delete Location");
+        throw new Error("Failed to delete location");
       }
-      return deletedLocation.toObject();
+      return deletedLocation;
     } catch (error) {
       await logError(error, req, "LocationRepository-deleteLocation");
       throw error;

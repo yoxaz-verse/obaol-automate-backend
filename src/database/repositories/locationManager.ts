@@ -26,12 +26,12 @@ class LocationManagerRepository {
       }
 
       const locationManagersDoc = await LocationManagerModel.find(query)
-        .populate("managingLocations")
+        .populate("managingLocation")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
       const locationManagers = locationManagersDoc.map(
-        (doc) => doc.toObject() as ILocationManager
+        (doc) => doc.toObject() as any
       );
 
       const totalCount = await LocationManagerModel.countDocuments(query);
@@ -60,13 +60,13 @@ class LocationManagerRepository {
     try {
       const locationManagerDoc = await LocationManagerModel.findById(
         id
-      ).populate("managingLocations");
+      ).populate("managingLocation");
 
       if (!locationManagerDoc) {
         throw new Error("LocationManager not found");
       }
 
-      return locationManagerDoc.toObject() as ILocationManager;
+      return locationManagerDoc.toObject() as any;
     } catch (error) {
       await logError(
         error,
@@ -85,7 +85,7 @@ class LocationManagerRepository {
       const newLocationManager = await LocationManagerModel.create(
         locationManagerData
       );
-      return newLocationManager.toObject();
+      return newLocationManager.toObject() as any;
     } catch (error) {
       await logError(
         error,
@@ -105,11 +105,11 @@ class LocationManagerRepository {
       const updatedLocationManager =
         await LocationManagerModel.findByIdAndUpdate(id, locationManagerData, {
           new: true,
-        }).populate("managingLocations");
+        }).populate("managingLocation");
       if (!updatedLocationManager) {
         throw new Error("Failed to update LocationManager");
       }
-      return updatedLocationManager.toObject();
+      return updatedLocationManager.toObject() as any;
     } catch (error) {
       await logError(
         error,
@@ -127,12 +127,12 @@ class LocationManagerRepository {
     try {
       const deletedLocationManager =
         await LocationManagerModel.findByIdAndDelete(id).populate(
-          "managingLocations"
+          "managingLocation"
         );
       if (!deletedLocationManager) {
         throw new Error("Failed to delete LocationManager");
       }
-      return deletedLocationManager.toObject();
+      return deletedLocationManager.toObject() as any;
     } catch (error) {
       await logError(
         error,

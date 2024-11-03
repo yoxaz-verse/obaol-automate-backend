@@ -1,5 +1,5 @@
+import { ILocation } from "../database/models/location";
 import mongoose from "mongoose";
-import { ILocation } from "./location";
 
 export interface ILocationManager {
   code: string;
@@ -18,4 +18,3 @@ export interface IUpdateLocationManager {
   name?: string;
   managingLocations?: string[];
 }
-

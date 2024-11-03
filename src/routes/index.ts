@@ -10,6 +10,8 @@ import activityStatusRoute from "./activityStatusRoute";
 import activityTypeRoute from "./activityTypeRoute";
 import activityRoute from "./activityRoute";
 import projectTypeRoute from "./projectTypeRoute";
+import projectRoute from "./projectRoute";
+import projectStatusRoute from "./projectStatusRoute";
 import locationTypeRoute from "./locationTypeRoute";
 import locationRoute from "./locationRoute";
 import locationManagerRoute from "./locationManagerRoute";
@@ -34,8 +36,9 @@ router.use(`${prefix}/admin`, adminRoute);
 router.use(`${prefix}/customer`, customerRoute);
 router.use(`${prefix}/worker`, workerRoute);
 
-// router.use(`${prefix}/project`, projectRoute);
+router.use(`${prefix}/projects`, projectRoute);
 router.use(`${prefix}/projectType`, projectTypeRoute);
+router.use(`${prefix}/projectStatus`, projectStatusRoute);
 
 router.use(`${prefix}/activity`, activityRoute);
 router.use(`${prefix}/activityStatus`, activityStatusRoute);
@@ -47,7 +50,7 @@ router.use(`${prefix}/serviceCompany`, serviceCompanyRoute);
 
 router.use(`${prefix}/locationType`, locationTypeRoute);
 router.use(`${prefix}/locationManager`, locationManagerRoute);
-// router.use(`${prefix}/location`, locationRoute);
+router.use(`${prefix}/location`, locationRoute);
 
 //file
 router.use(`${prefix}/upload`, fileRoute);

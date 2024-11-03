@@ -1,115 +1,82 @@
-// src/services/manager.ts
-
 import { Request, Response } from "express";
-import ManagerRepository from "../database/repositories/manager";
-import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
+import { logError } from "../utils/errorLogger";
+import ProjectRepository from "../database/repositories/project";
 
-class ManagerService {
-  private managerRepository: ManagerRepository;
+class ProjectService {
+  private projectRepository = new ProjectRepository();
 
-  constructor() {
-    this.managerRepository = new ManagerRepository();
-  }
-
-  public async getManagers(req: Request, res: Response) {
+  public async getProjects(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const managers = await this.managerRepository.getManagers(
+      const projects = await this.projectRepository.getProjects(
         req,
         pagination,
         search
       );
-      res.sendArrayFormatted(
-        managers.data,
-        "Managers retrieved successfully",
-        200,
-        managers.totalCount,
-        managers.currentPage,
-        managers.totalPages
-      );
+      res.sendFormatted(projects, "Projects retrieved successfully", 200);
     } catch (error) {
-      await logError(error, req, "ManagerService-getManagers");
-      res.sendError("Managers retrieval failed", 500);
+      await logError(error, req, "ProjectService-getProjects");
+      res.sendError(error, "Failed to retrieve projects", 500);
     }
   }
 
-  public async getManager(req: Request, res: Response) {
+  public async getProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const manager = await this.managerRepository.getManagerById(req, id);
-      res.sendFormatted(manager, "Manager retrieved successfully", 200);
+      const project = await this.projectRepository.getProject(req, id);
+      res.sendFormatted(project, "Project retrieved successfully", 200);
     } catch (error) {
-      await logError(error, req, "ManagerService-getManager");
-      res.sendError("Manager retrieval failed", 500);
+      await logError(error, req, "ProjectService-getProject");
+      res.sendError(error, "Failed to retrieve project", 500);
     }
   }
 
-  public async createManager(req: Request, res: Response) {
+  public async createProject(req: Request, res: Response) {
     try {
-      const managerData = req.body;
-      console.log(req.body);
-
-      // Integrate fileId and fileURL received from another API
-      const { fileId, fileURL } = req.body;
-      if (fileId && fileURL) {
-        managerData.fileId = fileId;
-        managerData.fileURL = fileURL;
-      } else {
-        res.sendError("fileId and fileURL must be provided", 400);
-        return;
-      }
-
-      const newManager = await this.managerRepository.createManager(
+      const projectData = req.body;
+      const newProject = await this.projectRepository.createProject(
         req,
-        managerData
+        projectData
       );
-      res.sendFormatted(newManager, "Manager created successfully", 201);
+      res.sendFormatted(newProject, "Project created successfully", 201);
     } catch (error) {
-      await logError(error, req, "ManagerService-createManager");
-      res.sendError("Manager creation failed", 500);
+      await logError(error, req, "ProjectService-createProject");
+      res.sendError(error, "Project creation failed", 500);
     }
   }
 
-  public async updateManager(req: Request, res: Response) {
+  public async updateProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const managerData = req.body;
-
-      // Integrate fileId and fileURL received from another API, if provided
-      const { fileId, fileURL } = req.body;
-      if (fileId && fileURL) {
-        managerData.fileId = fileId;
-        managerData.fileURL = fileURL;
-      }
-
-      const updatedManager = await this.managerRepository.updateManager(
+      const projectData = req.body;
+      const updatedProject = await this.projectRepository.updateProject(
         req,
         id,
-        managerData
+        projectData
       );
-      res.sendFormatted(updatedManager, "Manager updated successfully", 200);
+      res.sendFormatted(updatedProject, "Project updated successfully", 200);
     } catch (error) {
-      await logError(error, req, "ManagerService-updateManager");
-      res.sendError("Manager update failed", 500);
+      await logError(error, req, "ProjectService-updateProject");
+      res.sendError(error, "Project update failed", 500);
     }
   }
 
-  public async deleteManager(req: Request, res: Response) {
+  public async deleteProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedManager = await this.managerRepository.deleteManager(
+      const deletedProject = await this.projectRepository.deleteProject(
         req,
         id
       );
-      res.sendFormatted(deletedManager, "Manager deleted successfully", 200);
+      res.sendFormatted(deletedProject, "Project deleted successfully", 200);
     } catch (error) {
-      await logError(error, req, "ManagerService-deleteManager");
-      res.sendError("Manager deletion failed", 500);
+      await logError(error, req, "ProjectService-deleteProject");
+      res.sendError(error, "Project deletion failed", 500);
     }
   }
 }
 
-export default ManagerService;
+export default ProjectService;

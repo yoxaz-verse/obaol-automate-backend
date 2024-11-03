@@ -7,7 +7,7 @@ export interface IProject {
   _id: string;
   title: string;
   description: string;
-  customId: string;
+  customId?: string;
   budget: string;
   prevCustomId: string;
   customer: ICustomer;

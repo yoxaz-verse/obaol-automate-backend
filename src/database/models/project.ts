@@ -1,32 +1,17 @@
 import mongoose from "mongoose";
-import { CustomerModel } from "./customer";
-import { AdminModel } from "./admin";
-import { ManagerModel } from "./manager";
-import { ProjectStatusModel } from "./projectStatus";
-
-interface IProject extends mongoose.Document {
-  title: string;
-  description: string;
-  customId: string;
-  budget: string;
-  prevCustomId: string;
-  customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
-  admin: mongoose.Schema.Types.ObjectId | typeof AdminModel;
-  manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
-  status: mongoose.Schema.Types.ObjectId | typeof ProjectStatusModel;
-  statusHistory: mongoose.Schema.Types.ObjectId[];
-  isActive: boolean;
-  isDeleted: boolean;
-  // Add any additional fields if necessary
-}
+import { IProject } from "../interfaces/project";
 
 const ProjectSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: { type: String, required: true },
-    customId: { type: String, required: true, unique: true },
-    budget: { type: String, required: true, unique: true },
-    prevCustomId: { type: String, unique: true },
+    customId: { type: String },
+    prevCustomId: { type: String },
+    location: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      required: true,
+    },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
@@ -47,12 +32,20 @@ const ProjectSchema = new mongoose.Schema(
       ref: "ProjectStatus",
       required: true,
     },
+    type: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ProjectType",
+      required: true,
+    },
+    task: { type: String, required: true },
+    orderNumber: { type: String, required: true },
+    assignmentDate: { type: Date, required: true },
+    schedaRadioDate: { type: Date, required: true },
     statusHistory: [
       { type: mongoose.Schema.Types.ObjectId, ref: "ProjectStatus" },
     ],
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    // Add any additional fields if necessary
   },
   { timestamps: true }
 );
@@ -60,9 +53,15 @@ const ProjectSchema = new mongoose.Schema(
 // Custom ID generator
 ProjectSchema.pre<IProject>("validate", function (next) {
   if (!this.customId && this.isNew) {
-    const location = this.get("location"); // Ensure 'location' is handled appropriately
+    const location = this.get("location");
     if (location) {
-      const customId = `${location.nation.slice(0, 2).toUpperCase()}${location.city.slice(0, 2).toUpperCase()}${location.region.slice(0, 2).toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
+      const customId = `${location.nation
+        .slice(0, 2)
+        .toUpperCase()}${location.city
+        .slice(0, 2)
+        .toUpperCase()}${location.region
+        .slice(0, 2)
+        .toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
       this.customId = customId;
     }
   }

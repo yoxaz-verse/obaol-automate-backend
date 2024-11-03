@@ -1,79 +1,82 @@
 import { Request, Response, NextFunction } from "express";
-import { logError } from "../utils/errorLogger";
+import Joi from "joi";
 
 class ProjectMiddleware {
-  public async validateCreate(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { title, description, budget, customer, admin, manager, status } = req.body;
-      if (!title || !description || !budget || !customer || !admin || !manager || !status) {
-        res.sendError(
-          "ValidationError: Title, Description, Budget, Customer, Admin, Manager, and Status are required",
-          "All required fields must be provided",
-          400
-        );
-        return;
-      }
-      // Add more validation as needed
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateCreate");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateCreate(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      title: Joi.string().required(),
+      description: Joi.string().required(),
+      prevCustomId: Joi.string().optional(),
+      customer: Joi.string().required(),
+      admin: Joi.string().required(),
+      manager: Joi.string().required(),
+      status: Joi.string().required(),
+      type: Joi.string().required(),
+      task: Joi.string().required(),
+      orderNumber: Joi.string().required(),
+      assignmentDate: Joi.date().required(),
+      schedaRadioDate: Joi.date().required(),
+      statusHistory: Joi.array().items(Joi.string()),
+      isActive: Joi.boolean(),
+      isDeleted: Joi.boolean(),
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 
-  public async validateUpdate(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { title, description, budget, customer, admin, manager, status, isActive, isDeleted } = req.body;
-      if (!title && !description && !budget && !customer && !admin && !manager && !status && isActive === undefined && isDeleted === undefined) {
-        res.sendError(
-          "ValidationError: At least one field must be provided for update",
-          "At least one field must be provided for update",
-          400
-        );
-        return;
-      }
-      // Add more validation as needed
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateUpdate");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateGet(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      id: Joi.string().required(),
+    });
+
+    const { error } = schema.validate(req.params);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 
-  public async validateDelete(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateDelete");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateUpdate(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      title: Joi.string().optional(),
+      description: Joi.string().optional(),
+      customId: Joi.string().optional(),
+      prevCustomId: Joi.string().optional(),
+      customer: Joi.string().optional(),
+      admin: Joi.string().optional(),
+      manager: Joi.string().optional(),
+      status: Joi.string().optional(),
+      type: Joi.string().optional(),
+      task: Joi.string().optional(),
+      orderNumber: Joi.string().optional(),
+      assignmentDate: Joi.date().optional(),
+      schedaRadioDate: Joi.date().optional(),
+      statusHistory: Joi.array().items(Joi.string()).optional(),
+      isActive: Joi.boolean().optional(),
+      isDeleted: Joi.boolean().optional(),
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 
-  public async validateGet(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        res.sendError(
-          "ValidationError: ID must be provided",
-          "ID must be provided",
-          400
-        );
-        return;
-      }
-      next();
-    } catch (error) {
-      await logError(error, req, "ProjectMiddleware-validateGet");
-      res.sendError(error, "An unexpected error occurred", 500);
+  public validateDelete(req: Request, res: Response, next: NextFunction) {
+    const schema = Joi.object({
+      id: Joi.string().required(),
+    });
+
+    const { error } = schema.validate(req.params);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
     }
+    next();
   }
 }
 

@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export interface IManager {
+export interface IProjectManager {
   _id: string;
   email: string;
   isActive: boolean;
@@ -8,26 +8,20 @@ export interface IManager {
   name: string;
   password: string;
   admin: mongoose.Schema.Types.ObjectId; // Link to Admin
-  fileId?: string; // Unique identifier for the uploaded file
-  fileURL?: string; // URL to access the uploaded file
-  role: string; // Role of the manager
+  role: string; // Role of the project manager
 }
 
-export interface ICreateManager {
+export interface ICreateProjectManager {
   email: string;
   name: string;
   password: string;
   admin: mongoose.Types.ObjectId; // Assuming admin is referenced by ObjectId
-  fileId: string;
-  fileURL: string;
 }
 
-export interface IUpdateManager {
+export interface IUpdateProjectManager {
   email?: string;
   name?: string;
   password?: string;
   admin?: mongoose.Types.ObjectId;
-  fileId?: string;
-  fileURL?: string;
-  isActive?: boolean; 
+  isActive?: boolean;
 }

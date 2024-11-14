@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import { IManager } from "../../interfaces/manager";
+import { IActivityManager } from "../../interfaces/activityManager";
 
-const ActivityManagerSchema = new mongoose.Schema<IManager>(
+const ActivityManagerSchema = new mongoose.Schema<IActivityManager>(
   {
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
@@ -13,15 +13,12 @@ const ActivityManagerSchema = new mongoose.Schema<IManager>(
       ref: "Admin",
       required: true,
     }, // Linking to Admin
-    fileId: { type: String }, // Identifier for the uploaded file
-    fileURL: { type: String }, // URL to access the uploaded file (optional)
-    role: { type: String, default: "Activitymanager" }, // Assign default role
+    role: { type: String, default: "activityManager" }, // Assign default role
   },
   { timestamps: true }
 );
 
 // Optionally, add pre-save hook for hashing passwords
-// Uncomment the following lines if you wish to hash passwords before saving
 /*
 import bcrypt from "bcrypt";
 
@@ -37,7 +34,7 @@ ActivityManagerSchema.pre<IActivityManager>("save", async function (next) {
 });
 */
 
-export const ActivityManagerModel = mongoose.model<IManager>(
+export const ActivityManagerModel = mongoose.model<IActivityManager>(
   "ActivityManager",
   ActivityManagerSchema
 );

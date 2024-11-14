@@ -19,6 +19,8 @@ import fileRoute from "./fileRoute";
 import authRoute from "./authRoute";
 import serviceCompanyRoute from "./serviceCompanyRoute";
 import verifyTokenRoute from "./verifyTokenRoute";
+import activityManagerRoute from "./activityManagerRoute";
+import projectManagerRoute from "./projectManagerRoute";
 
 // Initialize the main router
 const router = Router();
@@ -39,12 +41,12 @@ router.use(`${prefix}/worker`, workerRoute);
 router.use(`${prefix}/projects`, projectRoute);
 router.use(`${prefix}/projectType`, projectTypeRoute);
 router.use(`${prefix}/projectStatus`, projectStatusRoute);
+router.use(`${prefix}/projectManager`, projectManagerRoute);
 
 router.use(`${prefix}/activity`, activityRoute);
 router.use(`${prefix}/activityStatus`, activityStatusRoute);
 router.use(`${prefix}/activityType`, activityTypeRoute);
-
-router.use(`${prefix}/activityType`, activityTypeRoute);
+router.use(`${prefix}/activityManager`, activityManagerRoute);
 
 router.use(`${prefix}/serviceCompany`, serviceCompanyRoute);
 

@@ -1,8 +1,8 @@
 import { Request } from "express";
-import { ICreateManager, IUpdateManager } from "../../interfaces/manager";
+import { ActivityManagerModel } from "../models/activityManager";
+import { ICreateActivityManager, IUpdateActivityManager } from "../../interfaces/activityManager";
 import { logError } from "../../utils/errorLogger";
-import { IManager } from "../../interfaces/manager";
-import { ActivityManagerModel } from "@database/models/Activitymanager";
+import { IActivityManager } from "../../interfaces/activityManager";
 
 class ActivityManagerRepository {
   public async getActivityManagers(
@@ -10,7 +10,7 @@ class ActivityManagerRepository {
     pagination: { page: number; limit: number },
     search: string
   ): Promise<{
-    data: IManager[];
+    data: IActivityManager[];
     totalCount: number;
     currentPage: number;
     totalPages: number;
@@ -25,84 +25,84 @@ class ActivityManagerRepository {
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;
 
-      const managers = await ActivityManagerModel.find(query)
+      const activityManagers = await ActivityManagerModel.find(query)
         .populate("admin", "name")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
 
-      return { data: managers, totalCount, currentPage, totalPages };
+      return { data: activityManagers, totalCount, currentPage, totalPages };
     } catch (error) {
-      await logError(error, req, "ManagerRepository-getManagers");
+      await logError(error, req, "ActivityManagerRepository-getActivityManagers");
       throw error;
     }
   }
 
-  public async getManagerById(req: Request, id: string): Promise<IManager> {
+  public async getActivityManagerById(req: Request, id: string): Promise<IActivityManager> {
     try {
-      const managerDoc = await ActivityManagerModel.findOne({
+      const activityManagerDoc = await ActivityManagerModel.findOne({
         _id: id,
         isDeleted: false,
       }).populate("admin", "name");
 
-      if (!managerDoc) {
-        throw new Error("Manager not found");
+      if (!activityManagerDoc) {
+        throw new Error("ActivityManager not found");
       }
 
-      return managerDoc;
+      return activityManagerDoc;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-getManagerById");
+      await logError(error, req, "ActivityManagerRepository-getActivityManagerById");
       throw error;
     }
   }
 
-  public async createManager(
+  public async createActivityManager(
     req: Request,
-    managerData: ICreateManager
-  ): Promise<IManager> {
+    activityManagerData: ICreateActivityManager
+  ): Promise<IActivityManager> {
     try {
-      const newManager = await ActivityManagerModel.create(managerData);
-      return newManager;
+      const newActivityManager = await ActivityManagerModel.create(activityManagerData);
+      return newActivityManager;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-createManager");
+      await logError(error, req, "ActivityManagerRepository-createActivityManager");
       throw error;
     }
   }
 
-  public async updateManager(
+  public async updateActivityManager(
     req: Request,
     id: string,
-    managerData: Partial<IUpdateManager>
-  ): Promise<IManager> {
+    activityManagerData: Partial<IUpdateActivityManager>
+  ): Promise<IActivityManager> {
     try {
-      const updatedManager = await ActivityManagerModel.findOneAndUpdate(
+      const updatedActivityManager = await ActivityManagerModel.findOneAndUpdate(
         { _id: id, isDeleted: false },
-        managerData,
+        activityManagerData,
         { new: true }
       ).populate("admin", "name");
-      if (!updatedManager) {
-        throw new Error("Failed to update manager");
+      if (!updatedActivityManager) {
+        throw new Error("Failed to update ActivityManager");
       }
-      return updatedManager;
+      return updatedActivityManager;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-updateManager");
+      await logError(error, req, "ActivityManagerRepository-updateActivityManager");
       throw error;
     }
   }
 
-  public async deleteManager(req: Request, id: string): Promise<IManager> {
+  public async deleteActivityManager(req: Request, id: string): Promise<IActivityManager> {
     try {
-      const deletedManager = await ActivityManagerModel.findOneAndUpdate(
+      const deletedActivityManager = await ActivityManagerModel.findOneAndUpdate(
         { _id: id, isDeleted: false },
         { isDeleted: true },
         { new: true }
       ).populate("admin", "name");
-      if (!deletedManager) {
-        throw new Error("Failed to delete manager");
+      if (!deletedActivityManager) {
+        throw new Error("Failed to delete ActivityManager");
       }
-      return deletedManager;
+      return deletedActivityManager;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-deleteManager");
+      await logError(error, req, "ActivityManagerRepository-deleteActivityManager");
       throw error;
     }
   }

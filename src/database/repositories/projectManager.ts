@@ -1,9 +1,11 @@
 import { Request } from "express";
-import { ManagerModel } from "../models/manager";
-import { ICreateManager, IUpdateManager } from "../../interfaces/manager";
+import { ProjectManagerModel } from "../models/projectManager";
+import {
+  ICreateProjectManager,
+  IUpdateProjectManager,
+} from "../../interfaces/projectManager";
 import { logError } from "../../utils/errorLogger";
-import { IManager } from "../../interfaces/manager";
-import { ProjectManagerModel } from "@database/models/Projectmanager";
+import { IProjectManager } from "../../interfaces/projectManager";
 
 class ProjectManagerRepository {
   public async getProjectManagers(
@@ -11,7 +13,7 @@ class ProjectManagerRepository {
     pagination: { page: number; limit: number },
     search: string
   ): Promise<{
-    data: IManager[];
+    data: IProjectManager[];
     totalCount: number;
     currentPage: number;
     totalPages: number;
@@ -26,15 +28,15 @@ class ProjectManagerRepository {
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;
 
-      const managers = await ProjectManagerModel.find(query)
+      const projectManagers = await ProjectManagerModel.find(query)
         .populate("admin", "name")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
 
-      return { data: managers, totalCount, currentPage, totalPages };
+      return { data: projectManagers, totalCount, currentPage, totalPages };
     } catch (error) {
-      await logError(error, req, "ManagerRepository-getManagers");
+      await logError(error, req, "ProjectManagerRepository-getProjectManagers");
       throw error;
     }
   }
@@ -42,33 +44,43 @@ class ProjectManagerRepository {
   public async getProjectManagerById(
     req: Request,
     id: string
-  ): Promise<IManager> {
+  ): Promise<IProjectManager> {
     try {
-      const managerDoc = await ProjectManagerModel.findOne({
+      const projectManagerDoc = await ProjectManagerModel.findOne({
         _id: id,
         isDeleted: false,
       }).populate("admin", "name");
 
-      if (!managerDoc) {
-        throw new Error("Manager not found");
+      if (!projectManagerDoc) {
+        throw new Error("ProjectManager not found");
       }
 
-      return managerDoc;
+      return projectManagerDoc;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-getManagerById");
+      await logError(
+        error,
+        req,
+        "ProjectManagerRepository-getProjectManagerById"
+      );
       throw error;
     }
   }
 
   public async createProjectManager(
     req: Request,
-    managerData: ICreateManager
-  ): Promise<IManager> {
+    projectManagerData: ICreateProjectManager
+  ): Promise<IProjectManager> {
     try {
-      const newManager = await ManagerModel.create(managerData);
-      return newManager;
+      const newProjectManager = await ProjectManagerModel.create(
+        projectManagerData
+      );
+      return newProjectManager;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-createManager");
+      await logError(
+        error,
+        req,
+        "ProjectManagerRepository-createProjectManager"
+      );
       throw error;
     }
   }
@@ -76,20 +88,24 @@ class ProjectManagerRepository {
   public async updateProjectManager(
     req: Request,
     id: string,
-    managerData: Partial<IUpdateManager>
-  ): Promise<IManager> {
+    projectManagerData: Partial<IUpdateProjectManager>
+  ): Promise<IProjectManager> {
     try {
-      const updatedManager = await ProjectManagerModel.findOneAndUpdate(
+      const updatedProjectManager = await ProjectManagerModel.findOneAndUpdate(
         { _id: id, isDeleted: false },
-        managerData,
+        projectManagerData,
         { new: true }
       ).populate("admin", "name");
-      if (!updatedManager) {
-        throw new Error("Failed to update manager");
+      if (!updatedProjectManager) {
+        throw new Error("Failed to update ProjectManager");
       }
-      return updatedManager;
+      return updatedProjectManager;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-updateManager");
+      await logError(
+        error,
+        req,
+        "ProjectManagerRepository-updateProjectManager"
+      );
       throw error;
     }
   }
@@ -97,19 +113,23 @@ class ProjectManagerRepository {
   public async deleteProjectManager(
     req: Request,
     id: string
-  ): Promise<IManager> {
+  ): Promise<IProjectManager> {
     try {
-      const deletedManager = await ProjectManagerModel.findOneAndUpdate(
+      const deletedProjectManager = await ProjectManagerModel.findOneAndUpdate(
         { _id: id, isDeleted: false },
         { isDeleted: true },
         { new: true }
       ).populate("admin", "name");
-      if (!deletedManager) {
-        throw new Error("Failed to delete manager");
+      if (!deletedProjectManager) {
+        throw new Error("Failed to delete ProjectManager");
       }
-      return deletedManager;
+      return deletedProjectManager;
     } catch (error) {
-      await logError(error, req, "ManagerRepository-deleteManager");
+      await logError(
+        error,
+        req,
+        "ProjectManagerRepository-deleteProjectManager"
+      );
       throw error;
     }
   }

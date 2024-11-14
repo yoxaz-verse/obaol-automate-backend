@@ -52,17 +52,38 @@ INTERFACE_FILE="$INTERFACES_DIR/manager.ts"
 INTERFACE_CONTENT=$(cat <<'EOL'
 import mongoose from "mongoose";
 
-export interface IManager extends mongoose.Document {
+export interface IManager {
+  _id: string;
   email: string;
   isActive: boolean;
   isDeleted: boolean;
   name: string;
   password: string;
-  admin: mongoose.Schema.Types.ObjectId;  // Link to Admin
-  fileId: string;                          // Unique identifier for the uploaded file
-  fileURL?: string;                        // URL to access the uploaded file
-  role: string;                            // Role of the manager
+  admin: mongoose.Schema.Types.ObjectId; // Link to Admin
+  fileId?: string; // Unique identifier for the uploaded file
+  fileURL?: string; // URL to access the uploaded file
+  role: string; // Role of the manager
 }
+
+export interface ICreateManager {
+  email: string;
+  name: string;
+  password: string;
+  admin: mongoose.Types.ObjectId; // Assuming admin is referenced by ObjectId
+  fileId: string;
+  fileURL: string;
+}
+
+export interface IUpdateManager {
+  email?: string;
+  name?: string;
+  password?: string;
+  admin?: mongoose.Types.ObjectId;
+  fileId?: string;
+  fileURL?: string;
+  isActive?: boolean;
+}
+
 EOL
 )
 
@@ -81,10 +102,14 @@ const ManagerSchema = new mongoose.Schema<IManager>(
     isDeleted: { type: Boolean, default: false },
     name: { type: String, required: true },
     password: { type: String, required: true },
-    admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },  // Linking to Admin
-    fileId: { type: String, required: true }, // Identifier for the uploaded file
-    fileURL: { type: String },                 // URL to access the uploaded file (optional)
-    role: { type: String, required: true },    // Role of the manager
+    admin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      required: true,
+    }, // Linking to Admin
+    fileId: { type: String }, // Identifier for the uploaded file
+    fileURL: { type: String }, // URL to access the uploaded file (optional)
+    role: { type: String, default: "manager" }, // Assign default role
   },
   { timestamps: true }
 );
@@ -116,12 +141,22 @@ create_or_overwrite_file "$MODEL_FILE" "$MODEL_CONTENT"
 REPO_FILE="$REPO_DIR/manager.ts"
 REPO_CONTENT=$(cat <<'EOL'
 import { Request } from "express";
-import { ManagerModel, IManager } from "../models/manager";
+import { ManagerModel } from "../models/manager";
 import { ICreateManager, IUpdateManager } from "../../interfaces/manager";
 import { logError } from "../../utils/errorLogger";
+import { IManager } from "../../interfaces/manager";
 
 class ManagerRepository {
-  public async getManagers(req: Request, pagination: { page: number; limit: number }, search: string): Promise<{ data: IManager[]; totalCount: number; currentPage: number; totalPages: number }> {
+  public async getManagers(
+    req: Request,
+    pagination: { page: number; limit: number },
+    search: string
+  ): Promise<{
+    data: IManager[];
+    totalCount: number;
+    currentPage: number;
+    totalPages: number;
+  }> {
     try {
       const query: any = { isDeleted: false };
       if (search) {
@@ -163,7 +198,10 @@ class ManagerRepository {
     }
   }
 
-  public async createManager(req: Request, managerData: ICreateManager): Promise<IManager> {
+  public async createManager(
+    req: Request,
+    managerData: ICreateManager
+  ): Promise<IManager> {
     try {
       const newManager = await ManagerModel.create(managerData);
       return newManager;
@@ -173,7 +211,11 @@ class ManagerRepository {
     }
   }
 
-  public async updateManager(req: Request, id: string, managerData: Partial<IUpdateManager>): Promise<IManager> {
+  public async updateManager(
+    req: Request,
+    id: string,
+    managerData: Partial<IUpdateManager>
+  ): Promise<IManager> {
     try {
       const updatedManager = await ManagerModel.findOneAndUpdate(
         { _id: id, isDeleted: false },
@@ -217,6 +259,8 @@ create_or_overwrite_file "$REPO_FILE" "$REPO_CONTENT"
 # 4. Create Manager Service
 SERVICE_FILE="$SERVICE_DIR/manager.ts"
 SERVICE_CONTENT=$(cat <<'EOL'
+// src/services/manager.ts
+
 import { Request, Response } from "express";
 import ManagerRepository from "../database/repositories/manager";
 import { logError } from "../utils/errorLogger";
@@ -234,18 +278,15 @@ class ManagerService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const managers = await this.managerRepository.getManagers(req, pagination, search);
-      res.sendArrayFormatted(
-        managers.data,
-        "Managers retrieved successfully",
-        200,
-        managers.totalCount,
-        managers.currentPage,
-        managers.totalPages
+      const managers = await this.managerRepository.getManagers(
+        req,
+        pagination,
+        search
       );
+      res.sendArrayFormatted(managers, "Managers retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ManagerService-getManagers");
-      res.sendError("Managers retrieval failed", 500);
+      res.sendError(error, "Managers retrieval failed", 500);
     }
   }
 
@@ -253,10 +294,16 @@ class ManagerService {
     try {
       const { id } = req.params;
       const manager = await this.managerRepository.getManagerById(req, id);
+
+      if (!manager) {
+        res.sendError("Manager not found", "Manager retrieval failed", 404);
+        return;
+      }
+
       res.sendFormatted(manager, "Manager retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ManagerService-getManager");
-      res.sendError("Manager retrieval failed", 500);
+      res.sendError(error, "Manager retrieval failed", 500);
     }
   }
 
@@ -271,15 +318,23 @@ class ManagerService {
         managerData.fileId = fileId;
         managerData.fileURL = fileURL;
       } else {
-        res.sendError("fileId and fileURL must be provided", 400);
+        res.sendError(
+          "fileId and fileURL must be provided",
+          "Invalid input data",
+          400
+        );
         return;
       }
 
-      const newManager = await this.managerRepository.createManager(req, managerData);
+      const newManager = await this.managerRepository.createManager(
+        req,
+        managerData
+      );
+
       res.sendFormatted(newManager, "Manager created successfully", 201);
     } catch (error) {
       await logError(error, req, "ManagerService-createManager");
-      res.sendError("Manager creation failed", 500);
+      res.sendError(error, "Manager creation failed", 500);
     }
   }
 
@@ -295,22 +350,49 @@ class ManagerService {
         managerData.fileURL = fileURL;
       }
 
-      const updatedManager = await this.managerRepository.updateManager(req, id, managerData);
+      const updatedManager = await this.managerRepository.updateManager(
+        req,
+        id,
+        managerData
+      );
+
+      if (!updatedManager) {
+        res.sendError(
+          "Manager not found or no changes made",
+          "Manager update failed",
+          404
+        );
+        return;
+      }
+
       res.sendFormatted(updatedManager, "Manager updated successfully", 200);
     } catch (error) {
       await logError(error, req, "ManagerService-updateManager");
-      res.sendError("Manager update failed", 500);
+      res.sendError(error, "Manager update failed", 500);
     }
   }
 
   public async deleteManager(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedManager = await this.managerRepository.deleteManager(req, id);
+      const deletedManager = await this.managerRepository.deleteManager(
+        req,
+        id
+      );
+
+      if (!deletedManager) {
+        res.sendError(
+          "Manager not found or already deleted",
+          "Manager deletion failed",
+          404
+        );
+        return;
+      }
+
       res.sendFormatted(deletedManager, "Manager deleted successfully", 200);
     } catch (error) {
       await logError(error, req, "ManagerService-deleteManager");
-      res.sendError("Manager deletion failed", 500);
+      res.sendError(error, "Manager deletion failed", 500);
     }
   }
 }
@@ -324,16 +406,19 @@ create_or_overwrite_file "$SERVICE_FILE" "$SERVICE_CONTENT"
 # 5. Create Manager Middleware
 MIDDLEWARE_FILE="$MIDDLEWARE_DIR/manager.ts"
 MIDDLEWARE_CONTENT=$(cat <<'EOL'
+// src/middlewares/manager.ts
+
 import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
 class ManagerMiddleware {
   public async createManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password, admin, role, fileId, fileURL } = req.body;
-      if (!email || !name || !password || !admin || !role || !fileId || !fileURL) {
+      const { email, name, password, admin, fileId, fileURL } = req.body;
+      if (!email || !name || !password || !admin || !fileId || !fileURL) {
         res.sendError(
-          "Email, Name, Password, Admin, Role, fileId, and fileURL must be provided",
+          "error",
+          "Email, Name, Password, Admin,  fileId, and fileURL must be provided",
           400
         );
         return;
@@ -341,15 +426,23 @@ class ManagerMiddleware {
       next();
     } catch (error) {
       await logError(error, req, "Middleware-ManagerCreate");
-      res.sendError("An unexpected error occurred", 500);
+      res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
   public async updateManager(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, name, password, admin, role, fileId, fileURL } = req.body;
-      if (!email && !name && !password && !admin && !role && !fileId && !fileURL) {
+      const { email, name, password, admin,  fileId, fileURL } = req.body;
+      if (
+        !email &&
+        !name &&
+        !password &&
+        !admin &&
+        !fileId &&
+        !fileURL
+      ) {
         res.sendError(
+          "error",
           "At least one field (Email, Name, Password, Admin, Role, fileId, or fileURL) must be provided",
           400
         );
@@ -358,7 +451,7 @@ class ManagerMiddleware {
       next();
     } catch (error) {
       await logError(error, req, "Middleware-ManagerUpdate");
-      res.sendError("An unexpected error occurred", 500);
+      res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
@@ -366,16 +459,13 @@ class ManagerMiddleware {
     try {
       const { id } = req.params;
       if (!id) {
-        res.sendError(
-          "ID must be provided",
-          400
-        );
+        res.sendError(id, "ID must be provided", 400);
         return;
       }
       next();
     } catch (error) {
       await logError(error, req, "Middleware-ManagerDelete");
-      res.sendError("An unexpected error occurred", 500);
+      res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 
@@ -383,16 +473,13 @@ class ManagerMiddleware {
     try {
       const { id } = req.params;
       if (!id) {
-        res.sendError(
-          "ID must be provided",
-          400
-        );
+        res.sendError(id, "ID must be provided", 400);
         return;
       }
       next();
     } catch (error) {
       await logError(error, req, "Middleware-ManagerGet");
-      res.sendError("An unexpected error occurred", 500);
+      res.sendError(error, "An unexpected error occurred", 500);
     }
   }
 }
@@ -427,7 +514,7 @@ managerRoute.get(
 // POST /api/managers - Create a new manager
 managerRoute.post(
   "/",
-  managerMiddleware.uploadFile, // Assuming uploadFile is defined if needed
+  // managerMiddleware.uploadFile, // Assuming uploadFile is defined if needed
   managerMiddleware.createManager.bind(managerMiddleware),
   managerService.createManager.bind(managerService)
 );
@@ -435,7 +522,7 @@ managerRoute.post(
 // PATCH /api/managers/:id - Update an existing manager
 managerRoute.patch(
   "/:id",
-  managerMiddleware.uploadFile, // Assuming uploadFile is defined if needed
+  // managerMiddleware.uploadFile, // Assuming uploadFile is defined if needed
   managerMiddleware.updateManager.bind(managerMiddleware),
   managerService.updateManager.bind(managerService)
 );

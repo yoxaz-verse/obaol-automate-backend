@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import { IManager } from "../../interfaces/manager";
+import { IProjectManager } from "../../interfaces/projectManager";
 
-const ProjectManagerSchema = new mongoose.Schema<IManager>(
+const ProjectManagerSchema = new mongoose.Schema<IProjectManager>(
   {
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
@@ -13,19 +13,16 @@ const ProjectManagerSchema = new mongoose.Schema<IManager>(
       ref: "Admin",
       required: true,
     }, // Linking to Admin
-    fileId: { type: String }, // Identifier for the uploaded file
-    fileURL: { type: String }, // URL to access the uploaded file (optional)
     role: { type: String, default: "projectManager" }, // Assign default role
   },
   { timestamps: true }
 );
 
 // Optionally, add pre-save hook for hashing passwords
-// Uncomment the following lines if you wish to hash passwords before saving
 /*
 import bcrypt from "bcrypt";
 
-ProjectManagerSchema.pre<IManager>("save", async function (next) {
+ProjectManagerSchema.pre<IProjectManager>("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
     const salt = await bcrypt.genSalt(10);
@@ -37,7 +34,7 @@ ProjectManagerSchema.pre<IManager>("save", async function (next) {
 });
 */
 
-export const ProjectManagerModel = mongoose.model<IManager>(
-  "Manager",
+export const ProjectManagerModel = mongoose.model<IProjectManager>(
+  "ProjectManager",
   ProjectManagerSchema
 );

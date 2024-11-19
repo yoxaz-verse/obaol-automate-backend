@@ -5,6 +5,7 @@ import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
 import ProjectManagerRepository from "../database/repositories/projectManager";
+import { hashPassword } from "../utils/passwordUtils";
 
 class ProjectManagerService {
   private projectManagerRepository: ProjectManagerRepository;
@@ -49,6 +50,8 @@ class ProjectManagerService {
 
   public async createProjectManager(req: Request, res: Response) {
     try {
+      // Hash password
+      req.body.password = await hashPassword(req.body.password);
       const newProjectManager =
         await this.projectManagerRepository.createProjectManager(req, req.body);
       res.status(201).json(newProjectManager);

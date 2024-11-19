@@ -5,6 +5,7 @@ import ActivityManagerRepository from "../database/repositories/activityManager"
 import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
+import { hashPassword } from "../utils/passwordUtils";
 
 class ActivityManagerService {
   private activityManagerRepository: ActivityManagerRepository;
@@ -23,8 +24,11 @@ class ActivityManagerService {
           pagination,
           search
         );
-        res.sendArrayFormatted(activityManagers, "Customers retrieved successfully");
-      } catch (error) {
+      res.sendArrayFormatted(
+        activityManagers,
+        "Customers retrieved successfully"
+      );
+    } catch (error) {
       await logError(error, req, "ActivityManagerService-getActivityManagers");
       res.status(500).json({ error: "Internal Server Error" });
     }
@@ -50,6 +54,8 @@ class ActivityManagerService {
 
   public async createActivityManager(req: Request, res: Response) {
     try {
+      // Hash password
+      req.body.password = await hashPassword(req.body.password);
       const newActivityManager =
         await this.activityManagerRepository.createActivityManager(
           req,

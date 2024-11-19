@@ -1,6 +1,5 @@
 import { Router } from "express";
 import AdminService from "../services/admin";
-import AuthMiddleware from "../middlewares/auth";
 import AdminMiddleware from "../middlewares/admin";
 import authorizeRoles from "../middlewares/roleMiddleware";
 import authenticateToken from "../middlewares/auth";
@@ -25,7 +24,12 @@ router.get(
 );
 
 // GET all admins
-router.get("/", adminService.getAdmins.bind(adminService));
+router.get(
+  "/",
+  authenticateToken,
+  authorizeRoles("Customer", "Admin"),
+  adminService.getAdmins.bind(adminService)
+);
 
 // GET admin by ID
 router.get(

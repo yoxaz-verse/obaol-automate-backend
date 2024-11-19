@@ -8,12 +8,7 @@ class LocationRepository {
     req: Request,
     pagination: { page: number; limit: number },
     search: string
-  ): Promise<{
-    data: ILocation[];
-    totalCount: number;
-    currentPage: number;
-    totalPages: number;
-  }> {
+  ) {
     try {
       const query: any = {};
       if (search) {
@@ -25,7 +20,7 @@ class LocationRepository {
       const currentPage = pagination.page;
 
       const locations = await LocationModel.find(query)
-        .populate("locationType", "name")
+        .populate("locationType")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();

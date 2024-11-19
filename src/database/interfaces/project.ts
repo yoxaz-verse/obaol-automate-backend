@@ -4,6 +4,7 @@ import { AdminModel } from "../models/admin";
 import { ManagerModel } from "../models/manager";
 import { ProjectStatusModel } from "../models/projectStatus";
 import { ProjectTypeModel } from "../models/projectType";
+import { LocationModel } from "@database/models/location";
 
 export interface IProject extends mongoose.Document {
   title: string;
@@ -15,6 +16,7 @@ export interface IProject extends mongoose.Document {
   manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
   status: mongoose.Schema.Types.ObjectId | typeof ProjectStatusModel;
   type: mongoose.Schema.Types.ObjectId | typeof ProjectTypeModel;
+  location: mongoose.Schema.Types.ObjectId | typeof LocationModel;
   task: string;
   orderNumber: string;
   assignmentDate: Date;

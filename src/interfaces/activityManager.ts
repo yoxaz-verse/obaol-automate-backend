@@ -8,7 +8,7 @@ export interface IActivityManager {
   name: string;
   password: string;
   admin: mongoose.Schema.Types.ObjectId; // Link to Admin
-  role: string; // Role of the activity manager
+  role: string; // Assign default role
 }
 
 export interface ICreateActivityManager {

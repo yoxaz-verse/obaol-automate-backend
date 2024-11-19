@@ -5,7 +5,6 @@ import bcrypt from "bcryptjs";
 import { Request, Response } from "express";
 import { AdminModel } from "../database/models/admin";
 import { CustomerModel } from "../database/models/customer";
-import { ManagerModel } from "../database/models/manager";
 import { WorkerModel } from "../database/models/worker";
 import {
   JWT_REFRESH_EXPIRE,
@@ -13,6 +12,8 @@ import {
   JWT_SECRET,
   NODE_ENV,
 } from "../config";
+import { ActivityManagerModel } from "../database/models/activityManager";
+import { ProjectManagerModel } from "../database/models/projectManager";
 interface UserModel {
   findOne: (query: object) => Promise<any>;
 }
@@ -23,8 +24,10 @@ const getUserModel = (role: string): UserModel | null => {
       return AdminModel;
     case "Customer":
       return CustomerModel;
-    case "Manager":
-      return ManagerModel;
+    case "ActivityManager":
+      return ActivityManagerModel;
+    case "ProjectManager":
+      return ProjectManagerModel;
     case "Worker":
       return WorkerModel;
     default:
@@ -34,6 +37,10 @@ const getUserModel = (role: string): UserModel | null => {
 
 export const authenticateUser = async (req: Request, res: Response) => {
   const { email, password, role } = req.body;
+  console.log("Got into authentication");
+  console.log(email);
+  console.log(password);
+  console.log(role);
 
   try {
     const userModel = getUserModel(role);
@@ -52,6 +59,9 @@ export const authenticateUser = async (req: Request, res: Response) => {
         message: "Authentication failed: Invalid email or password",
       });
     }
+
+    console.log(userModel);
+    console.log(user);
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {

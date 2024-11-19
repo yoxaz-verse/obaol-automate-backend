@@ -2,24 +2,7 @@ import mongoose from "mongoose";
 import { ActivityModel } from "./activity";
 import { WorkerModel } from "./worker";
 import { ManagerModel } from "./manager";
-
-interface ITimesheet extends mongoose.Document {
-  activity: mongoose.Schema.Types.ObjectId | typeof ActivityModel;
-  worker: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
-  manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
-  startTime: Date;
-  endTime: Date;
-  hoursSpent: number;
-  date: Date;
-  file: string;
-  isPending: boolean;
-  isRejected: boolean;
-  isAccepted: boolean;
-  isResubmitted: boolean;
-  rejectionReason: string[];
-  isDeleted: boolean;
-  isActive: boolean;
-}
+import { ITimesheet } from "../../interfaces/timesheet";
 
 const TimesheetSchema = new mongoose.Schema(
   {
@@ -54,4 +37,7 @@ const TimesheetSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const TimesheetModel = mongoose.model<ITimesheet>("Timesheet", TimesheetSchema);
+export const TimesheetModel = mongoose.model<ITimesheet>(
+  "Timesheet",
+  TimesheetSchema
+);

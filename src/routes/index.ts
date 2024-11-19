@@ -6,6 +6,8 @@ import customerRoute from "./customerRoute";
 import workerRoute from "./workerRoute";
 import adminRoute from "./adminRoute";
 
+import timeSheetRoute  from "./timesheetRoute";
+
 import activityStatusRoute from "./activityStatusRoute";
 import activityTypeRoute from "./activityTypeRoute";
 import activityRoute from "./activityRoute";
@@ -37,6 +39,9 @@ router.use(`${prefix}/manager`, managerRoute);
 router.use(`${prefix}/admin`, adminRoute);
 router.use(`${prefix}/customer`, customerRoute);
 router.use(`${prefix}/worker`, workerRoute);
+router.use(`${prefix}/worker`, workerRoute);
+
+router.use(`${prefix}/timeSheet`, timeSheetRoute);
 
 router.use(`${prefix}/projects`, projectRoute);
 router.use(`${prefix}/projectType`, projectTypeRoute);

@@ -3,17 +3,25 @@ import { logError } from "../../utils/errorLogger";
 import { Request } from "express";
 
 class ActivityRepository {
-  public async getActivities(req: Request, pagination: any, search: string) {
+  public async getActivities(
+    req: Request,
+    pagination: { page: number; limit: number },
+    search: string
+  ) {
     try {
       const query: any = {};
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
-      return await ActivityModel.find(query)
+      const totalCount = await ActivityModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      const currentPage = pagination.page;
+      const projects = await ActivityModel.find(query)
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
-        .populate("project workers updatedBy status type customer")
+        .populate("project workers  status type customer")
         .exec();
+      return { data: projects, totalCount, currentPage, totalPages };
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivities");
       throw error;
@@ -23,7 +31,7 @@ class ActivityRepository {
   public async getActivity(req: Request, id: string) {
     try {
       return await ActivityModel.findById(id)
-        .populate("project workers updatedBy status type customer")
+        .populate("project workers  status type customer")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivity");
@@ -46,7 +54,7 @@ class ActivityRepository {
       return await ActivityModel.findByIdAndUpdate(id, activityData, {
         new: true,
       })
-        .populate("project workers updatedBy status type customer")
+        .populate("project workers  status type customer")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-updateActivity");
@@ -63,7 +71,7 @@ class ActivityRepository {
           new: true,
         }
       )
-        .populate("project workers updatedBy status type customer")
+        .populate("project workers  status type customer")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-deleteActivity");

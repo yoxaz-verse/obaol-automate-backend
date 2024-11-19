@@ -1,5 +1,5 @@
 import { Router } from "express";
-import TimesheetService from "../services/timesheet";
+import TimesheetService from "../services/timeSheetRoute";
 import TimesheetMiddleware from "../middlewares/timesheet";
 
 const router = Router();

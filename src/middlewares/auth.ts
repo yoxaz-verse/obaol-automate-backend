@@ -32,8 +32,6 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   }
 
   try {
-    console.log(token, "sssasas");
-
     const decoded = jwt.verify(token, JWT_SECRET as string) as DecodedToken;
     req.user = decoded;
     console.log("Decoded token:", decoded);

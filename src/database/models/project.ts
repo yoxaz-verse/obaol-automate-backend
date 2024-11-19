@@ -22,9 +22,9 @@ const ProjectSchema = new mongoose.Schema(
       ref: "Admin",
       required: true,
     },
-    manager: {
+    projectManager: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Manager",
+      ref: "ProjectManager",
       required: true,
     },
     status: {
@@ -37,6 +37,7 @@ const ProjectSchema = new mongoose.Schema(
       ref: "ProjectType",
       required: true,
     },
+
     task: { type: String, required: true },
     orderNumber: { type: String, required: true },
     assignmentDate: { type: Date, required: true },
@@ -51,10 +52,17 @@ const ProjectSchema = new mongoose.Schema(
 );
 
 // Custom ID generator
-ProjectSchema.pre<IProject>("validate", function (next) {
+ProjectSchema.pre<IProject>("validate", async function (next) {
   if (!this.customId && this.isNew) {
+    await this.populate("location");
     const location = this.get("location");
-    if (location) {
+    if (
+      location &&
+      location.nation &&
+      location.city &&
+      location.region &&
+      location.province
+    ) {
       const customId = `${location.nation
         .slice(0, 2)
         .toUpperCase()}${location.city
@@ -63,6 +71,8 @@ ProjectSchema.pre<IProject>("validate", function (next) {
         .slice(0, 2)
         .toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
       this.customId = customId;
+    } else {
+      console.error("Incomplete location data for custom ID generation");
     }
   }
   next();

@@ -1,6 +1,5 @@
 import { Request } from "express";
 import { TimesheetModel } from "../models/timesheet";
-import { ITimesheet, ICreateTimesheet, IUpdateTimesheet } from "../../interfaces/timesheet";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 
@@ -10,7 +9,7 @@ class TimesheetRepository {
     pagination: IPagination,
     search: string
   ): Promise<{
-    data: ITimesheet[];
+    data: any;
     totalCount: number;
     currentPage: number;
     totalPages?: number;
@@ -21,12 +20,10 @@ class TimesheetRepository {
         query.file = { $regex: search, $options: "i" };
       }
       const timesheets = await TimesheetModel.find(query)
-        .populate("activity")
-        .populate("worker")
-        .populate("manager")
+        .populate("activity activityManager worker")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
-        .lean<ITimesheet[]>();
+        .lean<any[]>();
 
       const totalCount = await TimesheetModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
@@ -42,13 +39,11 @@ class TimesheetRepository {
     }
   }
 
-  public async getTimesheetById(req: Request, id: string): Promise<ITimesheet> {
+  public async getTimesheetById(req: Request, id: string): Promise<any> {
     try {
       const timesheet = await TimesheetModel.findById(id)
-        .populate("activity")
-        .populate("worker")
-        .populate("manager")
-        .lean<ITimesheet>();
+        .populate("activity activityManager worker")
+        .lean<any>();
       if (!timesheet || timesheet.isDeleted) {
         throw new Error("Timesheet not found");
       }
@@ -59,32 +54,30 @@ class TimesheetRepository {
     }
   }
 
-  public async createTimesheet(
-    req: Request,
-    timesheetData: ICreateTimesheet
-  ): Promise<ITimesheet> {
+  public async createTimesheet(req: Request, timesheetData: any): Promise<any> {
     try {
       const newTimesheet = await TimesheetModel.create(timesheetData);
-      return newTimesheet.toObject() as ITimesheet;
+      return newTimesheet;
     } catch (error) {
       await logError(error, req, "TimesheetRepository-createTimesheet");
       throw error;
     }
   }
-
   public async updateTimesheet(
     req: Request,
     id: string,
-    timesheetData: IUpdateTimesheet
-  ): Promise<ITimesheet> {
+    timesheetData: any
+  ): Promise<any> {
     try {
-      const updatedTimesheet = await TimesheetModel.findByIdAndUpdate(id, timesheetData, {
-        new: true,
-      })
-        .populate("activity")
-        .populate("worker")
-        .populate("manager")
-        .lean<ITimesheet>();
+      const updatedTimesheet = await TimesheetModel.findByIdAndUpdate(
+        id,
+        timesheetData,
+        {
+          new: true,
+        }
+      )
+        .populate("activity activityManager worker")
+        .lean<any>();
       if (!updatedTimesheet || updatedTimesheet.isDeleted) {
         throw new Error("Failed to update timesheet");
       }
@@ -95,17 +88,15 @@ class TimesheetRepository {
     }
   }
 
-  public async deleteTimesheet(req: Request, id: string): Promise<ITimesheet> {
+  public async deleteTimesheet(req: Request, id: string): Promise<any> {
     try {
       const deletedTimesheet = await TimesheetModel.findByIdAndUpdate(
         id,
         { isDeleted: true },
         { new: true }
       )
-        .populate("activity")
-        .populate("worker")
-        .populate("manager")
-        .lean<ITimesheet>();
+        .populate("activity activityManager worker")
+        .lean<any>();
       if (!deletedTimesheet) {
         throw new Error("Failed to delete timesheet");
       }

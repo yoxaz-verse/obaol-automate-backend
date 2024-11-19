@@ -18,7 +18,7 @@ class ProjectRepository {
       const currentPage = pagination.page;
 
       const projects = await ProjectModel.find(query)
-        .populate("customer admin manager status type")
+        .populate("customer admin projectManager location status type")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
@@ -33,7 +33,7 @@ class ProjectRepository {
   public async getProject(req: Request, id: string) {
     try {
       return await ProjectModel.findById(id)
-        .populate("customer admin manager status type")
+        .populate("customer admin projectManager location status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-getProject");
@@ -44,6 +44,7 @@ class ProjectRepository {
   public async createProject(req: Request, projectData: IProject) {
     try {
       console.log(projectData);
+      console.log("Its on Repos");
       const newProject = new ProjectModel(projectData);
       return await newProject.save();
     } catch (error) {
@@ -57,7 +58,7 @@ class ProjectRepository {
       return await ProjectModel.findByIdAndUpdate(id, projectData, {
         new: true,
       })
-        .populate("customer admin manager status type")
+        .populate("customer admin projectManager location status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-updateProject");
@@ -72,7 +73,7 @@ class ProjectRepository {
         { isDeleted: true },
         { new: true }
       )
-        .populate("customer admin manager status type")
+        .populate("customer admin projectManager location status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-deleteProject");

@@ -3,6 +3,7 @@ import CustomerRepository from "../database/repositories/customer";
 import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
+import { hashPassword } from "../utils/passwordUtils";
 
 class CustomerService {
   private customerRepository: CustomerRepository;
@@ -40,8 +41,13 @@ class CustomerService {
 
   public async createCustomer(req: Request, res: Response) {
     try {
+      // Hash password
       const customerData = req.body;
-      const newCustomer = await this.customerRepository.createCustomer(req, customerData);
+      customerData.password = await hashPassword(customerData.password);
+      const newCustomer = await this.customerRepository.createCustomer(
+        req,
+        customerData
+      );
       res.sendFormatted(newCustomer, "Customer created successfully", 201);
     } catch (error) {
       await logError(error, req, "CustomerService-createCustomer");
@@ -68,7 +74,10 @@ class CustomerService {
   public async deleteCustomer(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedCustomer = await this.customerRepository.deleteCustomer(req, id);
+      const deletedCustomer = await this.customerRepository.deleteCustomer(
+        req,
+        id
+      );
       res.sendFormatted(deletedCustomer, "Customer deleted successfully");
     } catch (error) {
       await logError(error, req, "CustomerService-deleteCustomer");

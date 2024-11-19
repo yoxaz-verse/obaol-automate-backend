@@ -6,7 +6,8 @@ const router = express.Router();
 const locationService = new LocationService();
 // const authMiddleware = new AuthMiddleware();
 
-router.get("/locations", locationService.getLocations.bind(locationService));
+router.get("/locations", 
+  locationService.getLocations.bind(locationService));
 router.get("/locations/:id", locationService.getLocation.bind(locationService));
 router.post("/locations", locationService.createLocation.bind(locationService));
 router.put(

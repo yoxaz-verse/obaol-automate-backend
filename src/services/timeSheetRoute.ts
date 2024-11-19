@@ -45,7 +45,7 @@ class TimesheetService {
     }
   }
 
-  public async updateTimesheet(req: Request, res: Response) {
+  public async   updateTimesheet(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const timesheetData = req.body;

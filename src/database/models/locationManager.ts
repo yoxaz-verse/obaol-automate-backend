@@ -4,14 +4,14 @@ import mongoose from "mongoose";
 interface ILocationManager extends mongoose.Document {
   code: string;
   name: string;
-  managingLocation: mongoose.Schema.Types.ObjectId | ILocation;
+  location: mongoose.Schema.Types.ObjectId | ILocation;
 }
 
 const LocationManagerSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, unique: true },
     name: { type: String, required: true },
-    managingLocation: {
+    location: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Location",
     },

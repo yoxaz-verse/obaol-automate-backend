@@ -4,27 +4,38 @@ import { IManager } from "./manager";
 import { IProjectStatus } from "./projectStatus";
 import { IProjectManager } from "./projectManager";
 
-export interface IProject {
-  _id: string;
+import mongoose from "mongoose";
+import { CustomerModel } from "../database/models/customer";
+import { AdminModel } from "../database/models/admin";
+import { ManagerModel } from "../database/models/manager";
+import { ProjectStatusModel } from "../database/models/projectStatus";
+import { ProjectTypeModel } from "../database/models/projectType";
+import { LocationModel } from "../database/models/location";
+import { ProjectManagerModel } from "../database/models/projectManager";
+
+export interface IProject extends mongoose.Document {
   title: string;
   description: string;
-  customId?: string;
-  budget: string;
+  customId: string;
   prevCustomId: string;
-  customer: ICustomer;
-  admin: IAdmin;
-  projectManager: IProjectManager;
-  status: IProjectStatus;
-  statusHistory: IProjectStatus[];
+  customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
+  admin: mongoose.Schema.Types.ObjectId | typeof AdminModel;
+  projectManager: mongoose.Schema.Types.ObjectId | typeof ProjectManagerModel;
+  status: mongoose.Schema.Types.ObjectId | typeof ProjectStatusModel;
+  type: mongoose.Schema.Types.ObjectId | typeof ProjectTypeModel;
+  location: mongoose.Schema.Types.ObjectId | typeof LocationModel;
+  task: string;
+  orderNumber: string;
+  assignmentDate: Date;
+  schedaRadioDate: Date;
+  statusHistory: mongoose.Schema.Types.ObjectId[];
   isActive: boolean;
   isDeleted: boolean;
-  // Add any additional fields if necessary
 }
 
 export interface ICreateProject {
   title: string;
   description: string;
-  budget: string;
   customer: string; // Customer ID
   admin: string; // Admin ID
   projectManager: string; // Project ID
@@ -35,7 +46,6 @@ export interface ICreateProject {
 export interface IUpdateProject {
   title?: string;
   description?: string;
-  budget?: string;
   customer?: string; // Customer ID
   admin?: string; // Admin ID
   projectManager?: string; // Manager ID

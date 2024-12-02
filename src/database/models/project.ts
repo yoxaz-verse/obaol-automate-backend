@@ -1,11 +1,11 @@
+import { IProject } from "../../interfaces/project";
 import mongoose from "mongoose";
-import { IProject } from "../interfaces/project";
 
 const ProjectSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: { type: String, required: true },
-    customId: { type: String },
+    customId: { type: String, unique: true }, // Ensure uniqueness
     prevCustomId: { type: String },
     location: {
       type: mongoose.Schema.Types.ObjectId,
@@ -52,27 +52,27 @@ const ProjectSchema = new mongoose.Schema(
 );
 
 // Custom ID generator
-ProjectSchema.pre<IProject>("validate", async function (next) {
+ProjectSchema.pre<IProject>("save", async function (next) {
   if (!this.customId && this.isNew) {
     await this.populate("location");
-    const location = this.get("location");
+    const location = this.location as any;
+
     if (
-      location &&
-      location.nation &&
-      location.city &&
-      location.region &&
-      location.province
+      location?.nation &&
+      location?.city &&
+      location?.region &&
+      location?.province
     ) {
-      const customId = `${location.nation
+      this.customId = `${this.title.slice(0, 2).toUpperCase()}${location.nation
         .slice(0, 2)
         .toUpperCase()}${location.city
         .slice(0, 2)
         .toUpperCase()}${location.region
         .slice(0, 2)
         .toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
-      this.customId = customId;
     } else {
-      console.error("Incomplete location data for custom ID generation");
+      console.warn("Incomplete location data for custom ID generation.");
+      this.customId = `${this.title.slice(0, 5).toUpperCase()}-${Date.now()}`;
     }
   }
   next();

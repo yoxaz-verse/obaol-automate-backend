@@ -11,11 +11,43 @@ class ActivityService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
+      const { projectId } = req.query; // Optional project filter
+      const userId = req.user?.id; // User ID from middleware
+      const userRole = req.user?.role; // User Role from middleware
+
+      const filters: any = {};
+
+      console.log("Its coming here");
+
+      if (projectId) {
+        // If projectId is provided, filter by it
+        filters.project = projectId;
+      }
+      console.log("Its coming here two");
+
+      // Role-based filtering
+      if (userRole === "customer") {
+        filters.customer = userId; // Customers see their activities
+      } else if (userRole === "activityManager" || userRole === "worker") {
+        filters.workers = { $in: [userId] }; // ActivityManager/Worker see assigned activities
+      } else if (userRole === "projectManager") {
+        if (!projectId) {
+          // If no projectId, only include activities for projects managed by the user
+          filters["project.manager"] = userId;
+        }
+      } else if (userRole === "admin") {
+        // Admins see all activities
+      } else {
+        // return res.status(403).send({ message: "Access denied" });
+      }
+
       const activities = await this.activityRepository.getActivities(
         req,
         pagination,
-        search
+        search,
+        filters
       );
+
       res.sendFormatted(activities, "Activities retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ActivityService-getActivities");
@@ -27,7 +59,7 @@ class ActivityService {
     try {
       const { id } = req.params;
       const activity = await this.activityRepository.getActivity(req, id);
-      res.sendFormatted(activity, "Activity retrieved successfully", 200);
+      res.json(activity);
     } catch (error) {
       await logError(error, req, "ActivityService-getActivity");
       res.sendError(error, "Failed to retrieve activity", 500);

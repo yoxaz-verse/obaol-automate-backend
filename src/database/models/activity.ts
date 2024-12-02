@@ -5,6 +5,7 @@ import { ManagerModel } from "./manager";
 import { CustomerModel } from "./customer";
 import { ActivityStatusModel } from "./activityStatus";
 import { ActivityTypeModel } from "./activityType";
+import { ActivityManagerModel } from "./activityManager";
 
 interface IActivity extends mongoose.Document {
   title: string;
@@ -14,7 +15,8 @@ interface IActivity extends mongoose.Document {
   actualDate: Date;
   targetOperationDate: Date;
   targetFinanceDate: Date;
-  workers: Array<mongoose.Schema.Types.ObjectId | typeof WorkerModel>;
+  activityManager: mongoose.Schema.Types.ObjectId | typeof ActivityManagerModel;
+  worker: Array<mongoose.Schema.Types.ObjectId | typeof WorkerModel>;
   // updatedBy:
   //   | mongoose.Schema.Types.ObjectId
   //   | typeof WorkerModel
@@ -53,7 +55,7 @@ const ActivitySchema = new mongoose.Schema(
     actualDate: { type: Date, required: true },
     targetFinanceDate: { type: Date, required: true },
     targetOperationDate: { type: Date, required: true },
-    workers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Worker" }],
+    worker: [{ type: mongoose.Schema.Types.ObjectId, ref: "Worker" }],
     // updatedBy: {
     //   type: mongoose.Schema.Types.ObjectId,
     //   refPath: "updatedByModel",
@@ -88,6 +90,11 @@ const ActivitySchema = new mongoose.Schema(
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
+      required: true,
+    },
+    activityManager: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ActivityManager",
       required: true,
     },
     isPending: { type: Boolean, default: true },

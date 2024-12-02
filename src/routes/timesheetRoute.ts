@@ -1,40 +1,42 @@
 import { Router } from "express";
-import TimesheetService from "../services/timeSheetRoute";
+import TimeSheetService from "../services/timeSheet";
 import TimesheetMiddleware from "../middlewares/timesheet";
+import authenticateToken from "../middlewares/auth";
 
 const router = Router();
-const timesheetService = new TimesheetService();
-const timesheetMiddleware = new TimesheetMiddleware();
+const timeSheetService = new TimeSheetService();
+const timeSheetMiddleware = new TimesheetMiddleware();
 
-// GET all timesheets
-router.get("/", timesheetService.getTimesheets.bind(timesheetService));
+// GET all timeSheet
+router.get("/", timeSheetService.getTimeSheets.bind(timeSheetService));
 
-// GET timesheet by ID
+// GET timeSheet by ID
 router.get(
   "/:id",
-  timesheetMiddleware.validateGet.bind(timesheetMiddleware),
-  timesheetService.getTimesheet.bind(timesheetService)
+  timeSheetMiddleware.validateGet.bind(timeSheetMiddleware),
+  timeSheetService.getTimeSheet.bind(timeSheetService)
 );
 
-// CREATE a new timesheet
+// CREATE a new timeSheet
 router.post(
   "/",
-  timesheetMiddleware.validateCreate.bind(timesheetMiddleware),
-  timesheetService.createTimesheet.bind(timesheetService)
+  authenticateToken,
+  timeSheetMiddleware.validateCreate.bind(timeSheetMiddleware),
+  timeSheetService.createTimeSheet.bind(timeSheetService)
 );
 
-// UPDATE a timesheet
+// UPDATE a timeSheet
 router.patch(
   "/:id",
-  timesheetMiddleware.validateUpdate.bind(timesheetMiddleware),
-  timesheetService.updateTimesheet.bind(timesheetService)
+  timeSheetMiddleware.validateUpdate.bind(timeSheetMiddleware),
+  timeSheetService.updateTimeSheet.bind(timeSheetService)
 );
 
-// DELETE a timesheet
+// DELETE a timeSheet
 router.delete(
   "/:id",
-  timesheetMiddleware.validateDelete.bind(timesheetMiddleware),
-  timesheetService.deleteTimesheet.bind(timesheetService)
+  timeSheetMiddleware.validateDelete.bind(timeSheetMiddleware),
+  timeSheetService.deleteTimeSheet.bind(timeSheetService)
 );
 
 export default router;

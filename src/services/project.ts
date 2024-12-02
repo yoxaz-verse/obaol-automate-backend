@@ -24,23 +24,46 @@ class ProjectService {
   }
 
   public async getProject(req: Request, res: Response) {
+    // try {
+    //   const { id } = req.params;
+    //   const project = await this.projectRepository.getProject(req, id);
+    //   res.sendFormatted(project, "Project retrieved successfully", 200);
+    // } catch (error) {
+    //   await logError(error, req, "ProjectService-getProject");
+    //   res.sendError(error, "Failed to retrieve project", 500);
+    // }
     try {
-      const { id } = req.params;
-      const project = await this.projectRepository.getProject(req, id);
-      res.sendFormatted(project, "Project retrieved successfully", 200);
+      const project = await this.projectRepository.getProject(
+        req,
+        req.params.id
+      );
+      res.json(project);
     } catch (error) {
-      await logError(error, req, "ProjectService-getProject");
-      res.sendError(error, "Failed to retrieve project", 500);
+      await logError(error, req, "ProjectManagerService-getProjectManagerById");
+      res.status(404).json({ error: error });
     }
   }
 
   public async createProject(req: Request, res: Response) {
     try {
       const projectData = req.body;
+
+      // Create the project
       const newProject = await this.projectRepository.createProject(
         req,
         projectData
       );
+      if (!newProject._id) {
+        return;
+      }
+      // Set initial status (for example, "Created")
+      // const initialStatusId = "64e1f0123b9e3c456789abcd"; // Replace with actual status ID for "Created"
+      // await this.projectRepository.updateProjectStatus(
+      //   req,
+      //   newProject._id as any,
+      //   initialStatusId as any
+      // );
+
       res.sendFormatted(newProject, "Project created successfully", 201);
     } catch (error) {
       await logError(error, req, "ProjectService-createProject");
@@ -52,11 +75,23 @@ class ProjectService {
     try {
       const { id } = req.params;
       const projectData = req.body;
+
+      // Update the project data
       const updatedProject = await this.projectRepository.updateProject(
         req,
         id,
         projectData
       );
+
+      // Handle status updates if `status` is included in the payload
+      if (projectData.status) {
+        await this.projectRepository.updateProjectStatus(
+          req,
+          id,
+          projectData.status
+        );
+      }
+
       res.sendFormatted(updatedProject, "Project updated successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-updateProject");

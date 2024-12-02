@@ -1,15 +1,12 @@
-import { IActivity } from "./activity";
-import { IWorker } from "./worker";
-import { IManager } from "./manager";
 import mongoose from "mongoose";
 import { ActivityModel } from "@database/models/activity";
 import { WorkerModel } from "@database/models/worker";
-import { ManagerModel } from "@database/models/manager";
+import { ActivityManagerModel } from "../database/models/activityManager";
 
 export interface IUpdateTimesheet {
   activity?: string; // Activity ID
   worker?: string; // Worker ID
-  manager?: string; // Manager ID
+  note?: string;
   startTime?: Date;
   endTime?: Date;
   hoursSpent?: number;
@@ -19,7 +16,6 @@ export interface IUpdateTimesheet {
   isRejected?: boolean;
   isAccepted?: boolean;
   isResubmitted?: boolean;
-  rejectionReason?: string[];
   isDeleted?: boolean;
   isActive?: boolean;
   // Add any additional fields if necessary
@@ -27,18 +23,19 @@ export interface IUpdateTimesheet {
 
 export interface ITimesheet extends mongoose.Document {
   activity: mongoose.Schema.Types.ObjectId | typeof ActivityModel;
-  worker: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
-  manager: mongoose.Schema.Types.ObjectId | typeof ManagerModel;
+  worker?: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
+  createdBy: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
+  createdByRole: string;
+  note?: string;
   startTime: Date;
   endTime: Date;
   hoursSpent: number;
   date: Date;
   file: string;
-  isPending: boolean;
-  isRejected: boolean;
-  isAccepted: boolean;
-  isResubmitted: boolean;
-  rejectionReason: string[];
-  isDeleted: boolean;
-  isActive: boolean;
+  isPending?: boolean;
+  isRejected?: boolean;
+  isAccepted?: boolean;
+  isResubmitted?: boolean;
+  isDeleted?: boolean;
+  isActive?: boolean;
 }

@@ -13,7 +13,7 @@ export interface IActivity {
   forecastDate: Date;
   actualDate: Date;
   targetDate: Date;
-  workers: IWorker[];
+  worker: IWorker[];
   updatedBy: IWorker | IManager;
   hoursSpent: number;
   statusHistory: IActivityStatus[];

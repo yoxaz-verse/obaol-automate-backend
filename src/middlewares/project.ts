@@ -6,7 +6,6 @@ class ProjectMiddleware {
     const schema = Joi.object({
       title: Joi.string().required(),
       description: Joi.string().required(),
-      prevCustomId: Joi.string().optional(),
       customer: Joi.string().required(),
       admin: Joi.string().required(),
       location: Joi.string().required(),
@@ -17,9 +16,6 @@ class ProjectMiddleware {
       orderNumber: Joi.string().required(),
       assignmentDate: Joi.date().required(),
       schedaRadioDate: Joi.date().required(),
-      statusHistory: Joi.array().items(Joi.string()),
-      isActive: Joi.boolean(),
-      isDeleted: Joi.boolean(),
     });
 
     const { error } = schema.validate(req.body);

@@ -601,3 +601,135 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3d
 2024-11-19T15:26:32.704Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
 2024-11-19T15:28:09.069Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
 2024-11-19T16:41:45.502Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-19T17:16:50.790Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-19T21:08:51.583Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-28T06:01:08.017Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-28T06:04:05.066Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-28T06:19:16.338Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-28T09:21:56.810Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-28T10:10:09.665Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-28T10:24:12.755Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-28T10:26:18.916Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-28T10:32:32.245Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-28T18:01:47.943Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-28T18:10:02.505Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-28T18:24:04.992Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-29T05:52:59.676Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-29T06:03:35.531Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-29T06:06:46.455Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-29T06:08:45.939Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-29T06:10:46.066Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-29T06:15:43.372Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-29T06:22:03.153Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-29T07:04:50.262Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-29T07:14:05.008Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-29T07:20:01.225Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-29T07:24:31.585Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-29T07:26:03.583Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-29T07:28:58.859Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-29T07:30:21.571Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-29T07:36:13.090Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-29T07:38:49.983Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-29T10:50:20.845Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-29T20:37:57.507Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-29T21:01:22.211Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-29T21:03:53.713Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-30T10:26:18.835Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-30T10:26:52.147Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-30T10:27:50.383Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-30T10:31:08.335Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-30T11:03:25.599Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-30T13:11:01.035Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-11-30T13:13:17.317Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-11-30T13:16:30.419Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-11-30T18:57:09.585Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-30T18:57:17.659Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-30T18:57:26.490Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-30T19:26:04.483Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-30T19:26:36.680Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-30T19:26:54.981Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-30T19:27:14.388Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-11-30T19:38:13.007Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T04:56:03.674Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T05:34:34.784Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T05:38:01.944Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T05:53:42.640Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T05:57:14.302Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T05:58:24.392Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T07:15:07.837Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T07:26:06.780Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-01T07:26:56.126Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-01T07:30:47.084Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T07:51:18.179Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-01T07:57:25.207Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T08:03:23.532Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T08:05:35.624Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T08:08:28.260Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T08:09:24.338Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T08:12:50.268Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-01T08:17:44.493Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T08:20:00.105Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T08:22:07.034Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-01T12:03:29.607Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:03:57.754Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:04:21.483Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:05:06.958Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:06:07.156Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:06:24.839Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:08:09.176Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:08:45.834Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:08:55.199Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:11:21.291Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:13:09.689Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:14:37.932Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:15:01.900Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:16:08.547Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:26:14.094Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:26:37.096Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:27:04.639Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:27:20.660Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:28:22.116Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:29:47.690Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:31:04.441Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:36:07.261Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:36:35.452Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:57:54.294Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T12:58:28.555Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T14:23:30.488Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T14:26:28.116Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-01T14:43:24.867Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-01T15:06:36.839Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-01T18:00:09.380Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-01T19:41:35.175Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-02T05:01:30.902Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T11:50:14.463Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T11:59:31.282Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T12:01:24.480Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T12:06:47.856Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T12:09:30.328Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T12:22:07.667Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T12:22:51.676Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T12:24:56.826Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T12:40:23.147Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T12:46:14.798Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T12:51:12.895Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T12:54:46.442Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T13:06:29.107Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T13:07:38.580Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T13:12:01.779Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T13:14:09.988Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T13:15:00.184Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T13:28:30.916Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T13:31:11.991Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T13:32:57.949Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T16:19:26.808Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T16:25:05.102Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T16:28:42.627Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T16:29:24.722Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-02T16:44:16.725Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T16:48:31.199Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T16:56:18.477Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T17:23:54.649Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-02T17:31:22.618Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T17:31:56.618Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-02T17:40:24.557Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 

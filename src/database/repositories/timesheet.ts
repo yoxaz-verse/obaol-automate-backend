@@ -1,13 +1,14 @@
 import { Request } from "express";
-import { TimesheetModel } from "../models/timesheet";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
+import { TimesheetModel } from "../../database/models/timesheet";
 
-class TimesheetRepository {
-  public async getTimesheets(
+class TimeSheetRepository {
+  public async getTimeSheets(
     req: Request,
     pagination: IPagination,
-    search: string
+    search: string,
+    filters: any
   ): Promise<{
     data: any;
     totalCount: number;
@@ -15,11 +16,11 @@ class TimesheetRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = {};
+      const query: any = { ...filters }; // Combine projectId and role-based filters
       if (search) {
         query.file = { $regex: search, $options: "i" };
       }
-      const timesheets = await TimesheetModel.find(query)
+      const timeSheets = await TimesheetModel.find(query)
         .populate("activity activityManager worker")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
@@ -28,84 +29,85 @@ class TimesheetRepository {
       const totalCount = await TimesheetModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       return {
-        data: timesheets,
+        data: timeSheets,
         totalCount,
         currentPage: pagination.page,
         totalPages,
       };
     } catch (error) {
-      await logError(error, req, "TimesheetRepository-getTimesheets");
+      await logError(error, req, "TimeSheetRepository-getTimeSheets");
       throw error;
     }
   }
 
-  public async getTimesheetById(req: Request, id: string): Promise<any> {
+  public async getTimeSheetById(req: Request, id: string): Promise<any> {
     try {
-      const timesheet = await TimesheetModel.findById(id)
+      const timeSheet = await TimesheetModel.findById(id)
         .populate("activity activityManager worker")
         .lean<any>();
-      if (!timesheet || timesheet.isDeleted) {
-        throw new Error("Timesheet not found");
+      if (!timeSheet || timeSheet.isDeleted) {
+        throw new Error("TimeSheet not found");
       }
-      return timesheet;
+      return timeSheet;
     } catch (error) {
-      await logError(error, req, "TimesheetRepository-getTimesheetById");
+      await logError(error, req, "TimeSheetRepository-getTimeSheetById");
       throw error;
     }
   }
 
-  public async createTimesheet(req: Request, timesheetData: any): Promise<any> {
+  public async createTimeSheet(req: Request, timeSheetData: any): Promise<any> {
     try {
-      const newTimesheet = await TimesheetModel.create(timesheetData);
-      return newTimesheet;
+      const newTimeSheet = await TimesheetModel.create(timeSheetData);
+      return newTimeSheet;
     } catch (error) {
-      await logError(error, req, "TimesheetRepository-createTimesheet");
+      await logError(error, req, "TimeSheetRepository-createTimeSheet");
       throw error;
     }
   }
-  public async updateTimesheet(
+
+  public async updateTimeSheet(
     req: Request,
     id: string,
-    timesheetData: any
+    timeSheetData: any
   ): Promise<any> {
     try {
-      const updatedTimesheet = await TimesheetModel.findByIdAndUpdate(
+      const updatedTimeSheet = await TimesheetModel.findByIdAndUpdate(
         id,
-        timesheetData,
+        timeSheetData,
         {
           new: true,
         }
       )
         .populate("activity activityManager worker")
         .lean<any>();
-      if (!updatedTimesheet || updatedTimesheet.isDeleted) {
-        throw new Error("Failed to update timesheet");
+      if (!updatedTimeSheet || updatedTimeSheet.isDeleted) {
+        throw new Error("Failed to update timeSheet");
       }
-      return updatedTimesheet;
+      return updatedTimeSheet;
     } catch (error) {
-      await logError(error, req, "TimesheetRepository-updateTimesheet");
+      await logError(error, req, "TimeSheetRepository-updateTimeSheet");
       throw error;
     }
   }
 
-  public async deleteTimesheet(req: Request, id: string): Promise<any> {
+  public async deleteTimeSheet(req: Request, id: string): Promise<any> {
     try {
-      const deletedTimesheet = await TimesheetModel.findByIdAndUpdate(
+      const deletedTimeSheet = await TimesheetModel.findByIdAndUpdate(
         id,
         { isDeleted: true },
         { new: true }
       )
         .populate("activity activityManager worker")
         .lean<any>();
-      if (!deletedTimesheet) {
-        throw new Error("Failed to delete timesheet");
+      if (!deletedTimeSheet) {
+        throw new Error("Failed to delete timeSheet");
       }
-      return deletedTimesheet;
+      return deletedTimeSheet;
     } catch (error) {
-      await logError(error, req, "TimesheetRepository-deleteTimesheet");
+      await logError(error, req, "TimeSheetRepository-deleteTimeSheet");
       throw error;
     }
   }
 }
 
-export default TimesheetRepository;
+export default TimeSheetRepository;

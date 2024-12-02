@@ -6,22 +6,40 @@ class ActivityRepository {
   public async getActivities(
     req: Request,
     pagination: { page: number; limit: number },
-    search: string
+    search: string,
+    filters: any
   ) {
     try {
-      const query: any = {};
+      const query: any = { ...filters }; // Combine projectId and role-based filters
+
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
+
       const totalCount = await ActivityModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;
-      const projects = await ActivityModel.find(query)
+      console.log("Its over here");
+
+      const activities = await ActivityModel.find(query)
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
-        .populate("project workers  status type customer")
+        .populate({
+          path: "project",
+          populate: { path: "projectManager", select: "name email" }, // Populate project manager details
+        })
+        .populate({
+          path: "worker", // Populate workers field
+          select: "name", // Limit fields to include
+        })
+
+        .populate("status type customer activityManager")
+        .select("-updatedBy -updatedByModel") // Exclude updatedBy fields
         .exec();
-      return { data: projects, totalCount, currentPage, totalPages };
+
+      console.log(activities);
+
+      return { data: activities, totalCount, currentPage, totalPages };
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivities");
       throw error;
@@ -31,7 +49,7 @@ class ActivityRepository {
   public async getActivity(req: Request, id: string) {
     try {
       return await ActivityModel.findById(id)
-        .populate("project workers  status type customer")
+        .populate("project worker status type customer activityManager")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivity");

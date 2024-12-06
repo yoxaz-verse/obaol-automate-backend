@@ -3,20 +3,24 @@
 import { Router } from "express";
 import { validateProjectManager } from "../middlewares/projectManager";
 import ProjectManagerService from "../services/ProjectManager";
+import authenticateToken from "../middlewares/auth";
 
 const router = Router();
 const projectManagerService = new ProjectManagerService();
 
 router.get(
   "/",
+  authenticateToken,
   projectManagerService.getProjectManagers.bind(projectManagerService)
 );
 router.get(
   "/:id",
+  authenticateToken,
   projectManagerService.getProjectManagerById.bind(projectManagerService)
 );
 router.post(
   "/",
+  authenticateToken,
   validateProjectManager,
   projectManagerService.createProjectManager.bind(projectManagerService)
 );
@@ -27,6 +31,7 @@ router.put(
 );
 router.delete(
   "/:id",
+  authenticateToken,
   projectManagerService.deleteProjectManager.bind(projectManagerService)
 );
 

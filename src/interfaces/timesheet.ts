@@ -13,11 +13,9 @@ export interface IUpdateTimesheet {
   date?: Date;
   fileId?: string; // Identifier for the uploaded file
   fileURL?: string; // URL to access the uploaded file (optional)  isPending?: boolean;
+  isPending?: boolean;
   isRejected?: boolean;
   isAccepted?: boolean;
-  isResubmitted?: boolean;
-  isDeleted?: boolean;
-  isActive?: boolean;
   // Add any additional fields if necessary
 }
 
@@ -36,6 +34,4 @@ export interface ITimesheet extends mongoose.Document {
   isRejected?: boolean;
   isAccepted?: boolean;
   isResubmitted?: boolean;
-  isDeleted?: boolean;
-  isActive?: boolean;
 }

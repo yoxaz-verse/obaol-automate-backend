@@ -19,7 +19,6 @@ export interface IProject extends mongoose.Document {
   customId: string;
   prevCustomId: string;
   customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
-  admin: mongoose.Schema.Types.ObjectId | typeof AdminModel;
   projectManager: mongoose.Schema.Types.ObjectId | typeof ProjectManagerModel;
   status: mongoose.Schema.Types.ObjectId | typeof ProjectStatusModel;
   type: mongoose.Schema.Types.ObjectId | typeof ProjectTypeModel;
@@ -37,9 +36,7 @@ export interface ICreateProject {
   title: string;
   description: string;
   customer: string; // Customer ID
-  admin: string; // Admin ID
   projectManager: string; // Project ID
-  status: string; // ProjectStatus ID
   // Add any additional fields if necessary
 }
 
@@ -47,8 +44,7 @@ export interface IUpdateProject {
   title?: string;
   description?: string;
   customer?: string; // Customer ID
-  admin?: string; // Admin ID
-  projectManager?: string; // Manager ID
+   projectManager?: string; // Manager ID
   status?: string; // ProjectStatus ID
   isActive?: boolean;
   isDeleted?: boolean;

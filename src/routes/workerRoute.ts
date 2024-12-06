@@ -1,32 +1,40 @@
-import { Router } from 'express';
-import WorkerService from '../services/worker';
-import WorkerMiddleware from '../middlewares/worker';
+import { Router } from "express";
+import WorkerService from "../services/worker";
+import WorkerMiddleware from "../middlewares/worker";
+import authenticateToken from "../middlewares/auth";
 
 const workerRoute = Router();
 const workerService = new WorkerService();
 const workerMiddleware = new WorkerMiddleware();
 
-workerRoute.get('/', workerService.getWorkers.bind(workerService));
 workerRoute.get(
-  '/:id',
+  "/",
+  authenticateToken,
+  workerService.getWorkers.bind(workerService)
+);
+workerRoute.get(
+  "/:id",
+  authenticateToken,
   workerMiddleware.getWorker.bind(workerMiddleware),
   workerService.getWorker.bind(workerService)
 );
 workerRoute.post(
-  '/',
+  "/",
+  authenticateToken,
   workerMiddleware.createWorker.bind(workerMiddleware),
   workerService.createWorker.bind(workerService)
 );
 workerRoute.patch(
-  '/:id',
+  "/:id",
+  authenticateToken,
   workerMiddleware.updateWorker.bind(workerMiddleware),
   workerService.updateWorker.bind(workerService)
 );
 workerRoute.delete(
-  '/:id',
+  "/:id",
+  authenticateToken,
   workerMiddleware.deleteWorker.bind(workerMiddleware),
   workerService.deleteWorker.bind(workerService)
 );
 
 export default workerRoute;
-

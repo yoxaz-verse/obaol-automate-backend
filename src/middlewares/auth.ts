@@ -34,7 +34,6 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET as string) as DecodedToken;
     req.user = decoded;
-    console.log("Decoded token:", req.user);
     next();
   } catch (error: any) {
     console.log("Token verification failed:", error.message);

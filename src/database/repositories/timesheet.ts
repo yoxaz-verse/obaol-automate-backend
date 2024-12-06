@@ -2,6 +2,7 @@ import { Request } from "express";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 import { TimesheetModel } from "../../database/models/timesheet";
+import { ITimesheet } from "@interfaces/timesheet";
 
 class TimeSheetRepository {
   public async getTimeSheets(
@@ -16,12 +17,13 @@ class TimeSheetRepository {
     totalPages?: number;
   }> {
     try {
-      const query: any = { ...filters }; // Combine projectId and role-based filters
+      const query: any = { ...filters }; // Combine dynamic filters
       if (search) {
         query.file = { $regex: search, $options: "i" };
       }
+
       const timeSheets = await TimesheetModel.find(query)
-        .populate("activity activityManager worker")
+        .populate("activity worker")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
         .lean<any[]>();
@@ -68,17 +70,18 @@ class TimeSheetRepository {
   public async updateTimeSheet(
     req: Request,
     id: string,
-    timeSheetData: any
-  ): Promise<any> {
+    updateData: Partial<ITimesheet>
+  ): Promise<ITimesheet> {
     try {
       const updatedTimeSheet = await TimesheetModel.findByIdAndUpdate(
         id,
-        timeSheetData,
+        updateData,
         {
-          new: true,
+          new: true, // Return the updated document
+          runValidators: true, // Run schema validations
         }
       )
-        .populate("activity activityManager worker")
+        .populate("activity worker")
         .lean<any>();
       if (!updatedTimeSheet || updatedTimeSheet.isDeleted) {
         throw new Error("Failed to update timeSheet");
@@ -97,7 +100,7 @@ class TimeSheetRepository {
         { isDeleted: true },
         { new: true }
       )
-        .populate("activity activityManager worker")
+        .populate("activity worker")
         .lean<any>();
       if (!deletedTimeSheet) {
         throw new Error("Failed to delete timeSheet");

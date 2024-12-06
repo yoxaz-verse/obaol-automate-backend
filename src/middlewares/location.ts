@@ -4,15 +4,7 @@ class LocationMiddleware {
   public async validateCreate(req: Request, res: Response, next: NextFunction) {
     const { name, address, city, latitude, longitude, fileId, fileURL } =
       req.body;
-    if (
-      !name ||
-      !address ||
-      !city ||
-      !latitude ||
-      !longitude ||
-      !fileId ||
-      !fileURL
-    ) {
+    if (!name || !address || !city || !latitude || !longitude) {
       return res
         .status(400)
         .send("Missing required fields for creating a location");

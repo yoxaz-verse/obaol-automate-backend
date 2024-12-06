@@ -3,66 +3,79 @@ import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
 import ProjectRepository from "../database/repositories/project";
+import { ProjectStatusModel } from "../database/models/projectStatus";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
 
+  /**
+   * Get all projects with pagination and search.
+   */
   public async getProjects(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
+  
+      // Extract status from query params
+      const { status } = req.query;
+  
+      // Pass the status to the repository function
       const projects = await this.projectRepository.getProjects(
         req,
         pagination,
-        search
+        search,
+        status as string // Cast status as string (if needed)
       );
+  
       res.sendFormatted(projects, "Projects retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-getProjects");
       res.sendError(error, "Failed to retrieve projects", 500);
     }
   }
-
+  
+  /**
+   * Get a specific project by ID.
+   */
   public async getProject(req: Request, res: Response) {
-    // try {
-    //   const { id } = req.params;
-    //   const project = await this.projectRepository.getProject(req, id);
-    //   res.sendFormatted(project, "Project retrieved successfully", 200);
-    // } catch (error) {
-    //   await logError(error, req, "ProjectService-getProject");
-    //   res.sendError(error, "Failed to retrieve project", 500);
-    // }
     try {
-      const project = await this.projectRepository.getProject(
-        req,
-        req.params.id
-      );
+      const { id } = req.params;
+      const project = await this.projectRepository.getProject(req, id);
+      if (!project) {
+        res.sendError(null, "Project not found", 404);
+        return;
+      }
       res.json(project);
     } catch (error) {
-      await logError(error, req, "ProjectManagerService-getProjectManagerById");
-      res.status(404).json({ error: error });
+      await logError(error, req, "ProjectService-getProject");
+      res.sendError(error, "Failed to retrieve project", 500);
     }
   }
 
+  /**
+   * Create a new project with an initial status of "Created".
+   */
   public async createProject(req: Request, res: Response) {
     try {
       const projectData = req.body;
+
+      // Fetch the "Created" status ID
+      const createdStatus = await ProjectStatusModel.findOne({
+        name: "Open",
+      });
+      if (!createdStatus) {
+        res.sendError(null, "Initial status 'Created' not found", 400);
+        return;
+      }
+
+      // Attach the "Created" status to the new project
+      projectData.status = createdStatus._id;
 
       // Create the project
       const newProject = await this.projectRepository.createProject(
         req,
         projectData
       );
-      if (!newProject._id) {
-        return;
-      }
-      // Set initial status (for example, "Created")
-      // const initialStatusId = "64e1f0123b9e3c456789abcd"; // Replace with actual status ID for "Created"
-      // await this.projectRepository.updateProjectStatus(
-      //   req,
-      //   newProject._id as any,
-      //   initialStatusId as any
-      // );
 
       res.sendFormatted(newProject, "Project created successfully", 201);
     } catch (error) {
@@ -71,6 +84,9 @@ class ProjectService {
     }
   }
 
+  /**
+   * Update an existing project's data and handle status updates.
+   */
   public async updateProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -83,8 +99,26 @@ class ProjectService {
         projectData
       );
 
-      // Handle status updates if `status` is included in the payload
+      // Handle special statuses if `status` is included in the payload
       if (projectData.status) {
+        const specialStatuses = ["Suspended", "Blocked", "Closed"];
+        const statusDetails = await ProjectStatusModel.findById(
+          projectData.status
+        );
+
+        if (!statusDetails) {
+          res.sendError(null, "Invalid status", 400);
+          return;
+        }
+
+        if (specialStatuses.includes(statusDetails.name)) {
+          // Additional logic can be added here for special status handling if required
+          console.log(
+            `Project ${id} updated to special status: ${statusDetails.name}`
+          );
+        }
+
+        // Update the status of the project
         await this.projectRepository.updateProjectStatus(
           req,
           id,
@@ -99,6 +133,9 @@ class ProjectService {
     }
   }
 
+  /**
+   * Delete a project by ID.
+   */
   public async deleteProject(req: Request, res: Response) {
     try {
       const { id } = req.params;

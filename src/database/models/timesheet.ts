@@ -33,8 +33,6 @@ const TimesheetSchema = new mongoose.Schema(
     isRejected: { type: Boolean, default: false },
     isAccepted: { type: Boolean, default: false },
     isResubmitted: { type: Boolean, default: false },
-    isDeleted: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

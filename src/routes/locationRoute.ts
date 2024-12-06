@@ -38,13 +38,13 @@ locationRoute.get(
 );
 locationRoute.post(
   "/",
-  upload.single("image"),
+  // upload.single("image"),
   locationMiddleware.validateCreate.bind(locationMiddleware),
   locationService.createLocation.bind(locationService)
 );
 locationRoute.patch(
   "/:id",
-  upload.single("image"),
+  // upload.single("image"),
   locationMiddleware.validateUpdate.bind(locationMiddleware),
   locationService.updateLocation.bind(locationService)
 );

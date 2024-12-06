@@ -5,36 +5,46 @@ import { IProject } from "@interfaces/project";
 import mongoose from "mongoose";
 
 class ProjectRepository {
-  public async getProjects(
-    req: Request,
-    pagination: { page: number; limit: number },
-    search: string
-  ) {
-    try {
-      const query: any = { isDeleted: false };
-      if (search) query.title = { $regex: search, $options: "i" };
+// GET all projects
+public async getProjects(
+  req: Request,
+  pagination: { page: number; limit: number },
+  search: string,
+  status?: string // Optional status parameter
+) {
+  try {
+    const query: any = { isDeleted: false };
 
-      const totalCount = await ProjectModel.countDocuments(query);
-      const totalPages = Math.ceil(totalCount / pagination.limit);
-      const currentPage = pagination.page;
+    // Add search condition
+    if (search) query.title = { $regex: search, $options: "i" };
 
-      const projects = await ProjectModel.find(query)
-        .populate("status customer admin projectManager location type")
-        .skip((pagination.page - 1) * pagination.limit)
-        .limit(pagination.limit)
-        .exec();
+    // Add status condition if provided
+    if (status) query.status = status;
 
-      return { data: projects, totalCount, currentPage, totalPages };
-    } catch (error) {
-      await logError(error, req, "ProjectRepository-getProjects");
-      throw error;
-    }
+    // Count total matching documents
+    const totalCount = await ProjectModel.countDocuments(query);
+    const totalPages = Math.ceil(totalCount / pagination.limit);
+    const currentPage = pagination.page;
+
+    // Fetch projects with pagination and population
+    const projects = await ProjectModel.find(query)
+      .populate("status customer projectManager location type")
+      .skip((pagination.page - 1) * pagination.limit)
+      .limit(pagination.limit)
+      .exec();
+
+    return { data: projects, totalCount, currentPage, totalPages };
+  } catch (error) {
+    await logError(error, req, "ProjectRepository-getProjects");
+    throw error;
   }
+}
+
 
   public async getProject(req: Request, id: string) {
     try {
       return await ProjectModel.findById(id)
-        .populate("customer admin projectManager location status type")
+        .populate("customer projectManager location status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-getProject");
@@ -54,7 +64,7 @@ class ProjectRepository {
     //   throw error;
     // }
     try {
-        console.log(projectData);
+      console.log(projectData);
 
       const newProject = await ProjectModel.create(projectData);
       return newProject;
@@ -69,7 +79,7 @@ class ProjectRepository {
       return await ProjectModel.findByIdAndUpdate(id, projectData, {
         new: true,
       })
-        .populate("customer admin projectManager location status type")
+        .populate("customer projectManager location status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-updateProject");
@@ -108,7 +118,7 @@ class ProjectRepository {
         { isDeleted: true },
         { new: true }
       )
-        .populate("customer admin projectManager location status type")
+        .populate("customer projectManager location status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-deleteProject");

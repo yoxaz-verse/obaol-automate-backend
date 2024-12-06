@@ -8,38 +8,38 @@ import { ActivityTypeModel } from "./activityType";
 import { ActivityManagerModel } from "./activityManager";
 
 interface IActivity extends mongoose.Document {
+  // Basic details
   title: string;
   description: string;
   project: mongoose.Schema.Types.ObjectId | typeof ProjectModel;
-  forecastDate: Date;
-  actualDate: Date;
-  targetOperationDate: Date;
-  targetFinanceDate: Date;
+  forecastDate?: Date;
+  actualDate?: Date;
+  targetOperationDate?: Date;
+  targetFinanceDate?: Date;
+
+  // Management and assignment
   activityManager: mongoose.Schema.Types.ObjectId | typeof ActivityManagerModel;
   worker: Array<mongoose.Schema.Types.ObjectId | typeof WorkerModel>;
-  // updatedBy:
-  //   | mongoose.Schema.Types.ObjectId
-  //   | typeof WorkerModel
-  //   | typeof ManagerModel;
-  updatedByModel: string; // Field to support refPath
-  hoursSpent: number;
+
+  // Status and tracking
+  updatedBy: string; // Role of the user who last updated the activity
   statusHistory: Array<
     mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel
   >;
   status: mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel;
-  type: mongoose.Schema.Types.ObjectId | typeof ActivityTypeModel;
-  workCompleteStatus: boolean;
-  managerFullStatus: boolean;
-  customerStatus: boolean;
-  isSubmitted: boolean;
-  isAccepted: boolean;
-  isRejected: boolean;
-  rejectionReason: string[];
+  previousStatus?: mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel; // Previous status (for suspension/blocking)
+
+  // Rejection and reasoning
+  rejectionReason: string[]; // List of reasons for rejection
+
+  // Customer association
   customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
-  isPending: boolean;
-  isOnHold: boolean;
-  isDisabled: boolean;
-  isDeleted: boolean;
+
+  // Activity type
+  type: mongoose.Schema.Types.ObjectId | typeof ActivityTypeModel;
+
+  // Additional tracking
+  hoursSpent: number; // Hours spent on the activity
 }
 
 const ActivitySchema = new mongoose.Schema(
@@ -51,27 +51,22 @@ const ActivitySchema = new mongoose.Schema(
       ref: "Project",
       required: true,
     },
-    forecastDate: { type: Date, required: true },
-    actualDate: { type: Date, required: true },
-    targetFinanceDate: { type: Date, required: true },
-    targetOperationDate: { type: Date, required: true },
+    forecastDate: { type: Date },
+    actualDate: { type: Date },
+    targetFinanceDate: { type: Date },
+    targetOperationDate: { type: Date },
     worker: [{ type: mongoose.Schema.Types.ObjectId, ref: "Worker" }],
-    // updatedBy: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   refPath: "updatedByModel",
-    //   required: true,
-    // },
     type: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ActivityType",
       required: true,
     },
-    updatedByModel: {
+    updatedBy: {
       type: String,
       required: true,
-      enum: ["Worker", "Manager"],
+      enum: ["Worker", "ActivityManager", "ProjectManager", "Admin"],
     },
-    hoursSpent: { type: Number, required: true },
+    hoursSpent: { type: Number },
     statusHistory: [
       { type: mongoose.Schema.Types.ObjectId, ref: "ActivityStatus" },
     ],
@@ -80,27 +75,17 @@ const ActivitySchema = new mongoose.Schema(
       ref: "ActivityStatus",
       required: true,
     },
-    workCompleteStatus: { type: Boolean, default: false },
-    managerFullStatus: { type: Boolean, default: false },
-    customerStatus: { type: Boolean, default: false },
-    isSubmitted: { type: Boolean, default: false },
-    isAccepted: { type: Boolean, default: false },
-    isRejected: { type: Boolean, default: false },
-    rejectionReason: [{ type: String, default: "" }],
-    customer: {
+    previousStatus: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Customer",
-      required: true,
-    },
+      ref: "ActivityStatus",
+    }, // For suspension/blocking
+    rejectionReason: [{ type: String, default: "" }],
+
     activityManager: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ActivityManager",
       required: true,
     },
-    isPending: { type: Boolean, default: true },
-    isOnHold: { type: Boolean, default: false },
-    isDisabled: { type: Boolean, default: false },
-    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

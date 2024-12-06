@@ -13,7 +13,6 @@ class LocationService {
 
   public async getLocations(req: Request, res: Response) {
     try {
-      console.log("Into Get Location");
 
       const pagination = paginationHandler(req);
       const search = searchHandler(req);

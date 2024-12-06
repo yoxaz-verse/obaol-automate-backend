@@ -19,25 +19,14 @@ class ActivityRepository {
       const totalCount = await ActivityModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;
-      console.log("Its over here");
 
       const activities = await ActivityModel.find(query)
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
-        .populate({
-          path: "project",
-          populate: { path: "projectManager", select: "name email" }, // Populate project manager details
-        })
-        .populate({
-          path: "worker", // Populate workers field
-          select: "name", // Limit fields to include
-        })
 
-        .populate("status type customer activityManager")
-        .select("-updatedBy -updatedByModel") // Exclude updatedBy fields
+        .populate("status type activityManager")
+        // .select("-updatedBy") // Exclude updatedBy fields
         .exec();
-
-      console.log(activities);
 
       return { data: activities, totalCount, currentPage, totalPages };
     } catch (error) {
@@ -49,7 +38,7 @@ class ActivityRepository {
   public async getActivity(req: Request, id: string) {
     try {
       return await ActivityModel.findById(id)
-        .populate("project worker status type customer activityManager")
+        .populate("project worker status type activityManager")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivity");
@@ -72,7 +61,7 @@ class ActivityRepository {
       return await ActivityModel.findByIdAndUpdate(id, activityData, {
         new: true,
       })
-        .populate("project workers  status type customer")
+        .populate("project worker status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-updateActivity");
@@ -89,7 +78,7 @@ class ActivityRepository {
           new: true,
         }
       )
-        .populate("project workers  status type customer")
+        .populate("project worker status type")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-deleteActivity");

@@ -23,10 +23,14 @@ class TimeSheetRepository {
       }
 
       const timeSheets = await TimesheetModel.find(query)
-        .populate("activity worker")
+        .populate("activity")
+        .populate({
+          path: "createdBy", // Populate the createdBy field
+          select: "name email", // Select specific fields if needed
+        })
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)
-        .lean<any[]>();
+        .lean<any[]>(); // Convert to plain objects
 
       const totalCount = await TimesheetModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
@@ -81,7 +85,7 @@ class TimeSheetRepository {
           runValidators: true, // Run schema validations
         }
       )
-        .populate("activity worker")
+        .populate("activity")
         .lean<any>();
       if (!updatedTimeSheet || updatedTimeSheet.isDeleted) {
         throw new Error("Failed to update timeSheet");
@@ -100,7 +104,7 @@ class TimeSheetRepository {
         { isDeleted: true },
         { new: true }
       )
-        .populate("activity worker")
+        .populate("activity")
         .lean<any>();
       if (!deletedTimeSheet) {
         throw new Error("Failed to delete timeSheet");

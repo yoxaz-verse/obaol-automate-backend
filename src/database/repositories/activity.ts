@@ -1,6 +1,7 @@
 import { ActivityModel } from "../models/activity";
 import { logError } from "../../utils/errorLogger";
 import { Request } from "express";
+import path from "path";
 
 class ActivityRepository {
   public async getActivities(
@@ -38,7 +39,11 @@ class ActivityRepository {
   public async getActivity(req: Request, id: string) {
     try {
       return await ActivityModel.findById(id)
-        .populate("project worker status type activityManager")
+        .populate({
+          path: "project",
+          populate: "location",
+        })
+        .populate("worker status type activityManager")
         .exec();
     } catch (error) {
       await logError(error, req, "ActivityRepository-getActivity");

@@ -42,6 +42,7 @@ class TimeSheetService {
         search,
         filters
       );
+
       res.sendArrayFormatted(timeSheets, "TimeSheets retrieved successfully");
     } catch (error) {
       await logError(error, req, "TimeSheetService-getTimeSheets");
@@ -77,11 +78,6 @@ class TimeSheetService {
       // Automatically add createdBy and createdByRole
       timeSheetData.createdBy = id; // Add user ID from token
       timeSheetData.createdByRole = role; // Add user role from token
-
-      // Role-specific logic
-      if (role === "Worker") {
-        timeSheetData.worker = id; // Assume worker ID matches token ID
-      }
 
       // Validate required fields
       const { date, startTime, endTime } = timeSheetData;
@@ -131,12 +127,12 @@ class TimeSheetService {
     try {
       const { id } = req.params;
       const { status } = req.body;
-  
+
       // Validate that 'status' is present in the payload
       if (!status || typeof status !== "string") {
         throw new Error("Invalid status value provided.");
       }
-  
+
       // Define the valid status fields
       const validStatuses = [
         "isPending",
@@ -144,34 +140,36 @@ class TimeSheetService {
         "isRejected",
         "isResubmitted",
       ];
-  
+
       // Check if the provided status is valid
       if (!validStatuses.includes(status)) {
         throw new Error(
           `Invalid status. Allowed statuses are: ${validStatuses.join(", ")}`
         );
       }
-  
+
       // Create an object to update only the specified status
       const updateData: Record<string, boolean> = {};
       validStatuses.forEach((key) => {
         updateData[key] = key === status; // Only the specified status is set to true
       });
-  
+
       // Update the timesheet with the new status
       const updatedTimeSheet = await this.timeSheetRepository.updateTimeSheet(
         req,
         id,
         updateData
       );
-  
-      res.sendFormatted(updatedTimeSheet, "TimeSheet status updated successfully");
+
+      res.sendFormatted(
+        updatedTimeSheet,
+        "TimeSheet status updated successfully"
+      );
     } catch (error) {
       await logError(error, req, "TimeSheetService-updateTimeSheet");
       res.sendError(error, "TimeSheet status update failed");
     }
   }
-  
 
   public async deleteTimeSheet(req: Request, res: Response) {
     try {

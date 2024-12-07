@@ -5,7 +5,8 @@ import { ActivityManagerModel } from "../database/models/activityManager";
 
 export interface IUpdateTimesheet {
   activity?: string; // Activity ID
-  worker?: string; // Worker ID
+  createdByRole: string;
+  createdBy: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
   note?: string;
   startTime?: Date;
   endTime?: Date;
@@ -21,8 +22,7 @@ export interface IUpdateTimesheet {
 
 export interface ITimesheet extends mongoose.Document {
   activity: mongoose.Schema.Types.ObjectId | typeof ActivityModel;
-  worker?: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
-  createdBy: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
+  createdBy: mongoose.Schema.Types.ObjectId;
   createdByRole: string;
   note?: string;
   startTime: Date;

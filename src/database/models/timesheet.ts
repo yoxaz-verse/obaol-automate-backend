@@ -8,11 +8,7 @@ const TimesheetSchema = new mongoose.Schema(
       ref: "Activity",
       required: true,
     },
-    worker: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Worker",
-      required: false, // Make this optional
-    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       refPath: "createdByRole",

@@ -3,46 +3,32 @@ import ActivityRepository from "../database/repositories/activity";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
+import { ActivityStatusModel } from "../database/models/activityStatus";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
 
+  /**
+   * Fetch a paginated list of activities with dynamic filters based on the user's role.
+   */
   public async getActivities(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
 
-      const { projectId, status } = req.query; // Optional project and status filters
+      const { status, projectId } = req.query; // Optional project and status filters
       const userId = req.user?.id; // User ID from middleware
       const userRole = req.user?.role; // User Role from middleware
-      console.log(userRole);
+      const projectIdString =
+        typeof projectId === "string" ? projectId : undefined;
+      const statusString = typeof status === "string" ? status : undefined;
 
-      const filters: any = {};
-
-      // Add project-based filtering
-      if (projectId) {
-        filters.project = projectId;
-      }
-
-      // Add status-based filtering
-      if (status) {
-        filters.status = status;
-      }
-
-      // Role-based filtering
-      if (userRole === "Customer") {
-        filters.customer = userId; // Customers see their activities
-      } else if (userRole === "ActivityManager" || userRole === "Worker") {
-        filters.workers = { $in: [userId] }; // ActivityManager/Worker see assigned activities
-      } else if (userRole === "ProjectManager") {
-        if (!projectId) {
-          filters["project.projectManager"] = userId; // ProjectManager sees their managed activities
-        }
-      } else if (userRole === "Admin") {
-        // Admins see all activities
-      } else {
-        return res.status(403).send({ message: "Access denied" });
-      }
+      const filters = this.getFilters(
+        userRole,
+        userId,
+        projectIdString,
+        statusString
+      );
 
       const activities = await this.activityRepository.getActivities(
         req,
@@ -58,10 +44,18 @@ class ActivityService {
     }
   }
 
+  /**
+   * Fetch a single activity by its ID.
+   */
   public async getActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const activity = await this.activityRepository.getActivity(req, id);
+
+      if (!activity) {
+        return res.status(404).json({ message: "Activity not found" });
+      }
+
       res.json(activity);
     } catch (error) {
       await logError(error, req, "ActivityService-getActivity");
@@ -69,26 +63,12 @@ class ActivityService {
     }
   }
 
+  /**
+   * Create a new activity with appropriate default values and status.
+   */
   public async createActivity(req: Request, res: Response) {
     try {
-      const activityData = req.body;
-
-      // Set default values
-      activityData.hoursSpent = 0;
-      activityData.updatedBy = req.user?.role;
-
-      // Set initial status
-      let status;
-      if (!activityData.targetOperationDate) {
-        status = "6752d3c4c3e6e2bbc4769eae"; // No Target Status
-      } else if (!activityData.forecastDate) {
-        status = "675175dd21b483f14e02b7ee"; // To Be Planned
-      } else if (!activityData.worker || activityData.worker.length === 0) {
-        status = "675175d221b483f14e02b7ec"; // To Be Assigned
-      } else {
-        status = "675175ea21b483f14e02b7f0"; // In Progress
-      }
-      activityData.status = status;
+      const activityData = this.initializeActivityData(req);
 
       const newActivity = await this.activityRepository.createActivity(
         req,
@@ -102,47 +82,41 @@ class ActivityService {
     }
   }
 
+  /**
+   * Update an existing activity with dynamic status transitions and validation.
+   */
   public async updateActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const activityData = req.body;
 
-      // Update 'updatedBy' field
       activityData.updatedBy = req.user?.role;
 
-      // Retrieve the current activity
       const currentActivity = await this.activityRepository.getActivity(
         req,
         id
       );
+      if (!currentActivity) {
+        return res.status(404).json({ message: "Activity not found" });
+      }
 
-      // Determine status transitions
-      if (activityData.fileSubmitted) {
-        activityData.status = "6751760121b483f14e02b7fa"; // Submitted
-      } else if (activityData.customerApproved) {
-        activityData.status = "6751777221b483f14e02b838"; // Approved
-      } else if (activityData.customerRejected) {
-        activityData.status = "6751778921b483f14e02b83a"; // Rejected
-      } else if (req.user?.role === "ActivityManager" && activityData.suspend) {
-        activityData.status = "6751781121b483f14e02b840"; // Suspended
-      } else if (
-        req.user?.role === "Admin" &&
-        activityData.unblock &&
-        currentActivity
-      ) {
-        activityData.status = currentActivity.previousStatus; // Revert to previous status
-      } else {
-        // Other logic for status updates based on field changes
-        if (!activityData.forecastDate) {
-          activityData.status = "675175dd21b483f14e02b7ee"; // To Be Planned
-        } else if (!activityData.worker || activityData.worker.length === 0) {
-          activityData.status = "675175d221b483f14e02b7ec"; // To Be Assigned
-        } else if (
-          activityData.forecastDate &&
-          activityData.worker?.length > 0
-        ) {
-          activityData.status = "675175ea21b483f14e02b7f0"; // In Progress
+      if (activityData.status) {
+        const isValidStatus = await this.validateStatus(activityData.status);
+        if (!isValidStatus) {
+          return res
+            .status(400)
+            .json({ message: "Invalid or inactive status ID provided" });
         }
+      } else {
+        activityData.status = this.determineNewStatus(
+          activityData,
+          currentActivity,
+          req.user?.role
+        );
+      }
+
+      if (currentActivity.status !== activityData.status) {
+        activityData.previousStatus = currentActivity.status;
       }
 
       const updatedActivity = await this.activityRepository.updateActivity(
@@ -158,17 +132,143 @@ class ActivityService {
     }
   }
 
+  /**
+   * Delete an activity by its ID.
+   */
   public async deleteActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
+
       const deletedActivity = await this.activityRepository.deleteActivity(
         req,
         id
       );
+
       res.sendFormatted(deletedActivity, "Activity deleted successfully", 200);
     } catch (error) {
       await logError(error, req, "ActivityService-deleteActivity");
       res.sendError(error, "Activity deletion failed", 500);
+    }
+  }
+
+  /**
+   * Dynamically build filters based on user role and query parameters.
+   */
+  private getFilters(
+    userRole: string | undefined,
+    userId: string | undefined,
+    projectId: string | undefined,
+    status: string | undefined
+  ): Record<string, any> {
+    const filters: any = {};
+
+    // Handle projectId properly with type casting
+    if (projectId && typeof projectId === "string") {
+      filters.project = projectId;
+    }
+
+    if (status) filters.status = status;
+
+    if (userRole) {
+      switch (userRole) {
+        case "Customer":
+          filters.customer = userId;
+          break;
+        case "ActivityManager":
+        case "Worker":
+          filters.workers = { $in: [userId] };
+          break;
+        case "ProjectManager":
+          if (!projectId) filters["project.projectManager"] = userId;
+          break;
+        case "Admin":
+          break;
+        default:
+          throw new Error("Access denied");
+      }
+    }
+
+    return filters;
+  }
+
+  /**
+   * Initialize default values for a new activity.
+   */
+  private initializeActivityData(req: Request): any {
+    const activityData = req.body;
+
+    activityData.hoursSpent = 0;
+    activityData.updatedBy = req.user?.role;
+
+    const statusMap = {
+      noTarget: "6752d3c4c3e6e2bbc4769eae",
+      toBePlanned: "675175dd21b483f14e02b7ee",
+      toBeAssigned: "675175d221b483f14e02b7ec",
+      inProgress: "675175ea21b483f14e02b7f0",
+    };
+
+    if (!activityData.targetOperationDate) {
+      activityData.status = statusMap.noTarget;
+    } else if (!activityData.forecastDate) {
+      activityData.status = statusMap.toBePlanned;
+    } else if (!activityData.worker || activityData.worker.length === 0) {
+      activityData.status = statusMap.toBeAssigned;
+    } else {
+      activityData.status = statusMap.inProgress;
+    }
+
+    return activityData;
+  }
+
+  /**
+   * Validate if a given status ID is active and valid.
+   */
+  private async validateStatus(statusId: string): Promise<boolean> {
+    const statusExists = await ActivityStatusModel.exists({
+      _id: statusId,
+      isActive: true,
+    });
+    return !!statusExists;
+  }
+
+  /**
+   * Determine the new status based on activity data and user role.
+   */
+  private determineNewStatus(
+    activityData: any,
+    currentActivity: any,
+    userRole?: string
+  ): string {
+    const statusMap = {
+      submitted: "675175ea21b483f14e02b7ef",
+      approved: "675175ea21b483f14e02b7f1",
+      rejected: "675175ea21b483f14e02b7f2",
+      suspended: "675175ea21b483f14e02b7f3",
+      created: "675175ea21b483f14e02b7f4",
+      toBePlanned: "675175dd21b483f14e02b7ee",
+      toBeAssigned: "675175d221b483f14e02b7ec",
+      inProgress: "675175ea21b483f14e02b7f0",
+    };
+
+    if (activityData.fileSubmitted) {
+      return statusMap.submitted;
+    } else if (activityData.customerApproved) {
+      return statusMap.approved;
+    } else if (activityData.customerRejected) {
+      return statusMap.rejected;
+    } else if (
+      ["ActivityManager", "ProjectManager", "Admin"].includes(userRole || "") &&
+      activityData.suspend
+    ) {
+      return statusMap.suspended;
+    } else if (userRole === "Admin" && activityData.unblock) {
+      return currentActivity.previousStatus || statusMap.created;
+    } else if (!activityData.forecastDate) {
+      return statusMap.toBePlanned;
+    } else if (!activityData.worker || activityData.worker.length === 0) {
+      return statusMap.toBeAssigned;
+    } else {
+      return statusMap.inProgress;
     }
   }
 }

@@ -10,6 +10,7 @@ import timeSheetRoute from "./timesheetRoute";
 
 import activityStatusRoute from "./activityStatusRoute";
 import activityTypeRoute from "./activityTypeRoute";
+import activityFileRoute from "./activityFileRoute";
 import activityRoute from "./activityRoute";
 import projectTypeRoute from "./projectTypeRoute";
 import projectRoute from "./projectRoute";
@@ -48,6 +49,7 @@ router.use(`${prefix}/projectStatus`, projectStatusRoute);
 router.use(`${prefix}/projectManager`, projectManagerRoute);
 
 router.use(`${prefix}/activity`, activityRoute);
+router.use(`${prefix}/activityFile`, activityFileRoute);
 router.use(`${prefix}/activityStatus`, activityStatusRoute);
 router.use(`${prefix}/activityType`, activityTypeRoute);
 router.use(`${prefix}/activityManager`, activityManagerRoute);
@@ -59,7 +61,7 @@ router.use(`${prefix}/locationManager`, locationManagerRoute);
 router.use(`${prefix}/location`, locationRoute);
 
 //file
-router.use(`${prefix}/upload`, fileRoute);
+// router.use(`${prefix}/upload`, fileRoute);
 
 // Export the main router
 export default router;

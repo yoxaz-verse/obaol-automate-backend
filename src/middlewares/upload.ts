@@ -1,53 +1,54 @@
 // src/middlewares/upload.ts
-
 import multer, { FileFilterCallback } from "multer";
 import path from "path";
 import fs from "fs";
 import sanitize from "sanitize-filename";
 import logger from "../utils/logger";
 import envVars from "../config/validateEnv";
+import { ActivityModel } from "../database/models/activity";
 
-// Define storage configuration with dynamic destination
+// Dynamic folder structure for different entity types based on URL params
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: async (req, file, cb) => {
     try {
-      const entities = req.body.entities;
-      let parsedEntities = entities;
+      // Extract parameters from the request body
+      const { projectId, activityId, locationId } = req.body;
 
-      // Parse entities if sent as JSON string
-      if (typeof entities === "string") {
-        parsedEntities = JSON.parse(entities);
-      }
-
-      if (
-        !parsedEntities ||
-        !Array.isArray(parsedEntities) ||
-        parsedEntities.length === 0
-      ) {
-        throw new Error("Entities array is required.");
-      }
-
-      // Build folder path
-      const sanitizedEntities = parsedEntities.map((ent: any) => {
-        if (!ent.entity || !ent.entityId) {
-          throw new Error("Each entity must have 'entity' and 'entityId'.");
+      // Check if `activityId` exists, fetch `projectId` from the database
+      if (activityId) {
+        let projectId: string | undefined = undefined;
+        const activity = await ActivityModel.findById(activityId)
+          .select("project")
+          .lean();
+        if (!activity) {
+          throw new Error(`Activity with ID ${activityId} not found.`);
         }
-        return `${sanitize(ent.entity)}-${sanitize(ent.entityId)}`;
-      });
+        // projectId = activity.id.toString();
+      }
 
-      const folderPath = path.join(...sanitizedEntities);
+      // Dynamically build folder path based on entity type
+      let folderPath = "";
+
+      if (projectId) {
+        folderPath = path.join("project", sanitize(projectId));
+        if (activityId) {
+          folderPath = path.join(folderPath, "activity", sanitize(activityId));
+        }
+      } else if (locationId) {
+        folderPath = path.join("location", sanitize(locationId));
+      } else {
+        throw new Error("Entity type not found in the URL parameters.");
+      }
+
+      // Set the base upload directory
       const uploadDir = envVars.UPLOAD_DIR || "uploads";
       const uploadPath = path.join(__dirname, `../../${uploadDir}`, folderPath);
 
-      // Create the directory if it doesn't exist
+      // Create the folder if it doesn't exist
       fs.mkdir(uploadPath, { recursive: true }, (err) => {
         if (err) {
-          logger.error("Error creating upload directory.", {
-            error: err.message,
-          });
           cb(err, "");
         } else {
-          logger.info("Setting dynamic upload destination.", { uploadPath });
           cb(null, uploadPath);
         }
       });
@@ -65,36 +66,22 @@ const storage = multer.diskStorage({
       ""
     );
     cb(null, `${uniqueSuffix}-${sanitizedFileName}`);
-    logger.info("Generating unique filename.", {
-      filename: `${uniqueSuffix}-${sanitizedFileName}`,
-    });
   },
 });
 
-// File filter to validate file types
+// File filter to allow any file type (no restrictions)
 const fileFilter = (
   req: any,
   file: Express.Multer.File,
   cb: FileFilterCallback
 ) => {
-  const allowedMimeTypes = [
-    "image/jpeg",
-    "image/png",
-    "application/pdf",
-    "image/gif",
-  ];
-  if (allowedMimeTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    logger.warn("Invalid file type attempted.", { mimetype: file.mimetype });
-    cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", "file"));
-  }
+  cb(null, true); // Allow all file types
 };
 
 // Initialize Multer
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
   fileFilter,
 });
 

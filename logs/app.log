@@ -833,3 +833,123 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3d
 2024-12-07T16:14:22.879Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
 2024-12-07T16:15:16.358Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
 2024-12-07T16:58:51.295Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-08T04:58:14.809Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-09T04:42:37.578Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-09T14:59:28.858Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-09T15:02:31.128Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T15:35:06.158Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-09T16:25:34.070Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T17:02:46.590Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T17:30:35.852Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-09T18:31:57.868Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T18:36:48.232Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-09T20:35:08.994Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND italy-activity-shard-00-01.kk3db.mongodb.net"}
+2024-12-09T20:36:46.186Z [ERROR]: MongoDB Connection Error: {"error":"connect EHOSTUNREACH 13.200.81.250:27017"}
+2024-12-09T20:39:38.807Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-09T20:51:52.413Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T20:56:56.780Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T21:02:07.721Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T21:46:25.810Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:46:26.019Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:46:26.342Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:46:26.968Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:56:13.160Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-09T21:56:27.477Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:56:27.682Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:56:28.003Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:56:28.631Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:57:43.264Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T21:59:47.920Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:59:48.137Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:59:48.463Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T21:59:49.095Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T22:01:08.510Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-09T22:01:15.122Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T22:01:15.322Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T22:01:15.658Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T22:01:16.279Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-09T22:02:25.653Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-12T04:53:31.369Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-12T05:05:43.820Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-12T05:12:44.826Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-12T09:48:32.041Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-12T09:59:23.739Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-12T10:01:14.908Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-12T10:02:21.807Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-12-12T10:03:27.339Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-12T10:07:52.859Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T10:07:53.144Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T10:07:53.565Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T10:07:54.276Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T10:22:58.897Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T10:22:59.270Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T10:22:59.786Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T10:23:00.672Z [ERROR]: Error setting upload destination. {"error":"Entity type not found in the URL parameters."}
+2024-12-12T13:26:08.290Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-12T16:45:37.083Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-12T16:57:40.818Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-12-13T09:23:49.229Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-12-13T09:26:30.373Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-12-13T09:28:29.004Z [ERROR]: MongoDB Connection Error: {"error":"Server selection timed out after 30000 ms"}
+2024-12-13T09:35:53.707Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-13T10:02:50.760Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-13T10:08:29.777Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-13T10:10:59.537Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-13T18:55:17.368Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T14:45:47.576Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-14T14:46:31.524Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-12-14T14:52:14.647Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-14T14:55:04.796Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T15:31:57.405Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T15:51:42.962Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T16:09:14.817Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T16:10:07.760Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T16:17:46.843Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T16:19:43.590Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T16:20:14.969Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T16:21:06.000Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T16:22:48.528Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T16:23:00.270Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T16:26:56.841Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T16:27:39.605Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T16:30:26.606Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T16:51:52.454Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-14T16:53:16.804Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T17:02:14.741Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T17:15:58.512Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T17:46:54.543Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T17:56:51.939Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T17:58:28.188Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T17:59:25.210Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T17:59:40.447Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T17:59:52.170Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T18:00:14.236Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T18:11:10.863Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T18:17:45.457Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T18:18:20.026Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T18:20:15.148Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T18:20:42.576Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T18:29:02.188Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T18:33:07.401Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-14T18:33:25.258Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-14T18:34:51.985Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T18:37:22.111Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T18:38:14.503Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T18:38:44.334Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2024-12-14T18:42:24.625Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T18:45:29.069Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T20:39:06.636Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T20:40:43.501Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T20:45:18.416Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T20:47:27.451Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T20:52:23.782Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T20:53:36.362Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T20:55:51.251Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T20:57:25.659Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-14T21:01:20.881Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T21:26:42.242Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2024-12-14T21:30:30.114Z [INFO]: MongoDB Connected: italy-activity-shard-00-01.kk3db.mongodb.net 
+2024-12-14T21:32:28.033Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-15T05:09:04.476Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2024-12-15T05:10:30.966Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2024-12-15T17:05:19.039Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 

@@ -9,6 +9,7 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import routes from "./routes";
 import path from "path"; // Import path to handle file paths
+import apiLogger from "./middlewares/apiLogger";
 
 const app = express();
 
@@ -40,7 +41,7 @@ app.use(
     credentials: true,
   })
 );
-
+// app.use(apiLogger);
 // Logging middleware
 app.use(morgan("common"));
 

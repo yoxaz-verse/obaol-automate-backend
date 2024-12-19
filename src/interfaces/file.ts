@@ -1,22 +1,17 @@
 // src/interfaces/file.ts
 
 export interface IFile {
-  _id: string;
   imageName: string;
   mimeType: string;
-  size: string;
+  size: number;
   path: string;
-  folderPath: string;
-  entity: string;
-  entityId: string;
+  url: string;
 }
 
 export interface ICreateFile {
   imageName: string;
   mimeType: string;
-  size: string;
+  size: number;
   path: string;
-  folderPath: string;
-  entity: string;
-  entityId: string;
+  url: string;
 }

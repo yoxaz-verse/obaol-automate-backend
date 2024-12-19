@@ -1,124 +1,139 @@
 // src/controllers/fileController.ts
-
-import { Request, Response, NextFunction } from "express";
-import logger from "../utils/logger";
-import path from "path";
-import envVars from "../config/validateEnv"; // Ensure envVars is correctly imported
 import FileService from "../services/file";
+import { Request, Response } from "express";
 
 class FileController {
-  private fileService: FileService;
+  private fileService = new FileService();
 
-  constructor() {
-    this.fileService = new FileService();
-  }
-
-  // Handle File Upload (Single and Multiple)
-  public upload = async (req: Request, res: Response, next: NextFunction) => {
+  /**
+   * Create a new file entry
+   */
+  public createFile = async (req: Request, res: Response) => {
     try {
-      if (req.file) {
-        // Single file upload
-        const newFile = await this.fileService.uploadSingleFile(req);
+      const { imageName, mimeType, size, path, url } = req.body;
+      const file = await this.fileService.createFile({
+        imageName,
+        mimeType,
+        size,
+        path,
+        url,
+      });
+      res.status(201).json({ message: "File created successfully", file });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  };
 
-        // Construct base URL dynamically
-        const baseURL = `${req.protocol}://${req.get("host")}`;
+  /**
+   * Get a file by ID
+   */
+  public getFileById = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const file = await this.fileService.getFileById(id);
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      res.status(200).json({ file });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  };
 
-        // Ensure forward slashes in URL and include full relative path
-        const relativePath = path
-          .relative(envVars.UPLOAD_DIR, newFile[0].path)
-          .split(path.sep)
-          .join("/");
-        const fileURL = `${baseURL}/uploads/${relativePath}`;
+  /**
+   * Get all files
+   */
+  public getAllFiles = async (_req: Request, res: Response) => {
+    try {
+      const files = await this.fileService.getAllFiles();
+      res.status(200).json({ files });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  };
 
-        return res.status(201).json({
-          message: "File uploaded successfully.",
-          fileId: newFile[0]._id,
-          filePath: newFile[0].path,
-          fileURL: fileURL,
-        });
-      } else if (req.files && Array.isArray(req.files)) {
-        // Multiple files upload
-        const newFiles = await this.fileService.uploadMultipleFiles(req);
+  /**
+   * Update a file entry
+   */
+  public updateFile = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const updatedFile = await this.fileService.updateFile(id, updates);
+      if (!updatedFile) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      res
+        .status(200)
+        .json({ message: "File updated successfully", file: updatedFile });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  };
 
-        // Construct base URL dynamically
-        const baseURL = `${req.protocol}://${req.get("host")}`;
+  /**
+   * Delete a file entry
+   */
+  public deleteFile = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const deletedFile = await this.fileService.deleteFile(id);
+      if (!deletedFile) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      res.status(200).json({ message: "File deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  };
 
-        // Ensure forward slashes in URLs and include full relative path
-        const fileURLs = newFiles.map((file) => {
-          const relativePath = path
-            .relative(envVars.UPLOAD_DIR, file.path)
-            .split(path.sep)
-            .join("/");
-          return `${baseURL}/uploads/${relativePath}`;
-        });
-
-        const fileIds = newFiles.map((file) => file._id);
-        const filePaths = newFiles.map((file) => file.path);
-
-        return res.status(201).json({
-          message: "Files uploaded successfully.",
-          fileIds,
-          filePaths,
-          fileURLs,
-        });
-      } else {
+  /**
+   * Handle bulk file uploads
+   */
+  public uploadBulkFiles = async (req: Request, res: Response) => {
+    try {
+      const files = req.files as Express.Multer.File[]; // Assuming multer handles the file upload
+      if (!files || files.length === 0) {
         return res.status(400).json({ message: "No files uploaded." });
       }
-    } catch (error: any) {
-      logger.error("File Upload Error:", { error: error.message });
-      res
-        .status(500)
-        .json({ message: "Internal Server Error.", error: error.message });
-    }
-  };
 
-  // Handle File Update
-  public update = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const updatedFile = await this.fileService.updateFile(id, req);
+      // Prepare file metadata for saving
+      const fileData = files.map((file) => ({
+        imageName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        path: file.path,
+        url: `${req.protocol}://${req.get("host")}/uploads/${file.filename}`, // Dynamically generate URL
+      }));
 
-      if (!updatedFile) {
-        logger.warn("File not found for update.", { fileId: id });
-        return res.status(404).json({ message: "File not found." });
-      }
+      const uploadedFiles = await this.fileService.createFiles(fileData);
 
-      // Construct base URL dynamically
-      const baseURL = `${req.protocol}://${req.get("host")}`;
-      const relativePath = path
-        .relative(envVars.UPLOAD_DIR, updatedFile.path)
-        .split(path.sep)
-        .join("/");
-      const fileURL = `${baseURL}/uploads/${relativePath}`;
-
-      return res.status(200).json({
-        message: "File updated successfully.",
-        file: updatedFile,
-        fileURL: fileURL,
+      res.status(201).json({
+        message: "Files uploaded successfully.",
+        files: uploadedFiles,
       });
     } catch (error: any) {
-      logger.error("File Update Error:", { error: error.message });
-      res
-        .status(500)
-        .json({ message: "Internal Server Error.", error: error.message });
+      res.status(500).json({ error: error.message });
     }
   };
 
-  // Handle File Deletion
-  public delete = async (req: Request, res: Response, next: NextFunction) => {
+  /**
+   * Handle bulk file deletion
+   */
+  public deleteBulkFiles = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-      await this.fileService.deleteFile(id);
-
-      return res.status(200).json({ message: "File deleted successfully." });
-    } catch (error: any) {
-      logger.error("File Deletion Error:", { error: error.message });
-      if (error.message === "File not found.") {
-        return res.status(404).json({ message: error.message });
+      const { fileIds } = req.body;
+      if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        return res.status(400).json({ message: "No file IDs provided." });
       }
-      res
-        .status(500)
-        .json({ message: "Internal Server Error.", error: error.message });
+
+      const deletedCount = await this.fileService.deleteFiles(fileIds);
+
+      res.status(200).json({
+        message: `${deletedCount} files deleted successfully.`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   };
 }

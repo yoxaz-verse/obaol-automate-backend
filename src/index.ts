@@ -13,5 +13,5 @@ async function startServer() {
     console.log(`${BASE_URL}/api${prefix}`);
   });
 }
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "./uploads")));
 startServer();

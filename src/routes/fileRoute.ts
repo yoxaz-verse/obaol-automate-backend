@@ -1,32 +1,38 @@
 // src/routes/fileRoutes.ts
-
 import { Router } from "express";
-import upload from "../middlewares/upload"; // Multer configuration
 import authenticate from "../middlewares/auth";
-import uploadLimiter from "../middlewares/rateLimiter";
 import fileController from "../controllers/fileController";
+import upload from "../middlewares/upload";
 
-const fileRouter = Router();
+const router = Router();
 
-// Route: POST /api/v1/web/files/upload
-fileRouter.post(
-  "/",
+// Create a file entry (for cases where metadata needs to be created directly)
+router.post("/files", authenticate, fileController.createFile);
+
+// Fetch a specific file by ID
+router.get("/files/:id", authenticate, fileController.getFileById);
+
+// Fetch all files
+router.get("/files", authenticate, fileController.getAllFiles);
+
+// Update a specific file's metadata
+router.put("/files/:id", authenticate, fileController.updateFile);
+
+// Delete a file
+router.delete("/files/:id", authenticate, fileController.deleteFile);
+// Bulk upload files
+router.post(
+  "/files/bulk-upload",
   authenticate,
-  uploadLimiter,
-  upload.any(), // Accepts both single and multiple files
-  fileController.upload
+  upload.array("files"), // Multer middleware for handling multiple file uploads
+  fileController.uploadBulkFiles
 );
 
-// Route: PUT /api/v1/web/files/:id
-fileRouter.put(
-  "/:id",
+// Bulk delete files
+router.delete(
+  "/files/bulk-delete",
   authenticate,
-  uploadLimiter,
-  upload.single("file"), // Optional: Only if replacing the file
-  fileController.update
+  fileController.deleteBulkFiles
 );
 
-// Route: DELETE /api/v1/web/files/:id
-fileRouter.delete("/:id", authenticate, uploadLimiter, fileController.delete);
-
-export default fileRouter;
+export default router;

@@ -6,6 +6,7 @@ import ActivityFileModel from "../database/models/activityFile";
 import mongoose from "mongoose";
 
 export const createActivityFiles = async (
+  comments: string,
   activityId: string,
   files: any[],
   uploadPath: string,
@@ -58,14 +59,14 @@ export const createActivityFiles = async (
         mimeType: file.mimetype,
         size: file.size,
         path: fullPath,
-        url: `/uploads/activity/${uniqueFileName}`,
+        url: `/uploads/activity/${activityId}/${uniqueFileName}`,
       });
 
       fileRecords.push({
         file: fileDoc._id as mongoose.Types.ObjectId,
         status: "Submitted",
         submittedBy: userId ? new mongoose.Types.ObjectId(userId) : undefined,
-        comments: "",
+        comments: comments,
       });
     }
 

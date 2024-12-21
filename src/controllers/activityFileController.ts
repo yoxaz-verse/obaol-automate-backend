@@ -9,7 +9,7 @@ import path from "path";
 
 export const uploadFiles = async (req: Request, res: Response) => {
   try {
-    const { activityId } = req.body;
+    const { activityId, comments } = req.body;
     const uploadPath = path.join(__dirname, "../../uploads/activity-files");
     // const userId = req.user?.id;
 
@@ -34,6 +34,7 @@ export const uploadFiles = async (req: Request, res: Response) => {
     }
 
     const result = await createActivityFiles(
+      comments,
       activityId,
       files,
       uploadPath

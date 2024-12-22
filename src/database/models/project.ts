@@ -58,7 +58,9 @@ ProjectSchema.pre<IProject>("save", async function (next) {
       location?.region &&
       location?.province
     ) {
-      this.customId = `${this.title.slice(0, 2).toUpperCase()}${location.nation
+      this.customId = `${this.title.slice(0, 2).toUpperCase()}${this.description
+        .slice(0, 2)
+        .toUpperCase()}${location.nation
         .slice(0, 2)
         .toUpperCase()}${location.city
         .slice(0, 2)

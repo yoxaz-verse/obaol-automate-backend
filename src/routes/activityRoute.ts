@@ -50,7 +50,7 @@ router.delete(
 router.post(
   "/bulk",
   authenticateToken,
-  activityService.bulkUploadActivities.bind(activityService)
+  activityService.bulkCreateActivities.bind(activityService)
 );
 
 export default router;

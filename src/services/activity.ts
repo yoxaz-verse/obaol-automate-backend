@@ -185,7 +185,7 @@ class ActivityService {
     }
   }
 
-  public async bulkUploadActivities(req: Request, res: Response) {
+  public async bulkCreateActivities(req: Request, res: Response) {
     try {
       const activities = req.body; // Assuming activities is an array in the request body
 
@@ -195,16 +195,58 @@ class ActivityService {
           .json({ message: "Invalid or empty activities array" });
       }
 
-      // Validate and insert activities
-      const results = await this.activityRepository.bulkInsertActivities(
-        req,
-        activities
+      const results = await Promise.all(
+        activities.map(async (activity) => {
+          try {
+            // Initialize activity data and set default status
+            const activityData = this.initializeActivityData({
+              ...req,
+              body: activity,
+            });
+
+            // Validate the status, update if needed
+            const isValidStatus = await this.validateStatus(
+              activityData.status
+            );
+            if (!isValidStatus) {
+              activityData.status = await this.determineNewStatus(
+                activityData,
+                null, // No existing activity for a new one
+                req.user?.role
+              );
+            }
+
+            // Insert the activity into the database
+            const newActivity = await this.activityRepository.createActivity(
+              req,
+              activityData
+            );
+
+            return { success: true, data: newActivity };
+          } catch (err) {
+            // Handle errors for individual activities
+            await logError(err, req, "ActivityService-bulkCreateActivities");
+            return { success: false, error: err };
+          }
+        })
       );
 
-      // Return a summary
-      res.sendFormatted(results, "Bulk upload completed", 200);
+      // Separate successful and failed results
+      const successfulActivities = results
+        .filter((result) => result.success)
+        .map((result) => result.data);
+      const failedActivities = results
+        .filter((result) => !result.success)
+        .map((result) => result.error);
+
+      // Return a summary response
+      res.sendFormatted(
+        { successfulActivities, failedActivities },
+        "Bulk upload completed with results",
+        200
+      );
     } catch (error) {
-      await logError(error, req, "ActivityService-bulkUploadActivities");
+      await logError(error, req, "ActivityService-bulkCreateActivities");
       res.sendError(error, "Bulk upload failed", 500);
     }
   }
@@ -252,11 +294,11 @@ class ActivityService {
   /**
    * Initialize default values for a new activity.
    */
-  private initializeActivityData(req: Request): any {
-    const activityData = req.body;
+  private initializeActivityData(data: { body: any; user?: any }): any {
+    const activityData = data.body;
 
     activityData.hoursSpent = 0;
-    activityData.updatedBy = req.user?.role;
+    activityData.updatedBy = data.user?.role;
 
     const statusMap = {
       noTarget: "6752d3c4c3e6e2bbc4769eae",

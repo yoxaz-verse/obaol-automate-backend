@@ -100,33 +100,45 @@ class LocationService {
   }
   public async bulkCreateLocations(req: Request, res: Response) {
     try {
-      const { locations } = req.body;
+      const locations = req.body;
 
+      // Validate input
       if (!Array.isArray(locations) || locations.length === 0) {
         res.sendError("", "Invalid or empty locations payload", 400);
         return;
       }
 
-      // Validate and match locationManager IDs
-      const managerIds = locations.map((loc) => loc.locationManager);
+      // Extract all locationManager IDs from the payload
+      const allManagerIds = locations
+        .flatMap((loc) => loc.locationManager || []) // Ensure it's a flat array
+        .filter((id: any) => typeof id === "string"); // Filter out invalid types
+
+      // Retrieve valid locationManager IDs from the database
       const validManagers = await LocationManagerModel.find({
-        _id: { $in: managerIds },
+        _id: { $in: allManagerIds },
       }).select("_id");
 
       const validManagerIds = validManagers.map((manager: any) =>
         manager._id.toString()
       );
 
-      // Process each location
+      // Format locations
       const formattedLocations = locations.map((location) => {
-        // Replace invalid locationManager IDs with a default or exclude
-        const validManager = location.locationManager.filter((id: any) =>
-          validManagerIds.includes(id)
+        const locationManagerArray = Array.isArray(location.locationManager)
+          ? location.locationManager
+          : []; // Ensure locationManager is an array
+
+        // Filter valid manager IDs
+        const validManagersForLocation = locationManagerArray.filter(
+          (id: any) => validManagerIds.includes(id)
         );
 
         return {
           ...location,
-          locationManager: validManager.length > 0 ? validManager : null, // Handle cases where no valid IDs exist
+          locationManager:
+            validManagersForLocation.length > 0
+              ? validManagersForLocation
+              : null, // Set to null if no valid managers
         };
       });
 

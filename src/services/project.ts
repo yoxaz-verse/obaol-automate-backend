@@ -152,7 +152,7 @@ class ProjectService {
 
   public async bulkCreateProjects(req: Request, res: Response) {
     try {
-      const projects = req.body.projects; // Assuming an array of projects is sent in the request body
+      const projects = req.body; // Assuming an array of projects is sent in the request body
 
       if (!Array.isArray(projects) || projects.length === 0) {
         return res

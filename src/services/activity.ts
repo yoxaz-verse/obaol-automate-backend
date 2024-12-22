@@ -4,10 +4,11 @@ import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
 import { ActivityStatusModel } from "../database/models/activityStatus";
+import ProjectRepository from "..//database/repositories/project";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
-
+  private projectRepository = new ProjectRepository();
   /**
    * Fetch a paginated list of activities with dynamic filters based on the user's role.
    */
@@ -83,7 +84,7 @@ class ActivityService {
   }
 
   /**
-   * Update an existing activity with dynamic status transitions and validation.
+   * Update an existing activity's status and trigger project status update if necessary.
    */
   public async updateActivity(req: Request, res: Response) {
     try {
@@ -92,6 +93,7 @@ class ActivityService {
 
       activityData.updatedBy = req.user?.role;
 
+      // Fetch the current activity
       const currentActivity = await this.activityRepository.getActivity(
         req,
         id
@@ -100,38 +102,70 @@ class ActivityService {
         return res.status(404).json({ message: "Activity not found" });
       }
 
+      // Update activity status
       if (activityData.status) {
         const isValidStatus = await this.validateStatus(activityData.status);
         if (!isValidStatus) {
           return res
             .status(400)
-            .json({ message: "Invalid or inactive status ID provided" });
+            .json({ message: "Invalid status ID provided" });
         }
-      } else {
-        activityData.status = this.determineNewStatus(
-          activityData,
-          currentActivity,
-          req.user?.role
-        );
       }
 
+      // Save the current status if it’s changed
       if (currentActivity.status !== activityData.status) {
         activityData.previousStatus = currentActivity.status;
       }
 
+      // Update the activity in the database
       const updatedActivity = await this.activityRepository.updateActivity(
         req,
         id,
         activityData
       );
 
+      // Trigger project status update if the activity status changes
+      await this.updateProjectStatusForActivity(
+        req,
+        currentActivity,
+        activityData.status
+      );
+
       res.sendFormatted(updatedActivity, "Activity updated successfully", 200);
     } catch (error) {
-      await logError(error, req, "ActivityService-updateActivity");
+      console.error(error);
       res.sendError(error, "Activity update failed", 500);
     }
   }
 
+  /**
+   * Trigger an update to the associated project's status when an activity's status is updated.
+   */
+  private async updateProjectStatusForActivity(
+    req: Request,
+    currentActivity: any,
+    newActivityStatus: string
+  ) {
+    try {
+      const projectId = currentActivity.project.toString();
+
+      // If the new status of the activity is "Suspended" or "Blocked," set the project status to the same
+      const projectStatus =
+        newActivityStatus === "Suspended" || newActivityStatus === "Blocked"
+          ? newActivityStatus
+          : "Open"; // Otherwise, set the project status to "Open"
+
+      // Update project status
+      await this.projectRepository.updateProjectStatus(
+        req,
+        projectId,
+        projectStatus
+      );
+      console.log(`Project ${projectId} status updated to ${projectStatus}`);
+    } catch (error) {
+      console.error("Error updating project status:", error);
+    }
+  }
   /**
    * Delete an activity by its ID.
    */
@@ -148,6 +182,30 @@ class ActivityService {
     } catch (error) {
       await logError(error, req, "ActivityService-deleteActivity");
       res.sendError(error, "Activity deletion failed", 500);
+    }
+  }
+
+  public async bulkUploadActivities(req: Request, res: Response) {
+    try {
+      const activities = req.body; // Assuming activities is an array in the request body
+
+      if (!Array.isArray(activities) || activities.length === 0) {
+        return res
+          .status(400)
+          .json({ message: "Invalid or empty activities array" });
+      }
+
+      // Validate and insert activities
+      const results = await this.activityRepository.bulkInsertActivities(
+        req,
+        activities
+      );
+
+      // Return a summary
+      res.sendFormatted(results, "Bulk upload completed", 200);
+    } catch (error) {
+      await logError(error, req, "ActivityService-bulkUploadActivities");
+      res.sendError(error, "Bulk upload failed", 500);
     }
   }
 

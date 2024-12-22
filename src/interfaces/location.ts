@@ -6,15 +6,14 @@ export interface ILocation extends mongoose.Document {
   address: string;
   city: string;
   description?: string;
-  fileId?: string; // Identifier for the uploaded file
-  fileURL?: string; // URL to access the uploaded file (optional)
-  latitude: string;
-  longitude: string;
+  latitude?: string;
+  longitude?: string;
   map: string;
   nation: string;
   owner: string;
   province: string;
   region: string;
+  locationManager: string[];
   locationType: mongoose.Schema.Types.ObjectId | ILocationType;
   isNearAnotherLocation: boolean;
 }

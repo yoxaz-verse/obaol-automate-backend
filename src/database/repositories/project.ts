@@ -5,41 +5,40 @@ import { IProject } from "@interfaces/project";
 import mongoose from "mongoose";
 
 class ProjectRepository {
-// GET all projects
-public async getProjects(
-  req: Request,
-  pagination: { page: number; limit: number },
-  search: string,
-  status?: string // Optional status parameter
-) {
-  try {
-    const query: any = { isDeleted: false };
+  // GET all projects
+  public async getProjects(
+    req: Request,
+    pagination: { page: number; limit: number },
+    search: string,
+    status?: string // Optional status parameter
+  ) {
+    try {
+      const query: any = { isDeleted: false };
 
-    // Add search condition
-    if (search) query.title = { $regex: search, $options: "i" };
+      // Add search condition
+      if (search) query.title = { $regex: search, $options: "i" };
 
-    // Add status condition if provided
-    if (status) query.status = status;
+      // Add status condition if provided
+      if (status) query.status = status;
 
-    // Count total matching documents
-    const totalCount = await ProjectModel.countDocuments(query);
-    const totalPages = Math.ceil(totalCount / pagination.limit);
-    const currentPage = pagination.page;
+      // Count total matching documents
+      const totalCount = await ProjectModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+      const currentPage = pagination.page;
 
-    // Fetch projects with pagination and population
-    const projects = await ProjectModel.find(query)
-      .populate("status customer projectManager location type")
-      .skip((pagination.page - 1) * pagination.limit)
-      .limit(pagination.limit)
-      .exec();
+      // Fetch projects with pagination and population
+      const projects = await ProjectModel.find(query)
+        .populate("status customer projectManager location type")
+        .skip((pagination.page - 1) * pagination.limit)
+        .limit(pagination.limit)
+        .exec();
 
-    return { data: projects, totalCount, currentPage, totalPages };
-  } catch (error) {
-    await logError(error, req, "ProjectRepository-getProjects");
-    throw error;
+      return { data: projects, totalCount, currentPage, totalPages };
+    } catch (error) {
+      await logError(error, req, "ProjectRepository-getProjects");
+      throw error;
+    }
   }
-}
-
 
   public async getProject(req: Request, id: string) {
     try {
@@ -89,7 +88,7 @@ public async getProjects(
   public async updateProjectStatus(
     req: Request,
     projectId: string,
-    newStatusId: mongoose.Schema.Types.ObjectId
+    newStatusId: any
   ) {
     try {
       const project = await ProjectModel.findById(projectId);
@@ -124,6 +123,32 @@ public async getProjects(
       await logError(error, req, "ProjectRepository-deleteProject");
       throw error;
     }
+  }
+
+  public async bulkInsertProjects(
+    req: Request,
+    projects: any[],
+    defaultStatusId: any
+  ) {
+    const results = { success: [], failed: [] };
+
+    for (const projectData of projects) {
+      try {
+        // Assign default status
+        projectData.status = defaultStatusId;
+
+        // Validate and create project
+        const newProject = new ProjectModel(projectData);
+        await newProject.save();
+
+        // results.success.push(newProject);
+      } catch (error) {
+        await logError(error, req, "ProjectRepository-bulkInsertProjects");
+        // results.failed.push({ project: projectData, error: error.message });
+      }
+    }
+
+    return results;
   }
 }
 

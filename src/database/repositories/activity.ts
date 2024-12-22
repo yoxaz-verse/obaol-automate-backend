@@ -90,6 +90,39 @@ class ActivityRepository {
       throw error;
     }
   }
+
+  public async bulkInsertActivities(req: Request, activities: any[]) {
+    const results = { success: [], failed: [] };
+
+    for (const activity of activities) {
+      try {
+        // Validate individual activity
+        const isValid = this.validateActivity(activity);
+        if (!isValid) {
+          continue;
+        }
+
+        // Insert into database
+        const newActivity = new ActivityModel(activity);
+        await newActivity.save();
+      } catch (error) {
+        await logError(error, req, "ActivityRepository-bulkInsertActivities");
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Validate an activity.
+   */
+  private validateActivity(activity: any): boolean {
+    if (!activity.title || !activity.description || !activity.project) {
+      return false;
+    }
+    // Add additional validation rules as needed
+    return true;
+  }
 }
 
 export default ActivityRepository;

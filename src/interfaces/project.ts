@@ -44,7 +44,7 @@ export interface IUpdateProject {
   title?: string;
   description?: string;
   customer?: string; // Customer ID
-   projectManager?: string; // Manager ID
+  projectManager?: string; // Manager ID
   status?: string; // ProjectStatus ID
   isActive?: boolean;
   isDeleted?: boolean;

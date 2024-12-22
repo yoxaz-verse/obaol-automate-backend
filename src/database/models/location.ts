@@ -8,15 +8,16 @@ const LocationSchema = new mongoose.Schema<ILocation>(
     city: { type: String, required: true },
     description: { type: String },
     isNearAnotherLocation: { type: Boolean, default: false },
-    fileId: { type: String }, // Identifier for the uploaded file
-    fileURL: { type: String }, // URL to access the uploaded file (optional)
-    latitude: { type: String, required: true },
-    longitude: { type: String, required: true },
+    latitude: { type: String },
+    longitude: { type: String },
     map: { type: String, required: true },
     nation: { type: String, required: true },
     owner: { type: String, required: true },
     province: { type: String, required: true },
     region: { type: String, required: true },
+    locationManager: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "LocationManager" },
+    ],
     locationType: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "LocationType",

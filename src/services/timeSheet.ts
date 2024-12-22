@@ -136,7 +136,7 @@ class TimeSheetService {
       // Define the valid status fields
       const validStatuses = [
         "isPending",
-        "isApproved",
+        "isAccepted",
         "isRejected",
         "isResubmitted",
       ];

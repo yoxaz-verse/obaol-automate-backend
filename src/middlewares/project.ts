@@ -22,6 +22,25 @@ class ProjectMiddleware {
     }
     next();
   }
+  public async validateBulkCreate(req: Request, res: Response, next: Function) {
+    const projects = req.body;
+
+    if (!Array.isArray(projects) || projects.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or empty projects array" });
+    }
+
+    for (const project of projects) {
+      if (!project.title || !project.description || !project.location) {
+        return res.status(400).json({
+          message: "Each project must have a title, description, and location",
+        });
+      }
+    }
+
+    next();
+  }
 
   public validateGet(req: Request, res: Response, next: NextFunction) {
     const schema = Joi.object({
@@ -37,13 +56,15 @@ class ProjectMiddleware {
 
   public validateUpdate(req: Request, res: Response, next: NextFunction) {
     const schema = Joi.object({
+      _id: Joi.string().optional(),
       title: Joi.string().optional(),
       description: Joi.string().optional(),
       customId: Joi.string().optional(),
       prevCustomId: Joi.string().optional(),
       customer: Joi.string().optional(),
       admin: Joi.string().optional(),
-      manager: Joi.string().optional(),
+      location: Joi.string().optional(),
+      projectManager: Joi.string().optional(),
       status: Joi.string().optional(),
       type: Joi.string().optional(),
       task: Joi.string().optional(),
@@ -53,6 +74,9 @@ class ProjectMiddleware {
       statusHistory: Joi.array().items(Joi.string()).optional(),
       isActive: Joi.boolean().optional(),
       isDeleted: Joi.boolean().optional(),
+      updatedAt: Joi.date().optional(),
+      createdAt: Joi.date().optional(),
+      __v: Joi.date().optional(),
     });
 
     const { error } = schema.validate(req.body);

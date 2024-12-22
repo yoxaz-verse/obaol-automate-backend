@@ -7,26 +7,6 @@ import fs from "fs";
 import LocationMiddleware from "../middlewares/location";
 import authenticateToken from "../middlewares/auth";
 
-// Define the uploads directory
-const uploadDir = path.join(__dirname, "..", "..", "uploads");
-
-// Ensure that the directory exists
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = crypto.randomBytes(16).toString("hex");
-    cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
-
-const upload = multer({ storage });
-
 const locationRoute = Router();
 const locationService = new LocationService();
 const locationMiddleware = new LocationMiddleware();
@@ -46,7 +26,7 @@ locationRoute.post(
   "/",
   // upload.single("image"),
   authenticateToken,
-  locationMiddleware.validateCreate.bind(locationMiddleware),
+  // locationMiddleware.validateCreate.bind(locationMiddleware),
   locationService.createLocation.bind(locationService)
 );
 locationRoute.patch(
@@ -61,6 +41,11 @@ locationRoute.delete(
   authenticateToken,
   // locationMiddleware.deleteLocation.bind(locationMiddleware),
   locationService.deleteLocation.bind(locationService)
+);
+locationRoute.post(
+  "/bulk",
+  authenticateToken,
+  locationService.bulkCreateLocations.bind(locationService)
 );
 
 export default locationRoute;

@@ -2,6 +2,7 @@ import { Request } from "express";
 import { logError } from "../../utils/errorLogger";
 import { ILocation } from "../../interfaces/location";
 import { LocationModel } from "../../database/models/location";
+import { LocationManagerModel } from "@database/models/locationManager";
 
 class LocationRepository {
   public async getLocations(
@@ -20,7 +21,7 @@ class LocationRepository {
       const currentPage = pagination.page;
 
       const locations = await LocationModel.find(query)
-        .populate("locationType")
+        .populate("locationType locationManager")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
@@ -34,10 +35,9 @@ class LocationRepository {
 
   public async getLocationById(req: Request, id: string): Promise<ILocation> {
     try {
-      const location = await LocationModel.findById(id).populate(
-        "locationType",
-        "name"
-      );
+      const location = await LocationModel.findById(id)
+        .populate("locationType", "name")
+        .populate("locationManager");
       if (!location) {
         throw new Error("Location not found");
       }

@@ -46,4 +46,12 @@ router.delete(
   projectService.deleteProject.bind(projectService)
 );
 
+// Bulk create projects
+router.post(
+  "/bulk",
+  authenticateToken,
+  projectMiddleware.validateBulkCreate.bind(projectMiddleware),
+  projectService.bulkCreateProjects.bind(projectService)
+);
+
 export default router;

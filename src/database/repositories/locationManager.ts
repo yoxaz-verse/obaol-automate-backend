@@ -26,7 +26,6 @@ class LocationManagerRepository {
       }
 
       const locationManagersDoc = await LocationManagerModel.find(query)
-        .populate("location")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
@@ -58,9 +57,7 @@ class LocationManagerRepository {
     id: string
   ): Promise<ILocationManager> {
     try {
-      const locationManagerDoc = await LocationManagerModel.findById(
-        id
-      ).populate("location");
+      const locationManagerDoc = await LocationManagerModel.findById(id);
 
       if (!locationManagerDoc) {
         throw new Error("LocationManager not found");
@@ -126,7 +123,7 @@ class LocationManagerRepository {
   ): Promise<ILocationManager> {
     try {
       const deletedLocationManager =
-        await LocationManagerModel.findByIdAndDelete(id).populate("location");
+        await LocationManagerModel.findByIdAndDelete(id);
       if (!deletedLocationManager) {
         throw new Error("Failed to delete LocationManager");
       }

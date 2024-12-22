@@ -15,10 +15,10 @@ class ProjectService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-  
+
       // Extract status from query params
       const { status } = req.query;
-  
+
       // Pass the status to the repository function
       const projects = await this.projectRepository.getProjects(
         req,
@@ -26,14 +26,14 @@ class ProjectService {
         search,
         status as string // Cast status as string (if needed)
       );
-  
+
       res.sendFormatted(projects, "Projects retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-getProjects");
       res.sendError(error, "Failed to retrieve projects", 500);
     }
   }
-  
+
   /**
    * Get a specific project by ID.
    */
@@ -147,6 +147,39 @@ class ProjectService {
     } catch (error) {
       await logError(error, req, "ProjectService-deleteProject");
       res.sendError(error, "Project deletion failed", 500);
+    }
+  }
+
+  public async bulkCreateProjects(req: Request, res: Response) {
+    try {
+      const projects = req.body.projects; // Assuming an array of projects is sent in the request body
+
+      if (!Array.isArray(projects) || projects.length === 0) {
+        return res
+          .status(400)
+          .json({ message: "Invalid or empty projects array" });
+      }
+
+      const createdStatus = await ProjectStatusModel.findOne({
+        name: "Open",
+      });
+      const defaultStatusId = createdStatus?._id;
+
+      if (!createdStatus && !defaultStatusId) {
+        return res
+          .status(400)
+          .json({ message: "Initial status 'Open' not found" });
+      }
+      const results = await this.projectRepository.bulkInsertProjects(
+        req,
+        projects,
+        defaultStatusId
+      );
+
+      res.sendFormatted(results, "Bulk upload completed", 201);
+    } catch (error) {
+      await logError(error, req, "ProjectService-bulkCreateProjects");
+      res.sendError(error, "Bulk upload failed", 500);
     }
   }
 }

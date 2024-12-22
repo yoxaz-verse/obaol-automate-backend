@@ -46,4 +46,11 @@ router.delete(
   activityService.deleteActivity.bind(activityService)
 );
 
+// Bulk upload activities
+router.post(
+  "/bulk",
+  authenticateToken,
+  activityService.bulkUploadActivities.bind(activityService)
+);
+
 export default router;

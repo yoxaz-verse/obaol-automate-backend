@@ -18,13 +18,15 @@ class ProjectService {
 
       // Extract status from query params
       const { status } = req.query;
+      const { location } = req.query;
 
       // Pass the status to the repository function
       const projects = await this.projectRepository.getProjects(
         req,
         pagination,
         search,
-        status as string // Cast status as string (if needed)
+        status as string, // Cast status as string (if needed)
+        location as string
       );
 
       res.sendFormatted(projects, "Projects retrieved successfully", 200);

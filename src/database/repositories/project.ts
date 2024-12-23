@@ -10,7 +10,8 @@ class ProjectRepository {
     req: Request,
     pagination: { page: number; limit: number },
     search: string,
-    status?: string // Optional status parameter
+    status?: string, // Optional status parameter
+    location?: string // Optional status parameter
   ) {
     try {
       const query: any = { isDeleted: false };
@@ -20,6 +21,9 @@ class ProjectRepository {
 
       // Add status condition if provided
       if (status) query.status = status;
+
+      // Add status condition if provided
+      if (location) query.location = location;
 
       // Count total matching documents
       const totalCount = await ProjectModel.countDocuments(query);

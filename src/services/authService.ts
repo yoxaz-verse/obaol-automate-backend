@@ -37,10 +37,6 @@ const getUserModel = (role: string): UserModel | null => {
 
 export const authenticateUser = async (req: Request, res: Response) => {
   const { email, password, role } = req.body;
-  console.log("Got into authentication");
-  console.log(email);
-  console.log(password);
-  console.log(role);
 
   try {
     const userModel = getUserModel(role);
@@ -59,9 +55,6 @@ export const authenticateUser = async (req: Request, res: Response) => {
         message: "Authentication failed: Invalid email or password",
       });
     }
-
-    console.log(userModel);
-    console.log(user);
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {

@@ -8,13 +8,13 @@ const router = Router();
 const adminService = new AdminService();
 const adminMiddleware = new AdminMiddleware();
 
-// LOGIN an admin (Public route)
-router.post(
-  "/login",
-  // authorizeRoles("Admin"),
-  adminMiddleware.validateLogin.bind(adminMiddleware),
-  adminService.login.bind(adminService)
-);
+// // LOGIN an admin (Public route)
+// router.post(
+//   "/login",
+//   // authorizeRoles("Admin"),
+//   adminMiddleware.validateLogin.bind(adminMiddleware),
+//   adminService.login.bind(adminService)
+// );
 
 router.get(
   "/user",
@@ -27,7 +27,7 @@ router.get(
 router.get(
   "/",
   authenticateToken,
-  authorizeRoles("Customer", "Admin"),
+  authorizeRoles("Admin"),
   adminService.getAdmins.bind(adminService)
 );
 

@@ -55,96 +55,96 @@ const fileFilter = (
   }
 };
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter,
-});
+// const upload = multer({
+//   storage,
+//   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+//   fileFilter,
+// });
 
 // Route: POST /api/v1/web/upload/single
-uploadRouter.post(
-  "/single",
-  authenticateToken,
-  uploadLimiter,
-  upload.single("file"), // Must match frontend's field name
-  fileValidation.validateUpload,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const newFile = await fileService.uploadSingleFile(req);
+// uploadRouter.post(
+//   "/single",
+//   authenticateToken,
+//   uploadLimiter,
+//   upload.single("file"), // Must match frontend's field name
+//   fileValidation.validateUpload,
+//   async (req: Request, res: Response, next: NextFunction) => {
+//     try {
+//       const newFile = await fileService.uploadSingleFiee(req);
 
-      if (!newFile || newFile.length === 0) {
-        logger.warn("No file data returned from service.");
-        return res.status(500).json({ message: "Failed to upload file." });
-      }
+//       if (!newFile || newFile.length === 0) {
+//         logger.warn("No file data returned from service.");
+//         return res.status(500).json({ message: "Failed to upload file." });
+//       }
 
-      const fileId = newFile[0]._id;
+//       const fileId = newFile[0]._id;
 
-      logger.info("File uploaded successfully.", {
-        fileId,
-        filePath: newFile[0].path,
-      });
+//       logger.info("File uploaded successfully.", {
+//         fileId,
+//         filePath: newFile[0].path,
+//       });
 
-      res.status(201).json({
-        message: "File uploaded successfully.",
-        fileId,
-        filePath: newFile[0].path,
-        fileURL: `${process.env.BASE_URL}/uploads/${path.basename(
-          newFile[0].path
-        )}`,
-      });
-    } catch (error: any) {
-      logger.error("File Upload Error:", { error: error.message });
-      if (error instanceof multer.MulterError) {
-        // Handle Multer-specific errors
-        return res.status(400).json({ message: error.message });
-      }
-      res
-        .status(500)
-        .json({ message: "Internal Server Error.", error: error.message });
-    }
-  }
-);
+//       res.status(201).json({
+//         message: "File uploaded successfully.",
+//         fileId,
+//         filePath: newFile[0].path,
+//         fileURL: `${process.env.BASE_URL}/uploads/${path.basename(
+//           newFile[0].path
+//         )}`,
+//       });
+//     } catch (error: any) {
+//       logger.error("File Upload Error:", { error: error.message });
+//       if (error instanceof multer.MulterError) {
+//         // Handle Multer-specific errors
+//         return res.status(400).json({ message: error.message });
+//       }
+//       res
+//         .status(500)
+//         .json({ message: "Internal Server Error.", error: error.message });
+//     }
+//   }
+// );
 
 // Route: POST /api/v1/web/upload/multiple
-uploadRouter.post(
-  "/multiple",
-  authenticateToken,
-  uploadLimiter,
-  upload.array("files", 10), // 'files' should match frontend's field name
-  fileValidation.validateUploadMultiple,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const newFiles = await fileService.uploadMultipleFiles(req);
+// uploadRouter.post(
+//   "/multiple",
+//   authenticateToken,
+//   uploadLimiter,
+//   upload.array("files", 10), // 'files' should match frontend's field name
+//   fileValidation.validateUploadMultiple,
+//   async (req: Request, res: Response, next: NextFunction) => {
+//     try {
+//       const newFiles = await fileService.uploadMultipleFiles(req);
 
-      if (!newFiles || newFiles.length === 0) {
-        logger.warn("No file data returned from service.");
-        return res.status(500).json({ message: "Failed to upload files." });
-      }
+//       if (!newFiles || newFiles.length === 0) {
+//         logger.warn("No file data returned from service.");
+//         return res.status(500).json({ message: "Failed to upload files." });
+//       }
 
-      const fileIds = newFiles.map((file: IFile) => file._id);
+//       const fileIds = newFiles.map((file: IFile) => file._id);
 
-      logger.info("Multiple files uploaded successfully.", { fileIds });
+//       logger.info("Multiple files uploaded successfully.", { fileIds });
 
-      res.status(201).json({
-        message: "Files uploaded successfully.",
-        fileIds,
-        filePaths: newFiles.map((file: IFile) => file.path),
-        fileURLs: newFiles.map(
-          (file: IFile) =>
-            `${process.env.BASE_URL}/uploads/${path.basename(file.path)}`
-        ),
-      });
-    } catch (error: any) {
-      logger.error("Multiple File Upload Error:", { error: error.message });
-      if (error instanceof multer.MulterError) {
-        // Handle Multer-specific errors
-        return res.status(400).json({ message: error.message });
-      }
-      res
-        .status(500)
-        .json({ message: "Internal Server Error.", error: error.message });
-    }
-  }
-);
+//       res.status(201).json({
+//         message: "Files uploaded successfully.",
+//         fileIds,
+//         filePaths: newFiles.map((file: IFile) => file.path),
+//         fileURLs: newFiles.map(
+//           (file: IFile) =>
+//             `${process.env.BASE_URL}/uploads/${path.basename(file.path)}`
+//         ),
+//       });
+//     } catch (error: any) {
+//       logger.error("Multiple File Upload Error:", { error: error.message });
+//       if (error instanceof multer.MulterError) {
+//         // Handle Multer-specific errors
+//         return res.status(400).json({ message: error.message });
+//       }
+//       res
+//         .status(500)
+//         .json({ message: "Internal Server Error.", error: error.message });
+//     }
+//   }
+// );
 
 export default uploadRouter;

@@ -1,8 +1,12 @@
 import { Request } from "express";
 import { ActivityManagerModel } from "../models/activityManager";
-import { ICreateActivityManager, IUpdateActivityManager } from "../../interfaces/activityManager";
+import {
+  ICreateActivityManager,
+  IUpdateActivityManager,
+} from "../../interfaces/activityManager";
 import { logError } from "../../utils/errorLogger";
 import { IActivityManager } from "../../interfaces/activityManager";
+import mongoose from "mongoose";
 
 class ActivityManagerRepository {
   public async getActivityManagers(
@@ -33,12 +37,19 @@ class ActivityManagerRepository {
 
       return { data: activityManagers, totalCount, currentPage, totalPages };
     } catch (error) {
-      await logError(error, req, "ActivityManagerRepository-getActivityManagers");
+      await logError(
+        error,
+        req,
+        "ActivityManagerRepository-getActivityManagers"
+      );
       throw error;
     }
   }
 
-  public async getActivityManagerById(req: Request, id: string): Promise<IActivityManager> {
+  public async getActivityManagerById(
+    req: Request,
+    id: string
+  ): Promise<IActivityManager> {
     try {
       const activityManagerDoc = await ActivityManagerModel.findOne({
         _id: id,
@@ -51,7 +62,11 @@ class ActivityManagerRepository {
 
       return activityManagerDoc;
     } catch (error) {
-      await logError(error, req, "ActivityManagerRepository-getActivityManagerById");
+      await logError(
+        error,
+        req,
+        "ActivityManagerRepository-getActivityManagerById"
+      );
       throw error;
     }
   }
@@ -61,10 +76,16 @@ class ActivityManagerRepository {
     activityManagerData: ICreateActivityManager
   ): Promise<IActivityManager> {
     try {
-      const newActivityManager = await ActivityManagerModel.create(activityManagerData);
+      const newActivityManager = await ActivityManagerModel.create(
+        activityManagerData
+      );
       return newActivityManager;
     } catch (error) {
-      await logError(error, req, "ActivityManagerRepository-createActivityManager");
+      await logError(
+        error,
+        req,
+        "ActivityManagerRepository-createActivityManager"
+      );
       throw error;
     }
   }
@@ -73,36 +94,64 @@ class ActivityManagerRepository {
     req: Request,
     id: string,
     activityManagerData: Partial<IUpdateActivityManager>
-  ): Promise<IActivityManager> {
+  ) {
     try {
-      const updatedActivityManager = await ActivityManagerModel.findOneAndUpdate(
-        { _id: id, isDeleted: false },
-        activityManagerData,
-        { new: true }
-      ).populate("admin", "name");
-      if (!updatedActivityManager) {
-        throw new Error("Failed to update ActivityManager");
+      // Validate and convert 'admin' to ObjectId if it's a string
+      if (
+        activityManagerData.admin &&
+        typeof activityManagerData.admin === "string"
+      ) {
+        if (mongoose.Types.ObjectId.isValid(activityManagerData.admin)) {
+          activityManagerData.admin = new mongoose.Types.ObjectId(
+            activityManagerData.admin
+          );
+        } else {
+          throw new Error(
+            `Invalid ObjectId provided for admin: ${activityManagerData.admin}`
+          );
+        }
       }
-      return updatedActivityManager;
+
+      return await ActivityManagerModel.findOneAndUpdate(
+        { id },
+        activityManagerData,
+        {
+          new: true,
+        }
+      )
+        .populate("admin", "name")
+        .exec();
     } catch (error) {
-      await logError(error, req, "ActivityManagerRepository-updateActivityManager");
+      await logError(
+        error,
+        req,
+        "ActivityManagerRepository-updateActivityManager"
+      );
       throw error;
     }
   }
 
-  public async deleteActivityManager(req: Request, id: string): Promise<IActivityManager> {
+  public async deleteActivityManager(
+    req: Request,
+    id: string
+  ): Promise<IActivityManager> {
     try {
-      const deletedActivityManager = await ActivityManagerModel.findOneAndUpdate(
-        { _id: id, isDeleted: false },
-        { isDeleted: true },
-        { new: true }
-      ).populate("admin", "name");
+      const deletedActivityManager =
+        await ActivityManagerModel.findOneAndUpdate(
+          { _id: id, isDeleted: false },
+          { isDeleted: true },
+          { new: true }
+        ).populate("admin", "name");
       if (!deletedActivityManager) {
         throw new Error("Failed to delete ActivityManager");
       }
       return deletedActivityManager;
     } catch (error) {
-      await logError(error, req, "ActivityManagerRepository-deleteActivityManager");
+      await logError(
+        error,
+        req,
+        "ActivityManagerRepository-deleteActivityManager"
+      );
       throw error;
     }
   }

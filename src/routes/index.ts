@@ -36,7 +36,6 @@ router.use(`${prefix}/login`, authRoute);
 router.use(`${prefix}/verify-token`, verifyTokenRoute);
 
 // Users
-router.use(`${prefix}/manager`, managerRoute);
 router.use(`${prefix}/admin`, adminRoute);
 router.use(`${prefix}/customer`, customerRoute);
 router.use(`${prefix}/worker`, workerRoute);

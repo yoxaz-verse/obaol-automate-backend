@@ -1,8 +1,4 @@
-import {
-  TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN,
-  SENDER_PHONE,
-} from "../database/config";
+import { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, SENDER_PHONE } from "../config";
 import twilio from "twilio";
 
 export async function sendOtpSMS(
@@ -16,7 +12,7 @@ export async function sendOtpSMS(
   // Define the sms content with template variables
   const smsOption = {
     from: SENDER_PHONE,
-    to: "+91 7902607594",
+    to: "+91 7306096941",
     body: `Your OTP: *${otp}*. This OTP is valid for a single use and will expire in 10 minutes.`,
   };
 

@@ -1,14 +1,14 @@
 // src/services/fileService.ts
 
 import FileModel from "../database/models/file";
-import { IFile } from "../interfaces/file";
+import { ICreateFile, IFile } from "../interfaces/file";
 
 class FileService {
   /**
    * Create a new file entry
    */
   public async createFile(data: {
-    imageName: string;
+    fileName: string;
     mimeType: string;
     size: number;
     path: string;
@@ -54,13 +54,13 @@ class FileService {
    */
   public async createFiles(
     files: {
-      imageName: string;
+      fileName: string;
       mimeType: string;
       size: number;
       path: string;
       url: string;
     }[]
-  ): Promise<IFile[]> {
+  ): Promise<ICreateFile[]> {
     return FileModel.insertMany(files);
   }
 

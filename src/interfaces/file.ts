@@ -1,7 +1,7 @@
 // src/interfaces/file.ts
 
 export interface IFile {
-  imageName: string;
+  fileName: string;
   mimeType: string;
   size: number;
   path: string;
@@ -9,7 +9,7 @@ export interface IFile {
 }
 
 export interface ICreateFile {
-  imageName: string;
+  fileName: string;
   mimeType: string;
   size: number;
   path: string;

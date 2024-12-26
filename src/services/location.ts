@@ -108,19 +108,36 @@ class LocationService {
         return;
       }
 
-      // Extract all locationManager IDs from the payload
-      const allManagerIds = locations
-        .flatMap((loc) => loc.locationManager || []) // Ensure it's a flat array
-        .filter((id: any) => typeof id === "string"); // Filter out invalid types
+      // Extract all locationManager objects from the payload
+      const allManagers = locations.flatMap((loc) => loc.locationManager || []);
 
-      // Retrieve valid locationManager IDs from the database
-      const validManagers = await LocationManagerModel.find({
-        _id: { $in: allManagerIds },
-      }).select("_id");
-
-      const validManagerIds = validManagers.map((manager: any) =>
-        manager._id.toString()
+      // Deduplicate managers based on their `code`
+      const uniqueManagerCodes = Array.from(
+        new Set(allManagers.map((manager: any) => manager.code))
       );
+
+      // Find existing managers in the database by their `code`
+      const existingManagers = await LocationManagerModel.find({
+        code: { $in: uniqueManagerCodes },
+      });
+
+      const existingManagerCodes = new Set(
+        existingManagers.map((manager: any) => manager.code)
+      );
+
+      // Identify new managers (those not in the database)
+      const newManagers = allManagers.filter(
+        (manager: any) => !existingManagerCodes.has(manager.code)
+      );
+
+      // Insert new managers into the database
+      let createdManagers: any = [];
+      if (newManagers.length > 0) {
+        createdManagers = await LocationManagerModel.insertMany(newManagers);
+      }
+
+      // Combine existing and newly created managers
+      const allValidManagers = [...existingManagers, ...createdManagers];
 
       // Format locations
       const formattedLocations = locations.map((location) => {
@@ -128,10 +145,15 @@ class LocationService {
           ? location.locationManager
           : []; // Ensure locationManager is an array
 
-        // Filter valid manager IDs
-        const validManagersForLocation = locationManagerArray.filter(
-          (id: any) => validManagerIds.includes(id)
-        );
+        // Find corresponding manager IDs from valid managers
+        const validManagersForLocation = locationManagerArray
+          .map(
+            (manager: any) =>
+              allValidManagers.find(
+                (validManager: any) => validManager.code === manager.code
+              )?._id
+          )
+          .filter(Boolean); // Filter out any undefined values
 
         return {
           ...location,
@@ -142,14 +164,14 @@ class LocationService {
         };
       });
 
-      // Insert into the database
+      // Insert locations into the database
       const createdLocations = await LocationModel.insertMany(
         formattedLocations
       );
 
       res.sendFormatted(
         createdLocations,
-        "Locations created successfully",
+        "Locations and managers created/linked successfully",
         201
       );
     } catch (error) {

@@ -8,7 +8,6 @@ import { ActivityTypeModel } from "./activityType";
 import { ActivityManagerModel } from "./activityManager";
 
 interface IActivity extends mongoose.Document {
-  // Basic details
   title: string;
   description: string;
   project: mongoose.Schema.Types.ObjectId | typeof ProjectModel;
@@ -16,29 +15,18 @@ interface IActivity extends mongoose.Document {
   actualDate?: Date;
   targetOperationDate?: Date;
   targetFinanceDate?: Date;
-
-  // Management and assignment
   activityManager: mongoose.Schema.Types.ObjectId | typeof ActivityManagerModel;
   worker: Array<mongoose.Schema.Types.ObjectId | typeof WorkerModel>;
-
-  // Status and tracking
   updatedBy: string; // Role of the user who last updated the activity
   statusHistory: Array<
     mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel
   >;
+  allowTimesheets: Boolean;
   status: mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel;
   previousStatus?: mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel; // Previous status (for suspension/blocking)
-
-  // Rejection and reasoning
   rejectionReason: string[]; // List of reasons for rejection
-
-  // Customer association
   customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
-
-  // Activity type
   type: mongoose.Schema.Types.ObjectId | typeof ActivityTypeModel;
-
-  // Additional tracking
   hoursSpent: number; // Hours spent on the activity
 }
 
@@ -46,6 +34,9 @@ const ActivitySchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: { type: String, required: true },
+
+    allowTimesheets: { type: Boolean, default: true },
+
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
@@ -89,6 +80,23 @@ const ActivitySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Custom ID generator
+ActivitySchema.pre<IActivity>("save", async function (next) {
+  if (!this.title && this.isNew) {
+    await this.populate("customer type");
+    const project = this.customer as any;
+    const type = this.type as any;
+
+    if (project?.customId && type?.name) {
+      this.title = `${project.customId.toUpperCase()}-${type?.name.toUpperCase()}-${Date.now()}`;
+    } else {
+      console.warn("Incomplete data for custom ID generation.");
+      this.title = `${Date.now()}`;
+    }
+  }
+  next();
+});
 
 export const ActivityModel = mongoose.model<IActivity>(
   "Activity",

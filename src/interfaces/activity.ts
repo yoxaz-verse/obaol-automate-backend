@@ -1,36 +1,11 @@
-import { IProject } from "./project";
-import { IWorker } from "./worker";
-import { IManager } from "./manager";
-import { ICustomer } from "./customer";
-import { IActivityStatus } from "./activityStatus";
+import mongoose from "mongoose";
+import { ProjectModel } from "../database/models/project";
+import { ActivityManagerModel } from "../database/models/activityManager";
+import { WorkerModel } from "../database/models/worker";
+import { ActivityStatusModel } from "../database/models/activityStatus";
+import { CustomerModel } from "../database/models/customer";
+import { ActivityTypeModel } from "../database/models/activityType";
 
-export interface IActivity {
-  _id: string;
-  title: string;
-  description: string;
-  project: IProject;
-  budget: number;
-  forecastDate: Date;
-  actualDate: Date;
-  targetDate: Date;
-  worker: IWorker[];
-  updatedBy: IWorker | IManager;
-  hoursSpent: number;
-  statusHistory: IActivityStatus[];
-  status: IActivityStatus;
-  workCompleteStatus: boolean;
-  managerFullStatus: boolean;
-  customerStatus: boolean;
-  isSubmitted: boolean;
-  isAccepted: boolean;
-  isRejected: boolean;
-  rejectionReason: string;
-  customer: ICustomer;
-  isPending: boolean;
-  isOnHold: boolean;
-  isDisabled: boolean;
-  isDeleted: boolean;
-}
 
 export interface ICreateActivity {
   title: string;

@@ -4,7 +4,7 @@ import connectDB from "./database/connection";
 import path from "path";
 import express from "express";
 import { prefix } from "./routes";
-const port = PORT || 3000;
+const port = PORT || 5001;
 async function startServer() {
   await connectDB();
   app.listen(port, () => {

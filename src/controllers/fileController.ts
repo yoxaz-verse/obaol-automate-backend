@@ -10,9 +10,9 @@ class FileController {
    */
   public createFile = async (req: Request, res: Response) => {
     try {
-      const { imageName, mimeType, size, path, url } = req.body;
+      const { fileName, mimeType, size, path, url } = req.body;
       const file = await this.fileService.createFile({
-        imageName,
+        fileName,
         mimeType,
         size,
         path,
@@ -99,7 +99,7 @@ class FileController {
 
       // Prepare file metadata for saving
       const fileData = files.map((file) => ({
-        imageName: file.originalname,
+        fileName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
         path: file.path,

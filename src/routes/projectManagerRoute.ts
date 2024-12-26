@@ -24,9 +24,9 @@ router.post(
   validateProjectManager,
   projectManagerService.createProjectManager.bind(projectManagerService)
 );
-router.put(
+router.patch(
   "/:id",
-  validateProjectManager,
+  // validateProjectManager,
   projectManagerService.updateProjectManager.bind(projectManagerService)
 );
 router.delete(

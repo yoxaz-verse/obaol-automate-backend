@@ -1,8 +1,8 @@
 import * as nodemailer from "nodemailer";
-import { INewAdminPassword } from "../interfaces/admin";
+// import { INewAdminPassword } from "../interfaces/admin";
 import { GOOGLE_EMAIL, GOOGLE_PASS } from "../config";
 
-export async function newAdminPasswordEmail(newAdmin: INewAdminPassword) {
+export async function newAdminPasswordEmail(newAdmin: any) {
   const mailOptions = {
     from: GOOGLE_EMAIL,
     to: newAdmin.email,
@@ -33,13 +33,13 @@ export async function newAdminPasswordEmail(newAdmin: INewAdminPassword) {
   }
 }
 
-export async function updateAdminPasswordEmail(updateAdmin: INewAdminPassword) {
+export async function updateAdminPasswordEmail(updateAdmin: any) {
   const mailOptions = {
     from: GOOGLE_EMAIL,
     to: updateAdmin.email,
     subject: "Admin Account Password Update",
     html: `
-        <h1>Welcome to P2Care</h1>
+        <h1>Welcome to Activity Tracking</h1>
         <p>Hello ${updateAdmin.name},</p>
         <p>Your admin account password has been updated successfully.</p>
         <p>Your new password is: <strong>${updateAdmin.password}</strong></p>
@@ -70,7 +70,7 @@ export async function sendOtpEmail(email: string, otp: number) {
     to: email,
     subject: "OTP Verification",
     html: `
-        <h1>Welcome to P2Care</h1>
+        <h1>Welcome to Activity Tracking</h1>
         <p>Hello,</p>
         <p>Your OTP for email verification is: <strong>${otp}</strong></p>
         <p>Use this OTP to verify your email.</p>

@@ -91,11 +91,18 @@ class ProjectManagerRepository {
     projectManagerData: Partial<IUpdateProjectManager>
   ): Promise<IProjectManager> {
     try {
+      console.log("Coming", id);
+
       const updatedProjectManager = await ProjectManagerModel.findOneAndUpdate(
-        { _id: id, isDeleted: false },
+        { _id: id },
         projectManagerData,
-        { new: true }
+        {
+          new: true,
+        }
       ).populate("admin", "name");
+
+      console.log("Coming OUT", id);
+
       if (!updatedProjectManager) {
         throw new Error("Failed to update ProjectManager");
       }

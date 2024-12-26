@@ -63,6 +63,10 @@ class ProjectManagerService {
 
   public async updateProjectManager(req: Request, res: Response) {
     try {
+      if (req.body.password) {
+        req.body.password = await hashPassword(req.body.password);
+      }
+
       const updatedProjectManager =
         await this.projectManagerRepository.updateProjectManager(
           req,

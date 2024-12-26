@@ -74,12 +74,17 @@ class ActivityManagerService {
 
   public async updateActivityManager(req: Request, res: Response) {
     try {
+      if (req.body.password) {
+        req.body.password = await hashPassword(req.body.password);
+      }
+
       const updatedActivityManager =
         await this.activityManagerRepository.updateActivityManager(
           req,
           req.params.id,
           req.body
         );
+
       res.json(updatedActivityManager);
     } catch (error) {
       await logError(

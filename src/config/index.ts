@@ -2,10 +2,11 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-export const PORT = process.env.PORT || 5000;
-export const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
+export const PORT = process.env.PORT || 5001;
+export const BASE_URL = process.env.BASE_URL || "http://localhost:5001";
 export const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/activity-tracking";
+  process.env.MONGODB_URI ||
+  "mongodb+srv://yoxaz:3hoZTHvJcbPkUkyL@italy-activity.kk3db.mongodb.net/activity-tracking";
 export const NODE_ENV = process.env.NODE_ENV || "development";
 export const JWT_SECRET = process.env.JWT_SECRET || "secret";
 export const JWT_EXPIRE = process.env.JWT_EXPIRE || "1d";

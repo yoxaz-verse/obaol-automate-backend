@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 
 const ProjectSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true },
     description: { type: String, required: true },
     customId: { type: String, unique: true }, // Ensure uniqueness
     prevCustomId: { type: String },
@@ -49,27 +48,15 @@ const ProjectSchema = new mongoose.Schema(
 // Custom ID generator
 ProjectSchema.pre<IProject>("save", async function (next) {
   if (!this.customId && this.isNew) {
-    await this.populate("location");
-    const location = this.location as any;
+    await this.populate("customer type");
+    const customer = this.customer as any;
+    const type = this.type as any;
 
-    if (
-      location?.nation &&
-      location?.city &&
-      location?.region &&
-      location?.province
-    ) {
-      this.customId = `${this.title.slice(0, 2).toUpperCase()}${this.description
-        .slice(0, 2)
-        .toUpperCase()}${location.nation
-        .slice(0, 2)
-        .toUpperCase()}${location.city
-        .slice(0, 2)
-        .toUpperCase()}${location.region
-        .slice(0, 2)
-        .toUpperCase()}${location.province.slice(0, 2).toUpperCase()}`;
+    if (customer?.name && type?.name) {
+      this.customId = `${customer.name.toUpperCase()}-${type?.name.toUpperCase()}-${Date.now()}`;
     } else {
-      console.warn("Incomplete location data for custom ID generation.");
-      this.customId = `${this.title.slice(0, 5).toUpperCase()}-${Date.now()}`;
+      console.warn("Incomplete data for custom ID generation.");
+      this.customId = `${this.task.slice(0, 5).toUpperCase()}-${Date.now()}`;
     }
   }
   next();

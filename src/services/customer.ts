@@ -32,7 +32,7 @@ class CustomerService {
     try {
       const { id } = req.params;
       const customer = await this.customerRepository.getCustomerById(req, id);
-      res.sendFormatted(customer, "Customer retrieved successfully");
+      res.json(customer);
     } catch (error) {
       await logError(error, req, "CustomerService-getCustomer");
       res.sendError(error, "Customer retrieval failed");

@@ -32,7 +32,7 @@ class WorkerService {
     try {
       const { id } = req.params;
       const worker = await this.workerRepository.getWorkerById(req, id);
-      res.sendFormatted(worker, "Worker retrieved successfully");
+      res.json(worker);
     } catch (error) {
       await logError(error, req, "WorkerService-getWorker");
       res.sendError(error, "Worker retrieval failed");
@@ -64,7 +64,7 @@ class WorkerService {
         id,
         workerData
       );
-      res.sendFormatted(updatedWorker, "Worker updated successfully");
+      res.json(updatedWorker);
     } catch (error) {
       await logError(error, req, "WorkerService-updateWorker");
       res.sendError(error, "Worker update failed");

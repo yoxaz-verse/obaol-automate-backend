@@ -22,7 +22,7 @@ class WorkerRepository {
       }
 
       const workersDoc = await WorkerModel.find(query)
-        .populate("serviceCompany", "name")
+        .populate("serviceCompany", "_id name")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
@@ -47,7 +47,7 @@ class WorkerRepository {
     try {
       const workerDoc = await WorkerModel.findById(id).populate(
         "serviceCompany",
-        "name"
+        "_id name"
       );
 
       if (!workerDoc) {

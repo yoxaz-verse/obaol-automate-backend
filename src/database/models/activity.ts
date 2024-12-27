@@ -85,11 +85,22 @@ const ActivitySchema = new mongoose.Schema(
 ActivitySchema.pre<IActivity>("save", async function (next) {
   if (!this.title && this.isNew) {
     await this.populate("customer type");
+
     const project = this.customer as any;
     const type = this.type as any;
 
     if (project?.customId && type?.name) {
-      this.title = `${project.customId.toUpperCase()}-${type?.name.toUpperCase()}-${Date.now()}`;
+      const projectTypeKey = `${project.customId}-${type.name}`;
+
+      // Find or create a sequence value for the projectTypeKey
+      const counter = await ActivityCounterModel.findOneAndUpdate(
+        { projectTypeKey },
+        { $inc: { sequenceValue: 1 } },
+        { new: true, upsert: true } // Create if doesn't exist
+      );
+
+      const sequenceNumber = counter.sequenceValue.toString().padStart(4, "0"); // Pad to 4 digits
+      this.title = `${project.customId.toUpperCase()}-${type.name.toUpperCase()}-${sequenceNumber}`;
     } else {
       console.warn("Incomplete data for custom ID generation.");
       this.title = `${Date.now()}`;
@@ -97,6 +108,16 @@ ActivitySchema.pre<IActivity>("save", async function (next) {
   }
   next();
 });
+
+const ActivityCounterSchema = new mongoose.Schema({
+  projectTypeKey: { type: String, unique: true }, // Unique key: Project.customId + Activity.type
+  sequenceValue: { type: Number, default: 0 },
+});
+
+export const ActivityCounterModel = mongoose.model(
+  "ActivityCounter",
+  ActivityCounterSchema
+);
 
 export const ActivityModel = mongoose.model<IActivity>(
   "Activity",

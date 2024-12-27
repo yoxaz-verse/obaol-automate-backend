@@ -30,7 +30,7 @@ class ActivityManagerRepository {
       const currentPage = pagination.page;
 
       const activityManagers = await ActivityManagerModel.find(query)
-        .populate("admin", "name")
+        .populate("admin", "_id name")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
@@ -54,7 +54,7 @@ class ActivityManagerRepository {
       const activityManagerDoc = await ActivityManagerModel.findOne({
         _id: id,
         isDeleted: false,
-      }).populate("admin", "name");
+      }).populate("admin");
 
       if (!activityManagerDoc) {
         throw new Error("ActivityManager not found");
@@ -96,31 +96,19 @@ class ActivityManagerRepository {
     activityManagerData: Partial<IUpdateActivityManager>
   ) {
     try {
-      // Validate and convert 'admin' to ObjectId if it's a string
-      if (
-        activityManagerData.admin &&
-        typeof activityManagerData.admin === "string"
-      ) {
-        if (mongoose.Types.ObjectId.isValid(activityManagerData.admin)) {
-          activityManagerData.admin = new mongoose.Types.ObjectId(
-            activityManagerData.admin
-          );
-        } else {
-          throw new Error(
-            `Invalid ObjectId provided for admin: ${activityManagerData.admin}`
-          );
-        }
-      }
+      const updatedActivityManager =
+        await ActivityManagerModel.findOneAndUpdate(
+          { _id: id },
+          activityManagerData,
+          {
+            new: true,
+          }
+        ).populate("admin", "_id name");
 
-      return await ActivityManagerModel.findOneAndUpdate(
-        { id },
-        activityManagerData,
-        {
-          new: true,
-        }
-      )
-        .populate("admin", "name")
-        .exec();
+      if (!updatedActivityManager) {
+        throw new Error("Failed to update ActivityManager");
+      }
+      return updatedActivityManager;
     } catch (error) {
       await logError(
         error,

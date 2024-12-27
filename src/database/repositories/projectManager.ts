@@ -29,7 +29,7 @@ class ProjectManagerRepository {
       const currentPage = pagination.page;
 
       const projectManagers = await ProjectManagerModel.find(query)
-        .populate("admin", "name")
+        .populate("admin", "_id name")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
@@ -49,7 +49,7 @@ class ProjectManagerRepository {
       const projectManagerDoc = await ProjectManagerModel.findOne({
         _id: id,
         isDeleted: false,
-      }).populate("admin", "name");
+      }).populate("admin", "_id name");
 
       if (!projectManagerDoc) {
         throw new Error("ProjectManager not found");
@@ -91,17 +91,13 @@ class ProjectManagerRepository {
     projectManagerData: Partial<IUpdateProjectManager>
   ): Promise<IProjectManager> {
     try {
-      console.log("Coming", id);
-
       const updatedProjectManager = await ProjectManagerModel.findOneAndUpdate(
         { _id: id },
         projectManagerData,
         {
           new: true,
         }
-      ).populate("admin", "name");
-
-      console.log("Coming OUT", id);
+      ).populate("admin", "_id name");
 
       if (!updatedProjectManager) {
         throw new Error("Failed to update ProjectManager");
@@ -126,7 +122,7 @@ class ProjectManagerRepository {
         { _id: id, isDeleted: false },
         { isDeleted: true },
         { new: true }
-      ).populate("admin", "name");
+      ).populate("admin", "_id name");
       if (!deletedProjectManager) {
         throw new Error("Failed to delete ProjectManager");
       }

@@ -146,7 +146,7 @@ class AdminService {
     try {
       const { id } = req.params;
       const admin = await this.adminRepository.getAdminById(req, id);
-      res.sendFormatted(admin, "Admin retrieved successfully");
+      res.json(admin);
     } catch (error) {
       await logError(error, req, "AdminService-getAdmin");
       res.sendError(error, "Admin retrieval failed");

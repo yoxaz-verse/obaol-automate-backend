@@ -42,7 +42,7 @@ class ActivityManagerService {
           req.params.id
         );
       res.json(activityManager);
-    } catch (error) {
+    } catch (error) { 
       await logError(
         error,
         req,

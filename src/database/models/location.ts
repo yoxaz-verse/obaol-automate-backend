@@ -32,10 +32,30 @@ const LocationSchema = new mongoose.Schema<ILocation>(
 // Custom ID generator
 LocationSchema.pre<ILocation>("save", async function (next) {
   if (!this.customId && this.isNew) {
-    this.customId = `MG-${this.province.toUpperCase()}-${Date.now()}`;
+    const provinceKey = this.province.toUpperCase(); // Convert province name to uppercase for consistency
+
+    // Find or create a sequence value for the provinceKey
+    const counter = await LocationCounterModel.findOneAndUpdate(
+      { provinceKey },
+      { $inc: { sequenceValue: 1 } }, // Increment the sequence value
+      { new: true, upsert: true } // Create if it doesn't exist
+    );
+
+    const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0"); // Pad sequence to 5 digits
+    this.customId = `MG-${provinceKey}-${sequenceNumber}`; // Construct the customId
   }
   next();
 });
+
+ const LocationCounterSchema = new mongoose.Schema({
+  provinceKey: { type: String, unique: true }, // Province name as the unique key
+  sequenceValue: { type: Number, default: 0 }, // Incrementing sequence number
+});
+
+export const LocationCounterModel = mongoose.model(
+  "LocationCounter",
+  LocationCounterSchema
+);
 
 export const LocationModel = mongoose.model<ILocation>(
   "Location",

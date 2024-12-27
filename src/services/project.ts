@@ -4,6 +4,7 @@ import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
 import ProjectRepository from "../database/repositories/project";
 import { ProjectStatusModel } from "../database/models/projectStatus";
+import { buildProjectQuery } from "../utils/buildProjectQuery";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
@@ -16,17 +17,19 @@ class ProjectService {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
 
-      // Extract status from query params
-      const { status } = req.query;
-      const { location } = req.query;
+      // Build the role-based query
+      const roleBasedQuery = await buildProjectQuery(req);
+
+      // Add search and additional filters
+      if (search) roleBasedQuery.title = { $regex: search, $options: "i" };
+      if (req.query.status) roleBasedQuery.status = req.query.status;
+      if (req.query.location) roleBasedQuery.location = req.query.location;
 
       // Pass the status to the repository function
       const projects = await this.projectRepository.getProjects(
         req,
         pagination,
-        search,
-        status as string, // Cast status as string (if needed)
-        location as string
+        roleBasedQuery
       );
 
       res.sendFormatted(projects, "Projects retrieved successfully", 200);
@@ -42,11 +45,20 @@ class ProjectService {
   public async getProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const project = await this.projectRepository.getProject(req, id);
+
+      // Build role-based query
+      const roleBasedQuery = await buildProjectQuery(req);
+      roleBasedQuery._id = id; // Include the specific project ID
+
+      const project = await this.projectRepository.getProject(
+        req,
+        roleBasedQuery
+      );
       if (!project) {
-        res.sendError(null, "Project not found", 404);
+        res.sendError(null, "Project not found or not authorized", 404);
         return;
       }
+
       res.json(project);
     } catch (error) {
       await logError(error, req, "ProjectService-getProject");
@@ -156,28 +168,78 @@ class ProjectService {
     try {
       const projects = req.body; // Assuming an array of projects is sent in the request body
 
+      // Validate input format
       if (!Array.isArray(projects) || projects.length === 0) {
         return res
           .status(400)
           .json({ message: "Invalid or empty projects array" });
       }
 
+      // Fetch default status "Open"
       const createdStatus = await ProjectStatusModel.findOne({
         name: "Open",
       });
       const defaultStatusId = createdStatus?._id;
 
-      if (!createdStatus && !defaultStatusId) {
+      if (!createdStatus || !defaultStatusId) {
         return res
           .status(400)
           .json({ message: "Initial status 'Open' not found" });
       }
+
+      // Function to validate date fields
+      const isValidDate = (date: string): boolean => {
+        const parsedDate = new Date(date);
+        return !isNaN(parsedDate.getTime()); // Returns true if valid date
+      };
+
+      // Create an array to hold rows that have issues
+      let invalidRows: any[] = [];
+
+      // Loop through each project to validate date fields and other necessary fields
+      const formattedProjects = projects.map((project: any, index: number) => {
+        // Validate dates
+        if (
+          !isValidDate(project.assignmentDate) ||
+          !isValidDate(project.schedaRadioDate)
+        ) {
+          invalidRows.push({ row: index + 1, issue: "Invalid date" });
+          return null; // Return null for rows with invalid dates
+        }
+
+        // Convert to proper date format (ISO string or any other format you prefer)
+        project.assignmentDate = new Date(project.assignmentDate).toISOString();
+        project.schedaRadioDate = new Date(
+          project.schedaRadioDate
+        ).toISOString();
+
+        // Add default status to the project
+        project.status = defaultStatusId;
+
+        return project;
+      });
+
+      // Check if any rows had issues
+      if (invalidRows.length > 0) {
+        return res.status(400).json({
+          message: "Bulk upload failed. Invalid rows found.",
+          invalidRows,
+        });
+      }
+
+      // Remove null entries from formattedProjects (invalid rows)
+      const validProjects = formattedProjects.filter(
+        (project) => project !== null
+      );
+
+      // Proceed with bulk insert for valid projects
       const results = await this.projectRepository.bulkInsertProjects(
         req,
-        projects,
+        validProjects,
         defaultStatusId
       );
 
+      // Send successful response
       res.sendFormatted(results, "Bulk upload completed", 201);
     } catch (error) {
       await logError(error, req, "ProjectService-bulkCreateProjects");

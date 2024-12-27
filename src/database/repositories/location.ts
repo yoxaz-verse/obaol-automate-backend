@@ -22,6 +22,7 @@ class LocationRepository {
 
       const locations = await LocationModel.find(query)
         .populate("locationType locationManager")
+        .select("+managerCodes") // Explicitly include managerCodes
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
@@ -37,7 +38,8 @@ class LocationRepository {
     try {
       const location = await LocationModel.findById(id)
         .populate("locationType", "name")
-        .populate("locationManager");
+        .populate("locationManager")
+        .select("+managerCodes"); // Explicitly include managerCodes
       if (!location) {
         throw new Error("Location not found");
       }

@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 
 const LocationSchema = new mongoose.Schema<ILocation>(
   {
-    customId: { type: String, unique: true }, // Ensure uniqueness
+    customId: { type: String, unique: true },
     name: { type: String, required: true },
     address: { type: String, required: true },
     city: { type: String, required: true },
@@ -20,6 +20,10 @@ const LocationSchema = new mongoose.Schema<ILocation>(
     locationManager: [
       { type: mongoose.Schema.Types.ObjectId, ref: "LocationManager" },
     ],
+    managerCodes: {
+      type: Map,
+      of: String, // ObjectId -> customCode mapping
+    },
     locationType: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "LocationType",
@@ -32,22 +36,19 @@ const LocationSchema = new mongoose.Schema<ILocation>(
 // Custom ID generator
 LocationSchema.pre<ILocation>("save", async function (next) {
   if (!this.customId && this.isNew) {
-    const provinceKey = this.province.toUpperCase(); // Convert province name to uppercase for consistency
-
-    // Find or create a sequence value for the provinceKey
+    const provinceKey = this.province.toUpperCase();
     const counter = await LocationCounterModel.findOneAndUpdate(
       { provinceKey },
-      { $inc: { sequenceValue: 1 } }, // Increment the sequence value
-      { new: true, upsert: true } // Create if it doesn't exist
+      { $inc: { sequenceValue: 1 } },
+      { new: true, upsert: true }
     );
-
-    const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0"); // Pad sequence to 5 digits
-    this.customId = `MG-${provinceKey}-${sequenceNumber}`; // Construct the customId
+    const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0");
+    this.customId = `MG-${provinceKey}-${sequenceNumber}`;
   }
   next();
 });
 
- const LocationCounterSchema = new mongoose.Schema({
+const LocationCounterSchema = new mongoose.Schema({
   provinceKey: { type: String, unique: true }, // Province name as the unique key
   sequenceValue: { type: Number, default: 0 }, // Incrementing sequence number
 });

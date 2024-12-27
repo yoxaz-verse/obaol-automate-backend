@@ -6,7 +6,6 @@ import {
   updateFile,
   deleteFile,
 } from "../controllers/activityFileController";
-import authenticateToken from "../middlewares/auth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 

@@ -18,7 +18,6 @@ import projectStatusRoute from "./projectStatusRoute";
 import locationTypeRoute from "./locationTypeRoute";
 import locationRoute from "./locationRoute";
 import locationManagerRoute from "./locationManagerRoute";
-import fileRoute from "./fileRoute";
 import authRoute from "./authRoute";
 import serviceCompanyRoute from "./serviceCompanyRoute";
 import verifyTokenRoute from "./verifyTokenRoute";

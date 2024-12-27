@@ -2,6 +2,7 @@ import { Router } from "express";
 import CustomerService from "../services/customer";
 import CustomerMiddleware from "../middlewares/customer";
 import authenticateToken from "../middlewares/auth";
+import { validateUniqueEmail } from "../database/models/emailChecker";
 
 const customerRoute = Router();
 const customerService = new CustomerService();
@@ -20,6 +21,7 @@ customerRoute.get(
 );
 customerRoute.post(
   "/",
+  validateUniqueEmail,
   authenticateToken,
   customerMiddleware.createCustomer.bind(customerMiddleware),
   customerService.createCustomer.bind(customerService)

@@ -3,6 +3,7 @@
 import { Router } from "express";
 import ActivityManagerService from "../services/activityManager";
 import { validateActivityManager } from "../middlewares/activityManager";
+import { validateUniqueEmail } from "../database/models/emailChecker";
 
 const router = Router();
 const activityManagerService = new ActivityManagerService();
@@ -17,6 +18,7 @@ router.get(
 );
 router.post(
   "/",
+  validateUniqueEmail,
   validateActivityManager,
   activityManagerService.createActivityManager.bind(activityManagerService)
 );

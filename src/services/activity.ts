@@ -189,6 +189,7 @@ class ActivityService {
     try {
       const activities = req.body; // Assuming activities is an array in the request body
 
+      // Validate input format
       if (!Array.isArray(activities) || activities.length === 0) {
         return res
           .status(400)
@@ -216,15 +217,16 @@ class ActivityService {
               );
             }
 
-            // Insert the activity into the database
+            // Create the new activity
             const newActivity = await this.activityRepository.createActivity(
               req,
               activityData
             );
 
+            // Return success with the created activity data
             return { success: true, data: newActivity };
           } catch (err) {
-            // Handle errors for individual activities
+            // Handle individual errors
             await logError(err, req, "ActivityService-bulkCreateActivities");
             return { success: false, error: err };
           }
@@ -239,17 +241,20 @@ class ActivityService {
         .filter((result) => !result.success)
         .map((result) => result.error);
 
-      // Return a summary response
+      // Return summary response with results
       res.sendFormatted(
         { successfulActivities, failedActivities },
         "Bulk upload completed with results",
         200
       );
     } catch (error) {
+      // Log and handle any errors that occur during the bulk creation process
       await logError(error, req, "ActivityService-bulkCreateActivities");
       res.sendError(error, "Bulk upload failed", 500);
     }
   }
+
+
 
   /**
    * Dynamically build filters based on user role and query parameters.
@@ -262,26 +267,30 @@ class ActivityService {
   ): Record<string, any> {
     const filters: any = {};
 
-    // Handle projectId properly with type casting
-    if (projectId && typeof projectId === "string") {
-      filters.project = projectId;
+    if (projectId) {
+      filters.project = projectId; // Filter by project ID if provided
     }
 
-    if (status) filters.status = status;
+    if (status) {
+      filters.status = status; // Filter by status if provided
+    }
 
     if (userRole) {
       switch (userRole) {
         case "Customer":
-          filters.customer = userId;
+          filters.customer = userId; // Activities associated with the customer
           break;
         case "ActivityManager":
+          filters.activityManager = userId; // Activities managed by the user
+          break;
         case "Worker":
-          filters.workers = { $in: [userId] };
+          filters.worker = { $in: [userId] }; // Activities assigned to the worker
           break;
         case "ProjectManager":
-          if (!projectId) filters["project.projectManager"] = userId;
+          filters["project.projectManager"] = userId; // Projects managed by the user
           break;
         case "Admin":
+          // No filters for Admins (they can view all activities)
           break;
         default:
           throw new Error("Access denied");

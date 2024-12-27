@@ -4,6 +4,7 @@ import { Router } from "express";
 import { validateProjectManager } from "../middlewares/projectManager";
 import ProjectManagerService from "../services/ProjectManager";
 import authenticateToken from "../middlewares/auth";
+import { validateUniqueEmail } from "../database/models/emailChecker";
 
 const router = Router();
 const projectManagerService = new ProjectManagerService();
@@ -20,6 +21,7 @@ router.get(
 );
 router.post(
   "/",
+  validateUniqueEmail,
   authenticateToken,
   validateProjectManager,
   projectManagerService.createProjectManager.bind(projectManagerService)

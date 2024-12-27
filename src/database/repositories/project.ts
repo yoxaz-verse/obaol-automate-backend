@@ -9,27 +9,13 @@ class ProjectRepository {
   public async getProjects(
     req: Request,
     pagination: { page: number; limit: number },
-    search: string,
-    status?: string, // Optional status parameter
-    location?: string // Optional status parameter
+    query: any
   ) {
     try {
-      const query: any = { isDeleted: false };
-
-      // Add search condition
-      if (search) query.title = { $regex: search, $options: "i" };
-
-      // Add status condition if provided
-      if (status) query.status = status;
-
-      // Add status condition if provided
-      if (location) query.location = location;
-
       // Count total matching documents
       const totalCount = await ProjectModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;
-
       // Fetch projects with pagination and population
       const projects = await ProjectModel.find(query)
         .populate("status customer projectManager location type")
@@ -44,9 +30,9 @@ class ProjectRepository {
     }
   }
 
-  public async getProject(req: Request, id: string) {
+  public async getProject(req: Request, query: any) {
     try {
-      return await ProjectModel.findById(id)
+      return await ProjectModel.findById(query)
         .populate("customer projectManager location status type")
         .exec();
     } catch (error) {

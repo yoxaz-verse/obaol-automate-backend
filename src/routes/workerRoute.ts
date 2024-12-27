@@ -2,6 +2,7 @@ import { Router } from "express";
 import WorkerService from "../services/worker";
 import WorkerMiddleware from "../middlewares/worker";
 import authenticateToken from "../middlewares/auth";
+import { validateUniqueEmail } from "../database/models/emailChecker";
 
 const workerRoute = Router();
 const workerService = new WorkerService();
@@ -21,6 +22,7 @@ workerRoute.get(
 workerRoute.post(
   "/",
   authenticateToken,
+  validateUniqueEmail,
   workerMiddleware.createWorker.bind(workerMiddleware),
   workerService.createWorker.bind(workerService)
 );

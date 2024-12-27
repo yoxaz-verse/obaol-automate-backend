@@ -3,6 +3,7 @@ import AdminService from "../services/admin";
 import AdminMiddleware from "../middlewares/admin";
 import authorizeRoles from "../middlewares/roleMiddleware";
 import authenticateToken from "../middlewares/auth";
+import { validateUniqueEmail } from "../database/models/emailChecker";
 
 const router = Router();
 const adminService = new AdminService();
@@ -34,6 +35,7 @@ router.get(
 // GET admin by ID
 router.get(
   "/:id",
+  authenticateToken,
   adminMiddleware.validateGet.bind(adminMiddleware),
   adminService.getAdmin.bind(adminService)
 );
@@ -41,6 +43,9 @@ router.get(
 // CREATE a new admin
 router.post(
   "/",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  validateUniqueEmail,
   adminMiddleware.validateCreate.bind(adminMiddleware),
   adminService.createAdmin.bind(adminService)
 );
@@ -48,6 +53,8 @@ router.post(
 // UPDATE an admin
 router.patch(
   "/:id",
+  authenticateToken,
+  authorizeRoles("Admin"),
   adminMiddleware.validateUpdate.bind(adminMiddleware),
   adminService.updateAdmin.bind(adminService)
 );
@@ -55,6 +62,8 @@ router.patch(
 // DELETE an admin
 router.delete(
   "/:id",
+  authenticateToken,
+  authorizeRoles("Admin"),
   adminMiddleware.validateDelete.bind(adminMiddleware),
   adminService.deleteAdmin.bind(adminService)
 );

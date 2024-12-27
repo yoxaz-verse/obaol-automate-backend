@@ -12,20 +12,16 @@ class ActivityRepository {
   ) {
     try {
       const query: any = { ...filters }; // Combine projectId and role-based filters
-
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
-
       const totalCount = await ActivityModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;
-
       const activities = await ActivityModel.find(query)
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
-
-        .populate("status type activityManager")
+        .populate("status type activityManager project worker")
         // .select("-updatedBy") // Exclude updatedBy fields
         .exec();
 

@@ -4,14 +4,13 @@ import Joi from "joi";
 class ProjectMiddleware {
   public validateCreate(req: Request, res: Response, next: NextFunction) {
     const schema = Joi.object({
-      title: Joi.string().required(),
-      description: Joi.string().required(),
+      description: Joi.string().optional(),
       customer: Joi.string().required(),
       location: Joi.string().required(),
       projectManager: Joi.string().required(),
       type: Joi.string().required(),
-      task: Joi.string().required(),
-      orderNumber: Joi.string().required(),
+      task: Joi.string().optional(),
+      orderNumber: Joi.string().optional(),
       assignmentDate: Joi.date().required(),
       schedaRadioDate: Joi.date().required(),
     });
@@ -32,7 +31,7 @@ class ProjectMiddleware {
     }
 
     for (const project of projects) {
-      if (!project.title || !project.description || !project.location) {
+      if (!project.location) {
         return res.status(400).json({
           message: "Each project must have a title, description, and location",
         });

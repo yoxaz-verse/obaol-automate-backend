@@ -32,8 +32,8 @@ interface IActivity extends mongoose.Document {
 
 const ActivitySchema = new mongoose.Schema(
   {
-    title: { type: String, required: true },
-    description: { type: String, required: true },
+    title: { type: String },
+    description: { type: String },
 
     allowTimesheets: { type: Boolean, default: true },
 
@@ -84,9 +84,9 @@ const ActivitySchema = new mongoose.Schema(
 // Custom ID generator
 ActivitySchema.pre<IActivity>("save", async function (next) {
   if (!this.title && this.isNew) {
-    await this.populate("customer type");
+    await this.populate("project type");
 
-    const project = this.customer as any;
+    const project = this.project as any;
     const type = this.type as any;
 
     if (project?.customId && type?.name) {

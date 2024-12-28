@@ -122,162 +122,140 @@ class LocationService {
       res.sendError(error, "Location deletion failed", 500);
     }
   }
-  public async bulkCreateLocations(req: Request, res: Response) {
+
+  bulkCreateLocations = async (req: Request, res: Response) => {
     try {
       const locations = req.body;
 
-      // Validate input
       if (!Array.isArray(locations) || locations.length === 0) {
-        res.sendError("", "Invalid or empty locations payload", 400);
-        return;
+        return res
+          .status(400)
+          .json({ message: "Invalid or empty request body." });
       }
 
-      // Initialize error tracking
-      let errorMessages: string[] = [];
+      const errorMessages: string[] = [];
+      const allManagers: any[] = locations.flatMap((loc) => {
+        let managers = loc.locationManager;
 
-      // Extract unique locationType names from the payload
-      const locationTypeNames = Array.from(
-        new Set(locations.map((loc) => loc.locationType))
-      );
+        // Parse locationManager if it's a string
+        if (
+          typeof managers === "string" &&
+          managers.startsWith("[") &&
+          managers.endsWith("]")
+        ) {
+          try {
+            // Remove brackets and split into individual manager objects
+            const cleanedString = managers.trim().slice(1, -1); // Remove brackets
+            console.log("cleanedString:", cleanedString);
 
-      // Fetch locationType IDs from the database
-      const locationTypes = await LocationTypeModel.find({
-        name: { $in: locationTypeNames },
+            // Use regex to parse key-value pairs
+            const managerObjects = cleanedString
+              .split("},")
+              .map((managerPair) => {
+                const trimmedPair = managerPair.replace(/[{}]/g, "").trim(); // Remove braces
+                const [key, value] = trimmedPair
+                  .split(":")
+                  .map((str) => str.trim());
+                console.log("cleanedStrin", cleanedString);
+
+                if (key && value) {
+                  return { name: key, code: value }; // Correctly parse name and code
+                } else {
+                  errorMessages.push(
+                    `Invalid manager format in location "${loc.name}": ${managerPair}`
+                  );
+                  return null;
+                }
+              })
+              .filter(Boolean); // Filter out null values
+
+            return managerObjects;
+          } catch (error) {
+            console.error("Error parsing locationManager:", error);
+            errorMessages.push(
+              `Failed to parse locationManager for location "${loc.name}"`
+            );
+            return [];
+          }
+        }
+
+        return [];
       });
+      console.log("allManagers", allManagers);
 
-      const locationTypeMap = new Map(
-        locationTypes.map((type) => [type.name, type._id])
+      // Deduplicate manager entries by `name` or `code`
+      const uniqueManagers = Array.from(
+        new Map(allManagers.map((manager) => [manager.code, manager])).values()
       );
+      console.log("uniqueManagers", uniqueManagers);
 
-      // Handle missing location types
-      const missingLocationTypes = locationTypeNames.filter(
-        (type) => !locationTypeMap.has(type)
-      );
-      if (missingLocationTypes.length > 0) {
-        errorMessages.push(
-          `Missing location types: ${missingLocationTypes.join(", ")}`
-        );
-      }
-
-      // Extract and validate locationManager entries
-      const allManagers = locations.flatMap((loc) => {
-        const managers = loc.locationManager || [];
-        return managers
-          .map((manager: string) => {
-            // Validate manager format: MANAGER_NAME:CUSTOM_CODE
-            const managerParts = manager.split(":");
-            if (managerParts.length !== 2) {
-              errorMessages.push(
-                `Invalid locationManager format for ${manager}`
-              );
-              return null; // Invalid manager, skip it
-            }
-            const [name, code] = managerParts;
-            return { name, code };
-          })
-          .filter(Boolean); // Remove invalid managers
-      });
-
-      // If there are errors in locationManager format, stop further processing
-      if (errorMessages.length > 0) {
-        res.sendError(
-          "",
-          `Validation failed: ${errorMessages.join(", ")}`,
-          400
-        );
-        return;
-      }
-
-      const uniqueManagerCodes = Array.from(
-        new Set(allManagers.map((manager) => manager.code))
-      );
-
-      // Find existing managers in the database
+      // Fetch existing managers by name
       const existingManagers = await LocationManagerModel.find({
-        code: { $in: uniqueManagerCodes },
+        name: { $in: uniqueManagers.map((manager) => manager.name) },
       });
+      console.log("existingManagers", existingManagers);
 
+      // Create new managers for those not found
       const existingManagerMap = new Map(
-        existingManagers.map((manager) => [manager.code, manager._id])
+        existingManagers.map((manager) => [manager.name, manager._id])
       );
-
-      // Identify and insert new managers
-      const newManagers = allManagers.filter(
-        (manager) => !existingManagerMap.has(manager.code)
+      const newManagers = uniqueManagers.filter(
+        (manager) => !existingManagerMap.has(manager.name)
       );
+      console.log("newManagers", newManagers);
 
-      let createdManagers: any[] = [];
+      let createdManagers = [] as any;
       if (newManagers.length > 0) {
-        createdManagers = await LocationManagerModel.insertMany(newManagers);
+        createdManagers = await LocationManagerModel.insertMany(
+          newManagers.map(({ name }) => ({ name }))
+        );
       }
+      console.log("createdManagers", createdManagers);
 
-      // Combine all valid managers into a single map
+      // Combine all manager references
       const allValidManagers = [...existingManagers, ...createdManagers];
       const managerMap = new Map(
-        allValidManagers.map((manager) => [manager.code, manager._id])
+        allValidManagers.map((manager) => [manager.name, manager._id])
       );
 
-      // Validate and format locations
-      const formattedLocations = locations
-        .map((location) => {
-          // Validate locationManager format
-          const managerIds = (location.locationManager || [])
-            .map((manager: string) => {
-              const [, code] = manager.split(":");
-              if (!managerMap.has(code)) {
-                errorMessages.push(`Manager with code ${code} not found`);
-                return null; // Invalid code, skip
-              }
-              return managerMap.get(code);
-            })
-            .filter(Boolean); // Remove invalid managers
+      // Validate and map managers for each location
+      const formattedLocations = locations.map((loc) => {
+        const managerIds = (
+          typeof loc.locationManager === "string" &&
+          JSON.parse(loc.locationManager)
+        )
+          .map((manager: Record<string, string>) => {
+            console.log(manager);
 
-          // Validate locationType
-          const locationTypeId = locationTypeMap.get(location.locationType);
-          if (!locationTypeId) {
-            errorMessages.push(
-              `Invalid locationType: ${location.locationType}`
-            );
-          }
+            const [name] = Object.entries(manager)[0] || [];
+            return managerMap.get(name) || null;
+          })
+          .filter(Boolean);
+        console.log("formattedLocations", formattedLocations);
 
-          // If there are errors in locationType or locationManager, stop further processing
-          if (errorMessages.length > 0) {
-            return null; // Skip this location if it has errors
-          }
+        return {
+          ...loc,
+          locationManager: managerIds,
+        };
+      });
+      console.log("formattedLocations:", formattedLocations);
 
-          return {
-            ...location,
-            locationType: locationTypeId,
-            locationManager: managerIds,
-          };
-        })
-        .filter(Boolean); // Remove locations with errors
-
-      // If no valid locations after filtering, return errors
-      if (formattedLocations.length === 0 || errorMessages.length > 0) {
-        res.sendError(
-          "",
-          `Validation failed: ${errorMessages.join(", ")}`,
-          400
-        );
-        return;
-      }
-
-      // Insert locations into the database
+      // Save locations to the database
       const createdLocations = await LocationModel.insertMany(
         formattedLocations
       );
+      console.log("createdLocations:", createdLocations);
 
-      res.sendFormatted(
-        createdLocations,
-        "Locations and managers created/linked successfully",
-        201
-      );
+      return res.status(201).json({
+        message: "Locations created successfully",
+        data: createdLocations,
+        errors: errorMessages,
+      });
     } catch (error) {
-      await logError(error, req, "LocationService-bulkCreateLocations");
-      res.sendError(error, "Bulk location creation failed", 500);
+      console.error("Error in bulkCreateLocations:", error);
+      return res.status(500).json({ message: "Internal server error", error });
     }
-  }
+  };
 }
 
 export default LocationService;

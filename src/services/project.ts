@@ -167,6 +167,7 @@ class ProjectService {
   public async bulkCreateProjects(req: Request, res: Response) {
     try {
       const projects = req.body; // Assuming an array of projects is sent in the request body
+      console.log("1");
 
       // Validate input format
       if (!Array.isArray(projects) || projects.length === 0) {
@@ -180,6 +181,7 @@ class ProjectService {
         name: "Open",
       });
       const defaultStatusId = createdStatus?._id;
+      console.log("2");
 
       if (!createdStatus || !defaultStatusId) {
         return res
@@ -195,6 +197,7 @@ class ProjectService {
 
       // Create an array to hold rows that have issues
       let invalidRows: any[] = [];
+      console.log("3");
 
       // Loop through each project to validate date fields and other necessary fields
       const formattedProjects = projects.map((project: any, index: number) => {
@@ -218,6 +221,7 @@ class ProjectService {
 
         return project;
       });
+      console.log("4");
 
       // Check if any rows had issues
       if (invalidRows.length > 0) {
@@ -226,11 +230,14 @@ class ProjectService {
           invalidRows,
         });
       }
+      console.log("5");
 
       // Remove null entries from formattedProjects (invalid rows)
       const validProjects = formattedProjects.filter(
         (project) => project !== null
       );
+      console.log("6");
+      console.log(validProjects);
 
       // Proceed with bulk insert for valid projects
       const results = await this.projectRepository.bulkInsertProjects(

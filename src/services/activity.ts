@@ -254,8 +254,6 @@ class ActivityService {
     }
   }
 
-
-
   /**
    * Dynamically build filters based on user role and query parameters.
    */

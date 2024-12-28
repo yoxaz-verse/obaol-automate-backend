@@ -2,10 +2,14 @@ import { Request, Response, NextFunction } from "express";
 import { logError } from "../utils/errorLogger";
 
 class LocationManagerMiddleware {
-  public async createLocationManager(req: Request, res: Response, next: NextFunction) {
+  public async createLocationManager(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
-      const { code, name } = req.body;
-      if (!code || !name) {
+      const { name } = req.body;
+      if (!name) {
         res.sendError(
           "ValidationError: Code and Name must be provided",
           "Code and Name must be provided",
@@ -20,7 +24,11 @@ class LocationManagerMiddleware {
     }
   }
 
-  public async updateLocationManager(req: Request, res: Response, next: NextFunction) {
+  public async updateLocationManager(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { code, name } = req.body;
       if (!code && !name && !req.body.managingLocations) {
@@ -38,7 +46,11 @@ class LocationManagerMiddleware {
     }
   }
 
-  public async deleteLocationManager(req: Request, res: Response, next: NextFunction) {
+  public async deleteLocationManager(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -56,7 +68,11 @@ class LocationManagerMiddleware {
     }
   }
 
-  public async getLocationManager(req: Request, res: Response, next: NextFunction) {
+  public async getLocationManager(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { id } = req.params;
       if (!id) {
@@ -76,4 +92,3 @@ class LocationManagerMiddleware {
 }
 
 export default LocationManagerMiddleware;
-

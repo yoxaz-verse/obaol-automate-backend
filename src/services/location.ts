@@ -3,7 +3,10 @@ import LocationRepository from "../database/repositories/location";
 import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
-import { LocationModel } from "../database/models/location";
+import {
+  LocationCounterModel,
+  LocationModel,
+} from "../database/models/location";
 import { LocationManagerModel } from "../database/models/locationManager";
 import { LocationTypeModel } from "../database/models/locationType";
 
@@ -54,23 +57,26 @@ class LocationService {
       if (locationManager) {
         const { selectedKeys, customValues } = locationManager;
 
-        // Map customValues to selectedKeys
-        locationData.locationManager = selectedKeys;
-        locationData.managerCodes = selectedKeys.reduce(
-          (map: any, key: string) => {
-            map[key] = customValues[key];
-            return map;
-          },
-          {}
-        );
+        // Transform locationManager data into the required schema format
+        locationData.locationManagers = selectedKeys.map((key: string) => ({
+          manager: key,
+          code: customValues[key],
+        }));
+
+        // Remove unnecessary fields from the payload
+        delete locationData.locationManager;
       }
 
+      // Save location to the database
       const newLocation = await this.locationRepository.createLocation(
         req,
         locationData
       );
+
+      // Return success response
       res.sendFormatted(newLocation, "Location created successfully", 201);
     } catch (error) {
+      // Log and handle error
       await logError(error, req, "LocationService-createLocation");
       res.sendError(error, "Location creation failed", 500);
     }
@@ -87,8 +93,8 @@ class LocationService {
         const { selectedKeys, customValues } = locationManager;
 
         // Map customValues to selectedKeys
-        locationData.locationManager = selectedKeys;
-        locationData.managerCodes = selectedKeys.reduce(
+        // locationData.locationManager = selectedKeys;
+        locationData.locationManagers = selectedKeys.reduce(
           (map: any, key: string) => {
             map[key] = customValues[key];
             return map;
@@ -108,6 +114,7 @@ class LocationService {
       res.sendError(error, "Location update failed", 500);
     }
   }
+
 
   public async deleteLocation(req: Request, res: Response) {
     try {
@@ -134,117 +141,91 @@ class LocationService {
       }
 
       const errorMessages: string[] = [];
-      const allManagers: any[] = locations.flatMap((loc) => {
-        let managers = loc.locationManager;
 
-        // Parse locationManager if it's a string
-        if (
-          typeof managers === "string" &&
-          managers.startsWith("[") &&
-          managers.endsWith("]")
-        ) {
-          try {
-            // Remove brackets and split into individual manager objects
-            const cleanedString = managers.trim().slice(1, -1); // Remove brackets
-            console.log("cleanedString:", cleanedString);
+      // Step 1: Fetch LocationType IDs
+      const locationTypes = await LocationTypeModel.find({
+        name: { $in: locations.map((loc) => loc.locationType) },
+      });
+      const locationTypeMap = new Map(
+        locationTypes.map((type) => [type.name, type._id])
+      );
 
-            // Use regex to parse key-value pairs
-            const managerObjects = cleanedString
-              .split("},")
-              .map((managerPair) => {
-                const trimmedPair = managerPair.replace(/[{}]/g, "").trim(); // Remove braces
-                const [key, value] = trimmedPair
-                  .split(":")
-                  .map((str) => str.trim());
-                console.log("cleanedStrin", cleanedString);
-
-                if (key && value) {
-                  return { name: key, code: value }; // Correctly parse name and code
-                } else {
-                  errorMessages.push(
-                    `Invalid manager format in location "${loc.name}": ${managerPair}`
-                  );
-                  return null;
-                }
-              })
-              .filter(Boolean); // Filter out null values
-
-            return managerObjects;
-          } catch (error) {
-            console.error("Error parsing locationManager:", error);
+      // Step 2: Process each location and parse locationManagers
+      const formattedLocations = await Promise.all(
+        locations.map(async (loc) => {
+          // Parse and validate locationType
+          const locationTypeId = locationTypeMap.get(loc.locationType);
+          if (!locationTypeId) {
             errorMessages.push(
-              `Failed to parse locationManager for location "${loc.name}"`
+              `Location type "${loc.locationType}" not found for location "${loc.name}".`
             );
-            return [];
+            return null;
           }
-        }
 
-        return [];
-      });
-      console.log("allManagers", allManagers);
+          // Parse locationManager
+          let parsedManagers = [];
+          try {
+            const managerString = loc.locationManager.trim().slice(1, -1); // Remove square brackets
+            const managerPairs = managerString.split("},").map((pair: any) => {
+              const cleanedPair = pair.replace(/[{}]/g, "").trim(); // Remove curly braces
+              const [key, value] = cleanedPair
+                .split(":")
+                .map((s: any) => s.trim());
+              return { name: key, code: value };
+            });
 
-      // Deduplicate manager entries by `name` or `code`
-      const uniqueManagers = Array.from(
-        new Map(allManagers.map((manager) => [manager.code, manager])).values()
+            parsedManagers = managerPairs.filter(
+              (manager: any) => manager.name && manager.code
+            );
+          } catch (error) {
+            errorMessages.push(
+              `Invalid locationManager format for location "${loc.name}".`
+            );
+            return null;
+          }
+
+          // Fetch or Create LocationManagers
+          const managerIds = await Promise.all(
+            parsedManagers.map(async ({ name, code }: any) => {
+              let manager = await LocationManagerModel.findOne({ name });
+              if (!manager) {
+                manager = await LocationManagerModel.create({ name });
+              }
+              return { manager: manager._id, code };
+            })
+          );
+
+          // Format location for saving
+          return {
+            ...loc,
+            locationType: locationTypeId,
+            locationManagers: managerIds,
+          };
+        })
       );
-      console.log("uniqueManagers", uniqueManagers);
 
-      // Fetch existing managers by name
-      const existingManagers = await LocationManagerModel.find({
-        name: { $in: uniqueManagers.map((manager) => manager.name) },
-      });
-      console.log("existingManagers", existingManagers);
+      // Step 3: Filter out null locations
+      const validLocations = formattedLocations.filter(Boolean);
 
-      // Create new managers for those not found
-      const existingManagerMap = new Map(
-        existingManagers.map((manager) => [manager.name, manager._id])
-      );
-      const newManagers = uniqueManagers.filter(
-        (manager) => !existingManagerMap.has(manager.name)
-      );
-      console.log("newManagers", newManagers);
-
-      let createdManagers = [] as any;
-      if (newManagers.length > 0) {
-        createdManagers = await LocationManagerModel.insertMany(
-          newManagers.map(({ name }) => ({ name }))
-        );
-      }
-      console.log("createdManagers", createdManagers);
-
-      // Combine all manager references
-      const allValidManagers = [...existingManagers, ...createdManagers];
-      const managerMap = new Map(
-        allValidManagers.map((manager) => [manager.name, manager._id])
+      // Generate custom IDs for valid locations
+      const validLocationsWithCustomIds = await Promise.all(
+        validLocations.map(async (location) => {
+          if (location.customId)
+            return {
+              ...location,
+            };
+          const customId = await generateCustomId(location.province);
+          return {
+            ...location,
+            customId,
+          };
+        })
       );
 
-      // Validate and map managers for each location
-      const formattedLocations = locations.map((loc) => {
-        const managerIds = (
-          typeof loc.locationManager === "string" &&
-          JSON.parse(loc.locationManager)
-        )
-          .map((manager: Record<string, string>) => {
-            console.log(manager);
-
-            const [name] = Object.entries(manager)[0] || [];
-            return managerMap.get(name) || null;
-          })
-          .filter(Boolean);
-        console.log("formattedLocations", formattedLocations);
-
-        return {
-          ...loc,
-          locationManager: managerIds,
-        };
-      });
-      console.log("formattedLocations:", formattedLocations);
-
-      // Save locations to the database
+      // Step 4: Save to database
       const createdLocations = await LocationModel.insertMany(
-        formattedLocations
+        validLocationsWithCustomIds
       );
-      console.log("createdLocations:", createdLocations);
 
       return res.status(201).json({
         message: "Locations created successfully",
@@ -255,7 +236,31 @@ class LocationService {
       console.error("Error in bulkCreateLocations:", error);
       return res.status(500).json({ message: "Internal server error", error });
     }
+
+    // Utility to generate custom ID
   };
 }
+
+// Define generateCustomId outside the bulkCreateLocations function
+const generateCustomId = async (province: string): Promise<string> => {
+  try {
+    const provinceKey = province.toUpperCase();
+    const counter = await LocationCounterModel.findOneAndUpdate(
+      { provinceKey },
+      { $inc: { sequenceValue: 1 } },
+      { new: true, upsert: true }
+    );
+
+    if (!counter) {
+      throw new Error(`Failed to update counter for province: ${provinceKey}`);
+    }
+
+    const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0");
+    return `MG-${provinceKey}-${sequenceNumber}`;
+  } catch (error) {
+    console.error("Error generating customId:", error);
+    throw error;
+  }
+};
 
 export default LocationService;

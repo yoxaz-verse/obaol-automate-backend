@@ -21,8 +21,11 @@ class LocationRepository {
       const currentPage = pagination.page;
 
       const locations = await LocationModel.find(query)
-        .populate("locationType locationManager")
-        .select("+managerCodes") // Explicitly include managerCodes
+        .populate({
+          path: "locationManagers.manager",
+          select: "name", // Only include manager's name
+        })
+        .populate("locationType")
         .skip((pagination.page - 1) * pagination.limit)
         .limit(pagination.limit)
         .exec();
@@ -37,9 +40,11 @@ class LocationRepository {
   public async getLocationById(req: Request, id: string): Promise<ILocation> {
     try {
       const location = await LocationModel.findById(id)
-        .populate("locationType", "name")
-        .populate("locationManager")
-        .select("+managerCodes"); // Explicitly include managerCodes
+        .populate({
+          path: "locationManagers.manager",
+          select: "name", // Only include manager's name
+        })
+        .populate("locationType", "name");
       if (!location) {
         throw new Error("Location not found");
       }
@@ -73,7 +78,12 @@ class LocationRepository {
         id,
         locationData,
         { new: true }
-      ).populate("locationType", "name");
+      )
+        .populate({
+          path: "locationManagers.manager",
+          select: "name",
+        })
+        .populate("locationType", "name");
       if (!updatedLocation) {
         throw new Error("Failed to update location");
       }

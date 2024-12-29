@@ -16,7 +16,10 @@ export interface ILocation extends mongoose.Document {
   owner: string;
   province: string;
   region: string;
-  locationManager: string[];
+  locationManagers: {
+    manager: string;
+    code: string;
+  }[];
   locationType: mongoose.Schema.Types.ObjectId | ILocationType;
   isNearAnotherLocation: boolean;
 }

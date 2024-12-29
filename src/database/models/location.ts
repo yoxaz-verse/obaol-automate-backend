@@ -1,5 +1,5 @@
-import { ILocation } from "../../interfaces/location";
 import mongoose from "mongoose";
+import { ILocation } from "../../interfaces/location";
 
 const LocationSchema = new mongoose.Schema<ILocation>(
   {
@@ -17,35 +17,58 @@ const LocationSchema = new mongoose.Schema<ILocation>(
     province: { type: String, required: true },
     street: { type: String },
     region: { type: String, required: true },
-    locationManager: [
-      { type: mongoose.Schema.Types.ObjectId, ref: "LocationManager" },
-    ],
-    managerCodes: {
-      type: Map,
-      of: String, // ObjectId -> customCode mapping
-    },
     locationType: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "LocationType",
       required: true,
     },
+    locationManagers: [
+      {
+        manager: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "LocationManager",
+          required: true,
+        },
+        code: { type: String, required: true }, // Code specific to this location
+      },
+    ],
   },
   { timestamps: true }
 );
 
 // Custom ID generator
 LocationSchema.pre<ILocation>("save", async function (next) {
-  if (!this.customId && this.isNew) {
-    const provinceKey = this.province.toUpperCase();
-    const counter = await LocationCounterModel.findOneAndUpdate(
-      { provinceKey },
-      { $inc: { sequenceValue: 1 } },
-      { new: true, upsert: true }
-    );
-    const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0");
-    this.customId = `MG-${provinceKey}-${sequenceNumber}`;
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    if (!this.customId) {
+      const provinceKey = this.province.toUpperCase();
+
+      const counter = await LocationCounterModel.findOneAndUpdate(
+        { provinceKey },
+        { $inc: { sequenceValue: 1 } },
+        { new: true, upsert: true, session }
+      );
+
+      if (!counter) {
+        throw new Error(
+          `Failed to update sequence for province: ${provinceKey}`
+        );
+      }
+
+      const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0");
+      this.customId = `MG-${provinceKey}-${sequenceNumber}`;
+      console.log(`Generated customId: ${this.customId}`);
+    }
+    await session.commitTransaction();
+    next();
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Transaction Error in pre-save hook:", error);
+    next();
+  } finally {
+    session.endSession();
   }
-  next();
 });
 
 const LocationCounterSchema = new mongoose.Schema({

@@ -115,26 +115,19 @@ class ProjectRepository {
     }
   }
 
-  public async bulkInsertProjects(
-    req: Request,
-    projects: any[],
-    defaultStatusId: any
-  ) {
+  public async bulkInsertProjects(req: Request, projects: any[]) {
     const results = { success: [], failed: [] };
 
-    for (const projectData of projects) {
+    for (const project of projects) {
       try {
-        // Assign default status
-        projectData.status = defaultStatusId;
-
-        // Validate and create project
-        const newProject = new ProjectModel(projectData);
+        // Create a new project document
+        const newProject = new ProjectModel(project);
         await newProject.save();
 
-        // results.success.push(newProject);
+        results.success.push();
       } catch (error) {
         await logError(error, req, "ProjectRepository-bulkInsertProjects");
-        // results.failed.push({ project: projectData, error: error.message });
+        results.failed.push();
       }
     }
 

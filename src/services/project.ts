@@ -5,6 +5,10 @@ import { logError } from "../utils/errorLogger";
 import ProjectRepository from "../database/repositories/project";
 import { ProjectStatusModel } from "../database/models/projectStatus";
 import { buildProjectQuery } from "../utils/buildProjectQuery";
+import { LocationModel } from "../database/models/location";
+import { CustomerModel } from "../database/models/customer";
+import { ProjectManagerModel } from "../database/models/projectManager";
+import { ProjectTypeModel } from "../database/models/projectType";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
@@ -166,10 +170,8 @@ class ProjectService {
 
   public async bulkCreateProjects(req: Request, res: Response) {
     try {
-      const projects = req.body; // Assuming an array of projects is sent in the request body
-      console.log("1");
+      const projects = req.body;
 
-      // Validate input format
       if (!Array.isArray(projects) || projects.length === 0) {
         return res
           .status(400)
@@ -177,81 +179,112 @@ class ProjectService {
       }
 
       // Fetch default status "Open"
-      const createdStatus = await ProjectStatusModel.findOne({
-        name: "Open",
-      });
-      const defaultStatusId = createdStatus?._id;
-      console.log("2");
-
-      if (!createdStatus || !defaultStatusId) {
+      const createdStatus = await ProjectStatusModel.findOne({ name: "Open" });
+      if (!createdStatus?._id) {
         return res
           .status(400)
-          .json({ message: "Initial status 'Open' not found" });
+          .json({ message: "Default status 'Open' not found" });
       }
+      const defaultStatusId = createdStatus._id;
+      console.log("1");
 
-      // Function to validate date fields
-      const isValidDate = (date: string): boolean => {
-        const parsedDate = new Date(date);
-        return !isNaN(parsedDate.getTime()); // Returns true if valid date
-      };
+      // Validate and format projects
+      const invalidRows: any[] = [];
+      const validProjects: any[] = [];
+      console.log("2");
 
-      // Create an array to hold rows that have issues
-      let invalidRows: any[] = [];
-      console.log("3");
+      for (const [index, project] of projects.entries()) {
+        try {
+          // Resolve references
+          const location = await LocationModel.findOne({
+            customId: project.location,
+          });
+          const customer = await CustomerModel.findOne({
+            name: project.customer,
+          });
+          const projectManager = await ProjectManagerModel.findOne({
+            email: project.projectManager,
+          });
+          const projectType = await ProjectTypeModel.findOne({
+            name: project.type,
+          });
 
-      // Loop through each project to validate date fields and other necessary fields
-      const formattedProjects = projects.map((project: any, index: number) => {
-        // Validate dates
-        if (
-          !isValidDate(project.assignmentDate) ||
-          !isValidDate(project.schedaRadioDate)
-        ) {
-          invalidRows.push({ row: index + 1, issue: "Invalid date" });
-          return null; // Return null for rows with invalid dates
+          if (!location || !customer || !projectManager || !projectType) {
+            invalidRows.push({
+              row: index + 1,
+              issue:
+                "Invalid references: location, customer, manager, or type not found",
+            });
+            continue;
+          }
+
+          // Validate dates
+          if (
+            !this.isValidDate(project.assignmentDate) ||
+            !this.isValidDate(project.schedaRadioDate)
+          ) {
+            invalidRows.push({ row: index + 1, issue: "Invalid date format" });
+            continue;
+          }
+
+          console.log(project.assignmentDate);
+          console.log(project.schedaRadioDate);
+
+          // Format dates
+          project.assignmentDate = new Date(
+            project.assignmentDate
+          ).toISOString();
+          project.schedaRadioDate = new Date(
+            project.schedaRadioDate
+          ).toISOString();
+
+          console.log(project.assignmentDate);
+          console.log(project.schedaRadioDate);
+
+          // Transform project to match schema
+          validProjects.push({
+            ...project,
+            location: location._id,
+            customer: customer._id,
+            projectManager: projectManager._id,
+            type: projectType._id,
+            status: project.status || defaultStatusId,
+            isActive: project.isActive ?? true,
+            isDeleted: project.isDeleted ?? false,
+          });
+        } catch (error) {
+          invalidRows.push({ row: index + 1, issue: error });
         }
+      }
+      console.log("3");
+      console.log(invalidRows, "invalidRows");
 
-        // Convert to proper date format (ISO string or any other format you prefer)
-        project.assignmentDate = new Date(project.assignmentDate).toISOString();
-        project.schedaRadioDate = new Date(
-          project.schedaRadioDate
-        ).toISOString();
-
-        // Add default status to the project
-        project.status = defaultStatusId;
-
-        return project;
-      });
-      console.log("4");
-
-      // Check if any rows had issues
       if (invalidRows.length > 0) {
         return res.status(400).json({
           message: "Bulk upload failed. Invalid rows found.",
           invalidRows,
         });
       }
-      console.log("5");
-
-      // Remove null entries from formattedProjects (invalid rows)
-      const validProjects = formattedProjects.filter(
-        (project) => project !== null
-      );
-      console.log("6");
+      console.log("validProjects");
       console.log(validProjects);
 
-      // Proceed with bulk insert for valid projects
+      console.log("4");
+      // Bulk insert
       const results = await this.projectRepository.bulkInsertProjects(
         req,
-        validProjects,
-        defaultStatusId
+        validProjects
       );
-
-      // Send successful response
       res.sendFormatted(results, "Bulk upload completed", 201);
     } catch (error) {
       await logError(error, req, "ProjectService-bulkCreateProjects");
       res.sendError(error, "Bulk upload failed", 500);
     }
+  }
+
+  // Helper method to validate date
+  private isValidDate(date: string): boolean {
+    const parsedDate = new Date(date);
+    return !isNaN(parsedDate.getTime());
   }
 }
 

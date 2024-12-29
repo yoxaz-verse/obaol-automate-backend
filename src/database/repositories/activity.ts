@@ -52,7 +52,7 @@ class ActivityRepository {
       const newActivity = new ActivityModel(activityData);
       return await newActivity.save();
     } catch (error) {
-      await logError(error, req, "ActivityRepository-createActivity");
+      // await logError(error, req, "ActivityRepository-createActivity");
       throw error;
     }
   }

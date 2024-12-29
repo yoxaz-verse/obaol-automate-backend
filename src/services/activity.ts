@@ -5,10 +5,16 @@ import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
 import { ActivityStatusModel } from "../database/models/activityStatus";
 import ProjectRepository from "..//database/repositories/project";
+import { ActivityTypeModel } from "../database/models/activityType";
+import { WorkerModel } from "../database/models/worker";
+import { ProjectModel } from "../database/models/project";
+import mongoose from "mongoose";
+import { ActivityManagerModel } from "../database/models/activityManager";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
   private projectRepository = new ProjectRepository();
+
   /**
    * Fetch a paginated list of activities with dynamic filters based on the user's role.
    */
@@ -198,17 +204,71 @@ class ActivityService {
 
       const results = await Promise.all(
         activities.map(async (activity) => {
+          console.log(activity.project);
+
           try {
+            const project = await ProjectModel.findOne({
+              customId: activity.project,
+            });
+
+            if (!project) {
+              throw new Error(
+                `Project with customId ${activity.project} not found`
+              );
+            }
+            console.log("3");
+
+            // Map activity type by name
+            const activityType = await ActivityTypeModel.findOne({
+              name: activity.type,
+            });
+            if (!activityType) {
+              throw new Error(`Activity type ${activity.type} not found`);
+            }
+
+            // Map activity Manager by name
+            const activityManager = await ActivityManagerModel.findOne({
+              email: activity.activityManager,
+            });
+            if (!activityManager) {
+              throw new Error(
+                `Activity type ${activity.activityManager} not found`
+              );
+            }
+
+            // Map workers by email
+            const workerEmails = JSON.parse(activity.worker || "[]");
+            const workers = await WorkerModel.find({
+              email: { $in: workerEmails },
+            });
+            if (workers.length !== workerEmails.length) {
+              throw new Error(
+                `Some workers not found: ${workerEmails.join(", ")}`
+              );
+            }
+
+            // Format dates
+            const formattedActivity = {
+              ...activity,
+
+              project: project._id,
+              type: activityType._id,
+              activityManager: activityManager._id,
+              worker: workers.map((w) => w._id),
+            };
+            console.log(formattedActivity);
+
             // Initialize activity data and set default status
             const activityData = this.initializeActivityData({
               ...req,
-              body: activity,
+              body: formattedActivity,
             });
 
             // Validate the status, update if needed
             const isValidStatus = await this.validateStatus(
               activityData.status
             );
+
             if (!isValidStatus) {
               activityData.status = await this.determineNewStatus(
                 activityData,
@@ -216,6 +276,10 @@ class ActivityService {
                 req.user?.role
               );
             }
+            activityData.status = new mongoose.Types.ObjectId(
+              activityData.status
+            );
+            console.log(activityData);
 
             // Create the new activity
             const newActivity = await this.activityRepository.createActivity(
@@ -227,11 +291,13 @@ class ActivityService {
             return { success: true, data: newActivity };
           } catch (err) {
             // Handle individual errors
-            await logError(err, req, "ActivityService-bulkCreateActivities");
+            // await logError(err, req, "ActivityService-bulkCreateActivities");
             return { success: false, error: err };
           }
         })
       );
+
+      // console.log(results, "results");
 
       // Separate successful and failed results
       const successfulActivities = results
@@ -249,7 +315,8 @@ class ActivityService {
       );
     } catch (error) {
       // Log and handle any errors that occur during the bulk creation process
-      await logError(error, req, "ActivityService-bulkCreateActivities");
+      // await logError(error,
+      //   req, "ActivityService-bulkCreateActivities");
       res.sendError(error, "Bulk upload failed", 500);
     }
   }

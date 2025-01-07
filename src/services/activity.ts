@@ -348,6 +348,25 @@ class ActivityService {
     return filters;
   }
 
+  private statusCache: Record<string, string> = {};
+
+  /**
+   * Get the status ID by its name, caching results for performance.
+   */
+  private async getStatusIdByName(statusName: string): Promise<string> {
+    if (this.statusCache[statusName]) {
+      return this.statusCache[statusName];
+    }
+
+    const status = await ActivityStatusModel.findOne({ name: statusName });
+    if (!status) {
+      throw new Error(`Status with name "${statusName}" not found`);
+    }
+
+    this.statusCache[statusName] = status._id.toString();
+    return this.statusCache[statusName];
+  }
+
   /**
    * Initialize default values for a new activity.
    */
@@ -395,41 +414,40 @@ class ActivityService {
   /**
    * Determine the new status based on activity data and user role.
    */
-  private determineNewStatus(
+  private async determineNewStatus(
     activityData: any,
     currentActivity: any,
     userRole?: string
-  ): string {
-    const statusMap = {
-      submitted: "675175ea21b483f14e02b7ef",
-      approved: "675175ea21b483f14e02b7f1",
-      rejected: "675175ea21b483f14e02b7f2",
-      suspended: "675175ea21b483f14e02b7f3",
-      created: "675175ea21b483f14e02b7f4",
-      toBePlanned: "675175dd21b483f14e02b7ee",
-      toBeAssigned: "675175d221b483f14e02b7ec",
-      inProgress: "675175ea21b483f14e02b7f0",
-    };
+  ): Promise<string> {
+    // Dynamically fetch the status IDs
+    const submittedStatusId = await this.getStatusIdByName("Submitted");
+    const approvedStatusId = await this.getStatusIdByName("Approved");
+    const rejectedStatusId = await this.getStatusIdByName("Rejected");
+    const suspendedStatusId = await this.getStatusIdByName("Suspended");
+    const createdStatusId = await this.getStatusIdByName("Created");
+    const toBePlannedStatusId = await this.getStatusIdByName("To Be Planned");
+    const toBeAssignedStatusId = await this.getStatusIdByName("To Be Assigned");
+    const inProgressStatusId = await this.getStatusIdByName("In Progress");
 
     if (activityData.fileSubmitted) {
-      return statusMap.submitted;
+      return submittedStatusId;
     } else if (activityData.customerApproved) {
-      return statusMap.approved;
+      return approvedStatusId;
     } else if (activityData.customerRejected) {
-      return statusMap.rejected;
+      return rejectedStatusId;
     } else if (
       ["ActivityManager", "ProjectManager", "Admin"].includes(userRole || "") &&
       activityData.suspend
     ) {
-      return statusMap.suspended;
+      return suspendedStatusId;
     } else if (userRole === "Admin" && activityData.unblock) {
-      return currentActivity.previousStatus || statusMap.created;
+      return currentActivity.previousStatus || createdStatusId;
     } else if (!activityData.forecastDate) {
-      return statusMap.toBePlanned;
+      return toBePlannedStatusId;
     } else if (!activityData.worker || activityData.worker.length === 0) {
-      return statusMap.toBeAssigned;
+      return toBeAssignedStatusId;
     } else {
-      return statusMap.inProgress;
+      return inProgressStatusId;
     }
   }
 }

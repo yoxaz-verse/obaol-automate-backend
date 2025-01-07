@@ -4,17 +4,16 @@ import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
 import { ActivityStatusModel } from "../database/models/activityStatus";
-import ProjectRepository from "..//database/repositories/project";
+import ProjectRepository from "../database/repositories/project";
+import { ProjectModel } from "../database/models/project";
+import { ActivityManagerModel } from "../database/models/activityManager";
 import { ActivityTypeModel } from "../database/models/activityType";
 import { WorkerModel } from "../database/models/worker";
-import { ProjectModel } from "../database/models/project";
-import mongoose from "mongoose";
-import { ActivityManagerModel } from "../database/models/activityManager";
+import { IWorker } from "../interfaces/worker";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
   private projectRepository = new ProjectRepository();
-
   /**
    * Fetch a paginated list of activities with dynamic filters based on the user's role.
    */
@@ -193,9 +192,8 @@ class ActivityService {
 
   public async bulkCreateActivities(req: Request, res: Response) {
     try {
-      const activities = req.body; // Assuming activities is an array in the request body
+      const activities = req.body;
 
-      // Validate input format
       if (!Array.isArray(activities) || activities.length === 0) {
         return res
           .status(400)
@@ -204,102 +202,54 @@ class ActivityService {
 
       const results = await Promise.all(
         activities.map(async (activity) => {
-          console.log(activity.project);
-
           try {
-            const project = await ProjectModel.findOne({
-              customId: activity.project,
-            });
+            // Fetch related IDs
+            const projectId = await this.getProjectId(activity.project);
+            const activityManagerId = await this.getActivityManagerId(
+              activity.activityManager
+            );
+            const activityTypeId = await this.getActivityTypeId(activity.type);
+            const workers = JSON.parse(activity.worker);
+            const workerIds = await this.getWorkerIds(workers);
 
-            if (!project) {
-              throw new Error(
-                `Project with customId ${activity.project} not found`
-              );
-            }
-            console.log("3");
-
-            // Map activity type by name
-            const activityType = await ActivityTypeModel.findOne({
-              name: activity.type,
-            });
-            if (!activityType) {
-              throw new Error(`Activity type ${activity.type} not found`);
-            }
-
-            // Map activity Manager by name
-            const activityManager = await ActivityManagerModel.findOne({
-              email: activity.activityManager,
-            });
-            if (!activityManager) {
-              throw new Error(
-                `Activity type ${activity.activityManager} not found`
-              );
-            }
-
-            // Map workers by email
-            const workerEmails = JSON.parse(activity.worker || "[]");
-            const workers = await WorkerModel.find({
-              email: { $in: workerEmails },
-            });
-            if (workers.length !== workerEmails.length) {
-              throw new Error(
-                `Some workers not found: ${workerEmails.join(", ")}`
-              );
-            }
-
-            // Format dates
-            const formattedActivity = {
-              ...activity,
-
-              project: project._id,
-              type: activityType._id,
-              activityManager: activityManager._id,
-              worker: workers.map((w) => w._id),
-            };
-            console.log(formattedActivity);
-
-            // Initialize activity data and set default status
+            // Initialize and validate activity data
             const activityData = this.initializeActivityData({
-              ...req,
-              body: formattedActivity,
+              body: {
+                ...activity,
+                project: projectId,
+                activityManager: activityManagerId,
+                type: activityTypeId,
+                worker: workerIds,
+              },
+              user: req.user,
             });
 
-            // Validate the status, update if needed
+            // Validate status
             const isValidStatus = await this.validateStatus(
               activityData.status
             );
-
             if (!isValidStatus) {
               activityData.status = await this.determineNewStatus(
                 activityData,
-                null, // No existing activity for a new one
+                null,
                 req.user?.role
               );
             }
-            activityData.status = new mongoose.Types.ObjectId(
-              activityData.status
-            );
-            console.log(activityData);
 
-            // Create the new activity
+            // Create activity
             const newActivity = await this.activityRepository.createActivity(
               req,
               activityData
             );
 
-            // Return success with the created activity data
             return { success: true, data: newActivity };
           } catch (err) {
-            // Handle individual errors
-            // await logError(err, req, "ActivityService-bulkCreateActivities");
+            await logError(err, req, "ActivityService-bulkCreateActivities");
             return { success: false, error: err };
           }
         })
       );
 
-      // console.log(results, "results");
-
-      // Separate successful and failed results
       const successfulActivities = results
         .filter((result) => result.success)
         .map((result) => result.data);
@@ -307,18 +257,51 @@ class ActivityService {
         .filter((result) => !result.success)
         .map((result) => result.error);
 
-      // Return summary response with results
       res.sendFormatted(
         { successfulActivities, failedActivities },
         "Bulk upload completed with results",
         200
       );
     } catch (error) {
-      // Log and handle any errors that occur during the bulk creation process
-      // await logError(error,
-      //   req, "ActivityService-bulkCreateActivities");
+      await logError(error, req, "ActivityService-bulkCreateActivities");
       res.sendError(error, "Bulk upload failed", 500);
     }
+  }
+
+  private async getProjectId(customId: string): Promise<string> {
+    const project = await ProjectModel.findOne({ customId });
+    if (!project)
+      throw new Error(`Project with customId ${customId} not found`);
+    return project._id.toString();
+  }
+  private async getActivityManagerId(email: string): Promise<string> {
+    const manager = await ActivityManagerModel.findOne({ email });
+    if (!manager)
+      throw new Error(`ActivityManager with name ${name} not found`);
+    return manager._id.toString();
+  }
+
+  private async getActivityTypeId(name: string): Promise<string | null> {
+    const activityType = await ActivityTypeModel.findOne({ name });
+    if (!activityType)
+      throw new Error(`ActivityType with name ${name} not found`);
+    return activityType._id.toString();
+  }
+  private async getWorkerIds(emails: string[]): Promise<string[]> {
+    const workers = await WorkerModel.find({ email: { $in: emails } }).lean<
+      IWorker[]
+    >();
+
+    const foundEmails = workers.map((worker) => worker.email);
+    const missingEmails = emails.filter(
+      (email) => !foundEmails.includes(email)
+    );
+
+    if (missingEmails.length) {
+      console.warn(`Missing workers: ${missingEmails.join(", ")}`);
+    }
+
+    return workers.map((worker) => worker._id);
   }
 
   /**
@@ -369,10 +352,13 @@ class ActivityService {
    * Initialize default values for a new activity.
    */
   private initializeActivityData(data: { body: any; user?: any }): any {
-    const activityData = data.body;
+    const activityData = data.body || {};
 
-    activityData.hoursSpent = 0;
-    activityData.updatedBy = data.user?.role;
+    // Ensure required properties are initialized
+    if (!activityData.hoursSpent) activityData.hoursSpent = 0;
+    if (!activityData.updatedBy && data.user?.role) {
+      activityData.updatedBy = data.user.role;
+    }
 
     const statusMap = {
       noTarget: "6752d3c4c3e6e2bbc4769eae",
@@ -381,6 +367,7 @@ class ActivityService {
       inProgress: "675175ea21b483f14e02b7f0",
     };
 
+    // Determine initial status based on provided data
     if (!activityData.targetOperationDate) {
       activityData.status = statusMap.noTarget;
     } else if (!activityData.forecastDate) {

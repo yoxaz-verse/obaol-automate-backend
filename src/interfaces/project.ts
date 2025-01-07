@@ -14,6 +14,7 @@ import { LocationModel } from "../database/models/location";
 import { ProjectManagerModel } from "../database/models/projectManager";
 
 export interface IProject extends mongoose.Document {
+  _id: mongoose.Types.ObjectId;
   title: string;
   description: string;
   customId: string;

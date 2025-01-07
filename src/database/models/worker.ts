@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { ServiceCompanyModel } from "./serviceCompany";
 
 interface IWorker extends mongoose.Document {
+  _id: string;
   email: string;
   isActive: boolean;
   isDeleted: boolean;

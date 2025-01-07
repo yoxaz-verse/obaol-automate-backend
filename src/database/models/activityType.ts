@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 interface IActivityType extends mongoose.Document {
+  _id: mongoose.Types.ObjectId;
   name: string;
 }
 
@@ -11,4 +12,7 @@ const ActivityTypeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const ActivityTypeModel = mongoose.model<IActivityType>("ActivityType", ActivityTypeSchema);
+export const ActivityTypeModel = mongoose.model<IActivityType>(
+  "ActivityType",
+  ActivityTypeSchema
+);

@@ -75,7 +75,11 @@ class ActivityService {
   public async createActivity(req: Request, res: Response) {
     try {
       const activityData = this.initializeActivityData(req);
-
+      activityData.status = await this.determineNewStatus(
+        activityData,
+        null,
+        req.user?.role
+      );
       const newActivity = await this.activityRepository.createActivity(
         req,
         activityData
@@ -96,9 +100,7 @@ class ActivityService {
       const { id } = req.params;
       const activityData = req.body;
 
-      activityData.updatedBy = req.user?.role;
-
-      // Fetch the current activity
+      // Get the current activity
       const currentActivity = await this.activityRepository.getActivity(
         req,
         id
@@ -107,19 +109,17 @@ class ActivityService {
         return res.status(404).json({ message: "Activity not found" });
       }
 
-      // Update activity status
-      if (activityData.status) {
-        const isValidStatus = await this.validateStatus(activityData.status);
-        if (!isValidStatus) {
-          return res
-            .status(400)
-            .json({ message: "Invalid status ID provided" });
-        }
-      }
+      // Determine the new status based on activity conditions
+      const determinedStatus = await this.determineNewStatus(
+        activityData,
+        currentActivity,
+        req.user?.role
+      );
 
-      // Save the current status if it’s changed
-      if (currentActivity.status !== activityData.status) {
+      // Compare and update status only if it differs
+      if (currentActivity.status?.toString() !== determinedStatus) {
         activityData.previousStatus = currentActivity.status;
+        activityData.status = determinedStatus;
       }
 
       // Update the activity in the database
@@ -130,15 +130,15 @@ class ActivityService {
       );
 
       // Trigger project status update if the activity status changes
-      await this.updateProjectStatusForActivity(
-        req,
-        currentActivity,
-        activityData.status
-      );
+      // await this.updateProjectStatusForActivity(
+      //   req,
+      //   currentActivity,
+      //   determinedStatus
+      // );
 
       res.sendFormatted(updatedActivity, "Activity updated successfully", 200);
     } catch (error) {
-      console.error(error);
+      await logError(error, req, "ActivityService-updateActivity");
       res.sendError(error, "Activity update failed", 500);
     }
   }
@@ -146,31 +146,31 @@ class ActivityService {
   /**
    * Trigger an update to the associated project's status when an activity's status is updated.
    */
-  private async updateProjectStatusForActivity(
-    req: Request,
-    currentActivity: any,
-    newActivityStatus: string
-  ) {
-    try {
-      const projectId = currentActivity.project.toString();
+  // private async updateProjectStatusForActivity(
+  //   req: Request,
+  //   currentActivity: any,
+  //   newActivityStatus: string
+  // ) {
+  //   try {
+  //     const projectId = currentActivity.project.toString();
 
-      // If the new status of the activity is "Suspended" or "Blocked," set the project status to the same
-      const projectStatus =
-        newActivityStatus === "Suspended" || newActivityStatus === "Blocked"
-          ? newActivityStatus
-          : "Open"; // Otherwise, set the project status to "Open"
+  //     // If the new status of the activity is "Suspended" or "Blocked," set the project status to the same
+  //     const projectStatus =
+  //       newActivityStatus === "Suspended" || newActivityStatus === "Blocked"
+  //         ? newActivityStatus
+  //         : "Open"; // Otherwise, set the project status to "Open"
 
-      // Update project status
-      await this.projectRepository.updateProjectStatus(
-        req,
-        projectId,
-        projectStatus
-      );
-      console.log(`Project ${projectId} status updated to ${projectStatus}`);
-    } catch (error) {
-      console.error("Error updating project status:", error);
-    }
-  }
+  //     // Update project status
+  //     await this.projectRepository.updateProjectStatus(
+  //       req,
+  //       projectId,
+  //       projectStatus
+  //     );
+  //     console.log(`Project ${projectId} status updated to ${projectStatus}`);
+  //   } catch (error) {
+  //     console.error("Error updating project status:", error);
+  //   }
+  // }
   /**
    * Delete an activity by its ID.
    */
@@ -224,17 +224,11 @@ class ActivityService {
               user: req.user,
             });
 
-            // Validate status
-            const isValidStatus = await this.validateStatus(
-              activityData.status
+            activityData.status = await this.determineNewStatus(
+              activityData,
+              null,
+              req.user?.role
             );
-            if (!isValidStatus) {
-              activityData.status = await this.determineNewStatus(
-                activityData,
-                null,
-                req.user?.role
-              );
-            }
 
             // Create activity
             const newActivity = await this.activityRepository.createActivity(
@@ -379,24 +373,6 @@ class ActivityService {
       activityData.updatedBy = data.user.role;
     }
 
-    const statusMap = {
-      noTarget: "6752d3c4c3e6e2bbc4769eae",
-      toBePlanned: "675175dd21b483f14e02b7ee",
-      toBeAssigned: "675175d221b483f14e02b7ec",
-      inProgress: "675175ea21b483f14e02b7f0",
-    };
-
-    // Determine initial status based on provided data
-    if (!activityData.targetOperationDate) {
-      activityData.status = statusMap.noTarget;
-    } else if (!activityData.forecastDate) {
-      activityData.status = statusMap.toBePlanned;
-    } else if (!activityData.worker || activityData.worker.length === 0) {
-      activityData.status = statusMap.toBeAssigned;
-    } else {
-      activityData.status = statusMap.inProgress;
-    }
-
     return activityData;
   }
 
@@ -419,34 +395,54 @@ class ActivityService {
     currentActivity: any,
     userRole?: string
   ): Promise<string> {
-    // Dynamically fetch the status IDs
-    const submittedStatusId = await this.getStatusIdByName("Submitted");
-    const approvedStatusId = await this.getStatusIdByName("Approved");
-    const rejectedStatusId = await this.getStatusIdByName("Rejected");
-    const suspendedStatusId = await this.getStatusIdByName("Suspended");
-    const createdStatusId = await this.getStatusIdByName("Created");
-    const toBePlannedStatusId = await this.getStatusIdByName("To Be Planned");
-    const toBeAssignedStatusId = await this.getStatusIdByName("To Be Assigned");
-    const inProgressStatusId = await this.getStatusIdByName("In Progress");
+    const currentActivityData = currentActivity.toObject
+      ? currentActivity.toObject()
+      : currentActivity._doc;
+    // Fill missing data in activityData with values from currentActivity
+    const filledActivityData = {
+      ...currentActivityData,
+      ...activityData,
+    };
 
-    if (activityData.fileSubmitted) {
+    console.log("current");
+    console.log(filledActivityData);
+
+    // Dynamically fetch the status IDs
+
+    // Determine status based on the filled data
+    if (!filledActivityData.targetOperationDate) {
+      const noTargetStatusId = await this.getStatusIdByName("No Target");
+      return noTargetStatusId;
+    } else if (!filledActivityData.forecastDate) {
+      const toBePlannedStatusId = await this.getStatusIdByName("To Be Planned");
+      return toBePlannedStatusId;
+    } else if (
+      !filledActivityData.worker ||
+      filledActivityData.worker.length === 0
+    ) {
+      const toBeAssignedStatusId = await this.getStatusIdByName(
+        "To Be Assigned"
+      );
+      return toBeAssignedStatusId;
+    } else if (filledActivityData.status === "Submitted") {
+      const submittedStatusId = await this.getStatusIdByName("Submitted");
       return submittedStatusId;
-    } else if (activityData.customerApproved) {
+    } else if (filledActivityData.status === "Approved") {
+      const approvedStatusId = await this.getStatusIdByName("Approved");
       return approvedStatusId;
-    } else if (activityData.customerRejected) {
+    } else if (filledActivityData.status === "Rejected") {
+      const rejectedStatusId = await this.getStatusIdByName("Rejected");
       return rejectedStatusId;
     } else if (
       ["ActivityManager", "ProjectManager", "Admin"].includes(userRole || "") &&
-      activityData.suspend
+      filledActivityData.status === "Suspended"
     ) {
+      const suspendedStatusId = await this.getStatusIdByName("Suspended");
       return suspendedStatusId;
-    } else if (userRole === "Admin" && activityData.unblock) {
-      return currentActivity.previousStatus || createdStatusId;
-    } else if (!activityData.forecastDate) {
-      return toBePlannedStatusId;
-    } else if (!activityData.worker || activityData.worker.length === 0) {
-      return toBeAssignedStatusId;
+    } else if (userRole === "Admin" && filledActivityData.unblock) {
+      return currentActivity.previousStatus;
     } else {
+      const inProgressStatusId = await this.getStatusIdByName("In Progress");
       return inProgressStatusId;
     }
   }

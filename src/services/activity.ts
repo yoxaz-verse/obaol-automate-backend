@@ -10,6 +10,7 @@ import { ActivityManagerModel } from "../database/models/activityManager";
 import { ActivityTypeModel } from "../database/models/activityType";
 import { WorkerModel } from "../database/models/worker";
 import { IWorker } from "../interfaces/worker";
+import { ProjectStatusModel } from "../database/models/projectStatus";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
@@ -354,7 +355,21 @@ class ActivityService {
 
     const status = await ActivityStatusModel.findOne({ name: statusName });
     if (!status) {
-      throw new Error(`Status with name "${statusName}" not found`);
+      throw new Error(`Activity Status with name "${statusName}" not found`);
+    }
+
+    this.statusCache[statusName] = status._id.toString();
+    return this.statusCache[statusName];
+  }
+
+  private async getStatusIdByNameProject(statusName: string): Promise<string> {
+    if (this.statusCache[statusName]) {
+      return this.statusCache[statusName];
+    }
+
+    const status = await ProjectStatusModel.findOne({ name: statusName });
+    if (!status) {
+      throw new Error(`Project Status with name "${statusName}" not found`);
     }
 
     this.statusCache[statusName] = status._id.toString();
@@ -407,44 +422,43 @@ class ActivityService {
     console.log("current");
     console.log(filledActivityData);
 
-    // Dynamically fetch the status IDs
-
+    let projectData = {};
+    let activityStatus = "";
     // Determine status based on the filled data
     if (!filledActivityData.targetOperationDate) {
-      const noTargetStatusId = await this.getStatusIdByName("No Target");
-      return noTargetStatusId;
+      activityStatus = await this.getStatusIdByName("No Target");
     } else if (!filledActivityData.forecastDate) {
-      const toBePlannedStatusId = await this.getStatusIdByName("To Be Planned");
-      return toBePlannedStatusId;
+      activityStatus = await this.getStatusIdByName("To Be Planned");
     } else if (
       !filledActivityData.worker ||
       filledActivityData.worker.length === 0
     ) {
-      const toBeAssignedStatusId = await this.getStatusIdByName(
-        "To Be Assigned"
-      );
-      return toBeAssignedStatusId;
+      activityStatus = await this.getStatusIdByName("To Be Assigned");
     } else if (filledActivityData.status === "Submitted") {
-      const submittedStatusId = await this.getStatusIdByName("Submitted");
-      return submittedStatusId;
+      activityStatus = await this.getStatusIdByName("Submitted");
     } else if (filledActivityData.status === "Approved") {
-      const approvedStatusId = await this.getStatusIdByName("Approved");
-      return approvedStatusId;
+      activityStatus = await this.getStatusIdByName("Approved");
     } else if (filledActivityData.status === "Rejected") {
-      const rejectedStatusId = await this.getStatusIdByName("Rejected");
-      return rejectedStatusId;
-    } else if (
-      ["ActivityManager", "ProjectManager", "Admin"].includes(userRole || "") &&
-      filledActivityData.status === "Suspended"
-    ) {
-      const suspendedStatusId = await this.getStatusIdByName("Suspended");
-      return suspendedStatusId;
+      activityStatus = await this.getStatusIdByName("Rejected");
+    } else if (filledActivityData.status === "Suspended") {
+      // projectData = {
+      //   status: this.getStatusIdByNameProject("Suspended"),
+      // };
+      activityStatus = await this.getStatusIdByName("Suspended");
     } else if (userRole === "Admin" && filledActivityData.unblock) {
-      return currentActivity.previousStatus;
+      activityStatus = currentActivity.previousStatus;
     } else {
-      const inProgressStatusId = await this.getStatusIdByName("In Progress");
-      return inProgressStatusId;
+      activityStatus = await this.getStatusIdByName("In Progress");
     }
+
+    if (projectData) {
+      await this.projectRepository.updateProject(
+        filledActivityData,
+        filledActivityData.project,
+        projectData
+      );
+    }
+    return activityStatus;
   }
 }
 

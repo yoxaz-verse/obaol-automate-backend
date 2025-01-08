@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 interface IProjectStatus extends mongoose.Document {
+  _id: string;
   name: string;
   priority?: number;
 }
@@ -13,4 +14,7 @@ const ProjectStatusSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const ProjectStatusModel = mongoose.model<IProjectStatus>("ProjectStatus", ProjectStatusSchema);
+export const ProjectStatusModel = mongoose.model<IProjectStatus>(
+  "ProjectStatus",
+  ProjectStatusSchema
+);

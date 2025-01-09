@@ -11,6 +11,9 @@ import { ActivityTypeModel } from "../database/models/activityType";
 import { WorkerModel } from "../database/models/worker";
 import { IWorker } from "../interfaces/worker";
 import { ProjectStatusModel } from "../database/models/projectStatus";
+import { ObjectId } from "mongodb"; // Make sure to import ObjectId
+import { ActivityModel } from "../database/models/activity";
+import { Types } from "mongoose";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
@@ -76,7 +79,7 @@ class ActivityService {
   public async createActivity(req: Request, res: Response) {
     try {
       const activityData = this.initializeActivityData(req);
-      activityData.status = await this.determineNewStatus(
+      activityData.status = await this.determineActivityStatus(
         activityData,
         null,
         req.user?.role
@@ -111,7 +114,7 @@ class ActivityService {
       }
 
       // Determine the new status based on activity conditions
-      const determinedStatus = await this.determineNewStatus(
+      const determinedStatus = await this.determineActivityStatus(
         activityData,
         currentActivity,
         req.user?.role
@@ -129,13 +132,8 @@ class ActivityService {
         id,
         activityData
       );
-
       // Trigger project status update if the activity status changes
-      // await this.updateProjectStatusForActivity(
-      //   req,
-      //   currentActivity,
-      //   determinedStatus
-      // );
+      await this.determineProjectStatus(new ObjectId(id), req);
 
       res.sendFormatted(updatedActivity, "Activity updated successfully", 200);
     } catch (error) {
@@ -144,37 +142,6 @@ class ActivityService {
     }
   }
 
-  /**
-   * Trigger an update to the associated project's status when an activity's status is updated.
-   */
-  // private async updateProjectStatusForActivity(
-  //   req: Request,
-  //   currentActivity: any,
-  //   newActivityStatus: string
-  // ) {
-  //   try {
-  //     const projectId = currentActivity.project.toString();
-
-  //     // If the new status of the activity is "Suspended" or "Blocked," set the project status to the same
-  //     const projectStatus =
-  //       newActivityStatus === "Suspended" || newActivityStatus === "Blocked"
-  //         ? newActivityStatus
-  //         : "Open"; // Otherwise, set the project status to "Open"
-
-  //     // Update project status
-  //     await this.projectRepository.updateProjectStatus(
-  //       req,
-  //       projectId,
-  //       projectStatus
-  //     );
-  //     console.log(`Project ${projectId} status updated to ${projectStatus}`);
-  //   } catch (error) {
-  //     console.error("Error updating project status:", error);
-  //   }
-  // }
-  /**
-   * Delete an activity by its ID.
-   */
   public async deleteActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -225,7 +192,7 @@ class ActivityService {
               user: req.user,
             });
 
-            activityData.status = await this.determineNewStatus(
+            activityData.status = await this.determineActivityStatus(
               activityData,
               null,
               req.user?.role
@@ -361,19 +328,25 @@ class ActivityService {
     this.statusCache[statusName] = status._id.toString();
     return this.statusCache[statusName];
   }
+  private projectStatusCache: Record<string, string> = {};
 
-  private async getStatusIdByNameProject(statusName: string): Promise<string> {
-    if (this.statusCache[statusName]) {
-      return this.statusCache[statusName];
+  private async getStatusIdByNameProject(
+    projectStatusName: string
+  ): Promise<string> {
+    if (this.projectStatusCache[projectStatusName]) {
+      return this.projectStatusCache[projectStatusName];
     }
 
-    const status = await ProjectStatusModel.findOne({ name: statusName });
+    const status = await ProjectStatusModel.findOne({
+      name: projectStatusName,
+    });
     if (!status) {
-      throw new Error(`Project Status with name "${statusName}" not found`);
+      throw new Error(
+        `Project Status with name "${projectStatusName}" not found`
+      );
     }
-
-    this.statusCache[statusName] = status._id.toString();
-    return this.statusCache[statusName];
+    this.projectStatusCache[projectStatusName] = status._id.toString();
+    return this.projectStatusCache[projectStatusName];
   }
 
   /**
@@ -401,30 +374,35 @@ class ActivityService {
     });
     return !!statusExists;
   }
+  private async getActivitiesByProject(projectId: ObjectId): Promise<any[]> {
+    return await ActivityModel.find({ project: projectId });
+  }
+  private async getActivityStatusNameById(statusId: string): Promise<string> {
+    const status = await ActivityStatusModel.findById(statusId);
+    return status ? status.name : "";
+  }
 
   /**
    * Determine the new status based on activity data and user role.
    */
-  private async determineNewStatus(
+  private async determineActivityStatus(
     activityData: any,
-    currentActivity: any,
+    currentActivity?: any,
     userRole?: string
   ): Promise<string> {
-    const currentActivityData = currentActivity.toObject
-      ? currentActivity.toObject()
-      : currentActivity._doc;
-    // Fill missing data in activityData with values from currentActivity
-    const filledActivityData = {
-      ...currentActivityData,
-      ...activityData,
-    };
+    let currentActivityData: any = null;
+    if (currentActivity) {
+      currentActivityData = currentActivity.toObject
+        ? currentActivity.toObject()
+        : currentActivity._doc;
+    }
 
-    console.log("current");
-    console.log(filledActivityData);
+    // Merge current activity data with new data
+    const filledActivityData = { ...currentActivityData, ...activityData };
 
-    let projectData = {};
     let activityStatus = "";
-    // Determine status based on the filled data
+
+    // Determine activity status
     if (!filledActivityData.targetOperationDate) {
       activityStatus = await this.getStatusIdByName("No Target");
     } else if (!filledActivityData.forecastDate) {
@@ -441,24 +419,109 @@ class ActivityService {
     } else if (filledActivityData.status === "Rejected") {
       activityStatus = await this.getStatusIdByName("Rejected");
     } else if (filledActivityData.status === "Suspended") {
-      // projectData = {
-      //   status: this.getStatusIdByNameProject("Suspended"),
-      // };
       activityStatus = await this.getStatusIdByName("Suspended");
+    } else if (filledActivityData.status === "Blocked") {
+      activityStatus = await this.getStatusIdByName("Blocked");
     } else if (userRole === "Admin" && filledActivityData.unblock) {
       activityStatus = currentActivity.previousStatus;
     } else {
       activityStatus = await this.getStatusIdByName("In Progress");
     }
 
-    if (projectData) {
-      await this.projectRepository.updateProject(
-        filledActivityData,
-        filledActivityData.project,
-        projectData
+    return activityStatus;
+  }
+
+  private async determineProjectStatus(
+    activityId: ObjectId,
+    req: Request
+  ): Promise<void> {
+    // Step 1: Fetch the activity by its ID
+    const activity = await this.getActivityById(activityId);
+    if (!activity || !activity.project) {
+      throw new Error("Activity or associated project not found");
+    }
+
+    // Step 2: Get the project ID from the activity
+    const projectId =
+      activity.project instanceof Types.ObjectId
+        ? activity.project
+        : activity.project._id;
+
+    // Step 3: Fetch all activities associated with the project
+    const projectActivities = await this.getActivitiesByProject(projectId);
+    if (!projectActivities || projectActivities.length === 0) {
+      throw new Error("No activities found for the project");
+    }
+
+    // Step 4: Fetch status names for comparison
+    const statusNames = await Promise.all(
+      projectActivities.map(async (activity) => {
+        return this.getActivityStatusNameById(activity.status);
+      })
+    );
+    let status: ObjectId;
+    // Step 5: Determine project status based on activity statuses
+
+    // Case 1: All activities are approved -> Set project status to "Closed"
+    if (statusNames.every((status) => status === "Approved")) {
+      console.log(
+        "All activities approved. Updating project status to 'Closed'."
+      );
+
+      status = new ObjectId(await this.getStatusIdByNameProject("Closed"));
+      await this.projectRepository.updateProjectStatus(
+        req,
+        projectId.toString(),
+        status
+      );
+      return;
+    }
+    // Case 2: None of the activities are blocked or suspended -> Set project status to "Open"
+    if (statusNames.some((status) => ["Suspended"].includes(status))) {
+      console.log(
+        "Some activities are Suspended. Updating project status to 'Suspended'."
+      );
+
+      status = new ObjectId(await this.getStatusIdByNameProject("Suspended"));
+      await this.projectRepository.updateProjectStatus(
+        req,
+        projectId.toString(),
+        status
       );
     }
-    return activityStatus;
+    if (statusNames.some((status) => ["Blocked"].includes(status))) {
+      console.log(
+        "Some activities are Blocked. Updating project status to 'Blocked'."
+      );
+
+      status = new ObjectId(await this.getStatusIdByNameProject("Blocked"));
+      await this.projectRepository.updateProjectStatus(
+        req,
+        projectId.toString(),
+        status
+      );
+    }
+    // Case 2: None of the activities are blocked or suspended -> Set project status to "Open"
+    if (
+      !statusNames.some((status) => ["Suspended", "Blocked"].includes(status))
+    ) {
+      console.log(
+        "No activities are blocked or suspended. Updating project status to 'Open'."
+      );
+
+      status = new ObjectId(await this.getStatusIdByNameProject("Open"));
+      await this.projectRepository.updateProjectStatus(
+        req,
+        projectId.toString(),
+        status
+      );
+    }
+
+    console.log("No project status update needed.");
+  }
+
+  public async getActivityById(activityId: ObjectId): Promise<any | null> {
+    return await ActivityModel.findById(activityId).populate("project").exec();
   }
 }
 

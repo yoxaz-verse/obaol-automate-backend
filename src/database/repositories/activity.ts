@@ -11,7 +11,7 @@ class ActivityRepository {
     filters: any
   ) {
     try {
-      const query: any = { ...filters }; // Combine projectId and role-based filters
+      const query: any = { ...filters, isDeleted: false }; // Combine projectId and role-based filters
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
@@ -70,6 +70,24 @@ class ActivityRepository {
     }
   }
 
+  public async updateActivityByCustomId(
+    req: Request,
+    customId: string,
+    activityData: any
+  ) {
+    try {
+      return await ActivityModel.findOneAndUpdate(
+        { customId, isDeleted: false },
+        activityData,
+        { new: true }
+      )
+        .populate("project worker status type activityManager")
+        .exec();
+    } catch (error) {
+      await logError(error, req, "ActivityRepository-updateActivityByCustomId");
+      throw error;
+    }
+  }
   public async deleteActivity(req: Request, id: string) {
     try {
       return await ActivityModel.findByIdAndUpdate(

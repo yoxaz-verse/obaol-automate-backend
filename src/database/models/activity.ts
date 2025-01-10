@@ -6,6 +6,7 @@ import { CustomerModel } from "./customer";
 import { ActivityStatusModel } from "./activityStatus";
 import { ActivityTypeModel } from "./activityType";
 import { ActivityManagerModel } from "./activityManager";
+import { boolean } from "joi";
 
 interface IActivity extends mongoose.Document {
   title: string;
@@ -28,6 +29,7 @@ interface IActivity extends mongoose.Document {
   customer: mongoose.Schema.Types.ObjectId | typeof CustomerModel;
   type: mongoose.Schema.Types.ObjectId | typeof ActivityTypeModel;
   hoursSpent: number; // Hours spent on the activity
+  isDeleted?: boolean;
 }
 
 const ActivitySchema = new mongoose.Schema(
@@ -77,6 +79,7 @@ const ActivitySchema = new mongoose.Schema(
       ref: "ActivityManager",
       required: true,
     },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

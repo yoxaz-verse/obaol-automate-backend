@@ -184,7 +184,7 @@ class ActivityService {
             const activityData = this.initializeActivityData({
               body: {
                 ...activity,
-                project: projectId,
+                project: new ObjectId(projectId),
                 activityManager: activityManagerId,
                 type: activityTypeId,
                 worker: workerIds,
@@ -197,12 +197,28 @@ class ActivityService {
               null,
               req.user?.role
             );
-
+            let newActivity;
+            if (activity.customId) {
+              // Update existing activity
+              newActivity =
+                await this.activityRepository.updateActivityByCustomId(
+                  req,
+                  activity.customId,
+                  activityData
+                );
+            } else {
+              // Create new activity
+              newActivity = await this.activityRepository.createActivity(
+                req,
+                activityData
+              );
+            }
             // Create activity
-            const newActivity = await this.activityRepository.createActivity(
-              req,
-              activityData
-            );
+            // const newActivity = await this.activityRepository.createActivity(
+            //   req,
+            //   activityData
+            // );
+            console.log(newActivity);
 
             return { success: true, data: newActivity };
           } catch (err) {

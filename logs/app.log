@@ -1587,3 +1587,4 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3d
 2025-01-12T10:42:47.410Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
 2025-01-12T10:43:07.940Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
 2025-01-12T11:01:02.904Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-12T11:23:53.784Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 

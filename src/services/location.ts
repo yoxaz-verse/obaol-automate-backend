@@ -17,6 +17,24 @@ class LocationService {
     this.locationRepository = new LocationRepository();
   }
 
+  // Helper function to check for duplicate locationManager name-code pairs
+  private async checkDuplicateManagerPairs(locationManagers: any[]) {
+    const duplicatePairs = [];
+
+    for (const manager of locationManagers) {
+      const existingLocation = await LocationModel.findOne({
+        "locationManagers.manager": manager.manager,
+        "locationManagers.code": manager.code,
+      });
+
+      if (existingLocation) {
+        duplicatePairs.push(manager);
+      }
+    }
+
+    return duplicatePairs;
+  }
+
   public async getLocations(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
@@ -63,6 +81,18 @@ class LocationService {
           code: customValues[key],
         }));
 
+        // Check for duplicate name-code pairs
+        const duplicatePairs = await this.checkDuplicateManagerPairs(
+          locationData.locationManagers
+        );
+
+        if (duplicatePairs.length > 0) {
+          return res.status(400).json({
+            message: "Duplicate locationManager name-code pairs detected.",
+            duplicates: duplicatePairs,
+          });
+        }
+
         // Remove unnecessary fields from the payload
         delete locationData.locationManager;
       }
@@ -93,14 +123,22 @@ class LocationService {
         const { selectedKeys, customValues } = locationManager;
 
         // Map customValues to selectedKeys
-        // locationData.locationManager = selectedKeys;
-        locationData.locationManagers = selectedKeys.reduce(
-          (map: any, key: string) => {
-            map[key] = customValues[key];
-            return map;
-          },
-          {}
+        locationData.locationManagers = selectedKeys.map((key: string) => ({
+          manager: key,
+          code: customValues[key],
+        }));
+
+        // Check for duplicate name-code pairs
+        const duplicatePairs = await this.checkDuplicateManagerPairs(
+          locationData.locationManagers
         );
+
+        if (duplicatePairs.length > 0) {
+          return res.status(400).json({
+            message: "Duplicate locationManager name-code pairs detected.",
+            duplicates: duplicatePairs,
+          });
+        }
       }
 
       const updatedLocation = await this.locationRepository.updateLocation(
@@ -114,7 +152,6 @@ class LocationService {
       res.sendError(error, "Location update failed", 500);
     }
   }
-
 
   public async deleteLocation(req: Request, res: Response) {
     try {
@@ -130,7 +167,7 @@ class LocationService {
     }
   }
 
-  bulkCreateLocations = async (req: Request, res: Response) => {
+  public async bulkCreateLocations(req: Request, res: Response) {
     try {
       const locations = req.body;
 
@@ -184,6 +221,18 @@ class LocationService {
             return null;
           }
 
+          // Check for duplicate name-code pairs during bulk import
+          const duplicatePairs = await this.checkDuplicateManagerPairs(
+            parsedManagers
+          );
+
+          if (duplicatePairs.length > 0) {
+            errorMessages.push(
+              `Duplicate locationManager name-code pairs detected for location "${loc.name}".`
+            );
+            return null;
+          }
+
           // Fetch or Create LocationManagers
           const managerIds = await Promise.all(
             parsedManagers.map(async ({ name, code }: any) => {
@@ -214,7 +263,7 @@ class LocationService {
             return {
               ...location,
             };
-          const customId = await generateCustomId(location.province);
+          const customId = await this.generateCustomId(location.province);
           return {
             ...location,
             customId,
@@ -236,31 +285,31 @@ class LocationService {
       console.error("Error in bulkCreateLocations:", error);
       return res.status(500).json({ message: "Internal server error", error });
     }
-
-    // Utility to generate custom ID
-  };
-}
-
-// Define generateCustomId outside the bulkCreateLocations function
-const generateCustomId = async (province: string): Promise<string> => {
-  try {
-    const provinceKey = province.toUpperCase();
-    const counter = await LocationCounterModel.findOneAndUpdate(
-      { provinceKey },
-      { $inc: { sequenceValue: 1 } },
-      { new: true, upsert: true }
-    );
-
-    if (!counter) {
-      throw new Error(`Failed to update counter for province: ${provinceKey}`);
-    }
-
-    const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0");
-    return `MG-${provinceKey}-${sequenceNumber}`;
-  } catch (error) {
-    console.error("Error generating customId:", error);
-    throw error;
   }
-};
+
+  // Utility to generate custom ID
+  private async generateCustomId(province: string): Promise<string> {
+    try {
+      const provinceKey = province.toUpperCase();
+      const counter = await LocationCounterModel.findOneAndUpdate(
+        { provinceKey },
+        { $inc: { sequenceValue: 1 } },
+        { new: true, upsert: true }
+      );
+
+      if (!counter) {
+        throw new Error(
+          `Failed to update counter for province: ${provinceKey}`
+        );
+      }
+
+      const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0");
+      return `MG-${provinceKey}-${sequenceNumber}`;
+    } catch (error) {
+      console.error("Error generating customId:", error);
+      throw error;
+    }
+  }
+}
 
 export default LocationService;

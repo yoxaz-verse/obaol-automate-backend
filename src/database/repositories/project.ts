@@ -7,31 +7,43 @@ import mongoose from "mongoose";
 class ProjectRepository {
   public async getProjectCountByStatus(req: Request, query: any) {
     try {
+      // Ensure any _id fields in the query are properly cast to ObjectId
+      if (query._id) {
+        if (Array.isArray(query._id.$in)) {
+          query._id.$in = query._id.$in.map(
+            (id: any) => new mongoose.Types.ObjectId(id)
+          );
+        } else {
+          query._id = new mongoose.Types.ObjectId(query._id);
+        }
+      }
 
+      if (query.status) {
+        query.status = new mongoose.Types.ObjectId(query.status);
+      }
 
+      // Aggregation pipeline
       const countResult = await ProjectModel.aggregate([
         { $match: { ...query, isDeleted: false } }, // Apply filters and exclude deleted projects
         {
           $group: {
-            _id: "$status",
-            count: { $sum: 1 },
+            _id: "$status", // Group by the status field
+            count: { $sum: 1 }, // Count the number of projects for each status
           },
         },
         {
           $lookup: {
-            from: "projectstatuses", // Referencing the ProjectStatus collection
-            localField: "_id",
-            foreignField: "_id",
-            as: "statusDetails",
+            from: "projectstatuses", // Lookup the ProjectStatus collection
+            localField: "_id", // _id from the previous group stage (status)
+            foreignField: "_id", // Match with _id in the ProjectStatus collection
+            as: "statusDetails", // Output the result as statusDetails
           },
         },
-        {
-          $unwind: "$statusDetails",
-        },
+        { $unwind: "$statusDetails" }, // Flatten the statusDetails array
         {
           $project: {
-            status: "$statusDetails.name",
-            count: 1,
+            status: "$statusDetails.name", // Project the status name
+            count: 1, // Include the count
           },
         },
       ]);

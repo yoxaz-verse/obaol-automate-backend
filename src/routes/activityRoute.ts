@@ -7,6 +7,11 @@ const router = Router();
 const activityService = new ActivityService();
 const activityMiddleware = new ActivityMiddleware();
 
+router.get(
+  "/count-by-status",
+  activityService.getActivityCountByStatus.bind(activityService)
+);
+
 // GET all activities
 router.get(
   "/",

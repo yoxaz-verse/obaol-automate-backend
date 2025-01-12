@@ -18,6 +18,33 @@ import { Types } from "mongoose";
 class ActivityService {
   private activityRepository = new ActivityRepository();
   private projectRepository = new ProjectRepository();
+
+  /**
+   * Get activity count by status for a specific project.
+   */
+  public async getActivityCountByStatus(req: Request, res: Response) {
+    try {
+      const { projectId } = req.query;
+
+      if (!projectId) {
+        return res.status(400).json({ message: "Project ID is required" });
+      }
+
+      const counts = await this.activityRepository.getActivityCountByStatus(
+        projectId.toString()
+      );
+
+      res.sendFormatted(
+        counts,
+        "Activity counts by status retrieved successfully",
+        200
+      );
+    } catch (error) {
+      await logError(error, req, "ActivityService-getActivityCountByStatus");
+      res.sendError(error, "Failed to retrieve activity counts by status", 500);
+    }
+  }
+
   /**
    * Fetch a paginated list of activities with dynamic filters based on the user's role.
    */

@@ -9,9 +9,37 @@ import { LocationModel } from "../database/models/location";
 import { CustomerModel } from "../database/models/customer";
 import { ProjectManagerModel } from "../database/models/projectManager";
 import { ProjectTypeModel } from "../database/models/projectType";
+import mongoose from "mongoose";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
+
+  public async getProjectCountByStatus(req: Request, res: Response) {
+    try {
+      // Build the role-based query with filters
+      const roleBasedQuery = await buildProjectQuery(req);
+
+      // Apply additional filters from the request
+      if (req.query.location) roleBasedQuery.location = req.query.location;
+      if (req.query.customer) roleBasedQuery.customer = req.query.customer;
+
+      console.log(roleBasedQuery);
+      // Get project count by status from the repository
+      const projectCount = await this.projectRepository.getProjectCountByStatus(
+        req,
+        roleBasedQuery
+      );
+
+      res.sendFormatted(
+        projectCount,
+        "Project count by status retrieved successfully",
+        200
+      );
+    } catch (error) {
+      await logError(error, req, "ProjectService-getProjectCountByStatus");
+      res.sendError(error, "Failed to retrieve project count by status", 500);
+    }
+  }
 
   /**
    * Get all projects with pagination and search.

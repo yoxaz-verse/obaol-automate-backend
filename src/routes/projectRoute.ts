@@ -54,4 +54,11 @@ router.post(
   projectService.bulkCreateProjects.bind(projectService)
 );
 
+// Count projects by status
+router.post(
+  "/count-by-status",
+  authenticateToken,
+  projectService.getProjectCountByStatus.bind(projectService)
+);
+
 export default router;

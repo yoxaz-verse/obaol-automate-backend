@@ -2,8 +2,41 @@ import { ActivityModel } from "../models/activity";
 import { logError } from "../../utils/errorLogger";
 import { Request } from "express";
 import path from "path";
+import { Types } from "mongoose";
 
 class ActivityRepository {
+  /**
+   * Get the count of activities grouped by status for a specific project.
+   */
+  public async getActivityCountByStatus(projectId: string) {
+    try {
+      return await ActivityModel.aggregate([
+        {
+          $match: { project: new Types.ObjectId(projectId), isDeleted: false },
+        },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+        {
+          $lookup: {
+            from: "activitystatuses",
+            localField: "_id",
+            foreignField: "_id",
+            as: "statusDetails",
+          },
+        },
+        { $unwind: "$statusDetails" },
+        {
+          $project: {
+            _id: "$statusDetails._id",
+            status: "$statusDetails.name",
+            count: 1,
+          },
+        },
+      ]);
+    } catch (error) {
+      throw new Error(`Failed to get activity counts by status: ${error}`);
+    }
+  }
+
   public async getActivities(
     req: Request,
     pagination: { page: number; limit: number },

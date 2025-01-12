@@ -5,6 +5,44 @@ import { IProject } from "@interfaces/project";
 import mongoose from "mongoose";
 
 class ProjectRepository {
+  public async getProjectCountByStatus(req: Request, query: any) {
+    try {
+
+
+      const countResult = await ProjectModel.aggregate([
+        { $match: { ...query, isDeleted: false } }, // Apply filters and exclude deleted projects
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $lookup: {
+            from: "projectstatuses", // Referencing the ProjectStatus collection
+            localField: "_id",
+            foreignField: "_id",
+            as: "statusDetails",
+          },
+        },
+        {
+          $unwind: "$statusDetails",
+        },
+        {
+          $project: {
+            status: "$statusDetails.name",
+            count: 1,
+          },
+        },
+      ]);
+
+      return countResult;
+    } catch (error) {
+      await logError(error, req, "ProjectRepository-getProjectCountByStatus");
+      throw error;
+    }
+  }
+
   // GET all projects
   public async getProjects(
     req: Request,

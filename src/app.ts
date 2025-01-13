@@ -41,7 +41,7 @@ app.use(
     credentials: true,
   })
 );
-// app.use(apiLogger);
+app.use(apiLogger);
 // Logging middleware
 app.use(morgan("common"));
 

@@ -1594,3 +1594,4 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3d
 2025-01-13T19:54:33.204Z [ERROR]: MongoDB Connection Error: {"error":"querySrv EREFUSED _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
 2025-01-13T19:56:00.570Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
 2025-01-13T19:56:17.624Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2025-01-13T19:56:38.797Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 

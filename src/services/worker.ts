@@ -59,6 +59,10 @@ class WorkerService {
     try {
       const { id } = req.params;
       const workerData = req.body;
+      // Hash password
+      if (workerData.password) {
+        workerData.password = await hashPassword(workerData.password);
+      }
       const updatedWorker = await this.workerRepository.updateWorker(
         req,
         id,

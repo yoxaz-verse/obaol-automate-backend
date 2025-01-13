@@ -172,8 +172,9 @@ class AdminService {
       const { id } = req.params;
       const adminData = req.body;
       // Hash password
-      adminData.password = await hashPassword(adminData.password);
-
+      if (adminData.password) {
+        adminData.password = await hashPassword(adminData.password);
+      }
       const updatedAdmin = await this.adminRepository.updateAdmin(
         req,
         id,

@@ -59,6 +59,10 @@ class CustomerService {
     try {
       const { id } = req.params;
       const customerData = req.body;
+      // Hash password
+      if (customerData.password) {
+        customerData.password = await hashPassword(customerData.password);
+      }
       const updatedCustomer = await this.customerRepository.updateCustomer(
         req,
         id,

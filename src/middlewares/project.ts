@@ -30,15 +30,53 @@ class ProjectMiddleware {
         .json({ message: "Invalid or empty projects array" });
     }
 
-    for (const project of projects) {
-      if (!project.location) {
-        return res.status(400).json({
-          message: "Each project must have a title, description, and location",
-        });
+    const invalidRows: any[] = [];
+
+    projects.forEach((project: any, index: number) => {
+      const errors: string[] = [];
+
+      // Check for required fields and add error messages if missing or invalid
+      if (!project.location) errors.push("Location is missing.");
+      if (!project.customer) errors.push("Customer is missing.");
+      if (!project.projectManager) errors.push("Project manager is missing.");
+      if (!project.type) errors.push("Project type is missing.");
+
+      // Validate dates
+      if (
+        !project.assignmentDate ||
+        isNaN(new Date(project.assignmentDate).getTime())
+      ) {
+        errors.push(
+          "Invalid or missing assignment date. Expected format: YYYY-MM-DD."
+        );
       }
+      if (
+        !project.schedaRadioDate ||
+        isNaN(new Date(project.schedaRadioDate).getTime())
+      ) {
+        errors.push(
+          "Invalid or missing scheda radio date. Expected format: YYYY-MM-DD."
+        );
+      }
+
+      // Validate other fields (task, orderNumber, etc.)
+      if (!project.task) errors.push("Task is missing.");
+      if (!project.orderNumber) errors.push("Order number is missing.");
+
+      // If there are errors for the current row, add them to the invalidRows array
+      if (errors.length > 0) {
+        invalidRows.push({ row: index + 1, issues: errors });
+      }
+    });
+
+    if (invalidRows.length > 0) {
+      return res.status(400).json({
+        message: "Bulk validation failed. Invalid rows found.",
+        invalidRows, // Send details about the rows that have errors
+      });
     }
 
-    next();
+    next(); // Proceed to the next middleware if no validation errors
   }
 
   public validateGet(req: Request, res: Response, next: NextFunction) {

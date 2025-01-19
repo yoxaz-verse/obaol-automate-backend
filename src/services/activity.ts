@@ -195,101 +195,143 @@ class ActivityService {
           .json({ message: "Invalid or empty activities array" });
       }
 
-      const results = await Promise.all(
-        activities.map(async (activity) => {
+      const invalidRows: any[] = [];
+      const validActivities: any[] = [];
+
+      // Process each activity to validate and prepare data
+      for (const [index, activity] of activities.entries()) {
+        const errors: string[] = [];
+
+        try {
+          // Validate project ID
+          const projectId = await this.getProjectId(activity.project);
+          if (!projectId)
+            errors.push(`Invalid project ID: ${activity.project}`);
+
+          // Validate activity type ID
+          const activityTypeId = await this.getActivityTypeId(activity.type);
+          if (!activityTypeId)
+            errors.push(`Invalid activity type ID: ${activity.type}`);
+
+          // Validate activity manager ID
+          const activityManagerId = await this.getActivityManagerId(
+            activity.activityManager
+          );
+          if (!activityManagerId)
+            errors.push(
+              `Invalid activity manager: ${activity.activityManager}`
+            );
+
+          // Parse and validate workers
+          let workerIds: string[] = [];
           try {
-            // Fetch related IDs
-            const projectId = await this.getProjectId(activity.project);
-            const activityManagerId = await this.getActivityManagerId(
-              activity.activityManager
-            );
-            const activityTypeId = await this.getActivityTypeId(activity.type);
             const workers = JSON.parse(activity.worker);
-            const workerIds = await this.getWorkerIds(workers);
+            workerIds = await this.getWorkerIds(workers);
+          } catch (e) {
+            errors.push(`Invalid worker data: ${activity.worker}`);
+          }
 
-            // Initialize and validate activity data
-            const activityData = this.initializeActivityData({
-              body: {
-                ...activity,
-                project: new ObjectId(projectId),
-                activityManager: activityManagerId,
-                type: activityTypeId,
-                worker: workerIds,
-              },
-              user: req.user,
-            });
+          // If there are validation errors, skip this activity
+          if (errors.length > 0) {
+            invalidRows.push({ row: index + 1, issues: errors });
+            continue; // Skip the current activity if it's invalid
+          }
 
-            activityData.status = await this.determineActivityStatus(
-              activityData,
-              null,
-              req.user?.role
-            );
-            let newActivity;
-            if (activity.customId) {
-              // Update existing activity
-              newActivity =
-                await this.activityRepository.updateActivityByCustomId(
-                  req,
-                  activity.customId,
-                  activityData
-                );
-            } else {
-              // Create new activity
-              newActivity = await this.activityRepository.createActivity(
+          if (!projectId) return;
+
+          // Initialize and validate activity data
+          const activityData = this.initializeActivityData({
+            body: {
+              ...activity,
+              project: new ObjectId(projectId),
+              activityManager: activityManagerId,
+              type: activityTypeId,
+              worker: workerIds,
+            },
+            user: req.user,
+          });
+
+          // Set activity status
+          activityData.status = await this.determineActivityStatus(
+            activityData,
+            null,
+            req.user?.role
+          );
+
+          let newActivity;
+          if (activity.customId) {
+            // Update existing activity
+            newActivity =
+              await this.activityRepository.updateActivityByCustomId(
                 req,
+                activity.customId,
                 activityData
               );
-            }
-            // Create activity
-            // const newActivity = await this.activityRepository.createActivity(
-            //   req,
-            //   activityData
-            // );
-            console.log(newActivity);
-
-            return { success: true, data: newActivity };
-          } catch (err) {
-            await logError(err, req, "ActivityService-bulkCreateActivities");
-            return { success: false, error: err };
+          } else {
+            // Create new activity
+            newActivity = await this.activityRepository.createActivity(
+              req,
+              activityData
+            );
           }
-        })
-      );
 
-      const successfulActivities = results
-        .filter((result) => result.success)
-        .map((result) => result.data);
-      const failedActivities = results
-        .filter((result) => !result.success)
-        .map((result) => result.error);
+          // Add valid activity to the list
+          validActivities.push(newActivity);
+        } catch (err: unknown) {
+          // Log the error
+          await logError(err, req, "ActivityService-bulkCreateActivities");
 
+          // Add a generic error message for the failed row
+          errors.push("Unknown error occurred while processing this activity");
+          invalidRows.push({ row: index + 1, issues: errors });
+        }
+      }
+
+      // If there are invalid rows, return an error response with details
+      if (invalidRows.length > 0) {
+        return res.status(400).json({
+          message: "Bulk upload failed. Invalid rows found.",
+          invalidRows, // Send row details with error messages
+        });
+      }
+
+      // Send successful activities as response
       res.sendFormatted(
-        { successfulActivities, failedActivities },
-        "Bulk upload completed with results",
-        200
+        validActivities,
+        "Bulk upload completed successfully",
+        201
       );
     } catch (error) {
+      // Log the error and send a formatted response
       await logError(error, req, "ActivityService-bulkCreateActivities");
       res.sendError(error, "Bulk upload failed", 500);
     }
   }
 
-  private async getProjectId(customId: string): Promise<string> {
+  private async getProjectId(customId: string): Promise<string | null> {
     const project = await ProjectModel.findOne({ customId });
-    if (!project)
-      throw new Error(`Project with customId ${customId} not found`);
+    if (!project) {
+      console.warn(`Project with customId ${customId} not found`);
+      return null; // Returning null instead of throwing an error could make this more flexible
+    }
     return project._id.toString();
   }
-  private async getActivityManagerId(email: string): Promise<string> {
+  private async getActivityManagerId(email: string): Promise<string | null> {
     const manager = await ActivityManagerModel.findOne({ email });
-    if (!manager)
-      throw new Error(`ActivityManager with name ${name} not found`);
+    if (!manager) {
+      console.warn(`ActivityManager with email ${email} not found`);
+      return null; // Return null if not found instead of throwing an error
+    }
+
     return manager._id.toString();
   }
 
   private async getActivityTypeId(name: string): Promise<string | null> {
     const activityType = await ActivityTypeModel.findOne({ name });
-    if (!activityType)
-      throw new Error(`ActivityType with name ${name} not found`);
+    if (!activityType) {
+      console.warn(`ActivityType with name ${name} not found`);
+      return null; // Returning null instead of throwing an error for missing types
+    }
     return activityType._id.toString();
   }
   private async getWorkerIds(emails: string[]): Promise<string[]> {

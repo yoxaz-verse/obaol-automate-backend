@@ -45,6 +45,7 @@ locationRoute.delete(
 locationRoute.post(
   "/bulk",
   authenticateToken,
+  locationMiddleware.validateBulkCreateLocations.bind(locationMiddleware),
   locationService.bulkCreateLocations.bind(locationService)
 );
 

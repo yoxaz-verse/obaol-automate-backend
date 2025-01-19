@@ -171,15 +171,17 @@ class LocationService {
     try {
       const locations = req.body;
 
+      // Ensure the request body is an array and not empty
       if (!Array.isArray(locations) || locations.length === 0) {
-        return res
-          .status(400)
-          .json({ message: "Invalid or empty request body." });
+        return res.status(400).json({
+          message: "Invalid or empty request body.",
+        });
       }
 
       const errorMessages: string[] = [];
+      const validLocations: any[] = [];
 
-      // Step 1: Fetch LocationType IDs
+      // Step 1: Fetch LocationType IDs (handling errors if not found)
       const locationTypes = await LocationTypeModel.find({
         name: { $in: locations.map((loc) => loc.locationType) },
       });
@@ -187,82 +189,103 @@ class LocationService {
         locationTypes.map((type) => [type.name, type._id])
       );
 
-      // Step 2: Process each location and parse locationManagers
-      const formattedLocations = await Promise.all(
-        locations.map(async (loc) => {
-          // Parse and validate locationType
-          const locationTypeId = locationTypeMap.get(loc.locationType);
-          if (!locationTypeId) {
-            errorMessages.push(
-              `Location type "${loc.locationType}" not found for location "${loc.name}".`
-            );
-            return null;
-          }
+      if (locationTypes.length !== locations.length) {
+        errorMessages.push(
+          "Some location types were not found in the database."
+        );
+      }
 
-          // Parse locationManager
-          let parsedManagers = [];
-          try {
-            const managerString = loc.locationManager.trim().slice(1, -1); // Remove square brackets
-            const managerPairs = managerString.split("},").map((pair: any) => {
-              const cleanedPair = pair.replace(/[{}]/g, "").trim(); // Remove curly braces
-              const [key, value] = cleanedPair
-                .split(":")
-                .map((s: any) => s.trim());
-              return { name: key, code: value };
-            });
+      // Step 2: Process each location and validate the data
+      for (const loc of locations) {
+        const locationErrors: string[] = [];
+        const managerErrors: string[] = [];
 
-            parsedManagers = managerPairs.filter(
-              (manager: any) => manager.name && manager.code
-            );
-          } catch (error) {
-            errorMessages.push(
-              `Invalid locationManager format for location "${loc.name}".`
-            );
-            return null;
-          }
+        const locationTypeId = locationTypeMap.get(loc.locationType);
 
-          // Check for duplicate name-code pairs during bulk import
-          const duplicatePairs = await this.checkDuplicateManagerPairs(
-            parsedManagers
+        // Validate LocationType
+        if (!locationTypeId) {
+          locationErrors.push(
+            `Location type "${loc.locationType}" not found for location "${loc.name}".`
           );
+        }
 
-          if (duplicatePairs.length > 0) {
-            errorMessages.push(
-              `Duplicate locationManager name-code pairs detected for location "${loc.name}".`
-            );
-            return null;
-          }
+        // Parse and validate locationManager (assuming a specific format for manager data)
+        let parsedManagers = [];
+        try {
+          const managerString = loc.locationManager.trim().slice(1, -1); // Remove square brackets
+          const managerPairs = managerString.split("},").map((pair: any) => {
+            const cleanedPair = pair.replace(/[{}]/g, "").trim(); // Remove curly braces
+            const [key, value] = cleanedPair
+              .split(":")
+              .map((s: any) => s.trim());
+            return { name: key, code: value };
+          });
 
-          // Fetch or Create LocationManagers
-          const managerIds = await Promise.all(
-            parsedManagers.map(async ({ name, code }: any) => {
-              let manager = await LocationManagerModel.findOne({ name });
-              if (!manager) {
+          parsedManagers = managerPairs.filter(
+            (manager: any) => manager.name && manager.code
+          );
+        } catch (error) {
+          managerErrors.push(
+            `Invalid locationManager format for location "${loc.name}".`
+          );
+        }
+
+        // Step 3: Check for duplicate locationManager name-code pairs
+        const duplicatePairs = await this.checkDuplicateManagerPairs(
+          parsedManagers
+        );
+        if (duplicatePairs.length > 0) {
+          managerErrors.push(
+            `Duplicate locationManager name-code pairs detected for location "${loc.name}".`
+          );
+        }
+
+        if (locationErrors.length > 0 || managerErrors.length > 0) {
+          errorMessages.push(...locationErrors, ...managerErrors);
+          continue; // Skip the current location if it has errors
+        }
+
+        // Fetch or create LocationManagers
+        const managerIds = await Promise.all(
+          parsedManagers.map(async ({ name, code }: any) => {
+            let manager = await LocationManagerModel.findOne({ name });
+            if (!manager) {
+              try {
                 manager = await LocationManagerModel.create({ name });
+              } catch (error) {
+                errorMessages.push(
+                  `Error creating manager "${name}" for location "${loc.name}".`
+                );
+                return null; // Skip this location manager creation
               }
-              return { manager: manager._id, code };
-            })
-          );
+            }
+            return { manager: manager._id, code };
+          })
+        );
 
-          // Format location for saving
-          return {
-            ...loc,
-            locationType: locationTypeId,
-            locationManagers: managerIds,
-          };
-        })
-      );
+        // Step 4: Format valid location data
+        validLocations.push({
+          ...loc,
+          locationType: locationTypeId,
+          locationManagers: managerIds.filter(Boolean), // Remove any null values
+        });
+      }
 
-      // Step 3: Filter out null locations
-      const validLocations = formattedLocations.filter(Boolean);
+      // Step 5: Check if there are any locations without errors
+      if (validLocations.length === 0) {
+        return res.status(400).json({
+          message: "No valid locations to create.",
+          errors: errorMessages,
+        });
+      }
 
-      // Generate custom IDs for valid locations
+      // Step 6: Generate custom IDs for valid locations
       const validLocationsWithCustomIds = await Promise.all(
         validLocations.map(async (location) => {
-          if (location.customId)
-            return {
-              ...location,
-            };
+          if (location.customId) {
+            return location;
+          }
+
           const customId = await this.generateCustomId(location.province);
           return {
             ...location,
@@ -271,22 +294,44 @@ class LocationService {
         })
       );
 
-      // Step 4: Save to database
-      const createdLocations = await LocationModel.insertMany(
-        validLocationsWithCustomIds
-      );
-
-      return res.status(201).json({
-        message: "Locations created successfully",
-        data: createdLocations,
-        errors: errorMessages,
-      });
-    } catch (error) {
-      console.error("Error in bulkCreateLocations:", error);
-      return res.status(500).json({ message: "Internal server error", error });
+      // Step 7: Save valid locations to database (insertMany handles bulk insert)
+      try {
+        const createdLocations = await LocationModel.insertMany(
+          validLocationsWithCustomIds
+        );
+        return res.status(201).json({
+          message: "Locations created successfully.",
+          data: createdLocations,
+          errors: errorMessages.length > 0 ? errorMessages : null,
+        });
+      } catch (error: unknown) {
+        console.error("Error saving locations:", error);
+        return res.status(500).json({
+          message: "Error saving locations to the database.",
+          error:
+            error instanceof Error ? error.message : "Error saving locations",
+        });
+      }
+    } catch (error: unknown) {
+      // Type guard to check if the error is an instance of Error
+      if (error instanceof Error) {
+        console.error("Unexpected error in bulkCreateLocations:", error);
+        return res.status(500).json({
+          message: "An unexpected error occurred.",
+          error: error.message, // Safely access error.message
+        });
+      } else {
+        // Handle cases where the error is not an instance of Error (if necessary)
+        console.error("Unexpected non-error object:", error);
+        return res.status(500).json({
+          message: "An unexpected error occurred.",
+          error: "An unknown error occurred.", // Fallback message
+        });
+      }
     }
   }
 
+  // Utility to check for duplicate locationManager name-code pairs
   // Utility to generate custom ID
   private async generateCustomId(province: string): Promise<string> {
     try {

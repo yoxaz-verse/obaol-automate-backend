@@ -55,6 +55,8 @@ router.delete(
 router.post(
   "/bulk",
   authenticateToken,
+  activityMiddleware.validateBulkActivities.bind(activityMiddleware),
+
   activityService.bulkCreateActivities.bind(activityService)
 );
 

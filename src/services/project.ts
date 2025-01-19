@@ -206,7 +206,6 @@ class ProjectService {
           .json({ message: "Invalid or empty projects array" });
       }
 
-      // Fetch default status "Open"
       const createdStatus = await ProjectStatusModel.findOne({ name: "Open" });
       if (!createdStatus?._id) {
         return res
@@ -214,96 +213,74 @@ class ProjectService {
           .json({ message: "Default status 'Open' not found" });
       }
       const defaultStatusId = createdStatus._id;
-      console.log("1");
 
-      // Validate and format projects
       const invalidRows: any[] = [];
       const validProjects: any[] = [];
-      console.log("2");
 
       for (const [index, project] of projects.entries()) {
-        try {
-          // Resolve references
-          const location = await LocationModel.findOne({
-            customId: project.location,
-          });
-          const customer = await CustomerModel.findOne({
-            name: project.customer,
-          });
-          const projectManager = await ProjectManagerModel.findOne({
-            email: project.projectManager,
-          });
-          const projectType = await ProjectTypeModel.findOne({
-            name: project.type,
-          });
+        const errors: string[] = [];
 
-          if (!location || !customer || !projectManager || !projectType) {
-            invalidRows.push({
-              row: index + 1,
-              issue:
-                "Invalid references: location, customer, manager, or type not found",
-            });
-            continue;
-          }
+        // Validate references in the database
+        const location = await LocationModel.findOne({
+          customId: project.location,
+        });
+        const customer = await CustomerModel.findOne({
+          name: project.customer,
+        });
+        const projectManager = await ProjectManagerModel.findOne({
+          email: project.projectManager,
+        });
+        const projectType = await ProjectTypeModel.findOne({
+          name: project.type,
+        });
 
-          // Validate dates
-          if (
-            !this.isValidDate(project.assignmentDate) ||
-            !this.isValidDate(project.schedaRadioDate)
-          ) {
-            invalidRows.push({ row: index + 1, issue: "Invalid date format" });
-            continue;
-          }
+        if (!location) errors.push("Invalid location reference.");
+        if (!customer) errors.push("Invalid customer reference.");
+        if (!projectManager) errors.push("Invalid project manager reference.");
+        if (!projectType) errors.push("Invalid project type reference.");
 
-          console.log(project.assignmentDate);
-          console.log(project.schedaRadioDate);
+        // Validate dates
+        if (!this.isValidDate(project.assignmentDate))
+          errors.push("Invalid assignment date format.");
+        if (!this.isValidDate(project.schedaRadioDate))
+          errors.push("Invalid scheda radio date format.");
 
-          // Format dates
-          project.assignmentDate = new Date(
-            project.assignmentDate
-          ).toISOString();
-          project.schedaRadioDate = new Date(
-            project.schedaRadioDate
-          ).toISOString();
-
-          console.log(project.assignmentDate);
-          console.log(project.schedaRadioDate);
-
-          // Transform project to match schema
-          validProjects.push({
-            ...project,
-            location: location._id,
-            customer: customer._id,
-            projectManager: projectManager._id,
-            type: projectType._id,
-            status: project.status || defaultStatusId,
-            isActive: project.isActive ?? true,
-            isDeleted: project.isDeleted ?? false,
-          });
-        } catch (error) {
-          invalidRows.push({ row: index + 1, issue: error });
+        if (errors.length > 0) {
+          invalidRows.push({ row: index + 1, issues: errors });
+          continue; // Skip the invalid row
         }
-      }
-      console.log("3");
-      console.log(invalidRows, "invalidRows");
 
+        // Transform and add the valid project to the array
+        validProjects.push({
+          ...project,
+          location: location?._id,
+          customer: customer?._id,
+          projectManager: projectManager?._id,
+          type: projectType?._id,
+          status: project.status || defaultStatusId,
+          isActive: project.isActive ?? true,
+          isDeleted: project.isDeleted ?? false,
+          assignmentDate: new Date(project.assignmentDate).toISOString(),
+          schedaRadioDate: new Date(project.schedaRadioDate).toISOString(),
+        });
+      }
+
+      // If there are invalid rows, return an error response
       if (invalidRows.length > 0) {
         return res.status(400).json({
           message: "Bulk upload failed. Invalid rows found.",
-          invalidRows,
+          invalidRows, // Send row details with error messages
         });
       }
-      console.log("validProjects");
-      console.log(validProjects);
 
-      console.log("4");
-      // Bulk insert
+      // Bulk insert valid projects into the database
       const results = await this.projectRepository.bulkInsertProjects(
         req,
         validProjects
       );
-      res.sendFormatted(results, "Bulk upload completed", 201);
+      res.sendFormatted(results, "Bulk upload completed successfully", 201);
     } catch (error) {
+      // Log the error and send a formatted response
       await logError(error, req, "ProjectService-bulkCreateProjects");
       res.sendError(error, "Bulk upload failed", 500);
     }

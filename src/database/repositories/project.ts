@@ -83,7 +83,14 @@ class ProjectRepository {
   public async getProject(req: Request, query: any) {
     try {
       return await ProjectModel.findById(query)
-        .populate("customer projectManager location status type")
+        .populate({
+          path: "location",
+          populate: {
+            path: "locationManagers.manager", // Path to populate locationManager names
+            select: "name", // Include only the manager's name field
+          },
+        })
+        .populate("status customer projectManager type") // Other population fields
         .exec();
     } catch (error) {
       await logError(error, req, "ProjectRepository-getProject");
@@ -103,8 +110,6 @@ class ProjectRepository {
     //   throw error;
     // }
     try {
-      console.log(projectData);
-
       const newProject = await ProjectModel.create(projectData);
       return newProject;
     } catch (error) {

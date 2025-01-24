@@ -9,6 +9,7 @@ import { ActivityManagerModel } from "./activityManager";
 import { boolean } from "joi";
 
 interface IActivity extends mongoose.Document {
+  _id: string;
   title: string;
   description: string;
   project: mongoose.Schema.Types.ObjectId | typeof ProjectModel;
@@ -120,6 +121,8 @@ const ActivityCounterSchema = new mongoose.Schema({
 export const ActivityCounterModel = mongoose.model(
   "ActivityCounter",
   ActivityCounterSchema
+
+  
 );
 
 export const ActivityModel = mongoose.model<IActivity>(

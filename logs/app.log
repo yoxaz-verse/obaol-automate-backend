@@ -1630,3 +1630,25 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND italy-activity-shard-00-00.kk3d
 2025-01-23T11:29:36.051Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
 2025-01-23T11:30:26.902Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
 2025-01-23T11:34:48.808Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T13:56:41.426Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T16:21:58.146Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T16:22:06.509Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2025-01-23T17:00:04.500Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T17:00:12.316Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2025-01-23T17:00:38.533Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T17:01:15.579Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T17:07:32.447Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.italy-activity.kk3db.mongodb.net"}
+2025-01-23T17:14:44.352Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T18:20:33.599Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-23T18:20:42.689Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2025-01-23T18:21:44.332Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-24T02:25:01.083Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-24T02:25:15.782Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2025-01-24T02:29:49.877Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-24T02:30:43.819Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2025-01-24T02:37:01.642Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-24T02:39:43.352Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-24T02:40:02.936Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 
+2025-01-24T02:40:24.826Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-24T02:42:32.353Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-01-24T02:47:06.086Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 

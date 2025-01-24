@@ -4,13 +4,52 @@ import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
 import { ITimesheet } from "@interfaces/timesheet";
-import { DecodedToken } from "../middlewares/auth";
 
 class TimeSheetService {
   private timeSheetRepository: TimesheetRepository;
 
   constructor() {
     this.timeSheetRepository = new TimesheetRepository();
+  }
+
+  public async getTimesheetsByUser(req: Request, res: Response) {
+    try {
+      const tokenData = req.user as any; // Assert type of req.user
+      if (!tokenData || !tokenData.role || !tokenData.id) {
+        throw new Error("Invalid token data");
+      }
+      const { isMode } = req.query;
+
+      const { id, role } = tokenData;
+      const pagination = paginationHandler(req);
+      const search = searchHandler(req);
+      const filters: Record<string, any> = {};
+      console.log("id");
+      console.log(id);
+      console.log("role");
+      console.log(role);
+      // Dynamic status-based filtering using `isMode`
+      if (isMode && typeof isMode === "string") {
+        filters[isMode] = true; // Example: { isPending: true }
+      }
+
+      const timesheets = await this.timeSheetRepository.getTimesheetsByUser(
+        req,
+        id,
+        role,
+        pagination,
+        search,
+        filters
+      );
+
+      res.sendArrayFormatted(
+        timesheets,
+        "Filtered timesheets retrieved successfully"
+      );
+    } catch (error) {
+      await logError(error, req, "TimeSheetService-getTimesheetsByUser");
+      res.sendError(error, "Failed to retrieve filtered timesheets");
+    }
   }
 
   public async getTimeSheets(req: Request, res: Response) {

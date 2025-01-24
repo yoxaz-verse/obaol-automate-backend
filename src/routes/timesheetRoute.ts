@@ -13,7 +13,12 @@ router.get(
   authenticateToken,
   timeSheetService.getTimeSheets.bind(timeSheetService)
 );
-
+// GET filtered timesheets
+router.get(
+  "/home",
+  authenticateToken,
+  timeSheetService.getTimesheetsByUser.bind(timeSheetService)
+);
 // GET timeSheet by ID
 router.get(
   "/:id",

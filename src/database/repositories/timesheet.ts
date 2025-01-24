@@ -2,7 +2,8 @@ import { Request } from "express";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
 import { TimesheetModel } from "../../database/models/timesheet";
-import { ITimesheet } from "@interfaces/timesheet";
+import { ITimesheet } from "../../interfaces/timesheet";
+import { ActivityModel } from "../../database/models/activity";
 
 class TimeSheetRepository {
   public async getTimeSheets(
@@ -42,6 +43,88 @@ class TimeSheetRepository {
       };
     } catch (error) {
       await logError(error, req, "TimeSheetRepository-getTimeSheets");
+      throw error;
+    }
+  }
+
+  public async getTimesheetsByUser(
+    req: Request,
+    userId: string,
+    role: string,
+    pagination: IPagination,
+    search: string,
+    filters: any
+  ): Promise<{
+    data: any;
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
+    try {
+      // Step 1: Fetch activities associated with the user
+      const activityQuery: any = {};
+      if (role === "ActivityManager") {
+        activityQuery.activityManager = userId; // Filter by activityManager
+      } else if (role === "Worker") {
+        activityQuery.worker = userId; // Filter by worker
+      } else {
+        throw new Error("Invalid role for filtering timesheets");
+      }
+
+      // Validate role-based query
+      console.log("Activity Query: ", activityQuery);
+
+      // Find all activities for the user
+      const activities = await ActivityModel.find(activityQuery)
+        .select("_id")
+        .lean();
+      const activityIds = activities.map((activity: any) => activity._id);
+
+      if (activityIds.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          currentPage: pagination.page,
+          totalPages: 0,
+        };
+      }
+
+      // Step 2: Validate and apply filters
+      const query: any = { ...filters };
+
+      // Ensure activity filter is valid
+      query.activity = { $in: activityIds };
+
+      // Handle search case
+      if (search) {
+        query.file = { $regex: search, $options: "i" };
+      }
+
+      console.log("TimeSheet Query: ", query);
+
+      // Fetch filtered timesheets
+      const timeSheets = await TimesheetModel.find(query)
+        .populate("activity")
+        .populate({
+          path: "createdBy",
+          select: "name email",
+        })
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit)
+        .lean<any[]>();
+
+      const totalCount = await TimesheetModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+
+      return {
+        data: timeSheets,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
+    } catch (error) {
+      console.error("Error in getTimesheetsByUser: ", error);
+      await logError(error, req, "TimeSheetRepository-getTimesheetsByUser");
       throw error;
     }
   }

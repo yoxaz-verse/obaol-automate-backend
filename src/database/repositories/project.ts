@@ -1,48 +1,33 @@
 import { Request } from "express";
 import { ProjectModel } from "../models/project";
 import { logError } from "../../utils/errorLogger";
-import { IProject } from "@interfaces/project";
-import mongoose from "mongoose";
 
 class ProjectRepository {
+  /**
+   * Get project count grouped by status with dynamic filters.
+   */
   public async getProjectCountByStatus(req: Request, query: any) {
     try {
-      // Ensure any _id fields in the query are properly cast to ObjectId
-      if (query._id) {
-        if (Array.isArray(query._id.$in)) {
-          query._id.$in = query._id.$in.map(
-            (id: any) => new mongoose.Types.ObjectId(id)
-          );
-        } else {
-          query._id = new mongoose.Types.ObjectId(query._id);
-        }
-      }
-
-      if (query.status) {
-        query.status = new mongoose.Types.ObjectId(query.status);
-      }
-
-      // Aggregation pipeline
       const countResult = await ProjectModel.aggregate([
-        { $match: { ...query, isDeleted: false } }, // Apply filters and exclude deleted projects
+        { $match: { ...query, isDeleted: false } }, // Apply dynamic filters
         {
           $group: {
-            _id: "$status", // Group by the status field
-            count: { $sum: 1 }, // Count the number of projects for each status
+            _id: "$status", // Group by `status` field
+            count: { $sum: 1 }, // Count the number of documents for each status
           },
         },
         {
           $lookup: {
-            from: "projectstatuses", // Lookup the ProjectStatus collection
-            localField: "_id", // _id from the previous group stage (status)
-            foreignField: "_id", // Match with _id in the ProjectStatus collection
-            as: "statusDetails", // Output the result as statusDetails
+            from: "projectstatuses", // Reference the `ProjectStatus` collection
+            localField: "_id", // Local `_id` field (status ID)
+            foreignField: "_id", // Foreign `_id` field in `ProjectStatus`
+            as: "statusDetails", // Name the result as `statusDetails`
           },
         },
-        { $unwind: "$statusDetails" }, // Flatten the statusDetails array
+        { $unwind: "$statusDetails" }, // Flatten the `statusDetails` array
         {
           $project: {
-            status: "$statusDetails.name", // Project the status name
+            status: "$statusDetails.name", // Extract the `name` field of `statusDetails`
             count: 1, // Include the count
           },
         },
@@ -55,25 +40,31 @@ class ProjectRepository {
     }
   }
 
-  // GET all projects
+  /**
+   * Get all projects with dynamic query and pagination.
+   */
   public async getProjects(
     req: Request,
     pagination: { page: number; limit: number },
     query: any
   ) {
     try {
-      // Count total matching documents
-      const totalCount = await ProjectModel.countDocuments(query);
+      const totalCount = await ProjectModel.countDocuments(query); // Total results
       const totalPages = Math.ceil(totalCount / pagination.limit);
-      const currentPage = pagination.page;
-      // Fetch projects with pagination and population
-      const projects = await ProjectModel.find(query)
-        .populate("status customer projectManager location type")
-        .skip((pagination.page - 1) * pagination.limit)
-        .limit(pagination.limit)
-        .exec();
+      console.log("query");
+      console.log(query);
 
-      return { data: projects, totalCount, currentPage, totalPages };
+      const projects = await ProjectModel.find(query)
+        .populate("status customer projectManager location") // Populate references
+        .skip((pagination.page - 1) * pagination.limit)
+        .limit(pagination.limit);
+
+      return {
+        data: projects,
+        totalCount,
+        totalPages,
+        currentPage: pagination.page,
+      };
     } catch (error) {
       await logError(error, req, "ProjectRepository-getProjects");
       throw error;

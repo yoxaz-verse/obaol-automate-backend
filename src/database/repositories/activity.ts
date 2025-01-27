@@ -48,6 +48,10 @@ class ActivityRepository {
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
+
+      console.log("query");
+      console.log(query);
+
       const totalCount = await ActivityModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;

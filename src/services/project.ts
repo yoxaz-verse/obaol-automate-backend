@@ -10,64 +10,70 @@ import { CustomerModel } from "../database/models/customer";
 import { ProjectManagerModel } from "../database/models/projectManager";
 import { ProjectTypeModel } from "../database/models/projectType";
 import mongoose from "mongoose";
+import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
 
+  /**
+   * Get project count by status with dynamic filtering.
+   */
   public async getProjectCountByStatus(req: Request, res: Response) {
     try {
-      // Build the role-based query with filters
-      const roleBasedQuery = await buildProjectQuery(req);
+      const filters = req.body || req.query; // Fetch dynamic filters from the request
+      const query = buildDynamicQuery(filters); // Build dynamic query using filters
 
-      // Apply additional filters from the request
-      if (req.query.location) roleBasedQuery.location = req.query.location;
-      if (req.query.customer) roleBasedQuery.customer = req.query.customer;
+      console.log("Generated Query:", query);
 
-      console.log(roleBasedQuery);
-      // Get project count by status from the repository
+      // Fetch the count by status
       const projectCount = await this.projectRepository.getProjectCountByStatus(
         req,
-        roleBasedQuery
+        query
       );
-
       res.sendFormatted(
         projectCount,
-        "Project count by status retrieved successfully",
+        "Activity counts by status retrieved successfully",
         200
       );
     } catch (error) {
       await logError(error, req, "ProjectService-getProjectCountByStatus");
-      res.sendError(error, "Failed to retrieve project count by status", 500);
+      res
+        .status(500)
+        .json({ message: "Failed to retrieve project count by status", error });
     }
   }
 
   /**
-   * Get all projects with pagination and search.
+   * Get all projects with dynamic filtering and pagination.
    */
   public async getProjects(req: Request, res: Response) {
     try {
-      const pagination = paginationHandler(req);
-      const search = searchHandler(req);
+      const pagination = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+      };
+      const { page, limit, ...filters } = req.query;
 
-      // Build the role-based query
-      const roleBasedQuery = await buildProjectQuery(req);
-
-      // Add search and additional filters
-      if (search) roleBasedQuery.title = { $regex: search, $options: "i" };
-      if (req.query.status) roleBasedQuery.status = req.query.status;
-      if (req.query.location) roleBasedQuery.location = req.query.location;
-
-      // Pass the status to the repository function
+      // Build dynamic query based on filters
+      const query = buildDynamicQuery(filters);
+      // Fetch projects from the repository
       const projects = await this.projectRepository.getProjects(
         req,
         pagination,
-        roleBasedQuery
+        query
       );
 
-      res.sendFormatted(projects, "Projects retrieved successfully", 200);
+      // res.status(200).json({
+      //   message: "Projects retrieved successfully",
+      //   data: projects.data,
+      //   totalCount: projects.totalCount,
+      //   totalPages: projects.totalPages,
+      //   currentPage: projects.currentPage,
+      // });
+      res.sendFormatted(projects, "Activities retrieved successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-getProjects");
-      res.sendError(error, "Failed to retrieve projects", 500);
+      res.status(500).json({ message: "Failed to retrieve projects", error });
     }
   }
 

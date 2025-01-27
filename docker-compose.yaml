@@ -1,11 +1,29 @@
-version: '3'
+version: "3.8"
+
 services:
   backend:
     build: .
     ports:
-      - '5001:5001'
+      - "5001:5001"
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
     environment:
-      - NODE_ENV=development
+      NODE_ENV: development
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile # Mount the Caddyfile
+      - caddy_data:/data # Caddy data for SSL/TLS certificates
+      - caddy_config:/config # Caddy configuration files
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,3 +1,5 @@
+/* This code snippet is setting up a router for handling manager-related routes in an Express
+application. Here's a breakdown of what each part of the code is doing: */
 import { Router } from "express";
 import ManagerService from "../services/manager";
 import ManagerMiddleware from "../middlewares/manager";

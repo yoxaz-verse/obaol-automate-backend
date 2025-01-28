@@ -8,7 +8,6 @@ interface IAdmin extends mongoose.Document {
   isSuperAdmin: boolean;
   isActive: boolean;
   isDeleted: boolean;
-  refreshToken?: string;
   role: string; // Assign default role
   // comparePassword(candidatePassword: string): Promise<boolean>; // Password comparison
 }

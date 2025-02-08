@@ -11,9 +11,11 @@ import { ProjectManagerModel } from "../database/models/projectManager";
 import { ProjectTypeModel } from "../database/models/projectType";
 import mongoose from "mongoose";
 import { buildDynamicQuery } from "../utils/buildDynamicQuery";
+import StatusHistoryService from "./statusHistory";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
+  private statusHistoryService = new StatusHistoryService();
 
   /**
    * Get project count by status with dynamic filtering.
@@ -21,14 +23,19 @@ class ProjectService {
   public async getProjectCountByStatus(req: Request, res: Response) {
     try {
       const filters = req.body || req.query; // Fetch dynamic filters from the request
-      const query = buildDynamicQuery(filters); // Build dynamic query using filters
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
+      const dynamicQuery = buildDynamicQuery(filters); // Build dynamic query using filters
+      // Apply role-based access control (RBAC)
+      const roleQuery = await this.getRoleBasedFilters(userRole, userId);
 
-      console.log("Generated Query:", query);
+      // Merge dynamic filters with role filters
+      const finalQuery = { ...dynamicQuery, ...roleQuery };
 
       // Fetch the count by status
       const projectCount = await this.projectRepository.getProjectCountByStatus(
         req,
-        query
+        finalQuery
       );
       res.sendFormatted(
         projectCount,
@@ -54,13 +61,21 @@ class ProjectService {
       };
       const { page, limit, ...filters } = req.query;
 
-      // Build dynamic query based on filters
-      const query = buildDynamicQuery(filters);
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
+      const dynamicQuery = buildDynamicQuery(filters); // Build dynamic query using filters
+      // Apply role-based access control (RBAC)
+
+      const roleQuery = await this.getRoleBasedFilters(userRole, userId);
+      // Merge dynamic filters with role filters
+      /* The line `const finalQuery = { ...roleQuery, ...dynamicQuery };` is merging two objects `roleQuery`
+and `dynamicQuery` into a single object `finalQuery`. */
+      const finalQuery = { ...roleQuery, ...dynamicQuery };
       // Fetch projects from the repository
       const projects = await this.projectRepository.getProjects(
         req,
         pagination,
-        query
+        finalQuery
       );
 
       // res.status(200).json({
@@ -105,28 +120,44 @@ class ProjectService {
   }
 
   /**
-   * Create a new project with an initial status of "Created".
+   * Create a new project with an initial status.
    */
   public async createProject(req: Request, res: Response) {
     try {
       const projectData = req.body;
 
-      // Fetch the "Created" status ID
-      const createdStatus = await ProjectStatusModel.findOne({
-        name: "Open",
-      });
+      const createdStatus = await ProjectStatusModel.findOne({ name: "Open" });
       if (!createdStatus) {
-        res.sendError(null, "Initial status 'Created' not found", 400);
-        return;
+        return res.sendError(null, "Initial status 'Open' not found", 400);
       }
-
-      // Attach the "Created" status to the new project
       projectData.status = createdStatus._id;
 
-      // Create the project
       const newProject = await this.projectRepository.createProject(
         req,
         projectData
+      );
+
+      if (!newProject._id) {
+        throw new Error("Project creation failed, missing _id.");
+      }
+
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      await this.statusHistoryService.logStatusChange(
+        newProject._id.toString(),
+        "Project",
+        changedBy,
+        changedRole,
+        null,
+        "Created",
+        [],
+        "Created"
       );
 
       res.sendFormatted(newProject, "Project created successfully", 201);
@@ -137,46 +168,63 @@ class ProjectService {
   }
 
   /**
-   * Update an existing project's data and handle status updates.
+   * Update an existing project and log status history.
    */
   public async updateProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const projectData = req.body;
 
-      // Update the project data
+      // Fetch the previous project data
+      const previousProject = await this.projectRepository.getProject(req, id);
+      if (!previousProject || !previousProject._id) {
+        return res.sendError(null, "Project not found", 404);
+      }
+
+      // Detect changed fields
+      const changedFields = Object.keys(projectData)
+        .filter(
+          (key) =>
+            previousProject[key as keyof typeof previousProject] !==
+            projectData[key]
+        )
+        .map((key) => ({
+          field: key,
+          oldValue: previousProject[key as keyof typeof previousProject],
+          newValue: projectData[key],
+        }));
+
+      // Update the project
       const updatedProject = await this.projectRepository.updateProject(
         req,
         id,
         projectData
       );
 
-      // Handle special statuses if `status` is included in the payload
-      if (projectData.status) {
-        const specialStatuses = ["Suspended", "Blocked", "Closed"];
-        const statusDetails = await ProjectStatusModel.findById(
-          projectData.status
-        );
-
-        if (!statusDetails) {
-          res.sendError(null, "Invalid status", 400);
-          return;
-        }
-
-        if (specialStatuses.includes(statusDetails.name)) {
-          // Additional logic can be added here for special status handling if required
-          console.log(
-            `Project ${id} updated to special status: ${statusDetails.name}`
-          );
-        }
-
-        // Update the status of the project
-        await this.projectRepository.updateProjectStatus(
-          req,
-          id,
-          projectData.status
-        );
+      // Ensure the update was successful
+      if (!updatedProject || !updatedProject._id) {
+        return res.sendError(null, "Project update failed", 500);
       }
+
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // ✅ Capture and Log all changes in status history, not just status changes
+      await this.statusHistoryService.logStatusChange(
+        updatedProject._id.toString(),
+        "Project",
+        changedBy,
+        changedRole,
+        null, // No previous status field, capturing all field changes
+        "Updated", // No new status field, as we're tracking all changes
+        changedFields, // ✅ Log all changed variables here
+        "Updated"
+      );
 
       res.sendFormatted(updatedProject, "Project updated successfully", 200);
     } catch (error) {
@@ -186,15 +234,46 @@ class ProjectService {
   }
 
   /**
-   * Delete a project by ID.
+   * Delete a project and log its deletion.
    */
   public async deleteProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
+
+      // Fetch the project before deletion
       const deletedProject = await this.projectRepository.deleteProject(
         req,
         id
       );
+      if (!deletedProject || !deletedProject._id) {
+        return res.sendError(null, "Project deletion failed", 500);
+      }
+
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // Ensure status is properly converted
+      const previousStatus = deletedProject.status
+        ? deletedProject.status.toString()
+        : "Unknown";
+
+      // Log deletion
+      await this.statusHistoryService.logStatusChange(
+        deletedProject._id.toString(),
+        "Project",
+        changedBy,
+        changedRole,
+        previousStatus,
+        "Deleted",
+        [],
+        "Deleted"
+      );
+
       res.sendFormatted(deletedProject, "Project deleted successfully", 200);
     } catch (error) {
       await logError(error, req, "ProjectService-deleteProject");
@@ -296,6 +375,53 @@ class ProjectService {
   private isValidDate(date: string): boolean {
     const parsedDate = new Date(date);
     return !isNaN(parsedDate.getTime());
+  }
+
+  /**
+   * Apply role-based filtering for projects.
+   */
+  private async getRoleBasedFilters(
+    userRole: string | undefined,
+    userId: string | undefined
+  ): Promise<Record<string, any>> {
+    if (!userRole || !userId) {
+      throw new Error("User role or ID is missing.");
+    }
+
+    const filters: any = { isDeleted: false };
+
+    switch (userRole) {
+      case "Admin":
+        return filters; // Admin has access to all projects
+
+      case "ProjectManager":
+        return { projectManager: new mongoose.Types.ObjectId(userId) };
+
+      case "Customer":
+        return { customer: new mongoose.Types.ObjectId(userId) };
+
+      case "ActivityManager": {
+        const projects =
+          await this.projectRepository.getProjectsManagedByActivityManager(
+            userId
+          );
+        return projects.length
+          ? { _id: { $in: projects } }
+          : { _id: { $in: [] } }; // Prevent errors
+      }
+
+      case "Worker": {
+        const projects = await this.projectRepository.getProjectsForWorker(
+          userId
+        );
+        return projects.length
+          ? { _id: { $in: projects } }
+          : { _id: { $in: [] } }; // Prevent errors
+      }
+
+      default:
+        throw new Error("Access denied: Invalid role.");
+    }
   }
 }
 

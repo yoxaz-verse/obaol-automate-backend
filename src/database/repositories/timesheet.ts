@@ -1,9 +1,9 @@
 import { Request } from "express";
 import { logError } from "../../utils/errorLogger";
 import { IPagination } from "../../interfaces/pagination";
-import { TimesheetModel } from "../../database/models/timesheet";
+import { TimesheetModel } from "../models/timesheet";
 import { ITimesheet } from "../../interfaces/timesheet";
-import { ActivityModel } from "../../database/models/activity";
+import { ActivityModel } from "../models/activity";
 
 class TimeSheetRepository {
   public async getTimeSheets(

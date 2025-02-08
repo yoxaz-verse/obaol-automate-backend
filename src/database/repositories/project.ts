@@ -1,6 +1,8 @@
 import { Request } from "express";
 import { ProjectModel } from "../models/project";
 import { logError } from "../../utils/errorLogger";
+import mongoose, { ObjectId, Types } from "mongoose";
+import { ActivityModel } from "../models/activity";
 
 class ProjectRepository {
   /**
@@ -80,7 +82,7 @@ class ProjectRepository {
             path: "locationManagers.manager", // Path to populate locationManager names
             select: "name", // Include only the manager's name field
           },
-        })
+        })  
         .populate("status customer projectManager type") // Other population fields
         .exec();
     } catch (error) {
@@ -178,6 +180,45 @@ class ProjectRepository {
     }
 
     return results;
+  }
+  /**
+   * Get projects where an Activity Manager is assigned to activities.
+   */
+  public async getProjectsManagedByActivityManager(
+    activityManagerId: string
+  ): Promise<Types.ObjectId[]> {
+    try {
+      const activityProjects = await ActivityModel.distinct("project", {
+        activityManager: new mongoose.Types.ObjectId(activityManagerId),
+        isDeleted: false,
+      });
+
+      // Ensure all results are valid `ObjectId`s
+      return activityProjects.map((p) => new Types.ObjectId(p.toString()));
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch projects for Activity Manager: ${error}`
+      );
+    }
+  }
+
+  /**
+   * Get projects where a Worker is assigned to activities.
+   */
+  public async getProjectsForWorker(
+    workerId: string
+  ): Promise<Types.ObjectId[]> {
+    try {
+      const workerProjects = await ActivityModel.distinct("project", {
+        worker: new mongoose.Types.ObjectId(workerId),
+        isDeleted: false,
+      });
+
+      // Ensure all results are valid `ObjectId`s
+      return workerProjects.map((p) => new Types.ObjectId(p.toString()));
+    } catch (error) {
+      throw new Error(`Failed to fetch projects for Worker: ${error}`);
+    }
   }
 }
 

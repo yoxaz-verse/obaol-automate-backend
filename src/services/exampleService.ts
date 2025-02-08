@@ -94,4 +94,3 @@ class ExampleService {
 }
 
 export default ExampleService;
-

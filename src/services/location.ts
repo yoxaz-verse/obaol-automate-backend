@@ -9,15 +9,19 @@ import {
 } from "../database/models/location";
 import { LocationManagerModel } from "../database/models/locationManager";
 import { LocationTypeModel } from "../database/models/locationType";
+import { buildDynamicQuery } from "../utils/buildDynamicQuery";
+import StatusHistoryService from "./statusHistory";
 
 class LocationService {
   private locationRepository: LocationRepository;
+  private statusHistoryService: StatusHistoryService;
 
   constructor() {
     this.locationRepository = new LocationRepository();
+    this.statusHistoryService = new StatusHistoryService();
   }
 
-  // Helper function to check for duplicate locationManager name-code pairs
+  // ✅ Helper function to check for duplicate locationManager name-code pairs
   private async checkDuplicateManagerPairs(locationManagers: any[]) {
     const duplicatePairs = [];
 
@@ -35,26 +39,35 @@ class LocationService {
     return duplicatePairs;
   }
 
+  // ✅ Get All Locations
   public async getLocations(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
-      const search = searchHandler(req);
+      const { page, limit, ...filters } = req.query;
+      const dynamicQuery = await buildDynamicQuery(filters);
+
+      // Remove `isDeleted` if present
+      if ("isDeleted" in dynamicQuery) {
+        delete dynamicQuery.isDeleted;
+      }
+
       const locations = await this.locationRepository.getLocations(
         req,
         pagination,
-        search
+        dynamicQuery
       );
       res.sendArrayFormatted(
         locations,
-        "Locations retrieved successfully",
+        "✅ Locations retrieved successfully",
         200
       );
     } catch (error) {
       await logError(error, req, "LocationService-getLocations");
-      res.sendError("", "Locations retrieval failed", 500);
+      res.sendError(error, "❌ Locations retrieval failed", 500);
     }
   }
 
+  // ✅ Get Single Location by ID
   public async getLocation(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -66,86 +79,108 @@ class LocationService {
     }
   }
 
+  // ✅ Create New Location with Status History
   public async createLocation(req: Request, res: Response) {
     try {
       const locationData = req.body;
-
-      // Extract and process locationManager data
       const { locationManager } = locationData;
+
       if (locationManager) {
         const { selectedKeys, customValues } = locationManager;
-
-        // Transform locationManager data into the required schema format
         locationData.locationManagers = selectedKeys.map((key: string) => ({
           manager: key,
           code: customValues[key],
         }));
-
-        // Check for duplicate name-code pairs
-        const duplicatePairs = await this.checkDuplicateManagerPairs(
-          locationData.locationManagers
-        );
-
-        if (duplicatePairs.length > 0) {
-          return res.status(400).json({
-            message: "Duplicate locationManager name-code pairs detected.",
-            duplicates: duplicatePairs,
-          });
-        }
-
-        // Remove unnecessary fields from the payload
         delete locationData.locationManager;
       }
 
-      // Save location to the database
       const newLocation = await this.locationRepository.createLocation(
         req,
         locationData
       );
 
-      // Return success response
+      // ✅ Ensure `_id` is properly recognized
+      if (!newLocation._id) {
+        throw new Error("Failed to create location: Missing _id");
+      }
+
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // ✅ Log Status History
+      await this.statusHistoryService.logStatusChange(
+        newLocation._id.toString(),
+        "Location",
+        changedBy,
+        changedRole,
+        null,
+        "Created",
+        [],
+        "Created"
+      );
+
       res.sendFormatted(newLocation, "Location created successfully", 201);
     } catch (error) {
-      // Log and handle error
       await logError(error, req, "LocationService-createLocation");
       res.sendError(error, "Location creation failed", 500);
     }
   }
 
+  // ✅ Update Location with Status History
   public async updateLocation(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const locationData = req.body;
-
-      // Extract and process locationManager data
-      const { locationManager } = locationData;
-      if (locationManager) {
-        const { selectedKeys, customValues } = locationManager;
-
-        // Map customValues to selectedKeys
-        locationData.locationManagers = selectedKeys.map((key: string) => ({
-          manager: key,
-          code: customValues[key],
-        }));
-
-        // Check for duplicate name-code pairs
-        const duplicatePairs = await this.checkDuplicateManagerPairs(
-          locationData.locationManagers
-        );
-
-        if (duplicatePairs.length > 0) {
-          return res.status(400).json({
-            message: "Duplicate locationManager name-code pairs detected.",
-            duplicates: duplicatePairs,
-          });
-        }
+      const previousLocation = await this.locationRepository.getLocationById(
+        req,
+        id
+      );
+      if (!previousLocation) {
+        return res.status(404).json({ message: "Location not found" });
       }
+
+      const changedFields = Object.keys(locationData)
+        .filter(
+          (key) =>
+            previousLocation[key as keyof typeof previousLocation] !==
+            locationData[key as keyof typeof locationData]
+        )
+        .map((key) => ({
+          field: key,
+          oldValue: previousLocation[key as keyof typeof previousLocation],
+          newValue: locationData[key as keyof typeof locationData],
+        }));
 
       const updatedLocation = await this.locationRepository.updateLocation(
         req,
         id,
         locationData
       );
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // ✅ Log Status History
+      await this.statusHistoryService.logStatusChange(
+        id,
+        "Location",
+        changedBy,
+        changedRole,
+        "Updated",
+        "Updated",
+        changedFields,
+        "Updated"
+      );
+
       res.sendFormatted(updatedLocation, "Location updated successfully", 200);
     } catch (error) {
       await logError(error, req, "LocationService-updateLocation");
@@ -153,6 +188,7 @@ class LocationService {
     }
   }
 
+  // ✅ Delete Location with Status History
   public async deleteLocation(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -160,6 +196,26 @@ class LocationService {
         req,
         id
       );
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // ✅ Log Status History
+      await this.statusHistoryService.logStatusChange(
+        id,
+        "Location",
+        changedBy,
+        changedRole,
+        "Deleted",
+        "Deleted",
+        [],
+        "Deleted"
+      );
+
       res.sendFormatted(deletedLocation, "Location deleted successfully", 200);
     } catch (error) {
       await logError(error, req, "LocationService-deleteLocation");

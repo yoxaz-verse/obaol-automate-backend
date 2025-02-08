@@ -15,8 +15,16 @@ class ActivityStatusService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const activityStatuses = await this.activityStatusRepository.getActivityStatuses(req, pagination, search);
-      res.sendArrayFormatted(activityStatuses, "ActivityStatuses retrieved successfully");
+      const activityStatuses =
+        await this.activityStatusRepository.getActivityStatuses(
+          req,
+          pagination,
+          search
+        );
+      res.sendArrayFormatted(
+        activityStatuses,
+        "ActivityStatuses retrieved successfully"
+      );
     } catch (error) {
       await logError(error, req, "ActivityStatusService-getActivityStatuses");
       res.sendError(error, "ActivityStatuses retrieval failed");
@@ -26,8 +34,12 @@ class ActivityStatusService {
   public async getActivityStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const activityStatus = await this.activityStatusRepository.getActivityStatusById(req, id);
-      res.sendFormatted(activityStatus, "ActivityStatus retrieved successfully");
+      const activityStatus =
+        await this.activityStatusRepository.getActivityStatusById(req, id);
+      res.sendFormatted(
+        activityStatus,
+        "ActivityStatus retrieved successfully"
+      );
     } catch (error) {
       await logError(error, req, "ActivityStatusService-getActivityStatus");
       res.sendError(error, "ActivityStatus retrieval failed");
@@ -37,8 +49,16 @@ class ActivityStatusService {
   public async createActivityStatus(req: Request, res: Response) {
     try {
       const activityStatusData = req.body;
-      const newActivityStatus = await this.activityStatusRepository.createActivityStatus(req, activityStatusData);
-      res.sendFormatted(newActivityStatus, "ActivityStatus created successfully", 201);
+      const newActivityStatus =
+        await this.activityStatusRepository.createActivityStatus(
+          req,
+          activityStatusData
+        );
+      res.sendFormatted(
+        newActivityStatus,
+        "ActivityStatus created successfully",
+        201
+      );
     } catch (error) {
       await logError(error, req, "ActivityStatusService-createActivityStatus");
       res.sendError(error, "ActivityStatus creation failed");
@@ -49,8 +69,16 @@ class ActivityStatusService {
     try {
       const { id } = req.params;
       const activityStatusData = req.body;
-      const updatedActivityStatus = await this.activityStatusRepository.updateActivityStatus(req, id, activityStatusData);
-      res.sendFormatted(updatedActivityStatus, "ActivityStatus updated successfully");
+      const updatedActivityStatus =
+        await this.activityStatusRepository.updateActivityStatus(
+          req,
+          id,
+          activityStatusData
+        );
+      res.sendFormatted(
+        updatedActivityStatus,
+        "ActivityStatus updated successfully"
+      );
     } catch (error) {
       await logError(error, req, "ActivityStatusService-updateActivityStatus");
       res.sendError(error, "ActivityStatus update failed");
@@ -60,8 +88,12 @@ class ActivityStatusService {
   public async deleteActivityStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedActivityStatus = await this.activityStatusRepository.deleteActivityStatus(req, id);
-      res.sendFormatted(deletedActivityStatus, "ActivityStatus deleted successfully");
+      const deletedActivityStatus =
+        await this.activityStatusRepository.deleteActivityStatus(req, id);
+      res.sendFormatted(
+        deletedActivityStatus,
+        "ActivityStatus deleted successfully"
+      );
     } catch (error) {
       await logError(error, req, "ActivityStatusService-deleteActivityStatus");
       res.sendError(error, "ActivityStatus deletion failed");

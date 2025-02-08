@@ -1,9 +1,5 @@
 import { Router } from "express";
 import LocationService from "../services/location";
-import multer from "multer";
-import crypto from "crypto";
-import path from "path";
-import fs from "fs";
 import LocationMiddleware from "../middlewares/location";
 import authenticateToken from "../middlewares/auth";
 

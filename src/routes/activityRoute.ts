@@ -9,6 +9,7 @@ const activityMiddleware = new ActivityMiddleware();
 
 router.get(
   "/count-by-status",
+  authenticateToken,
   activityService.getActivityCountByStatus.bind(activityService)
 );
 

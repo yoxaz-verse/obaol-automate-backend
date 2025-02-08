@@ -20,7 +20,10 @@ class ProjectTypeService {
         pagination,
         search
       );
-      res.sendArrayFormatted(projectTypes, "ProjectTypes retrieved successfully");
+      res.sendArrayFormatted(
+        projectTypes,
+        "ProjectTypes retrieved successfully"
+      );
     } catch (error) {
       await logError(error, req, "ProjectTypeService-getProjectTypes");
       res.sendError(error, "ProjectTypes retrieval failed");
@@ -30,7 +33,10 @@ class ProjectTypeService {
   public async getProjectType(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const projectType = await this.projectTypeRepository.getProjectTypeById(req, id);
+      const projectType = await this.projectTypeRepository.getProjectTypeById(
+        req,
+        id
+      );
       res.sendFormatted(projectType, "ProjectType retrieved successfully");
     } catch (error) {
       await logError(error, req, "ProjectTypeService-getProjectType");
@@ -41,8 +47,15 @@ class ProjectTypeService {
   public async createProjectType(req: Request, res: Response) {
     try {
       const projectTypeData = req.body;
-      const newProjectType = await this.projectTypeRepository.createProjectType(req, projectTypeData);
-      res.sendFormatted(newProjectType, "ProjectType created successfully", 201);
+      const newProjectType = await this.projectTypeRepository.createProjectType(
+        req,
+        projectTypeData
+      );
+      res.sendFormatted(
+        newProjectType,
+        "ProjectType created successfully",
+        201
+      );
     } catch (error) {
       await logError(error, req, "ProjectTypeService-createProjectType");
       res.sendError(error, "ProjectType creation failed");
@@ -53,11 +66,12 @@ class ProjectTypeService {
     try {
       const { id } = req.params;
       const projectTypeData = req.body;
-      const updatedProjectType = await this.projectTypeRepository.updateProjectType(
-        req,
-        id,
-        projectTypeData
-      );
+      const updatedProjectType =
+        await this.projectTypeRepository.updateProjectType(
+          req,
+          id,
+          projectTypeData
+        );
       res.sendFormatted(updatedProjectType, "ProjectType updated successfully");
     } catch (error) {
       await logError(error, req, "ProjectTypeService-updateProjectType");
@@ -68,7 +82,8 @@ class ProjectTypeService {
   public async deleteProjectType(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedProjectType = await this.projectTypeRepository.deleteProjectType(req, id);
+      const deletedProjectType =
+        await this.projectTypeRepository.deleteProjectType(req, id);
       res.sendFormatted(deletedProjectType, "ProjectType deleted successfully");
     } catch (error) {
       await logError(error, req, "ProjectTypeService-deleteProjectType");

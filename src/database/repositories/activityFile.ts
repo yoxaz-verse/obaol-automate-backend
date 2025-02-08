@@ -1,6 +1,6 @@
 // src/database/repositories/ActivityFileRepository.ts
 
-import ActivityFileModel from "../../database/models/activityFile";
+import ActivityFileModel from "../models/activityFile";
 import { IActivityFile } from "../../interfaces/activityFile";
 
 class ActivityFileRepository {

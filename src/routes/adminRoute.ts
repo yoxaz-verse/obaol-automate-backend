@@ -20,7 +20,7 @@ const adminMiddleware = new AdminMiddleware();
 router.get(
   "/user",
   authenticateToken,
-  authorizeRoles("Admin"),
+  // authorizeRoles("Admin"),
   adminService.getCurrentUser.bind(adminService)
 );
 
@@ -28,7 +28,7 @@ router.get(
 router.get(
   "/",
   authenticateToken,
-  authorizeRoles("Admin"),
+  // authorizeRoles("Admin"),
   adminService.getAdmins.bind(adminService)
 );
 

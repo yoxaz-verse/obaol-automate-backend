@@ -121,8 +121,6 @@ const ActivityCounterSchema = new mongoose.Schema({
 export const ActivityCounterModel = mongoose.model(
   "ActivityCounter",
   ActivityCounterSchema
-
-  
 );
 
 export const ActivityModel = mongoose.model<IActivity>(

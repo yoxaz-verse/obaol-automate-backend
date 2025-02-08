@@ -5,14 +5,11 @@ import path from "path";
 import { Types } from "mongoose";
 
 class ActivityRepository {
-  /**
-   * Get the count of activities grouped by status for a specific project.
-   */
-  public async getActivityCountByStatus(projectId: string) {
+  public async getActivityCountByStatus(query: any) {
     try {
       return await ActivityModel.aggregate([
         {
-          $match: { project: new Types.ObjectId(projectId), isDeleted: false },
+          $match: { ...query, isDeleted: false }, // Use merged query
         },
         { $group: { _id: "$status", count: { $sum: 1 } } },
         {
@@ -40,17 +37,10 @@ class ActivityRepository {
   public async getActivities(
     req: Request,
     pagination: { page: number; limit: number },
-    search: string,
     filters: any
   ) {
     try {
       const query: any = { ...filters, isDeleted: false }; // Combine projectId and role-based filters
-      if (search) {
-        query.title = { $regex: search, $options: "i" };
-      }
-
-      console.log("query");
-      console.log(query);
 
       const totalCount = await ActivityModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);

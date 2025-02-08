@@ -15,12 +15,16 @@ class ProjectStatusService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const projectStatuses = await this.projectStatusRepository.getProjectStatuses(
-        req,
-        pagination,
-        search
+      const projectStatuses =
+        await this.projectStatusRepository.getProjectStatuses(
+          req,
+          pagination,
+          search
+        );
+      res.sendArrayFormatted(
+        projectStatuses,
+        "Project statuses retrieved successfully"
       );
-      res.sendArrayFormatted(projectStatuses, "Project statuses retrieved successfully");
     } catch (error) {
       await logError(error, req, "ProjectStatusService-getProjectStatuses");
       res.sendError(error, "Project statuses retrieval failed");
@@ -30,7 +34,8 @@ class ProjectStatusService {
   public async getProjectStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const projectStatus = await this.projectStatusRepository.getProjectStatusById(req, id);
+      const projectStatus =
+        await this.projectStatusRepository.getProjectStatusById(req, id);
       res.sendFormatted(projectStatus, "Project status retrieved successfully");
     } catch (error) {
       await logError(error, req, "ProjectStatusService-getProjectStatus");
@@ -41,8 +46,16 @@ class ProjectStatusService {
   public async createProjectStatus(req: Request, res: Response) {
     try {
       const projectStatusData = req.body;
-      const newProjectStatus = await this.projectStatusRepository.createProjectStatus(req, projectStatusData);
-      res.sendFormatted(newProjectStatus, "Project status created successfully", 201);
+      const newProjectStatus =
+        await this.projectStatusRepository.createProjectStatus(
+          req,
+          projectStatusData
+        );
+      res.sendFormatted(
+        newProjectStatus,
+        "Project status created successfully",
+        201
+      );
     } catch (error) {
       await logError(error, req, "ProjectStatusService-createProjectStatus");
       res.sendError(error, "Project status creation failed");
@@ -53,12 +66,16 @@ class ProjectStatusService {
     try {
       const { id } = req.params;
       const projectStatusData = req.body;
-      const updatedProjectStatus = await this.projectStatusRepository.updateProjectStatus(
-        req,
-        id,
-        projectStatusData
+      const updatedProjectStatus =
+        await this.projectStatusRepository.updateProjectStatus(
+          req,
+          id,
+          projectStatusData
+        );
+      res.sendFormatted(
+        updatedProjectStatus,
+        "Project status updated successfully"
       );
-      res.sendFormatted(updatedProjectStatus, "Project status updated successfully");
     } catch (error) {
       await logError(error, req, "ProjectStatusService-updateProjectStatus");
       res.sendError(error, "Project status update failed");
@@ -68,8 +85,12 @@ class ProjectStatusService {
   public async deleteProjectStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const deletedProjectStatus = await this.projectStatusRepository.deleteProjectStatus(req, id);
-      res.sendFormatted(deletedProjectStatus, "Project status deleted successfully");
+      const deletedProjectStatus =
+        await this.projectStatusRepository.deleteProjectStatus(req, id);
+      res.sendFormatted(
+        deletedProjectStatus,
+        "Project status deleted successfully"
+      );
     } catch (error) {
       await logError(error, req, "ProjectStatusService-deleteProjectStatus");
       res.sendError(error, "Project status deletion failed");

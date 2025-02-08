@@ -11,7 +11,7 @@ const projectTypeMiddleware = new ProjectTypeMiddleware();
 projectTypeRoute.get(
   "/",
   authenticateToken,
-  authorizeRoles("Admin"),
+  // authorizeRoles("Admin"),
   projectTypeService.getProjectTypes.bind(projectTypeService)
 );
 projectTypeRoute.get(

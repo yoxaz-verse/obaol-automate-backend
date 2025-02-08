@@ -24,13 +24,8 @@ class LocationTypeRepository {
       const totalCount = await LocationTypeModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;
-      console.log(totalCount);
-      console.log(totalPages);
-      console.log(currentPage);
 
       const locationTypes = await LocationTypeModel.find(query);
-
-      console.log(locationTypes);
 
       return { data: locationTypes, totalCount, currentPage, totalPages };
     } catch (error) {

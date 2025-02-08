@@ -23,6 +23,7 @@ import serviceCompanyRoute from "./serviceCompanyRoute";
 import verifyTokenRoute from "./verifyTokenRoute";
 import activityManagerRoute from "./activityManagerRoute";
 import projectManagerRoute from "./projectManagerRoute";
+import statusHistoryRoute from "./statusHistoryRoute";
 
 // Initialize the main router
 const router = Router();
@@ -60,6 +61,7 @@ router.use(`${prefix}/location`, locationRoute);
 
 //file
 // router.use(`${prefix}/upload`, fileRoute);
+router.use(`${prefix}/statusHistory`, statusHistoryRoute);
 
 // Export the main router
 export default router;

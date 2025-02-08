@@ -69,4 +69,3 @@ class ErrorService {
 }
 
 export default ErrorService;
-

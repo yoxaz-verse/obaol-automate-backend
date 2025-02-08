@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import ActivityRepository from "../database/repositories/activity";
 import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
 import { ActivityStatusModel } from "../database/models/activityStatus";
 import ProjectRepository from "../database/repositories/project";
@@ -14,24 +13,38 @@ import { ProjectStatusModel } from "../database/models/projectStatus";
 import { ObjectId } from "mongodb"; // Make sure to import ObjectId
 import { ActivityModel } from "../database/models/activity";
 import { Types } from "mongoose";
+import { buildDynamicQuery } from "../utils/buildDynamicQuery";
+import StatusHistoryService from "./statusHistory";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
   private projectRepository = new ProjectRepository();
+  private statusHistoryService = new StatusHistoryService(); // ✅ Initialize Status History Service
 
   /**
    * Get activity count by status for a specific project.
    */
   public async getActivityCountByStatus(req: Request, res: Response) {
     try {
-      const { projectId } = req.query;
+      const { projectId, ...filters } = req.query; // Optional project and status filters
 
-      if (!projectId) {
-        return res.status(400).json({ message: "Project ID is required" });
-      }
+      const userId = req.user?.id; // User ID from middleware
+      const userRole = req.user?.role; // User Role from middleware
+      const projectIdString =
+        typeof projectId === "string" ? projectId : undefined;
+      // const statusString = typeof status === "string" ? status : undefined;
+
+      const roleQuery = this.getFilters(
+        userRole,
+        userId,
+        projectIdString
+        // statusString
+      );
+      const dynamicQuery = buildDynamicQuery(filters); // Build dynamic query using filters
+      const finalQuery = { ...roleQuery, ...dynamicQuery };
 
       const counts = await this.activityRepository.getActivityCountByStatus(
-        projectId.toString()
+        finalQuery
       );
 
       res.sendFormatted(
@@ -51,27 +64,31 @@ class ActivityService {
   public async getActivities(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
-      const search = searchHandler(req);
 
-      const { status, projectId } = req.query; // Optional project and status filters
-      const userId = req.user?.id; // User ID from middleware
-      const userRole = req.user?.role; // User Role from middleware
+      const { status, projectId, page, limit, ...filters } = req.query; // Optional project and status filters
+      if (!req.user) {
+        throw new Error("User  is missing.");
+      }
+      const userId = req.user.id; // User ID from middleware
+      const userRole = req.user.role; // User Role from middleware
       const projectIdString =
         typeof projectId === "string" ? projectId : undefined;
       const statusString = typeof status === "string" ? status : undefined;
 
-      const filters = this.getFilters(
+      const roleQuery = await this.getFilters(
         userRole,
         userId,
         projectIdString,
         statusString
       );
 
+      const dynamicQuery = buildDynamicQuery(filters); // Build dynamic query using filters
+      const finalQuery = { ...roleQuery, ...dynamicQuery };
+
       const activities = await this.activityRepository.getActivities(
         req,
         pagination,
-        search,
-        filters
+        finalQuery
       );
 
       res.sendFormatted(activities, "Activities retrieved successfully", 200);
@@ -101,19 +118,47 @@ class ActivityService {
   }
 
   /**
-   * Create a new activity with appropriate default values and status.
+   * Create a new activity with status history logging.
    */
   public async createActivity(req: Request, res: Response) {
     try {
-      const activityData = this.initializeActivityData(req);
-      activityData.status = await this.determineActivityStatus(
-        activityData,
-        null,
-        req.user?.role
-      );
+      const activityData = req.body;
+
+      // Save activity to the database
       const newActivity = await this.activityRepository.createActivity(
         req,
         activityData
+      );
+
+      if (!newActivity || !newActivity._id) {
+        return res.sendError(null, "Activity creation failed", 500);
+      }
+
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // Convert activity fields into log format
+      const changedFields = Object.keys(activityData).map((key) => ({
+        field: key,
+        oldValue: null, // No previous value
+        newValue: activityData[key],
+      }));
+
+      // Log the full creation details
+      await this.statusHistoryService.logStatusChange(
+        newActivity._id.toString(),
+        "Activity",
+        changedBy,
+        changedRole,
+        null, // No previous status
+        "Created",
+        changedFields,
+        "Created"
       );
 
       res.sendFormatted(newActivity, "Activity created successfully", 201);
@@ -124,43 +169,91 @@ class ActivityService {
   }
 
   /**
-   * Update an existing activity's status and trigger project status update if necessary.
+   * Update an existing activity and log status history.
    */
   public async updateActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const activityData = req.body;
+      let activityData = req.body;
 
-      // Get the current activity
-      const currentActivity = await this.activityRepository.getActivity(
+      // Fetch the previous activity data
+      const previousActivity = await this.activityRepository.getActivity(
         req,
         id
       );
-      if (!currentActivity) {
-        return res.status(404).json({ message: "Activity not found" });
+      if (!previousActivity || !previousActivity._id) {
+        return res.sendError(null, "Activity not found", 404);
       }
 
-      // Determine the new status based on activity conditions
-      const determinedStatus = await this.determineActivityStatus(
-        activityData,
-        currentActivity,
-        req.user?.role
-      );
-
-      // Compare and update status only if it differs
-      if (currentActivity.status?.toString() !== determinedStatus) {
-        activityData.previousStatus = currentActivity.status;
-        activityData.status = determinedStatus;
+      // Convert status string to ObjectId if needed
+      if (activityData.status && typeof activityData.status === "string") {
+        const statusObj = await ActivityStatusModel.findOne({
+          name: activityData.status,
+        });
+        if (!statusObj) {
+          return res.sendError(
+            null,
+            `Invalid status: ${activityData.status}`,
+            400
+          );
+        }
+        activityData.status = statusObj._id; // Set ObjectId instead of string
       }
 
-      // Update the activity in the database
+      // Extract previous and new status (now properly converted to ObjectId)
+      const previousStatus = previousActivity.status
+        ? previousActivity.status.toString()
+        : "Unknown";
+      const newStatus = activityData.status
+        ? activityData.status.toString()
+        : previousStatus;
+
+      // Detect changed fields
+      const changedFields = Object.keys(activityData)
+        .filter(
+          (key) =>
+            previousActivity[key as keyof typeof previousActivity] !==
+            activityData[key]
+        )
+        .map((key) => ({
+          field: key,
+          oldValue: previousActivity[key as keyof typeof previousActivity],
+          newValue: activityData[key],
+        }));
+
+      if (changedFields.length === 0) {
+        return res.sendFormatted(previousActivity, "No changes detected", 200);
+      }
+
+      // Update the activity
       const updatedActivity = await this.activityRepository.updateActivity(
         req,
         id,
         activityData
       );
-      // Trigger project status update if the activity status changes
-      await this.determineProjectStatus(new ObjectId(id), req);
+      if (!updatedActivity || !updatedActivity._id) {
+        return res.sendError(null, "Activity update failed", 500);
+      }
+
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // Log history for all changed fields including status change
+      await this.statusHistoryService.logStatusChange(
+        updatedActivity._id.toString(),
+        "Activity",
+        changedBy,
+        changedRole,
+        previousStatus, // Previous Status before update
+        newStatus, // Updated Status after update
+        changedFields,
+        "Updated"
+      );
 
       res.sendFormatted(updatedActivity, "Activity updated successfully", 200);
     } catch (error) {
@@ -169,13 +262,50 @@ class ActivityService {
     }
   }
 
+  /**
+   * Delete an activity and log its deletion.
+   */
   public async deleteActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
 
-      const deletedActivity = await this.activityRepository.deleteActivity(
+      // Fetch the activity before deletion
+      const deletedActivity = await this.activityRepository.getActivity(
         req,
         id
+      );
+      if (!deletedActivity || !deletedActivity._id) {
+        return res.sendError(null, "Activity not found", 404);
+      }
+
+      // Perform soft delete (mark as isDeleted: true)
+      await this.activityRepository.deleteActivity(req, id);
+
+      const changedBy = req.user?.id ?? "Unknown User";
+      const changedRole =
+        (req.user?.role as
+          | "Admin"
+          | "ProjectManager"
+          | "ActivityManager"
+          | "Worker") ?? "Worker";
+
+      // Convert existing activity fields into log format before deletion
+      const changedFields = Object.keys(deletedActivity).map((key) => ({
+        field: key,
+        oldValue: deletedActivity[key as keyof typeof deletedActivity],
+        newValue: null, // Deleted fields are now null
+      }));
+
+      // Log deletion event
+      await this.statusHistoryService.logStatusChange(
+        deletedActivity._id.toString(),
+        "Activity",
+        changedBy,
+        changedRole,
+        null, // No previous status
+        "Deleted",
+        changedFields,
+        "Deleted"
       );
 
       res.sendFormatted(deletedActivity, "Activity deleted successfully", 200);
@@ -358,43 +488,76 @@ class ActivityService {
     userRole: string | undefined,
     userId: string | undefined,
     projectId: string | undefined,
-    status: string | undefined
+    status?: string | undefined
   ): Record<string, any> {
     const filters: any = {};
 
     if (projectId) {
-      filters.project = projectId; // Filter by project ID if provided
+      filters.project = new Types.ObjectId(projectId);
     }
 
     if (status) {
-      filters.status = status; // Filter by status if provided
+      filters.status = new Types.ObjectId(status);
     }
 
-    if (userRole) {
-      switch (userRole) {
-        case "Customer":
-          filters.customer = userId; // Activities associated with the customer
-          break;
-        case "ActivityManager":
-          filters.activityManager = userId; // Activities managed by the user
-          break;
-        case "Worker":
-          filters.worker = { $in: [userId] }; // Activities assigned to the worker
-          break;
-        case "ProjectManager":
-          filters["project.projectManager"] = userId; // Projects managed by the user
-          break;
-        case "Admin":
-          // No filters for Admins (they can view all activities)
-          break;
-        default:
-          throw new Error("Access denied");
-      }
+    if (!userRole || !userId) {
+      throw new Error("User role or ID is missing.");
+    }
+
+    switch (userRole) {
+      case "Customer":
+        return this.getProjectIdsForCustomer(userId).then((projects) => ({
+          project: { $in: projects },
+        }));
+
+      case "ActivityManager":
+        filters.activityManager = new Types.ObjectId(userId);
+        break;
+
+      case "Worker":
+        filters.worker = { $in: [new Types.ObjectId(userId)] };
+        break;
+
+      case "ProjectManager":
+        return this.getProjectIdsForProjectManager(userId).then((projects) => ({
+          project: { $in: projects },
+        }));
+
+      case "Admin":
+        break; // Admin sees all activities
+
+      default:
+        throw new Error("Access denied: Invalid role.");
     }
 
     return filters;
   }
 
+  /**
+   * Fetch project IDs for a given customer.
+   */
+  private async getProjectIdsForCustomer(
+    customerId: string
+  ): Promise<Types.ObjectId[]> {
+    const projects = await ProjectModel.find(
+      { customer: customerId },
+      { _id: 1 }
+    ).lean();
+    return projects.map((p) => p._id);
+  }
+
+  /**
+   * Fetch project IDs for a given project manager.
+   */
+  private async getProjectIdsForProjectManager(
+    projectManagerId: string
+  ): Promise<Types.ObjectId[]> {
+    const projects = await ProjectModel.find(
+      { projectManager: projectManagerId },
+      { _id: 1 }
+    ).lean();
+    return projects.map((p) => p._id);
+  }
   private statusCache: Record<string, string> = {};
 
   /**

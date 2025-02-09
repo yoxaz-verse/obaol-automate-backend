@@ -1,6 +1,6 @@
 // src/services/authService.ts
 
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions, Secret } from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { Request, Response } from "express";
 import { AdminModel } from "../database/models/admin";
@@ -71,12 +71,12 @@ export const authenticateUser = async (req: Request, res: Response) => {
       role: role, // Include role in the payload
     };
 
-    const token = jwt.sign(payload, JWT_SECRET, {
+    const token = jwt.sign(payload, JWT_SECRET as Secret, {
       expiresIn: "1d",
-    });
-    const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, {
+    } as SignOptions);
+    const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET as Secret, {
       expiresIn: JWT_REFRESH_EXPIRE, // e.g., "10d"
-    });
+    } as SignOptions);
 
     // Set the token as an HTTP-Only cookie
     res.cookie("token", token, {

@@ -2,11 +2,13 @@ import { StatusHistoryModel, IStatusHistory } from "../models/statusHistory";
 import mongoose from "mongoose";
 
 class StatusHistoryRepository {
-  // ✅ Create a new status history record
+  /**
+   * ✅ Create a new status history entry
+   */
   public async createStatusHistory(
     entityId: string,
     entityType: "Location" | "Activity" | "Project",
-    changedBy: string,
+    changedById: string, // ✅ Store only user ID
     changedRole:
       | "Admin"
       | "ProjectManager"
@@ -16,29 +18,28 @@ class StatusHistoryRepository {
     previousStatus: string | null,
     newStatus: string,
     changedFields: { field: string; oldValue: any; newValue: any }[],
-    changeType: string // e.g., "Location Updated"
+    changeType: string
   ): Promise<IStatusHistory> {
     try {
-      const statusHistory = new StatusHistoryModel({
+      return await StatusHistoryModel.create({
         entityId: new mongoose.Types.ObjectId(entityId),
         entityType,
-        changedBy: new mongoose.Types.ObjectId(changedBy),
+        changedBy: new mongoose.Types.ObjectId(changedById), // ✅ Store ID
         changedRole,
         previousStatus,
         newStatus,
         changedFields,
         changeType,
       });
-
-      return await statusHistory.save();
     } catch (error) {
       console.error("Error logging status history:", error);
       throw error;
     }
   }
 
-  // ✅ Fetch status history for a given entity
-  // ✅ Fetch status history for an entity with optional filters
+  /**
+   * ✅ Fetch status history for a given entity with filters
+   */
   public async getStatusHistory(
     entityId: string,
     entityType: "Location" | "Activity" | "Project",
@@ -46,29 +47,27 @@ class StatusHistoryRepository {
   ) {
     try {
       const query: any = {
-        entityId: new mongoose.Types.ObjectId(entityId), // Ensure ObjectId
+        entityId: new mongoose.Types.ObjectId(entityId),
         entityType,
       };
 
-      // ✅ Filter by Date Range (if provided)
       if (filters.startDate || filters.endDate) {
-        query.changedAt = {};
+        query.createdAt = {};
         if (filters.startDate) {
-          query.changedAt.$gte = new Date(filters.startDate);
+          query.createdAt.$gte = new Date(filters.startDate);
         }
         if (filters.endDate) {
-          query.changedAt.$lte = new Date(filters.endDate);
+          query.createdAt.$lte = new Date(filters.endDate);
         }
       }
 
-      // ✅ Filter by Change Type (if provided)
       if (filters.changeType) {
         query.changeType = filters.changeType;
       }
 
       return await StatusHistoryModel.find(query)
-        .populate("changedBy", "name") // Populate user info
-        .sort({ changedAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
     } catch (error) {
       console.error("Error fetching status history:", error);
       throw error;

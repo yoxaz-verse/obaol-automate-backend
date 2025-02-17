@@ -122,18 +122,48 @@ class ActivityService {
    */
   public async createActivity(req: Request, res: Response) {
     try {
-      const activityData = req.body;
+      let activityData = req.body;
 
-      // Save activity to the database
+      // Ensure `updatedBy` is set
+      if (!activityData.updatedBy && req.user?.role) {
+        activityData.updatedBy = req.user.role;
+      }
+
+      // Convert IDs to ObjectIds
+      if (activityData.project) {
+        activityData.project = new Types.ObjectId(activityData.project);
+      }
+      if (activityData.activityManager) {
+        activityData.activityManager = new Types.ObjectId(
+          activityData.activityManager
+        );
+      }
+      if (activityData.type) {
+        activityData.type = new Types.ObjectId(activityData.type);
+      }
+      if (activityData.worker && Array.isArray(activityData.worker)) {
+        activityData.worker = activityData.worker.map(
+          (id: string) => new Types.ObjectId(id)
+        );
+      }
+
+      // Determine status dynamically
+      activityData.status = await this.determineActivityStatus(
+        activityData,
+        null,
+        req.user?.role
+      );
+
+      // Create the activity
       const newActivity = await this.activityRepository.createActivity(
         req,
         activityData
       );
-
       if (!newActivity || !newActivity._id) {
         return res.sendError(null, "Activity creation failed", 500);
       }
 
+      // Log status history
       const changedBy = req.user?.id ?? "Unknown User";
       const changedRole =
         (req.user?.role as
@@ -142,21 +172,19 @@ class ActivityService {
           | "ActivityManager"
           | "Worker") ?? "Worker";
 
-      // Convert activity fields into log format
       const changedFields = Object.keys(activityData).map((key) => ({
         field: key,
-        oldValue: null, // No previous value
-        newValue: activityData[key],
+        oldValue: null,
+        newValue: key === "status" ? newActivity.status : activityData[key],
       }));
 
-      // Log the full creation details
       await this.statusHistoryService.logStatusChange(
         newActivity._id.toString(),
         "Activity",
         changedBy,
         changedRole,
         null, // No previous status
-        "Created",
+        "Created", // New determined status
         changedFields,
         "Created"
       );
@@ -176,7 +204,7 @@ class ActivityService {
       const { id } = req.params;
       let activityData = req.body;
 
-      // Fetch the previous activity data
+      // Fetch the previous activity details
       const previousActivity = await this.activityRepository.getActivity(
         req,
         id
@@ -185,47 +213,14 @@ class ActivityService {
         return res.sendError(null, "Activity not found", 404);
       }
 
-      // Convert status string to ObjectId if needed
-      if (activityData.status && typeof activityData.status === "string") {
-        const statusObj = await ActivityStatusModel.findOne({
-          name: activityData.status,
-        });
-        if (!statusObj) {
-          return res.sendError(
-            null,
-            `Invalid status: ${activityData.status}`,
-            400
-          );
-        }
-        activityData.status = statusObj._id; // Set ObjectId instead of string
-      }
+      // Determine the new status dynamically
+      activityData.status = await this.determineActivityStatus(
+        activityData,
+        previousActivity,
+        req.user?.role
+      );
 
-      // Extract previous and new status (now properly converted to ObjectId)
-      const previousStatus = previousActivity.status
-        ? previousActivity.status.toString()
-        : "Unknown";
-      const newStatus = activityData.status
-        ? activityData.status.toString()
-        : previousStatus;
-
-      // Detect changed fields
-      const changedFields = Object.keys(activityData)
-        .filter(
-          (key) =>
-            previousActivity[key as keyof typeof previousActivity] !==
-            activityData[key]
-        )
-        .map((key) => ({
-          field: key,
-          oldValue: previousActivity[key as keyof typeof previousActivity],
-          newValue: activityData[key],
-        }));
-
-      if (changedFields.length === 0) {
-        return res.sendFormatted(previousActivity, "No changes detected", 200);
-      }
-
-      // Update the activity
+      // Update activity
       const updatedActivity = await this.activityRepository.updateActivity(
         req,
         id,
@@ -235,6 +230,7 @@ class ActivityService {
         return res.sendError(null, "Activity update failed", 500);
       }
 
+      // Log the status change
       const changedBy = req.user?.id ?? "Unknown User";
       const changedRole =
         (req.user?.role as
@@ -243,14 +239,19 @@ class ActivityService {
           | "ActivityManager"
           | "Worker") ?? "Worker";
 
-      // Log history for all changed fields including status change
+      const changedFields = Object.keys(activityData).map((key) => ({
+        field: key,
+        oldValue: previousActivity[key as keyof typeof previousActivity],
+        newValue: activityData[key],
+      }));
+
       await this.statusHistoryService.logStatusChange(
         updatedActivity._id.toString(),
         "Activity",
         changedBy,
         changedRole,
-        previousStatus, // Previous Status before update
-        newStatus, // Updated Status after update
+        "", // Previous Status
+        "Updated Activity", // New determined status
         changedFields,
         "Updated"
       );

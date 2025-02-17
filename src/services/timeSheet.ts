@@ -165,14 +165,24 @@ class TimeSheetService {
   public async updateTimeSheet(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      let { status } = req.body;
 
-      // Validate that 'status' is present in the payload
       if (!status || typeof status !== "string") {
         throw new Error("Invalid status value provided.");
       }
 
-      // Define the valid status fields
+      // Map user-friendly status names to valid database status fields
+      const statusMapping: Record<string, string> = {
+        Pending: "isPending",
+        Accepted: "isAccepted",
+        Rejected: "isRejected",
+        Resubmitted: "isResubmitted",
+      };
+
+      // Convert status to valid format if necessary
+      status = statusMapping[status] || status;
+
+      // Define valid statuses
       const validStatuses = [
         "isPending",
         "isAccepted",
@@ -180,20 +190,20 @@ class TimeSheetService {
         "isResubmitted",
       ];
 
-      // Check if the provided status is valid
+      // Validate the status value
       if (!validStatuses.includes(status)) {
         throw new Error(
           `Invalid status. Allowed statuses are: ${validStatuses.join(", ")}`
         );
       }
 
-      // Create an object to update only the specified status
+      // Prepare an object to update only the selected status
       const updateData: Record<string, boolean> = {};
       validStatuses.forEach((key) => {
-        updateData[key] = key === status; // Only the specified status is set to true
+        updateData[key] = key === status; // Set only the requested status to true, others to false
       });
 
-      // Update the timesheet with the new status
+      // Update the timesheet in the database
       const updatedTimeSheet = await this.timeSheetRepository.updateTimeSheet(
         req,
         id,

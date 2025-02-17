@@ -7,8 +7,6 @@ import { ActivityManagerModel } from "./../database/models/activityManager";
 import { WorkerModel } from "./../database/models/worker";
 import { CustomerModel } from "./../database/models/customer";
 
-// Import models dynamically based on changedRole
-
 class StatusHistoryService {
   private statusHistoryRepo: StatusHistoryRepository;
 
@@ -37,7 +35,7 @@ class StatusHistoryService {
     try {
       const changeType = `${entityType} ${action}`;
 
-      return await this.statusHistoryRepo.createStatusHistory(
+      await this.statusHistoryRepo.createStatusHistory(
         entityId,
         entityType,
         changedById, // ✅ Store only user ID in DB
@@ -107,12 +105,15 @@ class StatusHistoryService {
 
           return {
             ...entry,
-            changedBy: user ? user.name : "Unknown User", // ✅ Return name instead of ID
+            changedBy: user?.name, // ✅ Return name instead of ID
           };
         })
       );
 
-      res.json({ message: "Status history retrieved", data: updatedHistory });
+      res.json({
+        message: "Status history retrieved successfully",
+        data: updatedHistory,
+      });
     } catch (error) {
       await logError(error, req, "StatusHistoryService-getStatusHistory");
       res.status(500).json({ message: "Failed to retrieve status history" });

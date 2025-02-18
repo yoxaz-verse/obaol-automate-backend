@@ -11,10 +11,23 @@ import mongoose from "mongoose";
 import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 import StatusHistoryService from "./statusHistory";
 import { convertChangedFields } from "../utils/formatChangedFields";
+import { AdminModel } from "../database/models/admin";
+import { ManagerModel } from "../database/models/manager";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
   private statusHistoryService = new StatusHistoryService();
+  // Define the field-to-model mapping for Project
+  projectFieldModelMapping = {
+    customer: CustomerModel,
+    admin: AdminModel,
+    manager: ManagerModel,
+    status: ProjectStatusModel,
+    type: ProjectTypeModel,
+    location: LocationModel,
+    projectManager: ProjectManagerModel,
+    // Add other fields and their corresponding models as needed
+  };
 
   /**
    * Get project count by status with dynamic filtering.
@@ -142,7 +155,11 @@ and `dynamicQuery` into a single object `finalQuery`. */
 
       const changedBy = req.user?.id ?? "Unknown User";
       // Replace IDs with names in changedFields
-      const changedFields = await convertChangedFields(projectData);
+      const changedFields = await convertChangedFields(
+        projectData,
+        {},
+        this.projectFieldModelMapping
+      );
 
       const changedRole =
         (req.user?.role as
@@ -158,7 +175,7 @@ and `dynamicQuery` into a single object `finalQuery`. */
         changedRole,
         null,
         "Created",
-        [],
+        changedFields,
         "Created"
       );
 
@@ -182,21 +199,13 @@ and `dynamicQuery` into a single object `finalQuery`. */
       if (!previousProject || !previousProject._id) {
         return res.sendError(null, "Project not found", 404);
       }
-      // Replace IDs with names in changedFields
-      const changedFields = await convertChangedFields(projectData);
 
-      // Detect changed fields
-      // const changedFields = Object.keys(projectData)
-      //   .filter(
-      //     (key) =>
-      //       previousProject[key as keyof typeof previousProject] !==
-      //       projectData[key]
-      //   )
-      //   .map((key) => ({
-      //     field: key,
-      //     oldValue: previousProject[key as keyof typeof previousProject],
-      //     newValue: projectData[key],
-      //   }));
+      // Detect changed fields and replace IDs with names
+      const changedFields = await convertChangedFields(
+        previousProject,
+        projectData,
+        this.projectFieldModelMapping
+      );
 
       // Update the project
       const updatedProject = await this.projectRepository.updateProject(
@@ -218,7 +227,7 @@ and `dynamicQuery` into a single object `finalQuery`. */
           | "ActivityManager"
           | "Worker") ?? "Worker";
 
-      // ✅ Capture and Log all changes in status history, not just status changes
+      // Log all changes in status history
       await this.statusHistoryService.logStatusChange(
         updatedProject._id.toString(),
         "Project",
@@ -226,7 +235,7 @@ and `dynamicQuery` into a single object `finalQuery`. */
         changedRole,
         null, // No previous status field, capturing all field changes
         "Updated", // No new status field, as we're tracking all changes
-        changedFields, // ✅ Log all changed variables here
+        changedFields, // Log all changed variables here
         "Updated"
       );
 

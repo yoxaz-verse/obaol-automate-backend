@@ -82,7 +82,7 @@ class ProjectRepository {
             path: "locationManagers.manager", // Path to populate locationManager names
             select: "name", // Include only the manager's name field
           },
-        })  
+        })
         .populate("status customer projectManager type") // Other population fields
         .exec();
     } catch (error) {

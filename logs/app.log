@@ -1913,3 +1913,5 @@ Error: read ECONNRESET
 2025-02-17T11:15:14.808Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
 2025-02-17T11:55:53.272Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
 2025-02-18T10:20:48.235Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-02-18T14:34:39.328Z [INFO]: MongoDB Connected: italy-activity-shard-00-00.kk3db.mongodb.net 
+2025-02-18T14:34:58.404Z [INFO]: MongoDB Connected: italy-activity-shard-00-02.kk3db.mongodb.net 

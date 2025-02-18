@@ -9,12 +9,7 @@ class StatusHistoryRepository {
     entityId: string,
     entityType: "Location" | "Activity" | "Project",
     changedById: string, // ✅ Store only user ID
-    changedRole:
-      | "Admin"
-      | "ProjectManager"
-      | "ActivityManager"
-      | "Worker"
-      | "Customer",
+    changedRole: string,
     previousStatus: string | null,
     newStatus: string,
     changedFields: { field: string; oldValue: any; newValue: any }[],

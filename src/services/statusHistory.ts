@@ -21,12 +21,7 @@ class StatusHistoryService {
     entityId: string,
     entityType: "Location" | "Activity" | "Project",
     changedById: string, // ✅ Store user ID instead of name
-    changedRole:
-      | "Admin"
-      | "ProjectManager"
-      | "ActivityManager"
-      | "Worker"
-      | "Customer",
+    changedRole: string,
     previousStatus: string | null,
     newStatus: string,
     changedFields: { field: string; oldValue: any; newValue: any }[],
@@ -118,6 +113,15 @@ class StatusHistoryService {
       await logError(error, req, "StatusHistoryService-getStatusHistory");
       res.status(500).json({ message: "Failed to retrieve status history" });
     }
+  }
+
+  public async getEntityName(
+    model: any,
+    id: string | null
+  ): Promise<string | null> {
+    if (!id) return null;
+    const entity = await model.findById(id).select("name").lean();
+    return entity ? entity.name : "Unknown";
   }
 }
 

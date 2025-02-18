@@ -1,6 +1,4 @@
 import { Request, Response } from "express";
-import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
 import { logError } from "../utils/errorLogger";
 import ProjectRepository from "../database/repositories/project";
 import { ProjectStatusModel } from "../database/models/projectStatus";
@@ -12,6 +10,7 @@ import { ProjectTypeModel } from "../database/models/projectType";
 import mongoose from "mongoose";
 import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 import StatusHistoryService from "./statusHistory";
+import { convertChangedFields } from "../utils/formatChangedFields";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
@@ -142,6 +141,9 @@ and `dynamicQuery` into a single object `finalQuery`. */
       }
 
       const changedBy = req.user?.id ?? "Unknown User";
+      // Replace IDs with names in changedFields
+      const changedFields = await convertChangedFields(projectData);
+
       const changedRole =
         (req.user?.role as
           | "Admin"
@@ -180,19 +182,21 @@ and `dynamicQuery` into a single object `finalQuery`. */
       if (!previousProject || !previousProject._id) {
         return res.sendError(null, "Project not found", 404);
       }
+      // Replace IDs with names in changedFields
+      const changedFields = await convertChangedFields(projectData);
 
       // Detect changed fields
-      const changedFields = Object.keys(projectData)
-        .filter(
-          (key) =>
-            previousProject[key as keyof typeof previousProject] !==
-            projectData[key]
-        )
-        .map((key) => ({
-          field: key,
-          oldValue: previousProject[key as keyof typeof previousProject],
-          newValue: projectData[key],
-        }));
+      // const changedFields = Object.keys(projectData)
+      //   .filter(
+      //     (key) =>
+      //       previousProject[key as keyof typeof previousProject] !==
+      //       projectData[key]
+      //   )
+      //   .map((key) => ({
+      //     field: key,
+      //     oldValue: previousProject[key as keyof typeof previousProject],
+      //     newValue: projectData[key],
+      //   }));
 
       // Update the project
       const updatedProject = await this.projectRepository.updateProject(

@@ -15,11 +15,20 @@ import { ActivityModel } from "../database/models/activity";
 import { Types } from "mongoose";
 import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 import StatusHistoryService from "./statusHistory";
+import { convertChangedFields } from "../utils/formatChangedFields";
 
 class ActivityService {
   private activityRepository = new ActivityRepository();
   private projectRepository = new ProjectRepository();
   private statusHistoryService = new StatusHistoryService(); // ✅ Initialize Status History Service
+  // Define the field-to-model mapping
+  private fieldModelMapping = {
+    status: ActivityStatusModel,
+    project: ProjectModel,
+    activityManager: ActivityManagerModel,
+    type: ActivityTypeModel,
+    worker: WorkerModel,
+  };
 
   /**
    * Get activity count by status for a specific project.
@@ -154,6 +163,13 @@ class ActivityService {
         req.user?.role
       );
 
+      // Replace IDs with names in changedFields
+      const changedFields = await convertChangedFields(
+        activityData,
+        {},
+        this.fieldModelMapping
+      );
+
       // Create the activity
       const newActivity = await this.activityRepository.createActivity(
         req,
@@ -172,11 +188,11 @@ class ActivityService {
           | "ActivityManager"
           | "Worker") ?? "Worker";
 
-      const changedFields = Object.keys(activityData).map((key) => ({
-        field: key,
-        oldValue: null,
-        newValue: key === "status" ? newActivity.status : activityData[key],
-      }));
+      // const changedFields = Object.keys(activityData).map((key) => ({
+      //   field: key,
+      //   oldValue: null,
+      //   newValue: key === "status" ? newActivity.status : activityData[key],
+      // }));
 
       await this.statusHistoryService.logStatusChange(
         newActivity._id.toString(),
@@ -202,7 +218,7 @@ class ActivityService {
   public async updateActivity(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      let activityData = req.body;
+      const activityData = req.body;
 
       // Fetch the previous activity details
       const previousActivity = await this.activityRepository.getActivity(
@@ -210,7 +226,7 @@ class ActivityService {
         id
       );
       if (!previousActivity || !previousActivity._id) {
-        return res.sendError(null, "Activity not found", 404);
+        return res.status(404).json({ message: "Activity not found" });
       }
 
       // Determine the new status dynamically
@@ -220,46 +236,48 @@ class ActivityService {
         req.user?.role
       );
 
-      // Update activity
+      // Update the activity
       const updatedActivity = await this.activityRepository.updateActivity(
         req,
         id,
         activityData
       );
       if (!updatedActivity || !updatedActivity._id) {
-        return res.sendError(null, "Activity update failed", 500);
+        return res.status(500).json({ message: "Activity update failed" });
       }
 
       // Log the status change
-      const changedBy = req.user?.id ?? "Unknown User";
-      const changedRole =
-        (req.user?.role as
-          | "Admin"
-          | "ProjectManager"
-          | "ActivityManager"
-          | "Worker") ?? "Worker";
+      const changedBy = req.user?.id || "Unknown User";
+      const changedRole = req.user?.role || "Worker";
 
-      const changedFields = Object.keys(activityData).map((key) => ({
-        field: key,
-        oldValue: previousActivity[key as keyof typeof previousActivity],
-        newValue: activityData[key],
-      }));
-
-      await this.statusHistoryService.logStatusChange(
-        updatedActivity._id.toString(),
-        "Activity",
-        changedBy,
-        changedRole,
-        "", // Previous Status
-        "Updated Activity", // New determined status
-        changedFields,
-        "Updated"
+      // Get the changed fields with old and new values
+      const changedFields = await convertChangedFields(
+        activityData,
+        previousActivity,
+        this.fieldModelMapping
       );
 
-      res.sendFormatted(updatedActivity, "Activity updated successfully", 200);
+      // Log status change only if there are changed fields
+      if (changedFields.length > 0) {
+        await this.statusHistoryService.logStatusChange(
+          updatedActivity._id.toString(),
+          "Activity",
+          changedBy,
+          changedRole,
+          "N/A",
+          "Updated Activity",
+          changedFields,
+          "Updated"
+        );
+      }
+
+      res.status(200).json({
+        message: "Activity updated successfully",
+        data: updatedActivity,
+      });
     } catch (error) {
       await logError(error, req, "ActivityService-updateActivity");
-      res.sendError(error, "Activity update failed", 500);
+      res.status(500).json({ message: "Activity update failed", error });
     }
   }
 

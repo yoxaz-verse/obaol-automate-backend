@@ -1,5 +1,5 @@
 import argon2 from "argon2";
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions, Secret } from "jsonwebtoken";
 import { JWT_EXPIRE, JWT_REFRESH_EXPIRE, JWT_REFRESH_SECRET, JWT_SECRET } from "../config";
 
 const secret_key: string = JWT_SECRET || "";
@@ -21,7 +21,7 @@ export const verifyPassword = async (
 
 // Create a token
 export const createToken = (payload: object): string => {
-  return jwt.sign(payload, secret_key, { expiresIn: expire_time });
+  return jwt.sign(payload, secret_key as Secret, { expiresIn: expire_time } as SignOptions);
 };
 
 // Verify a token
@@ -44,9 +44,9 @@ export const verifyToken = (
 
 // Create a refresh token
 export const createRefreshToken = (payload: object): string => {
-  return jwt.sign(payload, refresh_secret_key, {
+  return jwt.sign(payload, refresh_secret_key as Secret, {
     expiresIn: refresh_expire_time,
-  });
+  } as SignOptions);
 };
 
 // Verify a refresh token

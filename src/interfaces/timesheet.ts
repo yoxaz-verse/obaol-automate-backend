@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { ActivityModel } from "@database/models/activity";
 import { WorkerModel } from "@database/models/worker";
-import { ActivityManagerModel } from "../database/models/activityManager";
+import { ActivityManagerModel } from "../database/models/inventoryManager";
 
 export interface IUpdateTimesheet {
   activity?: string; // Activity ID

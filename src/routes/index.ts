@@ -1,9 +1,6 @@
 import { Router } from "express";
 
-// Import Manager routes
-import managerRoute from "./manager";
 import customerRoute from "./customerRoute";
-import workerRoute from "./workerRoute";
 import adminRoute from "./adminRoute";
 
 import timeSheetRoute from "./timesheetRoute";
@@ -19,11 +16,24 @@ import locationTypeRoute from "./locationTypeRoute";
 import locationRoute from "./locationRoute";
 import locationManagerRoute from "./locationManagerRoute";
 import authRoute from "./authRoute";
-import serviceCompanyRoute from "./serviceCompanyRoute";
 import verifyTokenRoute from "./verifyTokenRoute";
-import activityManagerRoute from "./activityManagerRoute";
+import inventoryManagerRoute from "./inventoryManagerRoute";
 import projectManagerRoute from "./projectManagerRoute";
 import statusHistoryRoute from "./statusHistoryRoute";
+
+import associateRoute from "./associateRoute";
+import associateCompanyRoute from "./associateCompanyRoute";
+
+import categoryRoute from "./categoryRoute";
+import subCategoryRoute from "./subCategoryRoute";
+
+import productRoute from "./productRoute";
+import productVariantRoute from "./productVariantRoute";
+import variantRateRoute from "./variantRateRoute";
+import displayedRateRoute from "./displayedRateRoute";
+
+import enquiryRoute from "./enquiryRoute";
+import quantityUnitRoute from "./quantityUnitRoute";
 
 // Initialize the main router
 const router = Router();
@@ -38,7 +48,6 @@ router.use(`${prefix}/verify-token`, verifyTokenRoute);
 // Users
 router.use(`${prefix}/admin`, adminRoute);
 router.use(`${prefix}/customer`, customerRoute);
-router.use(`${prefix}/worker`, workerRoute);
 
 router.use(`${prefix}/timeSheet`, timeSheetRoute);
 
@@ -51,13 +60,27 @@ router.use(`${prefix}/activity`, activityRoute);
 router.use(`${prefix}/activityFile`, activityFileRoute);
 router.use(`${prefix}/activityStatus`, activityStatusRoute);
 router.use(`${prefix}/activityType`, activityTypeRoute);
-router.use(`${prefix}/activityManager`, activityManagerRoute);
-
-router.use(`${prefix}/serviceCompany`, serviceCompanyRoute);
+router.use(`${prefix}/inventoryManager`, inventoryManagerRoute);
 
 router.use(`${prefix}/locationType`, locationTypeRoute);
 router.use(`${prefix}/locationManager`, locationManagerRoute);
 router.use(`${prefix}/location`, locationRoute);
+
+router.use(`${prefix}/associate`, associateRoute);
+router.use(`${prefix}/associateCompany`, associateCompanyRoute);
+
+router.use(`${prefix}/category`, categoryRoute);
+router.use(`${prefix}/subCategory`, subCategoryRoute);
+
+router.use(`${prefix}/product`, productRoute);
+router.use(`${prefix}/productVariant`, productVariantRoute);
+router.use(`${prefix}/variantRate`, variantRateRoute);
+router.use(`${prefix}/displayedRate`, displayedRateRoute);
+
+router.use(`${prefix}/enquiry`, enquiryRoute);
+router.use(`${prefix}/quantityUnit`, quantityUnitRoute);
+
+// router.use(`${prefix}/variantRate`, variantRateRoute);
 
 //file
 // router.use(`${prefix}/upload`, fileRoute);

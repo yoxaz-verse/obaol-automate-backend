@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export interface IActivityManager {
+export interface IInventoryManager {
   _id: string;
   email: string;
   isActive: boolean;
@@ -11,14 +11,14 @@ export interface IActivityManager {
   role: string; // Assign default role
 }
 
-export interface ICreateActivityManager {
+export interface ICreateInventoryManager {
   email: string;
   name: string;
   password: string;
   admin: mongoose.Types.ObjectId; // Assuming admin is referenced by ObjectId
 }
 
-export interface IUpdateActivityManager {
+export interface IUpdateInventoryManager {
   email?: string;
   name?: string;
   password?: string;

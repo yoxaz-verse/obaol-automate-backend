@@ -11,7 +11,7 @@ class CustomerService {
   constructor() {
     this.customerRepository = new CustomerRepository();
   }
-
+  
   public async getCustomers(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
@@ -27,7 +27,6 @@ class CustomerService {
       res.sendError(error, "Customers retrieval failed");
     }
   }
-
   public async getCustomer(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -38,7 +37,6 @@ class CustomerService {
       res.sendError(error, "Customer retrieval failed");
     }
   }
-
   public async createCustomer(req: Request, res: Response) {
     try {
       // Hash password
@@ -54,7 +52,6 @@ class CustomerService {
       res.sendError(error, "Customer creation failed");
     }
   }
-
   public async updateCustomer(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -74,7 +71,6 @@ class CustomerService {
       res.sendError(error, "Customer update failed");
     }
   }
-
   public async deleteCustomer(req: Request, res: Response) {
     try {
       const { id } = req.params;

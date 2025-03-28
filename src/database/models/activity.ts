@@ -1,11 +1,10 @@
 import mongoose from "mongoose";
 import { ProjectModel } from "./project";
-import { WorkerModel } from "./worker";
 import { ManagerModel } from "./manager";
 import { CustomerModel } from "./customer";
 import { ActivityStatusModel } from "./activityStatus";
 import { ActivityTypeModel } from "./activityType";
-import { ActivityManagerModel } from "./activityManager";
+import { InventoryManagerModel } from "./inventoryManager";
 import { boolean } from "joi";
 
 interface IActivity extends mongoose.Document {
@@ -17,8 +16,9 @@ interface IActivity extends mongoose.Document {
   actualDate?: Date;
   targetOperationDate?: Date;
   targetFinanceDate?: Date;
-  activityManager: mongoose.Schema.Types.ObjectId | typeof ActivityManagerModel;
-  worker: Array<mongoose.Schema.Types.ObjectId | typeof WorkerModel>;
+  activityManager:
+    | mongoose.Schema.Types.ObjectId
+    | typeof InventoryManagerModel;
   updatedBy: string; // Role of the user who last updated the activity
   statusHistory: Array<
     mongoose.Schema.Types.ObjectId | typeof ActivityStatusModel
@@ -58,7 +58,7 @@ const ActivitySchema = new mongoose.Schema(
     updatedBy: {
       type: String,
       required: true,
-      enum: ["Worker", "ActivityManager", "ProjectManager", "Admin"],
+      enum: ["ActivityManager", "ProjectManager", "Admin"],
     },
     hoursSpent: { type: Number },
     statusHistory: [

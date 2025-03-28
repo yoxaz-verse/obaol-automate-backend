@@ -5,15 +5,15 @@ import bcrypt from "bcryptjs";
 import { Request, Response } from "express";
 import { AdminModel } from "../database/models/admin";
 import { CustomerModel } from "../database/models/customer";
-import { WorkerModel } from "../database/models/worker";
 import {
   JWT_REFRESH_EXPIRE,
   JWT_REFRESH_SECRET,
   JWT_SECRET,
   NODE_ENV,
 } from "../config";
-import { ActivityManagerModel } from "../database/models/activityManager";
+import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { ProjectManagerModel } from "../database/models/projectManager";
+import { AssociateModel } from "../database/models/associate";
 interface UserModel {
   findOne: (query: object) => Promise<any>;
 }
@@ -24,12 +24,13 @@ const getUserModel = (role: string): UserModel | null => {
       return AdminModel;
     case "Customer":
       return CustomerModel;
-    case "ActivityManager":
-      return ActivityManagerModel;
+    case "InventoryManager":
+      return InventoryManagerModel;
     case "ProjectManager":
       return ProjectManagerModel;
-    case "Worker":
-      return WorkerModel;
+
+    case "Associate":
+      return AssociateModel;
     default:
       return null;
   }
@@ -71,12 +72,20 @@ export const authenticateUser = async (req: Request, res: Response) => {
       role: role, // Include role in the payload
     };
 
-    const token = jwt.sign(payload, JWT_SECRET as Secret, {
-      expiresIn: "1d",
-    } as SignOptions);
-    const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET as Secret, {
-      expiresIn: JWT_REFRESH_EXPIRE, // e.g., "10d"
-    } as SignOptions);
+    const token = jwt.sign(
+      payload,
+      JWT_SECRET as Secret,
+      {
+        expiresIn: "1d",
+      } as SignOptions
+    );
+    const refreshToken = jwt.sign(
+      payload,
+      JWT_REFRESH_SECRET as Secret,
+      {
+        expiresIn: JWT_REFRESH_EXPIRE, // e.g., "10d"
+      } as SignOptions
+    );
 
     // Set the token as an HTTP-Only cookie
     res.cookie("token", token, {

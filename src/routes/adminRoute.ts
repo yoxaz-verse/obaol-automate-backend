@@ -43,8 +43,8 @@ router.get(
 // CREATE a new admin
 router.post(
   "/",
-  authenticateToken,
-  authorizeRoles("Admin"),
+  // authenticateToken,
+  // authorizeRoles("Admin"),
   validateUniqueEmail,
   adminMiddleware.validateCreate.bind(adminMiddleware),
   adminService.createAdmin.bind(adminService)

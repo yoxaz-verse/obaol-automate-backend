@@ -24,7 +24,7 @@ class ProjectStatusRepository {
       let query: any = {};
       if (search) {
         query.name = { $regex: search, $options: "i" };
-      }
+      }  
       const projectStatuses = await ProjectStatusModel.find(query)
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit)

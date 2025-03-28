@@ -3,9 +3,9 @@ import StatusHistoryRepository from "../database/repositories/statusHistory";
 import { logError } from "../utils/errorLogger";
 import { AdminModel } from "./../database/models/admin";
 import { ProjectManagerModel } from "./../database/models/projectManager";
-import { ActivityManagerModel } from "./../database/models/activityManager";
-import { WorkerModel } from "./../database/models/worker";
+import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { CustomerModel } from "./../database/models/customer";
+import { AssociateModel } from "../database/models/associate";
 
 class StatusHistoryService {
   private statusHistoryRepo: StatusHistoryRepository;
@@ -85,13 +85,14 @@ class StatusHistoryService {
             case "ProjectManager":
               user = await ProjectManagerModel.findById(entry.changedBy).lean();
               break;
-            case "ActivityManager":
-              user = await ActivityManagerModel.findById(
+            case "InventoryManager":
+              user = await InventoryManagerModel.findById(
                 entry.changedBy
               ).lean();
               break;
-            case "Worker":
-              user = await WorkerModel.findById(entry.changedBy).lean();
+
+            case "Associate":
+              user = await AssociateModel.findById(entry.changedBy).lean();
               break;
             case "Customer":
               user = await CustomerModel.findById(entry.changedBy).lean();

@@ -1,118 +1,118 @@
-// src/services/activityManager.ts
+// src/services/InventoryManager.ts
 
 import { Request, Response } from "express";
-import ActivityManagerRepository from "../database/repositories/activityManager";
+import InventoryManagerRepository from "../database/repositories/inventoryManager";
 import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
 import { searchHandler } from "../utils/searchHandler";
 import { hashPassword } from "../utils/passwordUtils";
 
-class ActivityManagerService {
-  private activityManagerRepository: ActivityManagerRepository;
+class InventoryManagerService {
+  private inventoryManagerRepository: InventoryManagerRepository;
 
   constructor() {
-    this.activityManagerRepository = new ActivityManagerRepository();
+    this.inventoryManagerRepository = new InventoryManagerRepository();
   }
 
-  public async getActivityManagers(req: Request, res: Response) {
+  public async getInventoryManagers(req: Request, res: Response) {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      const activityManagers =
-        await this.activityManagerRepository.getActivityManagers(
+      const inventoryManagers =
+        await this.inventoryManagerRepository.getInventoryManagers(
           req,
           pagination,
           search
         );
       res.sendArrayFormatted(
-        activityManagers,
+        inventoryManagers,
         "Customers retrieved successfully"
       );
     } catch (error) {
-      await logError(error, req, "ActivityManagerService-getActivityManagers");
+      await logError(error, req, "InventoryManagerService-getInventoryManagers");
       res.status(500).json({ error: "Internal Server Error" });
     }
   }
 
-  public async getActivityManagerById(req: Request, res: Response) {
+  public async getInventoryManagerById(req: Request, res: Response) {
     try {
-      const activityManager =
-        await this.activityManagerRepository.getActivityManagerById(
+      const inventoryManager =
+        await this.inventoryManagerRepository.getInventoryManagerById(
           req,
           req.params.id
         );
-      res.json(activityManager);
+      res.json(inventoryManager);
     } catch (error) {
       await logError(
         error,
         req,
-        "ActivityManagerService-getActivityManagerById"
+        "InventoryManagerService-getInventoryManagerById"
       );
       res.status(404).json({ error: error });
     }
   }
 
-  public async createActivityManager(req: Request, res: Response) {
+  public async createInventoryManager(req: Request, res: Response) {
     try {
       // Hash password
       req.body.password = await hashPassword(req.body.password);
-      const newActivityManager =
-        await this.activityManagerRepository.createActivityManager(
+      const newInventoryManager =
+        await this.inventoryManagerRepository.createInventoryManager(
           req,
           req.body
         );
-      res.status(201).json(newActivityManager);
+      res.status(201).json(newInventoryManager);
     } catch (error) {
       await logError(
         error,
         req,
-        "ActivityManagerService-createActivityManager"
+        "InventoryManagerService-createInventoryManager"
       );
       res.status(500).json({ error: "Internal Server Error" });
     }
   }
 
-  public async updateActivityManager(req: Request, res: Response) {
+  public async updateInventoryManager(req: Request, res: Response) {
     try {
       if (req.body.password) {
         req.body.password = await hashPassword(req.body.password);
       }
 
-      const updatedActivityManager =
-        await this.activityManagerRepository.updateActivityManager(
+      const updatedInventoryManager =
+        await this.inventoryManagerRepository.updateInventoryManager(
           req,
           req.params.id,
           req.body
         );
 
-      res.json(updatedActivityManager);
+      res.json(updatedInventoryManager);
     } catch (error) {
       await logError(
         error,
         req,
-        "ActivityManagerService-updateActivityManager"
+        "InventoryManagerService-updateInventoryManager"
       );
       res.status(404).json({ error: error });
     }
   }
 
-  public async deleteActivityManager(req: Request, res: Response) {
+  public async deleteInventoryManager(req: Request, res: Response) {
     try {
-      const deletedActivityManager =
-        await this.activityManagerRepository.deleteActivityManager(
+      const deletedInventoryManager =
+        await this.inventoryManagerRepository.deleteInventoryManager(
           req,
           req.params.id
         );
-      res.json(deletedActivityManager);
+      res.json(deletedInventoryManager);
     } catch (error) {
       await logError(
         error,
         req,
-        "ActivityManagerService-deleteActivityManager"
+        "InventoryManagerService-deleteInventoryManager"
       );
       res.status(404).json({ error: error });
     }
   }
 }
 
-export default ActivityManagerService;
+export default InventoryManagerService;

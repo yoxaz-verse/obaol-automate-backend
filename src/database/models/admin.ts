@@ -20,7 +20,6 @@ const adminSchema = new mongoose.Schema(
     isSuperAdmin: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    refreshToken: { type: String },
     role: { type: String, default: "admin" }, // Assign default role
   },
   {

@@ -2,7 +2,7 @@
 
 import { Request, Response, NextFunction } from "express";
 
-export const validateActivityManager = (
+export const validateInventoryManager = (
   req: Request,
   res: Response,
   next: NextFunction

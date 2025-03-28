@@ -11,7 +11,8 @@ export interface IStatusHistory extends mongoose.Document {
   changedRole:
     | "Admin"
     | "ProjectManager"
-    | "ActivityManager"
+    | "Associate"
+    | "InventoryManager"
     | "Worker"
     | "Customer"; // Role of the user
   changedAt: Date; // Timestamp of the change
@@ -47,6 +48,8 @@ const StatusHistorySchema = new mongoose.Schema<IStatusHistory>(
         "ActivityManager",
         "Worker",
         "Customer",
+        "Associate",
+        "InventoryManager",
       ],
       required: true,
     },

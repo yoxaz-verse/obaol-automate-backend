@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import { IActivityManager } from "../../interfaces/activityManager";
+import { IInventoryManager } from "../../interfaces/inventoryManager";
 
-const ActivityManagerSchema = new mongoose.Schema<IActivityManager>(
+const InventoryManagerSchema = new mongoose.Schema<IInventoryManager>(
   {
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
@@ -13,7 +13,7 @@ const ActivityManagerSchema = new mongoose.Schema<IActivityManager>(
       ref: "Admin",
       required: true,
     }, // Linking to Admin
-    role: { type: String, default: "activityManager" }, // Assign default role
+    role: { type: String, default: "InventoryManager" }, // Assign default role
   },
   { timestamps: true }
 );
@@ -22,7 +22,7 @@ const ActivityManagerSchema = new mongoose.Schema<IActivityManager>(
 /*
 import bcrypt from "bcrypt";
 
-ActivityManagerSchema.pre<IActivityManager>("save", async function (next) {
+InventoryManagerSchema.pre<IInventoryManager>("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
     const salt = await bcrypt.genSalt(10);
@@ -34,7 +34,7 @@ ActivityManagerSchema.pre<IActivityManager>("save", async function (next) {
 });
 */
 
-export const ActivityManagerModel = mongoose.model<IActivityManager>(
-  "ActivityManager",
-  ActivityManagerSchema
+export const InventoryManagerModel = mongoose.model<IInventoryManager>(
+  "InventoryManager",
+  InventoryManagerSchema
 );

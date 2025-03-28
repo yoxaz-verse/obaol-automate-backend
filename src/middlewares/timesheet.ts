@@ -4,11 +4,9 @@ import { logError } from "../utils/errorLogger";
 class TimesheetMiddleware {
   public async validateCreate(req: Request, res: Response, next: NextFunction) {
     try {
-      console.log("HI");
       const { activity, startTime, endTime, date } = req.body;
       const createdBy = req.user?.id; // ID of the logged-in user
       const createdByRole = req.user?.role; // Role of the logged-in user
-      console.log("HI YO YO");
 
       if (!activity || !startTime || !endTime || !date) {
         res.sendError(

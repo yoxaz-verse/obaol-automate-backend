@@ -5,10 +5,8 @@ import { logError } from "../utils/errorLogger";
 import { ActivityStatusModel } from "../database/models/activityStatus";
 import ProjectRepository from "../database/repositories/project";
 import { ProjectModel } from "../database/models/project";
-import { ActivityManagerModel } from "../database/models/activityManager";
+import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { ActivityTypeModel } from "../database/models/activityType";
-import { WorkerModel } from "../database/models/worker";
-import { IWorker } from "../interfaces/worker";
 import { ProjectStatusModel } from "../database/models/projectStatus";
 import { ObjectId } from "mongodb"; // Make sure to import ObjectId
 import { ActivityModel } from "../database/models/activity";
@@ -25,9 +23,8 @@ class ActivityService {
   private fieldModelMapping = {
     status: ActivityStatusModel,
     project: ProjectModel,
-    activityManager: ActivityManagerModel,
+    activityManager: InventoryManagerModel,
     type: ActivityTypeModel,
-    worker: WorkerModel,
   };
 
   /**
@@ -375,7 +372,6 @@ class ActivityService {
           let workerIds: string[] = [];
           try {
             const workers = JSON.parse(activity.worker);
-            workerIds = await this.getWorkerIds(workers);
           } catch (e) {
             errors.push(`Invalid worker data: ${activity.worker}`);
           }
@@ -466,7 +462,7 @@ class ActivityService {
     return project._id.toString();
   }
   private async getActivityManagerId(email: string): Promise<string | null> {
-    const manager = await ActivityManagerModel.findOne({ email });
+    const manager = await InventoryManagerModel.findOne({ email });
     if (!manager) {
       console.warn(`ActivityManager with email ${email} not found`);
       return null; // Return null if not found instead of throwing an error
@@ -482,22 +478,6 @@ class ActivityService {
       return null; // Returning null instead of throwing an error for missing types
     }
     return activityType._id.toString();
-  }
-  private async getWorkerIds(emails: string[]): Promise<string[]> {
-    const workers = await WorkerModel.find({ email: { $in: emails } }).lean<
-      IWorker[]
-    >();
-
-    const foundEmails = workers.map((worker) => worker.email);
-    const missingEmails = emails.filter(
-      (email) => !foundEmails.includes(email)
-    );
-
-    if (missingEmails.length) {
-      console.warn(`Missing workers: ${missingEmails.join(", ")}`);
-    }
-
-    return workers.map((worker) => worker._id);
   }
 
   /**

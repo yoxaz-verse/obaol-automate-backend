@@ -1,13 +1,5 @@
-import { ICustomer } from "./customer";
-import { IAdmin } from "./admin";
-import { IManager } from "./manager";
-import { IProjectStatus } from "./projectStatus";
-import { IProjectManager } from "./projectManager";
-
 import mongoose from "mongoose";
 import { CustomerModel } from "../database/models/customer";
-import { AdminModel } from "../database/models/admin";
-import { ManagerModel } from "../database/models/manager";
 import { ProjectStatusModel } from "../database/models/projectStatus";
 import { ProjectTypeModel } from "../database/models/projectType";
 import { LocationModel } from "../database/models/location";

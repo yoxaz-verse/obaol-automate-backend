@@ -2,7 +2,6 @@
 
 import { IAdmin } from "interfaces/admin";
 import { ICustomer } from "interfaces/customer";
-import { IManager } from "interfaces/manager";
 import { IWorker } from "interfaces/worker";
 import jwt from "jsonwebtoken";
 
@@ -19,7 +18,7 @@ interface TokenPayload {
  * @returns The signed JWT token.
  */
 export const generateJWTToken = (
-  user: IAdmin | ICustomer | IWorker | IManager
+  user: IAdmin | ICustomer | IWorker
 ): string => {
   const payload: TokenPayload = {
     id: user._id.toString(),

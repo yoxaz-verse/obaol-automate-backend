@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { ProjectModel } from "./project";
-import { ManagerModel } from "./manager";
 import { CustomerModel } from "./customer";
 import { ActivityStatusModel } from "./activityStatus";
 import { ActivityTypeModel } from "./activityType";

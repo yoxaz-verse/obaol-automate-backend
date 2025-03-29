@@ -12,7 +12,6 @@ import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 import StatusHistoryService from "./statusHistory";
 import { convertChangedFields } from "../utils/formatChangedFields";
 import { AdminModel } from "../database/models/admin";
-import { ManagerModel } from "../database/models/manager";
 
 class ProjectService {
   private projectRepository = new ProjectRepository();
@@ -21,7 +20,6 @@ class ProjectService {
   projectFieldModelMapping = {
     customer: CustomerModel,
     admin: AdminModel,
-    manager: ManagerModel,
     status: ProjectStatusModel,
     type: ProjectTypeModel,
     location: LocationModel,

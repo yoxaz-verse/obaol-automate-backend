@@ -1,22 +1,25 @@
 # Use Node.js base image
 FROM node:latest
 
-# Create app directory
+# Set working directory
 WORKDIR /usr/src/app
 
-# Copy package files and tsconfig.json (needed for the build)
+# Copy package files and tsconfig.json
 COPY package*.json tsconfig.json ./
 
-# Copy the source code (so tsc finds src/index.ts)
+# Copy the source code
 COPY src ./src
 
-# Install app dependencies (postinstall will run tsc now)
+# Install dependencies
 RUN npm install
 
-# Copy any remaining files (if necessary)
+# Explicitly build the project (runs "tsc" as defined in package.json)
+RUN npm run build
+
+# Copy any remaining files (if needed)
 COPY . .
 
-# Expose port
+# Expose the port your app listens on
 EXPOSE 5001
 
 # Start the server

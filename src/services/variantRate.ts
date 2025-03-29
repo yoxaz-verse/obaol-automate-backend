@@ -16,80 +16,95 @@ class VariantRateService {
   public async getVariantRates(req: Request, res: Response) {
     try {
       const pagination: IPagination = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
+        page: parseInt(req.query.page as string, 10) || 1,
+        limit: parseInt(req.query.limit as string, 10) || 10,
       };
 
       const { page, limit, ...filters } = req.query;
       let dynamicQuery = buildDynamicQuery(filters);
 
-      console.log(
-        "filters.associateCompanyName:",
-        filters.associateCompanyName
-      );
+      // A small function to remove from final query so Mongoose doesn't try to match them:
+      delete dynamicQuery.associateId;
+      delete dynamicQuery.associateCompanyName;
 
-      // 1) Check if associateCompanyName was passed
-      // 1) Check if associateCompanyName was passed
+      // Check for either associateCompanyName or associateId
+      const userRole = req.user?.role;
+      const userId = req.user?.id;
+
+      // 1) If we have an associateCompanyName (like "obaol_supreme")
       if (filters.associateCompanyName) {
-        // a) Normalize the user input
         const rawName = filters.associateCompanyName.toString();
-        // remove from filters so buildDynamicQuery doesn't include it
+        // remove from 'filters' to avoid buildDynamicQuery conflict
         delete filters.associateCompanyName;
 
-        const normalizedName = normalizeCompanyName(rawName);
-        console.log("normalizedName:", normalizedName);
+        const normalizedName = normalizeCompanyName(rawName); // "obaol_supreme" => "obaol supreme", etc.
 
-        // b) Find the company by a case-insensitive match of normalizedName
+        // Find the company doc by name ignoring case
         const companyDoc = await AssociateCompanyModel.findOne({
           name: new RegExp("^" + normalizedName + "$", "i"),
         });
-        console.log("companyDoc:", companyDoc);
-
         if (companyDoc) {
-          // c) find all associates referencing this company
-          const matchingAssociates = await AssociateModel.find(
-            { associateCompany: companyDoc._id },
-            "_id"
-          );
-          const matchingIds = matchingAssociates.map((assoc) => assoc._id);
-
-          // set variantRate.associate in that set
+          // gather all associates referencing that company
+          const foundAssociates = await AssociateModel.find({
+            associateCompany: companyDoc._id,
+          }).select("_id");
+          const matchingIds = foundAssociates.map((a) => a._id);
+          // filter variantRate.associate by these IDs
           dynamicQuery.associate = { $in: matchingIds };
-          if (req.user?.role !== "Admin" && req.user?.role !== "Associate")
-            dynamicQuery.isLive = true;
         } else {
-          // if no matching company => no results
+          // no company => force no results
           dynamicQuery.associate = { $in: [] };
         }
 
-        // Because your requirement says: if associateCompanyName is present,
-        // we skip the role-based logic. So do nothing here for roles.
-      } else {
-        // 2) If NO associateCompanyName, do your normal role-based logic
-        if (req.user?.role === "Admin") {
-          // Admin sees all (no changes needed to dynamicQuery)
-        } else if (req.user?.role === "Associate") {
-          // Combine with: (associate = user) OR (isLive = true)
+        // skip role logic if associateCompanyName is present
+      }
+      // 2) Else if we have an associateId
+      else if (filters.associateId) {
+        const assocId = filters.associateId.toString();
+        delete filters.associateId;
+
+        // find that associate doc
+        const foundAssoc = await AssociateModel.findById(assocId).select(
+          "associateCompany"
+        );
+        if (foundAssoc) {
+          // gather all associates in that same company
+          const foundAssociates = await AssociateModel.find({
+            associateCompany: foundAssoc.associateCompany,
+          }).select("_id");
+          const matchingIds = foundAssociates.map((a) => a._id);
+
+          // filter variantRate.associate by these IDs
+          dynamicQuery.associate = { $in: matchingIds };
+        } else {
+          dynamicQuery.associate = { $in: [] };
+        }
+
+        // skip role logic if associateId is present
+      }
+      // 3) Otherwise, no associateCompanyName or associateId => fallback to normal role logic
+      else {
+        if (userRole === "Admin") {
+          // Admin sees all
+        } else if (userRole === "Associate") {
           dynamicQuery = {
             $and: [
               dynamicQuery,
               {
-                $or: [{ associate: req.user.id }, { isLive: true }],
+                $or: [{ associate: userId }, { isLive: true }],
               },
             ],
           };
         } else {
-          // Non-admin, non-associate => only selected = true, isLive = true
+          // Non-admin => only selected=true, isLive=true
           dynamicQuery.selected = true;
           dynamicQuery.isLive = true;
         }
       }
-      // 🚨 CRUCIAL: If buildDynamicQuery added "associateCompanyName" as a field, remove it now
-      // This ensures the final query doesn't contain associateCompanyName: {...}
-      delete dynamicQuery.associateCompanyName;
-      console.log("dynamicQuery =>", dynamicQuery);
 
-      // 3) Call the repository
+      console.log("Final dynamicQuery =>", dynamicQuery);
+
+      // 4) Call the repository
       const variantRates = await this.variantRateRepository.getVariantRates(
         req,
         pagination,

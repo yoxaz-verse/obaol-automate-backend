@@ -7,6 +7,7 @@ export interface IVariantRate extends Document {
   associate: Types.ObjectId; // Reference to Associate model
   duration?: number;
   commission?: number;
+  associateCompany?: Types.ObjectId; // Reference to Associate model
   isLive: boolean;
   createdAt?: Date;
 }

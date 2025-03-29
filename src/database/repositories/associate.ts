@@ -48,6 +48,53 @@ class AssociateRepository {
       throw error;
     }
   }
+  public async getAssociatesByCompanyId(
+    req: Request,
+    companyId: string,
+    pagination: IPagination
+  ): Promise<{
+    data: IAssociate[];
+    totalCount: number;
+    currentPage: number;
+    totalPages?: number;
+  }> {
+    try {
+      // Basic filter: associates not "deleted," belonging to that company
+      const query = {
+        associateCompany: companyId,
+        isDeleted: false,
+      };
+
+      const associatesDoc = await AssociateModel.find(query, {
+        _id: 1,
+        name: 1,
+      })
+        .populate("associateCompany")
+        .limit(pagination.limit)
+        .skip((pagination.page - 1) * pagination.limit);
+
+      const associates = associatesDoc.map(
+        (doc: any) => doc.toObject() as IAssociate
+      );
+
+      const totalCount = await AssociateModel.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / pagination.limit);
+
+      return {
+        data: associates,
+        totalCount,
+        currentPage: pagination.page,
+        totalPages,
+      };
+    } catch (error) {
+      await logError(
+        error,
+        req,
+        "AssociateRepository-getAssociatesByCompanyId"
+      );
+      throw error;
+    }
+  }
 
   public async getAssociateById(req: Request, id: string): Promise<IAssociate> {
     try {

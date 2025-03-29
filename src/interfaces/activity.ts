@@ -1,7 +1,5 @@
 import mongoose from "mongoose";
 import { ProjectModel } from "../database/models/project";
-import { ActivityManagerModel } from "../database/models/inventoryManager";
-import { WorkerModel } from "../database/models/worker";
 import { ActivityStatusModel } from "../database/models/activityStatus";
 import { CustomerModel } from "../database/models/customer";
 import { ActivityTypeModel } from "../database/models/activityType";

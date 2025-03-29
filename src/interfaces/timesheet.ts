@@ -1,12 +1,10 @@
 import mongoose from "mongoose";
 import { ActivityModel } from "@database/models/activity";
-import { WorkerModel } from "@database/models/worker";
-import { ActivityManagerModel } from "../database/models/inventoryManager";
 
 export interface IUpdateTimesheet {
   activity?: string; // Activity ID
   createdByRole: string;
-  createdBy: mongoose.Schema.Types.ObjectId | typeof WorkerModel;
+  createdBy: mongoose.Schema.Types.ObjectId;
   note?: string;
   startTime?: Date;
   endTime?: Date;

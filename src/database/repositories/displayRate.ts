@@ -100,7 +100,6 @@ class DisplayedRateRepository {
       if (matchingAssociateIds.length > 0) {
         displayedRateFilter.associate = { $in: matchingAssociateIds };
       }
-
       // -----------------------------------------
       // 4) Fetch DisplayedRate with .populate()
       // -----------------------------------------

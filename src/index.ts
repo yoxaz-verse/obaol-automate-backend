@@ -8,7 +8,7 @@ const port = PORT || 5001;
 async function startServer() {
   await connectDB();
   app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+    console.log(`OBAOL Server is running on port ${port}`);
     console.log(`Environment: ${NODE_ENV}`);
     console.log(`${BASE_URL}/api${prefix}`);
   });

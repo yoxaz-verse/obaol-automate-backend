@@ -37,7 +37,12 @@ app.use(responseFormatter);
 // CORS middleware
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"], // Specify allowed origins
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "https://automate.obaol.com",
+      "https://www.automate.obaol.com",
+    ], // Specify allowed origins
     credentials: true,
   })
 );

@@ -1,12 +1,5 @@
-localhost  {
+backend.obaol.com  {
     reverse_proxy backend_main:5000 {
         header_down Strict-Transport-Security "max-age=31536000;"
     }
 }
-
-// backend-automate.obaol.com  {
-//     reverse_proxy backend_main:5000 {
-//         header_down Strict-Transport-Security "max-age=31536000;"
-//     }
-// }
-

@@ -1,5 +1,3 @@
-// src/services/authService.ts
-
 import jwt, { SignOptions, Secret } from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { Request, Response } from "express";
@@ -14,6 +12,7 @@ import {
 import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { ProjectManagerModel } from "../database/models/projectManager";
 import { AssociateModel } from "../database/models/associate";
+
 interface UserModel {
   findOne: (query: object) => Promise<any>;
 }
@@ -28,7 +27,6 @@ const getUserModel = (role: string): UserModel | null => {
       return InventoryManagerModel;
     case "ProjectManager":
       return ProjectManagerModel;
-
     case "Associate":
       return AssociateModel;
     default:
@@ -69,7 +67,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
     const payload = {
       id: user._id,
       email: user.email,
-      role: role, // Include role in the payload
+      role, // Include role in the payload
     };
 
     const token = jwt.sign(
@@ -79,6 +77,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
         expiresIn: "1d",
       } as SignOptions
     );
+
     const refreshToken = jwt.sign(
       payload,
       JWT_REFRESH_SECRET as Secret,
@@ -87,21 +86,22 @@ export const authenticateUser = async (req: Request, res: Response) => {
       } as SignOptions
     );
 
-    // Set the token as an HTTP-Only cookie
+    // IMPORTANT: Use sameSite: 'none' to allow cross-domain cookies
     res.cookie("token", token, {
       httpOnly: true,
-      secure: NODE_ENV === "production", // Set to true in production
-      sameSite: "strict",
-      maxAge: 24 * 60 * 60 * 1000, // 1 day in milliseconds
+      secure: NODE_ENV === "production",
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
-    // Set the Refresh Token as an HTTP-Only cookie (if using)
+    // If you’re actually using refresh tokens:
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       secure: NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "none",
       maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
     });
+
     res.status(200).json({
       success: true,
       message: "Login successful",

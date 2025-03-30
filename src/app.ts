@@ -46,8 +46,10 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(apiLogger);
 // Logging middleware
+
 app.use(morgan("common"));
 
 // Cookie parsing middleware

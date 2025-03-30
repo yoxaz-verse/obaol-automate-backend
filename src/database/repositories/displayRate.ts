@@ -37,6 +37,7 @@ class DisplayedRateRepository {
           },
         })
         .populate("associate")
+        .populate("associateCompany")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 

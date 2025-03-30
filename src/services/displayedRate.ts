@@ -3,6 +3,8 @@ import { logError } from "../utils/errorLogger";
 import { IPagination } from "../interfaces/pagination";
 import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 import DisplayedRateRepository from "../database/repositories/displayRate";
+import { AssociateModel } from "../database/models/associate";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
 
 class DisplayedRateService {
   private displayedRateRepository: DisplayedRateRepository;
@@ -19,14 +21,73 @@ class DisplayedRateService {
       };
 
       const { page, limit, ...filters } = req.query;
-      const dynamicQuery = buildDynamicQuery(filters);
+      let dynamicQuery = buildDynamicQuery(filters);
 
-      // If the client sends something like ?associateCompanyName= O B A O L
+      // If the user passes ?associateCompanyName=...
       if (filters.associateCompanyName) {
-        // Put it in dynamicQuery so the repository can use it
-        dynamicQuery.associateCompanyName = filters.associateCompanyName;
+        // 1) Normalize
+        const rawCompanyName = filters.associateCompanyName.toString();
+        delete filters.associateCompanyName; // so it doesn't end in final query
+        const normalizedName = normalizeCompanyName(rawCompanyName);
+
+        // 2) Find company doc by name ignoring case
+        const companyDoc = await AssociateCompanyModel.findOne({
+          name: new RegExp("^" + normalizedName + "$", "i"),
+        });
+
+        if (companyDoc) {
+          // Filter displayedRate.associateCompany to that doc._id
+          dynamicQuery.associateCompany = companyDoc._id;
+        } else {
+          // If not found => force empty
+          dynamicQuery.associateCompany = { $in: [] };
+        }
+
+        // Skip role logic if company name was provided
+      }
+      // If no associateCompanyName but we do have 'associateId'
+      else if (filters.associateId) {
+        const rawAssocId = filters.associateId.toString();
+        delete filters.associateId; // remove from final query
+
+        // find that Associate doc
+        const assocDoc = await AssociateModel.findById(rawAssocId).select(
+          "associateCompany"
+        );
+        if (assocDoc) {
+          dynamicQuery.associateCompany = assocDoc.associateCompany;
+        } else {
+          dynamicQuery.associateCompany = { $in: [] };
+        }
+
+        // skip role-based logic if 'associateId' is present
+      } else {
+        // 3) if neither associateCompanyName nor associateId => do your normal role logic
+        const userRole = req.user?.role;
+        const userId = req.user?.id;
+
+        if (userRole === "Admin") {
+          // Admin sees all displayedRates
+        } else if (userRole === "Associate" && userId) {
+          // find the user’s company
+          const userAssocDoc = await AssociateModel.findById(userId).select(
+            "associateCompany"
+          );
+          if (userAssocDoc) {
+            dynamicQuery.associateCompany = userAssocDoc.associateCompany;
+          } else {
+            dynamicQuery.associateCompany = { $in: [] };
+          }
+        } else {
+          // Non-admin, non-associate => maybe skip or do some other restriction
+          // E.g. displayedRate => only selected = true
+          dynamicQuery.selected = true;
+        }
       }
 
+      console.log("Final displayedRate query =>", dynamicQuery);
+
+      // call your repository
       const displayedRates =
         await this.displayedRateRepository.getDisplayedRates(
           req,
@@ -40,7 +101,9 @@ class DisplayedRateService {
       });
     } catch (error) {
       logError(error, req, "DisplayedRateService-getDisplayedRates");
-      res.status(500).json({ error: "Displayed Rates retrieval failed" });
+      return res
+        .status(500)
+        .json({ error: "Displayed Rates retrieval failed" });
     }
   }
 
@@ -128,3 +191,13 @@ class DisplayedRateService {
 }
 
 export default DisplayedRateService;
+
+/**
+ * Normalizes the company name:
+ *  - toLowerCase
+ *  - underscores -> spaces
+ *  - compress multiple spaces
+ */
+function normalizeCompanyName(input: string): string {
+  return input.trim().toLowerCase().replace(/_+/g, " ").replace(/\s+/g, " ");
+}

@@ -15,8 +15,6 @@ import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { AssociateModel } from "../../database/models/associate";
 
 class DisplayedRateRepository {
-
-
   public async getDisplayedRates(
     req: Request,
     pagination: IPagination,
@@ -28,98 +26,29 @@ class DisplayedRateRepository {
     totalPages?: number;
   }> {
     try {
-      let matchingAssociateIds: Types.ObjectId[] = [];
-  
-      // If user is an Associate, filter by that user's company
-      const userRole = req.user?.role;
-      const userId = req.user?.id;
-  
-      if (userRole === "Associate" && userId) {
-        // a) find the associate doc for this user, to get associateCompany
-        const userAssociateDoc = await AssociateModel.findById(userId).select(
-          "associateCompany"
-        );
-        if (!userAssociateDoc) {
-          // If no doc, user might be invalid => force empty results
-          query.associate = { $in: [] };
-        } else {
-          const companyId = userAssociateDoc.associateCompany;
-  
-          // b) find all associates referencing that same company
-          const foundAssociates = await AssociateModel.find({
-            associateCompany: companyId,
-          }).select("_id");
-          matchingAssociateIds = foundAssociates.map((a) => a._id);
-  
-          // c) Restrict displayedRate.associate to that set
-          query.associate = { $in: matchingAssociateIds };
-        }
-      }
-  
-      // 1) Filter by variantRate.isLive = true
-      const liveVariantRates = await VariantRateModel.find({ isLive: true }, "_id");
-      const liveVariantRateIds = liveVariantRates.map((doc) => doc._id);
-  
-      // 2) Build DisplayedRate query
-      // Combine with your existing query + variantRate in live set
-      const displayedRateFilter: any = {
-        ...query,
-        variantRate: { $in: liveVariantRateIds },
-      };
-  
-      // e.g. if we only want displayedRates for user’s company,
-      // query.associate was already set => merges into displayedRateFilter
-  
-      // 3) Fetch DisplayedRate with .populate()
-      const displayedRateDocs = await DisplayedRateModel.find(displayedRateFilter)
+      // 1) Mongoose find
+      const displayedRateDocs = await DisplayedRateModel.find(query)
         .populate({
           path: "variantRate",
           populate: {
             path: "productVariant",
-            populate: {
-              path: "product",
-              select: "name",
-            },
+            populate: { path: "product", select: "name" },
             select: "name product",
           },
         })
         .populate("associate")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
-  
-      // 4) Convert, do commission logic if not Admin/Associate
-      const displayedRates = displayedRateDocs.map((doc) => {
-        const displayedObj = doc.toObject() as IDisplayedRate;
-        const variantRateDoc = displayedObj.variantRate as unknown as IVariantRate;
-  
-        const baseRate = variantRateDoc.rate ?? 0;
-        const variantComm = variantRateDoc.commission ?? 0;
-        const displayedComm = displayedObj.commission ?? 0;
-  
-        const rowAssociateId = doc.associate?._id?.toString();
-        const userRole = req.user?.role;
-        const userId = req.user?.id;
-  
-        // If the row’s associate == user => only add variantComm
-        // else add both variantComm + displayedComm
-        if (rowAssociateId === userId) {
-          variantRateDoc.rate = baseRate + variantComm;
-        } else {
-          variantRateDoc.rate = baseRate + variantComm + displayedComm;
-          // if the user is not Admin, we hide the 'commission' field
-          if (userRole !== "Admin") {
-            variantRateDoc.commission = 0;
-          }
-        }
-  
-        return displayedObj;
-      });
-  
-      // 5) Count for pagination
-      const totalCount = await DisplayedRateModel.countDocuments(displayedRateFilter);
+
+      // 2) Convert to plain objects
+      const displayedRates = displayedRateDocs.map(
+        (doc) => doc.toObject() as IDisplayedRate
+      );
+
+      // 3) Count total
+      const totalCount = await DisplayedRateModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
-  
-      // 6) Return
+
       return {
         data: displayedRates,
         totalCount,
@@ -131,8 +60,6 @@ class DisplayedRateRepository {
       throw error;
     }
   }
-  
-
   public async getDisplayedRateById(
     req: Request,
     id: string
@@ -214,10 +141,12 @@ class DisplayedRateRepository {
 
 export default DisplayedRateRepository;
 
-/*
- * Normalizes a string by trimming, lowercasing, and converting spaces to underscores.
- */
+/** Example normalizer for companyName => underscores->space, lower, trim */
+function normalizeCompanyName(input: string): string {
+  return input.trim().toLowerCase().replace(/_+/g, " ").replace(/\s+/g, " ");
+}
 
-function normalizeCompanyName(original: string): string {
-  return original.trim().toLowerCase().replace(/\s+/g, "_");
+/** Example normalizer for associateName => e.g. also underscores->space, etc. */
+function normalizeAssociateName(input: string): string {
+  return input.trim().toLowerCase().replace(/_+/g, " ").replace(/\s+/g, " ");
 }

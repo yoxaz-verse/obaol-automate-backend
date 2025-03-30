@@ -8,11 +8,6 @@ import {
   IDisplayedRate,
   IUpdateDisplayedRate,
 } from "../../interfaces/displayedRate";
-import { IVariantRate } from "../../interfaces/variantRate";
-import { VariantRateModel } from "../../database/models/variantRate";
-import { Types } from "mongoose";
-import { AssociateCompanyModel } from "../../database/models/associateCompany";
-import { AssociateModel } from "../../database/models/associate";
 
 class DisplayedRateRepository {
   public async getDisplayedRates(

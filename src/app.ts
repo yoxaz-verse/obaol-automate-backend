@@ -1,5 +1,3 @@
-// src/app.ts
-
 import express from "express";
 import helmet from "helmet";
 import { errorHandler } from "./utils/errorHandler";
@@ -8,30 +6,21 @@ import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import routes from "./routes";
-import path from "path"; // Import path to handle file paths
+import path from "path";
 import apiLogger from "./middlewares/apiLogger";
 
 const app = express();
 
-// Use Helmet for security headers (optional, can be uncommented if needed)
-// app.use(
-//   helmet({
-//     contentSecurityPolicy: false, // Disable CSP for APIs
-//     frameguard: false, // No need for frameguard in APIs
-//     hidePoweredBy: true, // Hide the X-Powered-By header
-//     hsts: false, // Disable HSTS for APIs
-//     xssFilter: true, // Enable XSS filter
-//     noSniff: true, // Prevent MIME-sniffing
-//     referrerPolicy: { policy: "same-origin" }, // Set Referrer-Policy header
-//   })
-// );
+// Optional Helmet settings
+// app.use(helmet({ ... }));
 
-// Middleware for parsing JSON and formatting responses
+// Parse JSON
 app.use(express.json());
-// If you need to parse URL-encoded data, uncomment the following line
+
+// If you need to parse form data, uncomment:
 // app.use(express.urlencoded({ extended: true }));
 
-// Apply responseFormatter middleware before other middleware and routes
+// Apply response formatter (if you need it before anything else)
 app.use(responseFormatter);
 
 // CORS middleware
@@ -42,33 +31,32 @@ app.use(
       "http://localhost:3001",
       "https://automate.obaol.com",
       "https://www.automate.obaol.com",
-    ], // Specify allowed origins
-    credentials: true,
+      // Add any other allowed origins
+    ],
+    credentials: true, // <--- Needed for cross-site cookie usage
   })
 );
 
+// Logger
 app.use(apiLogger);
-// Logging middleware
-
 app.use(morgan("common"));
 
-// Cookie parsing middleware
+// Cookie parsing
 app.use(cookieParser());
 
-// Serve static files from uploads before defining routes
+// Serve static uploads if needed
 app.use(
   "/uploads",
   express.static(path.join(__dirname, "../uploads"), {
-    // Optional: Set cache options or other static file options here
-    extensions: ["jpg", "jpeg", "png", "gif"], // Specify allowed file extensions
-    index: false, // Disable directory indexing
+    extensions: ["jpg", "jpeg", "png", "gif"],
+    index: false,
   })
 );
 
-// API routes
+// Main API routes
 app.use("/api", routes);
 
-// 404 Handler (should be after all other routes and middleware)
+// 404 Handler
 app.use((req, res) => {
   res.status(404).json({
     status: 404,
@@ -76,7 +64,7 @@ app.use((req, res) => {
   });
 });
 
-// Error handling middleware (should be last)
+// Error handler
 app.use(errorHandler);
 
 export default app;

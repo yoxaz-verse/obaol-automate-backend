@@ -89,7 +89,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
     // IMPORTANT: Use sameSite: 'none' to allow cross-domain cookies
     res.cookie("token", token, {
       httpOnly: true,
-      secure: NODE_ENV === "production",
+      secure: true,
       sameSite: "none",
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
@@ -97,7 +97,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
     // If you’re actually using refresh tokens:
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
-      secure: NODE_ENV === "production",
+      secure: true,
       sameSite: "none",
       maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
     });

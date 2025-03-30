@@ -94,6 +94,8 @@ class DisplayedRateService {
           pagination,
           dynamicQuery
         );
+      console.log("displayedRates");
+      console.log(displayedRates);
 
       res.json({
         data: displayedRates,

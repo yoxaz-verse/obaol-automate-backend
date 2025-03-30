@@ -92,7 +92,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
     // Set the token as an HTTP-Only cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: NODE_ENV === "production", // Set to true in production
+      secure: true, // Set to true in production
       sameSite: sameSiteValue,
       maxAge: 24 * 60 * 60 * 1000, // 1 day in milliseconds
     });
@@ -100,7 +100,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
     // Set the Refresh Token as an HTTP-Only cookie (if using)
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
-      secure: NODE_ENV === "production",
+      secure: true,
       sameSite: sameSiteValue,
       maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
     });

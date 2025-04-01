@@ -22,9 +22,17 @@ export class EnquiryRepository {
     try {
       // For example, we do a normal find with skip/limit
       const enquiriesDoc = await EnquiryModel.find(query)
-        .populate(
-          "variantRate displayRate productVariant mediatorAssociate productAssociate"
-        )
+        .populate({
+          path: "productVariant",
+          populate: { path: "product", select: "name" },
+          select: "name product",
+        })
+        .populate({
+          path: "productAssociate",
+          populate: { path: "associateCompany", select: "name" },
+          select: "name _id",
+        })
+        .populate("variantRate displayRate mediatorAssociate")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 

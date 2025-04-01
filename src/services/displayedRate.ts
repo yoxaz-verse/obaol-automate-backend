@@ -84,7 +84,8 @@ class DisplayedRateService {
           dynamicQuery.selected = true;
         }
       }
-
+      if (dynamicQuery.associateCompanyName)
+        delete dynamicQuery.associateCompanyName;
       console.log("Final displayedRate query =>", dynamicQuery);
 
       // call your repository

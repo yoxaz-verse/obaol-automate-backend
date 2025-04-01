@@ -21,7 +21,12 @@ class VariantRateRepository {
   }> {
     try {
       const variantRatesDoc = await VariantRateModel.find(query)
-        .populate("productVariant associate associateCompany")
+        .populate({
+          path: "productVariant",
+          populate: { path: "product", select: "name" },
+          select: "name product",
+        })
+        .populate("associate associateCompany")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
       // Convert to plain objects

@@ -25,6 +25,8 @@ class DisplayedRateService {
 
       // If the user passes ?associateCompanyName=...
       if (filters.associateCompanyName) {
+        console.log("Jacob");
+        console.log(filters.associateCompanyName);
         // 1) Normalize
         const rawCompanyName = filters.associateCompanyName.toString();
         delete filters.associateCompanyName; // so it doesn't end in final query

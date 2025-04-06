@@ -43,7 +43,10 @@ class VariantRateRepository {
 
         // Check if user is Admin or is the Associate for this VariantRate
         if (userRole !== "Admin") {
-          if (userRole === "Associate" && userId !== associateId)
+          if (
+            req.user === undefined ||
+            (userRole === "Associate" && userId !== associateId)
+          )
             vr.rate = (vr.rate || 0) + (vr.commission || 0);
           // Add up the commission into the rate
           delete vr.commission;

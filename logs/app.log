@@ -2539,3 +2539,36 @@ Error: Cannot set headers after they are sent to the client
 2025-04-06T08:52:03.238Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
 2025-04-06T10:24:48.249Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
 2025-04-06T10:44:47.596Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T11:01:18.034Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-06T13:59:10.475Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij.mongodb.net"}
+2025-04-06T14:00:13.774Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij.mongodb.net"}
+2025-04-06T14:01:39.957Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij.mongodb.net"}
+2025-04-06T14:03:25.939Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T14:06:11.476Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T14:06:56.586Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T14:11:07.969Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T14:12:38.987Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T20:53:31.024Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T20:54:40.309Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T21:59:16.579Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2025-04-06T21:59:28.036Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2025-04-06T22:02:11.219Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T22:03:35.686Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T22:06:08.627Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T22:16:01.883Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T22:17:45.078Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-06T22:18:37.910Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-06T22:33:09.706Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T22:35:17.238Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T22:37:51.041Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T23:11:04.420Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T23:12:43.620Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-06T23:15:11.765Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-06T23:16:19.080Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-06T23:17:24.067Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T23:20:04.959Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T23:21:57.120Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-06T23:50:50.869Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-07T00:00:18.818Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-07T00:02:49.421Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-07T00:11:18.842Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 

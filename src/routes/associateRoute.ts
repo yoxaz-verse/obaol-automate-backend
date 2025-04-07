@@ -16,7 +16,6 @@ router.get(
 router.get(
   "/:id",
   authenticateToken,
-  // associateMiddleware.getAssociate.bind(associateMiddleware),
   associateService.getAssociate.bind(associateService)
 );
 router.post(

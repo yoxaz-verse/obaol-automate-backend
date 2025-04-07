@@ -100,7 +100,7 @@ class AssociateRepository {
     try {
       const associateDoc = await AssociateModel.findOne({
         _id: id,
-        isDeleted: false,
+        // isDeleted: false,
       }).populate("associateCompany");
 
       if (!associateDoc) {

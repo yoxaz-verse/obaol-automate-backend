@@ -25,8 +25,6 @@ class DisplayedRateService {
 
       // If the user passes ?associateCompanyName=...
       if (filters.associateCompanyName) {
-        console.log("Jacob");
-        console.log(filters.associateCompanyName);
         // 1) Normalize
         const rawCompanyName = filters.associateCompanyName.toString();
         delete filters.associateCompanyName; // so it doesn't end in final query
@@ -88,7 +86,6 @@ class DisplayedRateService {
       }
       if (dynamicQuery.associateCompanyName)
         delete dynamicQuery.associateCompanyName;
-      console.log("Final displayedRate query =>", dynamicQuery);
 
       // call your repository
       const displayedRates =
@@ -97,8 +94,6 @@ class DisplayedRateService {
           pagination,
           dynamicQuery
         );
-      console.log("displayedRates");
-      console.log(displayedRates);
 
       res.json({
         data: displayedRates,

@@ -34,6 +34,8 @@ class AssociateService {
   public async getAssociate(req: Request, res: Response) {
     try {
       const { id } = req.params;
+    
+
       const associate = await this.associateRepository.getAssociateById(
         req,
         id

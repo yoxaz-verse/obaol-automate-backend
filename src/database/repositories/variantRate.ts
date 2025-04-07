@@ -35,24 +35,28 @@ class VariantRateRepository {
       );
 
       // Adjust the rate if user is NOT Admin and also NOT the associate
-      variantRates = variantRates.map((vr) => {
-        const userRole = req.user?.role;
-        const userId = req.user?.id; // or req.user?._id, depending on your setup
-        const associateId = vr.associate?._id?.toString();
-        // If 'associate' was populated, vr.associate is an object. We can do ._id.
+      variantRates = variantRates
+        .map((vr) => {
+          const userRole = req.user?.role;
+          const userId = req.user?.id;
+          const associateId = vr.associate?._id.toString(); // Assuming associate is ObjectId
+          console.log(userRole);
+          console.log(userId);
+          console.log(associateId);
 
-        // Check if user is Admin or is the Associate for this VariantRate
-        if (userRole !== "Admin") {
-          if (
-            req.user === undefined ||
-            (userRole === "Associate" && userId !== associateId)
-          )
+          const isNotOwnerAssociate =
+            !req.user || (userRole === "Associate" && userId !== associateId);
+
+          if (userRole !== "Admin" && isNotOwnerAssociate) {
+            if (!vr.isLive) return null; // 🔥 Remove this rate — not live + not owner/admin
             vr.rate = (vr.rate || 0) + (vr.commission || 0);
-          // Add up the commission into the rate
-          delete vr.commission;
-        }
-        return vr;
-      });
+            delete vr.commission;
+          }
+
+          return vr;
+        })
+        .filter((vr) => vr !== null); // 🧹 Clean the list from removed ones
+
       const totalCount = await VariantRateModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
 

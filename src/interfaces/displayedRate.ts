@@ -1,11 +1,11 @@
 import { Document, Types } from "mongoose";
+import { IVariantRate } from "./variantRate";
 
 export interface IDisplayedRate extends Document {
   commission?: number;
-  variantRate?: Types.ObjectId; // Reference to variantRate model
+  variantRate?: Types.ObjectId | IVariantRate; // Reference to variantRate model
   associate: Types.ObjectId; // Reference to Associate model
   associateCompany?: Types.ObjectId; // Reference to Associate model
-
   selected?: boolean;
 }
 

@@ -8,6 +8,7 @@ import {
   IDisplayedRate,
   IUpdateDisplayedRate,
 } from "../../interfaces/displayedRate";
+import { IVariantRate } from "../../interfaces/variantRate";
 
 class DisplayedRateRepository {
   public async getDisplayedRates(
@@ -37,9 +38,43 @@ class DisplayedRateRepository {
         .skip((pagination.page - 1) * pagination.limit);
 
       // 2) Convert to plain objects
-      const displayedRates = displayedRateDocs.map(
+      let displayedRates = displayedRateDocs.map(
         (doc) => doc.toObject() as IDisplayedRate
       );
+      displayedRates = displayedRates
+        .map((dr) => {
+          const userRole = req.user?.role;
+          const userId = req.user?.id;
+          const associateId = dr.associate?._id?.toString();
+
+          const isVariantRateObject =
+            dr.variantRate &&
+            typeof dr.variantRate === "object" &&
+            "rate" in dr.variantRate;
+
+          if (!isVariantRateObject) return dr;
+
+          const variantRate = dr.variantRate as IVariantRate;
+
+          if (userRole !== "Admin") {
+            const isNotOwnerAssociate =
+              !req.user || (userRole === "Associate" && userId !== associateId);
+
+            if (isNotOwnerAssociate) {
+              variantRate.rate +=
+                (dr.commission || 0) + (variantRate.commission || 0);
+
+              if (!variantRate.isLive) return null; // 🔥 Kill this entry only in this condition
+
+              delete dr.commission;
+            } else {
+              variantRate.rate += variantRate.commission || 0;
+            }
+          }
+
+          return dr;
+        })
+        .filter((dr) => dr !== null); // 🚿 Clean up the ones we nuked
 
       // 3) Count total
       const totalCount = await DisplayedRateModel.countDocuments(query);

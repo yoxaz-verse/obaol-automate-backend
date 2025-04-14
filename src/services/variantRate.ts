@@ -36,7 +36,6 @@ class VariantRateService {
         const rawName = filters.associateCompanyName.toString();
         // remove from 'filters' to avoid buildDynamicQuery conflict
         delete filters.associateCompanyName;
-
         const normalizedName = normalizeCompanyName(rawName); // "obaol_supreme" => "obaol supreme", etc.
 
         // Find the company doc by name ignoring case
@@ -163,19 +162,66 @@ class VariantRateService {
     try {
       const { id } = req.params;
       const variantRateData = req.body;
+      const existingVariant =
+        await this.variantRateRepository.getVariantRateById(req, id);
+
+      if (!existingVariant) {
+        return res.status(404).json({ error: "Variant Rate not found" });
+      }
+
+      const now = Date.now();
+      const lastEditTime = existingVariant.lastEditTime
+        ? new Date(existingVariant.lastEditTime).getTime()
+        : 0;
+      const coolingStartTime = existingVariant.coolingStartTime
+        ? new Date(existingVariant.coolingStartTime).getTime()
+        : 0;
+      const durationMs =
+        (existingVariant.duration ?? 1) * 24 * 60 * 60 * 1000;
+      const coolingPeriod = 15 * 60 * 1000;
+
+      const timeSinceLastEdit = now - lastEditTime;
+      const timeSinceCooling = now - coolingStartTime;
+
+      let updateAllowed = false;
+      let isCoolingEdit = false;
+
+      if (!lastEditTime) {
+        updateAllowed = true; // First edit
+      } else if (timeSinceCooling <= coolingPeriod) {
+        updateAllowed = true;
+        isCoolingEdit = true; // Within cooling, allow draft
+      } else if (timeSinceLastEdit >= durationMs) {
+        updateAllowed = true; // Duration passed, reset cycle
+      }
+
+      if (!updateAllowed) {
+        return res
+          .status(400)
+          .json({
+            error: "Rate edit not allowed. Wait for the next duration cycle.",
+          });
+      }
+
+      const updatePayload = {
+        ...variantRateData,
+        lastEditTime: isCoolingEdit ? existingVariant.lastEditTime : now,
+        coolingStartTime: now,
+        isLive: isCoolingEdit ? false : true, // Only live if it's outside cooling
+      };
+
       const updatedVariantRate =
         await this.variantRateRepository.updateVariantRate(
           req,
           id,
-          variantRateData
+          updatePayload
         );
-      if (!updatedVariantRate) {
-        res.status(404).json({ error: "Variant Rate not found" });
-        return;
-      }
+
       res.json({
         data: updatedVariantRate,
-        message: "Variant Rate updated successfully",
+        message: isCoolingEdit
+          ? "Rate updated in draft mode during cooling period."
+          : "Rate updated successfully. New duration cycle started.",
       });
     } catch (error) {
       logError(error, req, "VariantRateService-updateVariantRate");

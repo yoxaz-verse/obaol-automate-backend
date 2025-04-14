@@ -3,13 +3,21 @@ import { Document, Types } from "mongoose";
 export interface IVariantRate extends Document {
   rate: number;
   selected?: boolean;
-  productVariant: Types.ObjectId; // Reference to ProductVariant model
-  associate: Types.ObjectId; // Reference to Associate model
+  productVariant: Types.ObjectId;
+  associate: Types.ObjectId;
   duration?: number;
   commission?: number;
-  associateCompany?: Types.ObjectId; // Reference to Associate model
+  associateCompany?: Types.ObjectId;
   isLive: boolean;
+  tags?: Types.ObjectId[];
+
   createdAt?: Date;
+  updatedAt?: Date;
+
+  // ✅ NEW FIELDS
+  lastEditTime?: Date; // Timestamp of last allowed edit
+  coolingStartTime?: Date; // Timestamp when cooldown started
+  hiddenDraftOf?: Types.ObjectId; // If this is a draft, link to original live rate
 }
 
 export interface ICreateVariantRate {
@@ -20,6 +28,11 @@ export interface ICreateVariantRate {
   duration?: number;
   isLive?: boolean;
   associate: Types.ObjectId;
+
+  // Optional new fields (for draft creation, testing, or internal use)
+  lastEditTime?: Date;
+  coolingStartTime?: Date;
+  hiddenDraftOf?: Types.ObjectId;
 }
 
 export interface IUpdateVariantRate {
@@ -30,4 +43,9 @@ export interface IUpdateVariantRate {
   duration?: number;
   isLive?: boolean;
   associate?: Types.ObjectId;
+
+  // Optional new fields (used internally in service logic)
+  lastEditTime?: Date;
+  coolingStartTime?: Date;
+  hiddenDraftOf?: Types.ObjectId;
 }

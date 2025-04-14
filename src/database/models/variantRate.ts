@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import { IVariantRate } from "../../interfaces/variantRate";
 import { AssociateModel } from "./associate";
+import { Types } from "mongoose";
 
 const VariantRateSchema: Schema = new Schema({
   rate: { type: Number, required: true },
@@ -12,36 +13,38 @@ const VariantRateSchema: Schema = new Schema({
     required: true,
   },
   associate: { type: Schema.Types.ObjectId, ref: "Associate" },
-  /**
-   * We add associateCompany here.
-   * It's required: false, because we'll fill it automatically via a pre-save hook.
-   */
+
   associateCompany: {
     type: Schema.Types.ObjectId,
     ref: "AssociateCompany",
     required: false,
   },
+
+  tags: [{ type: Types.ObjectId, ref: "Tag" }],
   isLive: { type: Boolean, default: false },
-  duration: { type: Number },
+  duration: { type: Number, default: 1 }, // already present, we’ll use this as duration in days ✅
+
   createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+
+  // ✅ NEW FIELDS
+  lastEditTime: { type: Date }, // Used to track when this rate was last edited
+  coolingStartTime: { type: Date }, // Marks start of cooldown after live edit
+  hiddenDraftOf: { type: Schema.Types.ObjectId, ref: "VariantRate" }, // If this is a draft, point to the original
 });
 
 /**
- * Pre-save hook to automatically set `associateCompany`
- * based on the `associate` reference.
+ * Pre-save hook to auto-populate associateCompany
  */
 VariantRateSchema.pre<IVariantRate>("save", async function (next) {
   try {
-    // Only do this if `associate` is set/modified
     if (this.isModified("associate") && this.associate) {
-      // fetch the associate doc
       const assocDoc = await AssociateModel.findById(this.associate).select(
         "associateCompany"
       );
       if (!assocDoc) {
         throw new Error("Invalid `associate` – no such Associate found.");
       }
-      // set the `associateCompany` from the associate doc
       this.associateCompany = assocDoc.associateCompany;
     }
     next();

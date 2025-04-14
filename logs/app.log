@@ -2572,3 +2572,14 @@ Error: Cannot set headers after they are sent to the client
 2025-04-07T00:00:18.818Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
 2025-04-07T00:02:49.421Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
 2025-04-07T00:11:18.842Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-07T00:12:47.033Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-07T08:12:51.827Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij.mongodb.net"}
+2025-04-07T08:42:43.809Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij.mongodb.net"}
+2025-04-11T06:27:32.972Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-11T09:06:12.146Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-04-14T10:35:06.464Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-14T16:01:26.040Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-14T16:02:55.236Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-04-14T19:39:53.000Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-14T19:43:55.924Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-04-14T19:44:53.353Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 

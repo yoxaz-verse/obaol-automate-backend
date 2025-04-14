@@ -111,15 +111,58 @@ class VariantRateRepository {
     variantRateData: Partial<IUpdateVariantRate>
   ): Promise<IVariantRate> {
     try {
-      const updatedVariantRate = await VariantRateModel.findByIdAndUpdate(
-        id,
-        variantRateData,
-        { new: true }
-      ).populate("productVariant associate");
-      if (!updatedVariantRate) {
-        throw new Error("Failed to update variant rate");
+      const existingRate = await VariantRateModel.findById(id);
+
+      if (!existingRate) {
+        throw new Error("Variant rate not found");
       }
-      return updatedVariantRate.toObject() as IVariantRate;
+
+      const now = new Date();
+      const lastEditTime = existingRate.lastEditTime || existingRate.createdAt;
+      const cooldownStart = existingRate.coolingStartTime;
+
+      const durationMs = (existingRate.duration ?? 0) * 60 * 1000;
+      const cooldownMs = 15 * 60 * 1000;
+
+      const nextAllowedEditTime = new Date(
+        lastEditTime!.getTime() + durationMs
+      );
+      const cooldownEndTime = cooldownStart
+        ? new Date(cooldownStart.getTime() + cooldownMs)
+        : null;
+
+      const isCooldownActive = cooldownEndTime && now < cooldownEndTime;
+      const isDurationLocked = now < nextAllowedEditTime;
+
+      if (isDurationLocked || isCooldownActive) {
+        // 🧠 Create a draft instead
+        const draft = await VariantRateModel.create({
+          ...existingRate.toObject(),
+          ...variantRateData,
+          _id: undefined, // Let MongoDB create new ID
+          isLive: false,
+          hiddenDraftOf: existingRate._id,
+          lastEditTime: now,
+          coolingStartTime: now,
+        });
+
+        return draft.toObject() as IVariantRate;
+      } else {
+        // 🛠 Update the live rate
+        const updated = await VariantRateModel.findByIdAndUpdate(
+          id,
+          {
+            ...variantRateData,
+            lastEditTime: now,
+            coolingStartTime: now,
+          },
+          { new: true }
+        ).populate("productVariant associate");
+
+        if (!updated) throw new Error("Failed to update variant rate");
+
+        return updated.toObject() as IVariantRate;
+      }
     } catch (error) {
       await logError(error, req, "VariantRateRepository-updateVariantRate");
       throw error;

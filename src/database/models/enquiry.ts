@@ -30,6 +30,9 @@ const EnquirySchema: Schema = new Schema({
     required: true,
   },
   createdAt: { type: Date, default: Date.now },
+  rate: { type: Number, required: true },
+  commission: { type: Number },
+  mediatorCommission: { type: Number },
 });
 
 export const EnquiryModel = mongoose.model<IEnquiry>("Enquiry", EnquirySchema);

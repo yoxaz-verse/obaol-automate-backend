@@ -7,6 +7,9 @@ import {
 import { logError } from "../../utils/errorLogger"; // or wherever your logError is
 import { IPagination } from "@interfaces/pagination"; // same style as your code
 import { EnquiryModel } from "../../database/models/enquiry";
+import { VariantRateModel } from "../../database/models/variantRate";
+import { DisplayedRateModel } from "../../database/models/displayedRate";
+import { Types } from "mongoose";
 
 export class EnquiryRepository {
   public async getEnquiries(
@@ -20,7 +23,9 @@ export class EnquiryRepository {
     totalPages?: number;
   }> {
     try {
-      // For example, we do a normal find with skip/limit
+      const userRole = req.user?.role;
+      const isAdmin = userRole === "Admin";
+
       const enquiriesDoc = await EnquiryModel.find(query)
         .populate({
           path: "productVariant",
@@ -36,7 +41,23 @@ export class EnquiryRepository {
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
-      const enquiries = enquiriesDoc.map((doc) => doc.toObject() as IEnquiry);
+      const enquiries = enquiriesDoc.map((doc) => {
+        const enquiry = doc.toObject() as IEnquiry;
+        if (
+          enquiry.productAssociate._id.toString() !== req.user?.id &&
+          !isAdmin
+        ) {
+          enquiry.rate = (enquiry.rate || 0) + (enquiry.commission || 0);
+        }
+
+        if (!isAdmin) {
+          // 🚫 Remove sensitive pricing info for non-admins
+          delete enquiry.commission;
+          delete enquiry.mediatorCommission;
+        }
+
+        return enquiry;
+      });
 
       const totalCount = await EnquiryModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
@@ -73,7 +94,50 @@ export class EnquiryRepository {
     enquiryData: ICreateEnquiry
   ): Promise<IEnquiry> {
     try {
-      const newEnquiry = await EnquiryModel.create(enquiryData);
+      const {
+        variantRate: variantRateId,
+        displayRate: displayRateId,
+        ...restData
+      } = enquiryData;
+
+      // 🎯 Fetch main rate (required)
+      const variantRate = await VariantRateModel.findById(
+        variantRateId
+      ).populate("associate");
+      if (!variantRate || !variantRate.associate) {
+        throw new Error("Invalid variantRate or missing associate");
+      }
+
+      const productAssociate = variantRate.associate._id;
+      const rate = variantRate.rate;
+      const commission = variantRate.commission ?? 0;
+
+      // 🔄 Optional: Fetch display rate if exists
+      let mediatorAssociate: Types.ObjectId | null = null;
+      let mediatorCommission = 0;
+
+      if (displayRateId) {
+        const displayRate = await VariantRateModel.findById(
+          displayRateId
+        ).populate("associate");
+        if (displayRate && displayRate.associate) {
+          mediatorAssociate = displayRate.associate._id;
+          mediatorCommission = displayRate.commission ?? 0;
+        }
+      }
+
+      // 🧾 Final payload
+      const newEnquiry = await EnquiryModel.create({
+        ...restData,
+        variantRate: variantRateId,
+        displayRate: displayRateId,
+        productAssociate,
+        mediatorAssociate,
+        rate,
+        commission,
+        mediatorCommission,
+      });
+
       return newEnquiry.toObject() as IEnquiry;
     } catch (error) {
       await logError(error, req, "EnquiryRepository-createEnquiry");

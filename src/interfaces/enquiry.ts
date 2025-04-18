@@ -15,6 +15,9 @@ export interface IEnquiry extends Document {
   mediatorAssociate?: Types.ObjectId | null; // Can be null
   productAssociate: Types.ObjectId; // Required
   createdAt?: Date;
+  rate?: number;
+  commission?: number;
+  mediatorCommission?: number;
 }
 
 /**
@@ -31,6 +34,9 @@ export interface ICreateEnquiry {
   productVariant: Types.ObjectId;
   mediatorAssociate?: Types.ObjectId | null;
   productAssociate: Types.ObjectId;
+  rate?: number;
+  commission?: number;
+  mediatorCommission?: number;
 }
 
 /**
@@ -47,4 +53,7 @@ export interface IUpdateEnquiry {
   productVariant?: Types.ObjectId;
   mediatorAssociate?: Types.ObjectId | null;
   productAssociate?: Types.ObjectId;
+  rate?: number;
+  commission?: number;
+  mediatorCommission?: number;
 }

@@ -162,6 +162,7 @@ class VariantRateService {
     try {
       const { id } = req.params;
       const variantRateData = req.body;
+      const userRole = req.user?.role;
       const existingVariant =
         await this.variantRateRepository.getVariantRateById(req, id);
 
@@ -176,8 +177,7 @@ class VariantRateService {
       const coolingStartTime = existingVariant.coolingStartTime
         ? new Date(existingVariant.coolingStartTime).getTime()
         : 0;
-      const durationMs =
-        (existingVariant.duration ?? 1) * 24 * 60 * 60 * 1000;
+      const durationMs = (existingVariant.duration ?? 1) * 24 * 60 * 60 * 1000;
       const coolingPeriod = 15 * 60 * 1000;
 
       const timeSinceLastEdit = now - lastEditTime;
@@ -195,19 +195,17 @@ class VariantRateService {
         updateAllowed = true; // Duration passed, reset cycle
       }
 
-      if (!updateAllowed) {
-        return res
-          .status(400)
-          .json({
-            error: "Rate edit not allowed. Wait for the next duration cycle.",
-          });
+      if (userRole !== "Admin" && !updateAllowed) {
+        return res.status(400).json({
+          error: "Rate edit not allowed. Wait for the next duration cycle.",
+        });
       }
 
       const updatePayload = {
         ...variantRateData,
         lastEditTime: isCoolingEdit ? existingVariant.lastEditTime : now,
         coolingStartTime: now,
-        isLive: isCoolingEdit ? false : true, // Only live if it's outside cooling
+        isLive: userRole === "Admin" ? variantRateData.isLive : isCoolingEdit ? false : true, // Only live if it's outside cooling
       };
 
       const updatedVariantRate =

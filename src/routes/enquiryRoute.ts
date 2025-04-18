@@ -1,3 +1,4 @@
+import authenticateChecking from "../middlewares/authChecking";
 import EnquiryMiddleware from "../middlewares/enquiry";
 import { EnquiryService } from "../services/enquiry";
 import { Router } from "express";
@@ -21,7 +22,11 @@ router.post(
   enquiryService.createEnquiry.bind(enquiryService)
 );
 
-router.get("/", enquiryService.getEnquiries.bind(enquiryService));
+router.get(
+  "/",
+  authenticateChecking,
+  enquiryService.getEnquiries.bind(enquiryService)
+);
 
 router.get(
   "/:id",

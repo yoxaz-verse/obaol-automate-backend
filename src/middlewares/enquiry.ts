@@ -9,9 +9,7 @@ class EnquiryMiddleware {
       !phoneNumber ||
       !name ||
       !variantRate ||
-      !productVariant ||
-      !productAssociate
-    ) {
+      !productVariant     ) {
       return res.status(400).json({
         message:
           "Missing required fields: phoneNumber, name, variantRate, productVariant, productAssociate",

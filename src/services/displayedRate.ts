@@ -5,6 +5,10 @@ import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 import DisplayedRateRepository from "../database/repositories/displayRate";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import mongoose, { Types } from "mongoose";
+import { SubCategoryModel } from "../database/models/subCategory";
+import { ProductModel } from "../database/models/product";
+import { VariantRateModel } from "../database/models/variantRate";
 
 class DisplayedRateService {
   private displayedRateRepository: DisplayedRateRepository;
@@ -21,73 +25,118 @@ class DisplayedRateService {
       };
 
       const { page, limit, ...filters } = req.query;
-      let dynamicQuery = buildDynamicQuery(filters);
+      let dynamicQuery: any = buildDynamicQuery(filters);
 
-      // If the user passes ?associateCompanyName=...
+      // --- 1) Associate Company Name Filter ---
       if (filters.associateCompanyName) {
-        // 1) Normalize
         const rawCompanyName = filters.associateCompanyName.toString();
-        delete filters.associateCompanyName; // so it doesn't end in final query
-        const normalizedName = normalizeCompanyName(rawCompanyName);
+        delete filters.associateCompanyName;
+        const normalizedName = normalizeName(rawCompanyName);
 
-        // 2) Find company doc by name ignoring case
         const companyDoc = await AssociateCompanyModel.findOne({
           name: new RegExp("^" + normalizedName + "$", "i"),
         });
 
-        if (companyDoc) {
-          // Filter displayedRate.associateCompany to that doc._id
-          dynamicQuery.associateCompany = companyDoc._id;
-        } else {
-          // If not found => force empty
-          dynamicQuery.associateCompany = { $in: [] };
-        }
-
-        // Skip role logic if company name was provided
+        dynamicQuery.associateCompany = companyDoc
+          ? companyDoc._id
+          : { $in: [] };
       }
-      // If no associateCompanyName but we do have 'associateId'
+
+      // --- 2) Associate ID Filter ---
       else if (filters.associateId) {
         const rawAssocId = filters.associateId.toString();
-        delete filters.associateId; // remove from final query
+        delete filters.associateId;
 
-        // find that Associate doc
         const assocDoc = await AssociateModel.findById(rawAssocId).select(
           "associateCompany"
         );
-        if (assocDoc) {
-          dynamicQuery.associateCompany = assocDoc.associateCompany;
-        } else {
-          dynamicQuery.associateCompany = { $in: [] };
-        }
 
-        // skip role-based logic if 'associateId' is present
-      } else {
-        // 3) if neither associateCompanyName nor associateId => do your normal role logic
+        dynamicQuery.associateCompany = assocDoc
+          ? assocDoc.associateCompany
+          : { $in: [] };
+      }
+
+      // --- 3) Role-Based Filter ---
+      else {
         const userRole = req.user?.role;
         const userId = req.user?.id;
 
         if (userRole === "Admin") {
-          // Admin sees all displayedRates
+          // show all
         } else if (userRole === "Associate" && userId) {
-          // find the user’s company
           const userAssocDoc = await AssociateModel.findById(userId).select(
             "associateCompany"
           );
-          if (userAssocDoc) {
-            dynamicQuery.associateCompany = userAssocDoc.associateCompany;
-          } else {
-            dynamicQuery.associateCompany = { $in: [] };
-          }
+          dynamicQuery.associateCompany = userAssocDoc
+            ? userAssocDoc.associateCompany
+            : { $in: [] };
         } else {
-          // Non-admin, non-associate => maybe skip or do some other restriction
-          // E.g. displayedRate => only selected = true
           dynamicQuery.selected = true;
         }
       }
-      if (dynamicQuery.associateCompanyName)
-        delete dynamicQuery.associateCompanyName;
 
-      // call your repository
+      // --- 4) Product / SubCategory Filters (Similar to VariantRate) ---
+      if (filters.product || filters.subCategory) {
+        const productName = filters.product?.toString();
+        const subCategoryName = filters.subCategory?.toString();
+        delete filters.product;
+        delete filters.subCategory;
+
+        let productId: mongoose.Types.ObjectId | null = null;
+        let subCategoryId: mongoose.Types.ObjectId | null = null;
+
+        // Normalize and find subCategory
+        if (subCategoryName) {
+          const normalizedSubCat = normalizeName(subCategoryName);
+          const subCatDoc = await SubCategoryModel.findOne<{
+            _id: Types.ObjectId;
+          }>({
+            name: new RegExp("^" + normalizedSubCat + "$", "i"),
+          }).select("_id");
+          if (subCatDoc) subCategoryId = subCatDoc._id;
+        }
+
+        // Normalize and find product
+        if (productName) {
+          const normalizedProduct = normalizeName(productName);
+          const productDoc = await ProductModel.findOne<{
+            _id: Types.ObjectId;
+            subCategory: Types.ObjectId;
+          }>({
+            name: new RegExp("^" + normalizedProduct + "$", "i"),
+          }).select("_id subCategory");
+
+          if (productDoc) {
+            productId = productDoc._id;
+
+            // Check mismatch with subCategory
+            if (
+              subCategoryId &&
+              productDoc.subCategory?.toString() !== subCategoryId.toString()
+            ) {
+              dynamicQuery.variantRate = { $in: [] };
+            }
+          }
+        }
+
+        // Build final variantRate filter if not forced empty already
+        if (!dynamicQuery.variantRate) {
+          const variantRateQuery: any = {};
+          if (productId) variantRateQuery.product = productId;
+          if (subCategoryId) variantRateQuery.subCategory = subCategoryId;
+
+          const matchingVariantRates = await VariantRateModel.find(
+            variantRateQuery
+          ).select("_id");
+
+          const matchingIds = matchingVariantRates.map((vr) => vr._id);
+          dynamicQuery.variantRate = matchingIds.length
+            ? { $in: matchingIds }
+            : { $in: [] };
+        }
+      }
+
+      // --- Final Query Execution ---
       const displayedRates =
         await this.displayedRateRepository.getDisplayedRates(
           req,
@@ -198,6 +247,6 @@ export default DisplayedRateService;
  *  - underscores -> spaces
  *  - compress multiple spaces
  */
-function normalizeCompanyName(input: string): string {
+function normalizeName(input: string): string {
   return input.trim().toLowerCase().replace(/_+/g, " ").replace(/\s+/g, " ");
 }

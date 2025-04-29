@@ -40,10 +40,7 @@ class VariantRateRepository {
           const userRole = req.user?.role;
           const userId = req.user?.id;
           const associateId = vr.associate?._id.toString(); // Assuming associate is ObjectId
-          console.log(userRole);
-          console.log(userId);
-          console.log(associateId);
-
+      
           const isNotOwnerAssociate =
             !req.user || (userRole === "Associate" && userId !== associateId);
 

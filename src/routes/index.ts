@@ -65,7 +65,6 @@ router.use(`${prefix}/inventoryManager`, inventoryManagerRoute);
 router.use(`${prefix}/locationType`, locationTypeRoute);
 router.use(`${prefix}/locationManager`, locationManagerRoute);
 router.use(`${prefix}/location`, locationRoute);
-
 router.use(`${prefix}/associate`, associateRoute);
 router.use(`${prefix}/associateCompany`, associateCompanyRoute);
 

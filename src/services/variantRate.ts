@@ -5,6 +5,10 @@ import { IPagination } from "../interfaces/pagination";
 import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { AssociateModel } from "../database/models/associate";
+import { ProductVariantModel } from "../database/models/productVariant";
+import { ProductModel } from "../database/models/product";
+import { SubCategoryModel } from "../database/models/subCategory";
+import { Types } from "mongoose";
 
 class VariantRateService {
   private variantRateRepository: VariantRateRepository;
@@ -23,68 +27,60 @@ class VariantRateService {
       const { page, limit, ...filters } = req.query;
       let dynamicQuery = buildDynamicQuery(filters);
 
-      // A small function to remove from final query so Mongoose doesn't try to match them:
+      // Clean up dynamicQuery
       delete dynamicQuery.associateId;
       delete dynamicQuery.associateCompanyName;
+      delete dynamicQuery.product;
+      delete dynamicQuery.subCategory;
 
-      // Check for either associateCompanyName or associateId
       const userRole = req.user?.role;
       const userId = req.user?.id;
 
-      // 1) If we have an associateCompanyName (like "obaol_supreme")
+      // 1) Associate Company Name Normalization
       if (filters.associateCompanyName) {
         const rawName = filters.associateCompanyName.toString();
-        // remove from 'filters' to avoid buildDynamicQuery conflict
         delete filters.associateCompanyName;
-        const normalizedName = normalizeCompanyName(rawName); // "obaol_supreme" => "obaol supreme", etc.
 
-        // Find the company doc by name ignoring case
+        const normalizedName = normalizeCompanyName(rawName);
+
         const companyDoc = await AssociateCompanyModel.findOne({
           name: new RegExp("^" + normalizedName + "$", "i"),
         });
+
         if (companyDoc) {
-          // gather all associates referencing that company
           const foundAssociates = await AssociateModel.find({
             associateCompany: companyDoc._id,
           }).select("_id");
           const matchingIds = foundAssociates.map((a) => a._id);
-          // filter variantRate.associate by these IDs
           dynamicQuery.associate = { $in: matchingIds };
         } else {
-          // no company => force no results
           dynamicQuery.associate = { $in: [] };
         }
-
-        // skip role logic if associateCompanyName is present
       }
-      // 2) Else if we have an associateId
+      // 2) Associate ID
       else if (filters.associateId) {
         const assocId = filters.associateId.toString();
         delete filters.associateId;
 
-        // find that associate doc
         const foundAssoc = await AssociateModel.findById(assocId).select(
           "associateCompany"
         );
+
         if (foundAssoc) {
-          // gather all associates in that same company
           const foundAssociates = await AssociateModel.find({
             associateCompany: foundAssoc.associateCompany,
           }).select("_id");
-          const matchingIds = foundAssociates.map((a) => a._id);
 
-          // filter variantRate.associate by these IDs
+          const matchingIds = foundAssociates.map((a) => a._id);
           dynamicQuery.associate = { $in: matchingIds };
         } else {
           dynamicQuery.associate = { $in: [] };
         }
-
-        // skip role logic if associateId is present
       }
-      // 3) Otherwise, no associateCompanyName or associateId => fallback to normal role logic
+      // 3) Role-based logic
       else {
         if (userRole === "Admin") {
-          // Admin sees all
+          // Admin sees everything
         } else if (userRole === "Associate") {
           dynamicQuery = {
             $and: [
@@ -95,15 +91,96 @@ class VariantRateService {
             ],
           };
         } else {
-          // Non-admin => only selected=true, isLive=true
           dynamicQuery.selected = true;
           dynamicQuery.isLive = true;
         }
       }
 
-      console.log("Final dynamicQuery =>", dynamicQuery);
+      // 🔥 New section: Product and SubCategory Normalized Lookup
 
-      // 4) Call the repository
+      let productId: string | null = null;
+      let subCategoryId: string | null = null;
+
+      // Handle subCategory first
+      if (filters.subCategory) {
+        const rawSubCategoryName = filters.subCategory.toString();
+        const normalizedSubCategoryName =
+          normalizeCompanyName(rawSubCategoryName); // using same normalize function
+        const subCategoryDoc = await SubCategoryModel.findOne<{
+          _id: Types.ObjectId;
+        }>({
+          name: new RegExp("^" + normalizedSubCategoryName + "$", "i"),
+        }).select("_id");
+
+        if (subCategoryDoc) {
+          subCategoryId = subCategoryDoc._id.toString();
+        } else {
+          dynamicQuery.productVariant = { $in: [] }; // no subCategory found
+        }
+      }
+
+      // Handle product
+      if (filters.product) {
+        const rawProductName = filters.product.toString();
+        const normalizedProductName = normalizeCompanyName(rawProductName); // reuse
+        const productDoc = await ProductModel.findOne<{
+          _id: Types.ObjectId;
+          subCategory: Types.ObjectId;
+        }>({
+          name: new RegExp("^" + normalizedProductName + "$", "i"),
+        }).select("_id subCategory");
+
+        if (productDoc) {
+          productId = productDoc._id.toString();
+
+          // If subCategoryId is also set, make sure the product belongs to that subCategory
+          if (
+            subCategoryId &&
+            productDoc.subCategory.toString() !== subCategoryId
+          ) {
+            dynamicQuery.productVariant = { $in: [] }; // product not matching subcategory
+          }
+        } else {
+          dynamicQuery.productVariant = { $in: [] }; // no product found
+        }
+      }
+
+      if (productId || subCategoryId) {
+        const productVariantQuery: any = {};
+
+        if (productId) {
+          productVariantQuery.product = productId;
+        }
+
+        if (subCategoryId && !productVariantQuery.product) {
+          // only subCategory filtering needed
+          const productsInSubCategory = await ProductModel.find({
+            subCategory: subCategoryId,
+          }).select("_id");
+
+          const productIdsFromSubCategory = productsInSubCategory.map(
+            (p) => p._id
+          );
+
+          productVariantQuery.product = { $in: productIdsFromSubCategory };
+        }
+
+        if (Object.keys(productVariantQuery).length > 0) {
+          const matchingVariants = await ProductVariantModel.find(
+            productVariantQuery
+          ).select("_id");
+
+          const variantIds = matchingVariants.map((v) => v._id);
+
+          dynamicQuery.productVariant = { $in: variantIds };
+        }
+      }
+
+      // console.log(
+      //   "Final dynamicQuery =>",
+      //   JSON.stringify(dynamicQuery, null, 2)
+      // );
+
       const variantRates = await this.variantRateRepository.getVariantRates(
         req,
         pagination,
@@ -205,7 +282,12 @@ class VariantRateService {
         ...variantRateData,
         lastEditTime: isCoolingEdit ? existingVariant.lastEditTime : now,
         coolingStartTime: now,
-        isLive: userRole === "Admin" ? variantRateData.isLive : isCoolingEdit ? false : true, // Only live if it's outside cooling
+        isLive:
+          userRole === "Admin"
+            ? variantRateData.isLive
+            : isCoolingEdit
+            ? false
+            : true, // Only live if it's outside cooling
       };
 
       const updatedVariantRate =

@@ -1,4 +1,4 @@
-import { ProductVariantModel } from "../../database/models/productVarinat";
+import { ProductVariantModel } from "../models/productVariant";
 import { IPagination } from "../../interfaces/pagination";
 import {
   ICreateProductVariant,

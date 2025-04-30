@@ -23,7 +23,7 @@ class DisplayedRateService {
         page: parseInt(req.query.page as string, 10) || 1,
         limit: parseInt(req.query.limit as string, 10) || 10,
       };
-
+ 
       const { page, limit, ...filters } = req.query;
       let dynamicQuery: any = buildDynamicQuery(filters);
 

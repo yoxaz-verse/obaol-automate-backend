@@ -3,6 +3,7 @@ import { BASE_URL, NODE_ENV, PORT } from "./config";
 import connectDB from "./database/connection";
 import path from "path";
 import express from "express";
+import "./cron"; // ✅ Add this line to start cron jobs!
 import { prefix } from "./routes";
 const port = PORT || 5001;
 async function startServer() {

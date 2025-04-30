@@ -13,24 +13,24 @@ const VariantRateSchema: Schema = new Schema({
     required: true,
   },
   associate: { type: Schema.Types.ObjectId, ref: "Associate" },
-
   associateCompany: {
     type: Schema.Types.ObjectId,
     ref: "AssociateCompany",
     required: false,
   },
-
   tags: [{ type: Types.ObjectId, ref: "Tag" }],
   isLive: { type: Boolean, default: false },
-  duration: { type: Number, default: 1 }, // already present, we’ll use this as duration in days ✅
+  duration: { type: Number, default: 1 }, // duration in days
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 
-  // ✅ NEW FIELDS
-  lastEditTime: { type: Date }, // Used to track when this rate was last edited
-  coolingStartTime: { type: Date }, // Marks start of cooldown after live edit
-  hiddenDraftOf: { type: Schema.Types.ObjectId, ref: "VariantRate" }, // If this is a draft, point to the original
+  lastEditTime: { type: Date },
+  coolingStartTime: { type: Date },
+  hiddenDraftOf: { type: Schema.Types.ObjectId, ref: "VariantRate" },
+
+  // ✅ NEW FIELD
+  lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
 });
 
 /**

@@ -34,6 +34,7 @@ import displayedRateRoute from "./displayedRateRoute";
 
 import enquiryRoute from "./enquiryRoute";
 import quantityUnitRoute from "./quantityUnitRoute";
+import verificationRoutes from "./verificationRoutes";
 
 // Initialize the main router
 const router = Router();
@@ -44,10 +45,12 @@ export const prefix = `/${version}/${webRoute}`;
 //Auth
 router.use(`${prefix}/login`, authRoute);
 router.use(`${prefix}/verify-token`, verifyTokenRoute);
+router.use(`${prefix}/verification`, verificationRoutes);
 
 // Users
 router.use(`${prefix}/admin`, adminRoute);
 router.use(`${prefix}/customer`, customerRoute);
+router.use(`${prefix}/associate`, associateRoute);
 
 router.use(`${prefix}/timeSheet`, timeSheetRoute);
 
@@ -65,7 +68,6 @@ router.use(`${prefix}/inventoryManager`, inventoryManagerRoute);
 router.use(`${prefix}/locationType`, locationTypeRoute);
 router.use(`${prefix}/locationManager`, locationManagerRoute);
 router.use(`${prefix}/location`, locationRoute);
-router.use(`${prefix}/associate`, associateRoute);
 router.use(`${prefix}/associateCompany`, associateCompanyRoute);
 
 router.use(`${prefix}/category`, categoryRoute);

@@ -19,8 +19,18 @@ export class EnquiryService {
       };
 
       const { page, limit, ...filters } = req.query;
-      let dynamicQuery = buildDynamicQuery(filters); // Or build your custom filter
-      // Possibly do role-based logic or other checks, if needed
+      const user = req.user as any;
+
+      let dynamicQuery = buildDynamicQuery(filters);
+
+      // 🔐 Role-based restriction
+      if (user.role === "Associate") {
+        // Only show enquiries where the associate is either productAssociate or mediatorAssociate
+        dynamicQuery.$or = [
+          { productAssociate: user.id },
+          { mediatorAssociate: user.id },
+        ];
+      }
 
       const enquiries = await this.enquiryRepository.getEnquiries(
         req,

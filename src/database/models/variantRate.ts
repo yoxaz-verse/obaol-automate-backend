@@ -52,6 +52,12 @@ VariantRateSchema.pre<IVariantRate>("save", async function (next) {
     next();
   }
 });
+VariantRateSchema.pre<IVariantRate>("save", function (next) {
+  if (this.isModified("isLive") && this.isLive && !this.lastLiveAt) {
+    this.lastLiveAt = new Date();
+  }
+  next();
+});
 
 export const VariantRateModel = mongoose.model<IVariantRate>(
   "VariantRate",

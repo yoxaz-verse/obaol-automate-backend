@@ -16,6 +16,7 @@
     "@aws-sdk/s3-request-presigner": "^3.658.1",
     "argon2": "^0.41.1",
     "bcryptjs": "^2.4.3",
+    "build": "^0.1.4",
     "cookie": "^1.0.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

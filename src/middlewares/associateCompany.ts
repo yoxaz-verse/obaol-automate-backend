@@ -6,14 +6,12 @@ class AssociateCompanyMiddleware {
     res: Response,
     next: NextFunction
   ) {
-    const { name, email, phone, location } = req.body;
-    if (!name || !email || !phone || !location) {
-      res
-        .status(400)
-        .json({
-          message:
-            "All fields (name, email, phone, location) must be provided.",
-        });
+    const { name, email, phone, state, district, city } = req.body;
+    if (!name || !email || !phone || !state || !district || !city) {
+      res.status(400).json({
+        message:
+          "All fields (name, email, phone, state , district, city ) must be provided.",
+      });
       return;
     }
     next();
@@ -24,8 +22,8 @@ class AssociateCompanyMiddleware {
     res: Response,
     next: NextFunction
   ) {
-    const { name, email, phone, location } = req.body;
-    if (!name && !email && !phone && !location) {
+    const { name, email, phone, state, district, city } = req.body;
+    if (!name && !email && !phone && !district && !city) {
       res
         .status(400)
         .json({ message: "At least one field must be provided for updates." });

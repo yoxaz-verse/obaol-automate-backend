@@ -24,7 +24,6 @@ class AssociateCompanyRepository {
       if (search) {
         query.name = { $regex: search, $options: "i" }; // Adjust search field based on actual schema
       }
-      console.log("query", query);
 
       const associateCompaniesDoc = await AssociateCompanyModel.find(query)
         .limit(pagination.limit)
@@ -33,7 +32,6 @@ class AssociateCompanyRepository {
       const associateCompanies = associateCompaniesDoc.map(
         (doc) => doc.toObject() as any
       );
-      console.log("associateCompanies");
       console.log(associateCompaniesDoc);
 
       const totalCount = await AssociateCompanyModel.countDocuments(query);

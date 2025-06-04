@@ -35,6 +35,12 @@ import displayedRateRoute from "./displayedRateRoute";
 import enquiryRoute from "./enquiryRoute";
 import quantityUnitRoute from "./quantityUnitRoute";
 import verificationRoutes from "./verificationRoutes";
+import rateAttachmentRoute from "./rateAttachmentRoute";
+
+import abbreviationRoute from "./abbreviationRoute";
+import cityRoute from "./cityRoute";
+import stateRoute from "./stateRoute";
+import districtRoute from "./districtRoute";
 
 // Initialize the main router
 const router = Router();
@@ -64,6 +70,7 @@ router.use(`${prefix}/activityFile`, activityFileRoute);
 router.use(`${prefix}/activityStatus`, activityStatusRoute);
 router.use(`${prefix}/activityType`, activityTypeRoute);
 router.use(`${prefix}/inventoryManager`, inventoryManagerRoute);
+router.use(`${prefix}/rateAttachment`, rateAttachmentRoute);
 
 router.use(`${prefix}/locationType`, locationTypeRoute);
 router.use(`${prefix}/locationManager`, locationManagerRoute);
@@ -79,7 +86,11 @@ router.use(`${prefix}/variantRate`, variantRateRoute);
 router.use(`${prefix}/displayedRate`, displayedRateRoute);
 
 router.use(`${prefix}/enquiry`, enquiryRoute);
-router.use(`${prefix}/quantityUnit`, quantityUnitRoute);
+
+router.use(`${prefix}/abbreviation`, abbreviationRoute);
+router.use(`${prefix}/city`, cityRoute);
+router.use(`${prefix}/district`, districtRoute);
+router.use(`${prefix}/state`, stateRoute);
 
 // router.use(`${prefix}/variantRate`, variantRateRoute);
 

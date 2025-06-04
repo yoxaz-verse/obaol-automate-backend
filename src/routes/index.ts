@@ -35,7 +35,6 @@ import displayedRateRoute from "./displayedRateRoute";
 import enquiryRoute from "./enquiryRoute";
 import quantityUnitRoute from "./quantityUnitRoute";
 import verificationRoutes from "./verificationRoutes";
-import rateAttachmentRoute from "./rateAttachmentRoute";
 
 import abbreviationRoute from "./abbreviationRoute";
 import cityRoute from "./cityRoute";
@@ -70,7 +69,6 @@ router.use(`${prefix}/activityFile`, activityFileRoute);
 router.use(`${prefix}/activityStatus`, activityStatusRoute);
 router.use(`${prefix}/activityType`, activityTypeRoute);
 router.use(`${prefix}/inventoryManager`, inventoryManagerRoute);
-router.use(`${prefix}/rateAttachment`, rateAttachmentRoute);
 
 router.use(`${prefix}/locationType`, locationTypeRoute);
 router.use(`${prefix}/locationManager`, locationManagerRoute);

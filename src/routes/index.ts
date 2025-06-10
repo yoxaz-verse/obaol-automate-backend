@@ -33,7 +33,6 @@ import variantRateRoute from "./variantRateRoute";
 import displayedRateRoute from "./displayedRateRoute";
 
 import enquiryRoute from "./enquiryRoute";
-import quantityUnitRoute from "./quantityUnitRoute";
 import verificationRoutes from "./verificationRoutes";
 
 import abbreviationRoute from "./abbreviationRoute";

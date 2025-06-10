@@ -15,7 +15,6 @@ class AssociateCompanyService {
     try {
       const pagination = paginationHandler(req);
       const search = searchHandler(req);
-      console.log("Service");
 
       const companies =
         await this.associateCompanyRepository.getAssociateCompanies(
@@ -86,6 +85,9 @@ class AssociateCompanyService {
   public async deleteAssociateCompany(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      console.log("id");
+      console.log(id);
+
       const deletedCompany =
         await this.associateCompanyRepository.deleteAssociateCompany(req, id);
       res.json({

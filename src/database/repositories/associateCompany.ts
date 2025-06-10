@@ -128,15 +128,15 @@ class AssociateCompanyRepository {
     id: string
   ): Promise<IAssociateCompany> {
     try {
+      console.log("id", id);
+
       const deletedAssociateCompany =
-        await AssociateCompanyModel.findOneAndUpdate(
-          { _id: id, isDeleted: false },
-          { isDeleted: true },
-          { new: true }
-        );
+        await AssociateCompanyModel.findByIdAndDelete(id);
+
       if (!deletedAssociateCompany) {
-        throw new Error("Failed to delete Associate Company");
+        throw new Error("Associate Company not found or already deleted");
       }
+
       return deletedAssociateCompany.toObject() as any;
     } catch (error) {
       await logError(

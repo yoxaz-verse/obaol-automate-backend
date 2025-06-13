@@ -1,4 +1,4 @@
-import { Document, Types } from "mongoose";
+import mongoose, { Document, Types } from "mongoose";
 
 export interface IVariantRate extends Document {
   rate: number;
@@ -10,7 +10,10 @@ export interface IVariantRate extends Document {
   associateCompany?: Types.ObjectId;
   isLive: boolean;
   tags?: Types.ObjectId[];
-
+  state: mongoose.Schema.Types.ObjectId;
+  district: mongoose.Schema.Types.ObjectId;
+  division?: mongoose.Schema.Types.ObjectId;
+  pincodeEntry?: mongoose.Schema.Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
   lastLiveAt?: Date;
@@ -29,7 +32,10 @@ export interface ICreateVariantRate {
   duration?: number;
   isLive?: boolean;
   associate: Types.ObjectId;
-
+  state: mongoose.Schema.Types.ObjectId;
+  district: mongoose.Schema.Types.ObjectId;
+  division?: mongoose.Schema.Types.ObjectId;
+  pincodeEntry?: mongoose.Schema.Types.ObjectId;
   // Optional new fields (for draft creation, testing, or internal use)
   lastEditTime?: Date;
   coolingStartTime?: Date;
@@ -45,7 +51,10 @@ export interface IUpdateVariantRate {
   duration?: number;
   isLive?: boolean;
   associate?: Types.ObjectId;
-
+  state?: mongoose.Schema.Types.ObjectId;
+  district?: mongoose.Schema.Types.ObjectId;
+  division?: mongoose.Schema.Types.ObjectId;
+  pincodeEntry?: mongoose.Schema.Types.ObjectId;
   // Optional new fields (used internally in service logic)
   lastEditTime?: Date;
   coolingStartTime?: Date;

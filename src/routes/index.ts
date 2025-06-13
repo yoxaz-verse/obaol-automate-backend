@@ -36,9 +36,10 @@ import enquiryRoute from "./enquiryRoute";
 import verificationRoutes from "./verificationRoutes";
 
 import abbreviationRoute from "./abbreviationRoute";
-import cityRoute from "./cityRoute";
+import pincodeEntryRoute from "./pincodeEntryRoute";
 import stateRoute from "./stateRoute";
 import districtRoute from "./districtRoute";
+import divisionRoute from "./divisionRoute";
 
 // Initialize the main router
 const router = Router();
@@ -85,7 +86,8 @@ router.use(`${prefix}/displayedRate`, displayedRateRoute);
 router.use(`${prefix}/enquiry`, enquiryRoute);
 
 router.use(`${prefix}/abbreviation`, abbreviationRoute);
-router.use(`${prefix}/city`, cityRoute);
+router.use(`${prefix}/pincodeEntry`, pincodeEntryRoute);
+router.use(`${prefix}/division`, divisionRoute);
 router.use(`${prefix}/district`, districtRoute);
 router.use(`${prefix}/state`, stateRoute);
 

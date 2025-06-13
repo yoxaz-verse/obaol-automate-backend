@@ -14,7 +14,8 @@ const VariantRateSchema: Schema = new Schema({
   },
   state: { type: mongoose.Types.ObjectId, ref: "State" },
   district: { type: mongoose.Types.ObjectId, ref: "District" },
-  city: { type: mongoose.Types.ObjectId, ref: "City" },
+  division: { type: mongoose.Types.ObjectId, ref: "Division" },
+  pincodeEntry: { type: mongoose.Types.ObjectId, ref: "PincodeEntry" },
   associate: { type: Schema.Types.ObjectId, ref: "Associate" },
   associateCompany: {
     type: Schema.Types.ObjectId,

@@ -221,6 +221,10 @@ class VariantRateService {
   public async createVariantRate(req: Request, res: Response) {
     try {
       const variantRateData = req.body;
+      // Sanitize optional ObjectId fields
+      if (variantRateData.pincodeEntry === "")
+        variantRateData.pincodeEntry = undefined;
+      if (variantRateData.division === "") variantRateData.division = undefined;
       const newVariantRate = await this.variantRateRepository.createVariantRate(
         req,
         variantRateData

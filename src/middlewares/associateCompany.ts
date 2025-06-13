@@ -6,8 +6,8 @@ class AssociateCompanyMiddleware {
     res: Response,
     next: NextFunction
   ) {
-    const { name, email, phone, state, district, city } = req.body;
-    if (!name || !email || !phone || !state || !district || !city) {
+    const { name, email, phone, state, district } = req.body;
+    if (!name || !email || !phone || !state || !district) {
       res.status(400).json({
         message:
           "All fields (name, email, phone, state , district, city ) must be provided.",
@@ -22,8 +22,8 @@ class AssociateCompanyMiddleware {
     res: Response,
     next: NextFunction
   ) {
-    const { name, email, phone, state, district, city } = req.body;
-    if (!name && !email && !phone && !district && !city) {
+    const { name, email, phone, state, district } = req.body;
+    if (!name && !email && !phone && !district && !state) {
       res
         .status(400)
         .json({ message: "At least one field must be provided for updates." });

@@ -150,11 +150,7 @@ class AssociateRepository {
 
   public async deleteAssociate(req: Request, id: string): Promise<IAssociate> {
     try {
-      const deletedAssociate = await AssociateModel.findOneAndUpdate(
-        { _id: id, isDeleted: false },
-        { isDeleted: true },
-        { new: true }
-      );
+      const deletedAssociate = await AssociateModel.findByIdAndDelete(id);
       if (!deletedAssociate) {
         throw new Error("Failed to delete associate");
       }

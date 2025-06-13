@@ -7,8 +7,16 @@ const AssociateCompanySchema = new mongoose.Schema(
     phone: { type: String, required: true },
     state: { type: mongoose.Types.ObjectId, ref: "State" },
     district: { type: mongoose.Types.ObjectId, ref: "District" },
-    division: { type: mongoose.Types.ObjectId, ref: "Division" },
-    pincodeEntry: { type: mongoose.Types.ObjectId, ref: "PincodeEntry" },
+    division: {
+      type: mongoose.Types.ObjectId,
+      ref: "Division",
+      required: false,
+    },
+    pincodeEntry: {
+      type: mongoose.Types.ObjectId,
+      ref: "PincodeEntry",
+      required: false,
+    },
     phoneSecondary: { type: String, required: true },
   },
   { timestamps: true }

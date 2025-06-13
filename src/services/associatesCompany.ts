@@ -46,12 +46,18 @@ class AssociateCompanyService {
 
   public async createAssociateCompany(req: Request, res: Response) {
     try {
-      const companyData = req.body;
+      let companyData = req.body;
+
+      // Sanitize optional ObjectId fields
+      if (companyData.pincodeEntry === "") companyData.pincodeEntry = undefined;
+      if (companyData.division === "") companyData.division = undefined;
+
       const newCompany =
         await this.associateCompanyRepository.createAssociateCompany(
           req,
           companyData
         );
+
       res.status(201).json({
         data: newCompany,
         message: "Associate Company created successfully",

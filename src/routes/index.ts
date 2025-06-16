@@ -41,6 +41,10 @@ import stateRoute from "./stateRoute";
 import districtRoute from "./districtRoute";
 import divisionRoute from "./divisionRoute";
 
+import designationRoute from "./designationRoute";
+import enquiryProcessStatusRoute from "./enquiryProcessStatusRoute";
+import companyTypeRoute from "./companyTypeRoute";
+
 // Initialize the main router
 const router = Router();
 const version = "v1";
@@ -90,6 +94,10 @@ router.use(`${prefix}/pincodeEntry`, pincodeEntryRoute);
 router.use(`${prefix}/division`, divisionRoute);
 router.use(`${prefix}/district`, districtRoute);
 router.use(`${prefix}/state`, stateRoute);
+
+router.use(`${prefix}/designation`, designationRoute);
+router.use(`${prefix}/enquiryProcessStatus`, enquiryProcessStatusRoute);
+router.use(`${prefix}/companyType`, companyTypeRoute);
 
 // router.use(`${prefix}/variantRate`, variantRateRoute);
 

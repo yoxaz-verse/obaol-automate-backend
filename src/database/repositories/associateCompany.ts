@@ -12,7 +12,7 @@ class AssociateCompanyRepository {
   public async getAssociateCompanies(
     req: Request,
     pagination: IPagination,
-    search: string
+    query: any
   ): Promise<{
     data: IAssociateCompany[];
     totalCount: number;
@@ -20,19 +20,14 @@ class AssociateCompanyRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = {};
-      if (search) {
-        query.name = { $regex: search, $options: "i" }; // Adjust search field based on actual schema
-      }
-
       const associateCompaniesDoc = await AssociateCompanyModel.find(query)
+        .populate("state division companyType district")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
       const associateCompanies = associateCompaniesDoc.map(
         (doc) => doc.toObject() as any
       );
-      console.log(associateCompaniesDoc);
 
       const totalCount = await AssociateCompanyModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);

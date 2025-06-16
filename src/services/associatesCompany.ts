@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import AssociateCompanyRepository from "../database/repositories/associateCompany";
 import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
+import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 
 class AssociateCompanyService {
   private associateCompanyRepository: AssociateCompanyRepository;
@@ -13,14 +13,15 @@ class AssociateCompanyService {
 
   public async getAssociateCompanies(req: Request, res: Response) {
     try {
+      const { page, limit, ...filters } = req.query;
       const pagination = paginationHandler(req);
-      const search = searchHandler(req);
+      const dynamicQuery = buildDynamicQuery(filters);
 
       const companies =
         await this.associateCompanyRepository.getAssociateCompanies(
           req,
           pagination,
-          search
+          dynamicQuery
         );
       res.json({
         data: companies,

@@ -7,6 +7,7 @@ const AssociateCompanySchema = new mongoose.Schema(
     phone: { type: String, required: true },
     state: { type: mongoose.Types.ObjectId, ref: "State" },
     district: { type: mongoose.Types.ObjectId, ref: "District" },
+    companyType: { type: mongoose.Types.ObjectId, ref: "CompanyType" },
     division: {
       type: mongoose.Types.ObjectId,
       ref: "Division",

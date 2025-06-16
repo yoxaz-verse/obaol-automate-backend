@@ -29,7 +29,9 @@ class ActivityTypeRepository {
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
-      const activityTypes = activityTypesDoc.map((doc) => doc.toObject() as IActivityType);
+      const activityTypes = activityTypesDoc.map(
+        (doc) => doc.toObject() as IActivityType
+      );
 
       const totalCount = await ActivityTypeModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
@@ -46,7 +48,10 @@ class ActivityTypeRepository {
     }
   }
 
-  public async getActivityTypeById(req: Request, id: string): Promise<IActivityType> {
+  public async getActivityTypeById(
+    req: Request,
+    id: string
+  ): Promise<IActivityType> {
     try {
       const activityTypeDoc = await ActivityTypeModel.findById(id);
 
@@ -95,7 +100,10 @@ class ActivityTypeRepository {
     }
   }
 
-  public async deleteActivityType(req: Request, id: string): Promise<IActivityType> {
+  public async deleteActivityType(
+    req: Request,
+    id: string
+  ): Promise<IActivityType> {
     try {
       const deletedActivityType = await ActivityTypeModel.findByIdAndDelete(id);
       if (!deletedActivityType) {

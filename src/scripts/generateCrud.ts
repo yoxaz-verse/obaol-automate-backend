@@ -67,9 +67,9 @@ class ${upper}Service {
       const { page, limit, ...filters } = req.query;
       const dynamicQuery = buildDynamicQuery(filters);
       const result = await this.${lower}Repository.get${upper}s(req, pagination, dynamicQuery);
-      res.status(200).json({
+      res.json({
         message: "${upper}s retrieved successfully",
-        ...result
+        data: result
       });
     } catch (error) {
       logError(error, req, "${upper}Service-get${upper}s");

@@ -10,12 +10,10 @@ class AssociateMiddleware {
     try {
       const { name, email, phone, associateCompany, password } = req.body;
       if (!email || !name || !phone || !associateCompany || !password) {
-        res
-          .status(400)
-          .json({
-            error:
-              "Missing required fields: Email, Name, Phone, Associate Company, and Password are required.",
-          });
+        res.status(400).json({
+          error:
+            "Missing required fields: Email, Name, Phone, Associate Company, and Password are required.",
+        });
         return;
       }
       next();
@@ -31,14 +29,12 @@ class AssociateMiddleware {
     next: NextFunction
   ) {
     try {
-      const { email, name, phone, password } = req.body; // Assuming these are the fields that can be updated
-      if (!email && !name && !phone && !password) {
-        res
-          .status(400)
-          .json({
-            error:
-              "At least one field (Email, Name, Phone, or Password) must be provided for update.",
-          });
+      const { email, name, phone, password, designation } = req.body; // Assuming these are the fields that can be updated
+      if (!email && !name && !phone && !password && !designation) {
+        res.status(400).json({
+          error:
+            "At least one field (Email, Name, Phone, or Password) must be provided for update.",
+        });
         return;
       }
       next();

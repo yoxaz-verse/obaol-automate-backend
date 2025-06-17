@@ -2,6 +2,7 @@ export interface IAssociate {
   _id: string;
   name: string;
   email: string;
+  designation: string;
   phone: string;
   phoneSecondary: string;
   associateCompany: string; // Assuming this is stored as the ID of the AssociateCompany

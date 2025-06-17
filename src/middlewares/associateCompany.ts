@@ -22,8 +22,17 @@ class AssociateCompanyMiddleware {
     res: Response,
     next: NextFunction
   ) {
-    const { name, email, phone, state, district } = req.body;
-    if (!name && !email && !phone && !district && !state) {
+    const { name, email, phone, state, district, companyType, phoneSecondary } =
+      req.body;
+    if (
+      !name &&
+      !email &&
+      !phone &&
+      !district &&
+      !state &&
+      !companyType &&
+      !phoneSecondary
+    ) {
       res
         .status(400)
         .json({ message: "At least one field must be provided for updates." });

@@ -26,7 +26,7 @@ class AssociateRepository {
       }
 
       const associatesDoc = await AssociateModel.find(query)
-        .populate("associateCompany") // Assuming you want to join with the AssociateCompany collection
+        .populate("associateCompany designation") // Assuming you want to join with the AssociateCompany collection
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
@@ -69,7 +69,7 @@ class AssociateRepository {
         _id: 1,
         name: 1,
       })
-        .populate("associateCompany")
+        .populate("associateCompany designation")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
 
@@ -134,7 +134,7 @@ class AssociateRepository {
   ): Promise<IAssociate> {
     try {
       const updatedAssociate = await AssociateModel.findOneAndUpdate(
-        { _id: id, isDeleted: false },
+        { _id: id },
         associateData,
         { new: true }
       );

@@ -13,6 +13,7 @@ const AssociateSchema = new mongoose.Schema(
     },
     password: { type: String, required: true },
     role: { type: String, default: "Associate" }, // Assign default role
+    designation: { type: mongoose.Types.ObjectId, ref: "Designation" },
   },
   { timestamps: true }
 );

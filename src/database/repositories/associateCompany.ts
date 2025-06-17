@@ -55,7 +55,6 @@ class AssociateCompanyRepository {
     try {
       const associateCompanyDoc = await AssociateCompanyModel.findOne({
         _id: id,
-        isDeleted: false,
       });
 
       if (!associateCompanyDoc) {
@@ -100,7 +99,7 @@ class AssociateCompanyRepository {
     try {
       const updatedAssociateCompany =
         await AssociateCompanyModel.findOneAndUpdate(
-          { _id: id, isDeleted: false },
+          { _id: id },
           associateCompanyData,
           { new: true }
         );

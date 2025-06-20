@@ -10,6 +10,7 @@ import { EnquiryModel } from "../../database/models/enquiry";
 import { VariantRateModel } from "../../database/models/variantRate";
 import { DisplayedRateModel } from "../../database/models/displayedRate";
 import { Types } from "mongoose";
+import { EnquiryProcessStatusModel } from "../../database/models/enquiryProcessStatus";
 
 export class EnquiryRepository {
   public async getEnquiries(
@@ -43,15 +44,14 @@ export class EnquiryRepository {
 
       const enquiries = enquiriesDoc.map((doc) => {
         const enquiry = doc.toObject() as IEnquiry;
-        if (
-          enquiry.productAssociate._id.toString() !== req.user?.id &&
-          !isAdmin
-        ) {
+
+        const productAssociateId = enquiry.productAssociate?._id?.toString();
+
+        if (productAssociateId !== req.user?.id && !isAdmin) {
           enquiry.rate = (enquiry.rate || 0) + (enquiry.commission || 0);
         }
 
         if (!isAdmin) {
-          // 🚫 Remove sensitive pricing info for non-admins
           delete enquiry.commission;
           delete enquiry.mediatorCommission;
         }
@@ -151,14 +151,29 @@ export class EnquiryRepository {
     enquiryData: Partial<IUpdateEnquiry>
   ): Promise<IEnquiry> {
     try {
+      // 🧠 Convert status name to ObjectId if it's a string
+      if (enquiryData.status && typeof enquiryData.status === "string") {
+        const statusDoc = await EnquiryProcessStatusModel.findOne({
+          name: enquiryData.status,
+        });
+
+        if (!statusDoc) {
+          throw new Error(`Invalid status name: ${enquiryData.status}`);
+        }
+
+        enquiryData.status = statusDoc._id;
+      }
+
       const updatedDoc = await EnquiryModel.findByIdAndUpdate(id, enquiryData, {
         new: true,
       }).populate(
         "variantRate displayRate productVariant mediatorAssociate productAssociate"
       );
+
       if (!updatedDoc) {
         throw new Error("Failed to update Enquiry");
       }
+
       return updatedDoc.toObject() as IEnquiry;
     } catch (error) {
       await logError(error, req, "EnquiryRepository-updateEnquiry");

@@ -29,10 +29,15 @@ const EnquirySchema: Schema = new Schema({
     ref: "Associate",
     required: true,
   },
+  status: {
+    type: Schema.Types.ObjectId,
+    ref: "EnquiryProcessStatus",
+  },
   createdAt: { type: Date, default: Date.now },
   rate: { type: Number, required: true },
   commission: { type: Number },
   mediatorCommission: { type: Number },
+  
 });
 
 export const EnquiryModel = mongoose.model<IEnquiry>("Enquiry", EnquirySchema);

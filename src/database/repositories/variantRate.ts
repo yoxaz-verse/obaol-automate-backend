@@ -26,7 +26,31 @@ class VariantRateRepository {
           populate: { path: "product", select: "name" },
           select: "name product",
         })
-        .populate("associate associateCompany")
+        .populate({
+          path: "associate",
+          populate: { path: "associateCompany", select: "name" },
+          select: "_id name associateCompany",
+        })
+        .populate({
+          path: "associateCompany",
+          select: "_id name",
+        })
+        .populate({
+          path: "state",
+          select: "_id name",
+        })
+        .populate({
+          path: "district",
+          select: "_id name",
+        })
+        .populate({
+          path: "division",
+          select: "_id name",
+        })
+        .populate({
+          path: "pincodeEntry",
+          select: "_id name",
+        })
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
       // Convert to plain objects

@@ -12,7 +12,7 @@ class CustomerRepository {
   public async getCustomers(
     req: Request,
     pagination: IPagination,
-    search: string
+    query: any
   ): Promise<{
     data: ICustomer[];
     totalCount: number;
@@ -20,11 +20,6 @@ class CustomerRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = { isDeleted: false };
-      if (search) {
-        query.name = { $regex: search, $options: "i" };
-      }
-
       const customersDoc = await CustomerModel.find(query)
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);

@@ -12,7 +12,7 @@ class AssociateRepository {
   public async getAssociates(
     req: Request,
     pagination: IPagination,
-    search: string
+    query: any
   ): Promise<{
     data: IAssociate[];
     totalCount: number;
@@ -20,11 +20,6 @@ class AssociateRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = {};
-      if (search) {
-        query.name = { $regex: search, $options: "i" };
-      }
-
       const associatesDoc = await AssociateModel.find(query)
         .populate("associateCompany designation") // Assuming you want to join with the AssociateCompany collection
         .limit(pagination.limit)

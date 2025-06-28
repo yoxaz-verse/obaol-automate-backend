@@ -20,6 +20,8 @@ class VariantRateRepository {
     totalPages?: number;
   }> {
     try {
+      console.log(query);
+      
       const variantRatesDoc = await VariantRateModel.find(query)
         .populate({
           path: "productVariant",

@@ -24,7 +24,7 @@ class AdminRepository {
   public async getAdmins(
     req: Request,
     pagination: IPagination,
-    search: string
+    query: any
   ): Promise<{
     data: IAdmin[];
     totalCount: number;
@@ -32,13 +32,6 @@ class AdminRepository {
     totalPages?: number;
   }> {
     try {
-      let query: any = { isDeleted: false };
-      if (search) {
-        query.$or = [
-          { name: { $regex: search, $options: "i" } },
-          { email: { $regex: search, $options: "i" } },
-        ];
-      }
       const admins = await AdminModel.find(query)
         .select("-password")
         .limit(pagination.limit)

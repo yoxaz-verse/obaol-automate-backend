@@ -27,13 +27,7 @@ class ProductVariantService {
         pagination,
         dynamicQuery
       );
-      res.json({
-        data: result.data,
-        message: "Product Variants retrieved successfully",
-        totalCount: result.totalCount,
-        currentPage: result.currentPage,
-        totalPages: result.totalPages,
-      });
+      res.json({ data: result, message: "Products retrieved successfully" });
     } catch (error) {
       logError(error, req, "ProductVariantService-getProductVariants");
       res.status(500).send("Product Variants retrieval failed");

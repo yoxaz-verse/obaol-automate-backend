@@ -12,7 +12,7 @@ class InventoryManagerRepository {
   public async getInventoryManagers(
     req: Request,
     pagination: { page: number; limit: number },
-    search: string
+    query: any
   ): Promise<{
     data: IInventoryManager[];
     totalCount: number;
@@ -20,11 +20,6 @@ class InventoryManagerRepository {
     totalPages: number;
   }> {
     try {
-      const query: any = { isDeleted: false };
-      if (search) {
-        query.name = { $regex: search, $options: "i" };
-      }
-
       const totalCount = await InventoryManagerModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / pagination.limit);
       const currentPage = pagination.page;

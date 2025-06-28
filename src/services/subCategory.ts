@@ -27,12 +27,9 @@ class SubCategoryService {
         dynamicQuery
       );
 
-      res.status(200).json({
-        message: "SubCategories retrieved successfully",
-        data: subCategories.data,
-        totalCount: subCategories.totalCount,
-        totalPages: subCategories.totalPages,
-        currentPage: subCategories.currentPage,
+      res.json({
+        data: subCategories,
+        message: "Products retrieved successfully",
       });
     } catch (error) {
       logError(error, req, "SubCategoryService-getSubCategories");

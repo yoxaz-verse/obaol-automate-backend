@@ -2,10 +2,10 @@ import { Request, Response } from "express";
 import AdminRepository from "../database/repositories/admin";
 import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
 import { serialize } from "cookie";
 import { generateJWTToken } from "./../utils/tokenUtils";
 import { comparePasswords, hashPassword } from "./../utils/passwordUtils";
+import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 
 class AdminService {
   public async login(req: Request, res: Response) {
@@ -128,12 +128,13 @@ class AdminService {
 
   public async getAdmins(req: Request, res: Response) {
     try {
+      const { page, limit, ...filters } = req.query;
       const pagination = paginationHandler(req);
-      const search = searchHandler(req);
+      const dynamicQuery = buildDynamicQuery(filters);
       const admins = await this.adminRepository.getAdmins(
         req,
         pagination,
-        search
+        dynamicQuery
       );
       res.sendArrayFormatted(admins, "Admins retrieved successfully");
     } catch (error) {

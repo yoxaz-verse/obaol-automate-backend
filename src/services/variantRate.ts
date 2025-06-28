@@ -8,7 +8,8 @@ import { AssociateModel } from "../database/models/associate";
 import { ProductVariantModel } from "../database/models/productVariant";
 import { ProductModel } from "../database/models/product";
 import { SubCategoryModel } from "../database/models/subCategory";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
+import { CategoryModel } from "../database/models/category";
 
 class VariantRateService {
   private variantRateRepository: VariantRateRepository;
@@ -17,185 +18,109 @@ class VariantRateService {
     this.variantRateRepository = new VariantRateRepository();
   }
 
-  public async getVariantRates(req: Request, res: Response) {
-    try {
-      const pagination: IPagination = {
-        page: parseInt(req.query.page as string, 10) || 1,
-        limit: parseInt(req.query.limit as string, 10) || 10,
+public async getVariantRates(req: Request, res: Response) {
+  try {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 10;
+    const { page: _, limit: __, ...filters } = req.query;
+
+    // Clean out empty filters
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v === "" || v == null) delete filters[k];
+    });
+
+    let dynamicQuery = buildDynamicQuery(filters as any);
+
+    const userRole = req.user?.role;
+    const userId = req.user?.id;
+
+    if (userRole === "Associate") {
+      dynamicQuery = {
+        $and: [
+          dynamicQuery,
+          { $or: [{ associate: userId }, { isLive: true }] },
+          // optionally further constraints
+        ],
       };
-
-      const { page, limit, ...filters } = req.query;
-      let dynamicQuery = buildDynamicQuery(filters);
-
-      // Clean up dynamicQuery
-      delete dynamicQuery.associateId;
-      delete dynamicQuery.associateCompanyName;
-      delete dynamicQuery.product;
-      delete dynamicQuery.subCategory;
-
-      const userRole = req.user?.role;
-      const userId = req.user?.id;
-
-      // 1) Associate Company Name Normalization
-      if (filters.associateCompanyName) {
-        const rawName = filters.associateCompanyName.toString();
-        delete filters.associateCompanyName;
-
-        const normalizedName = normalizeCompanyName(rawName);
-
-        const companyDoc = await AssociateCompanyModel.findOne({
-          name: new RegExp("^" + normalizedName + "$", "i"),
-        });
-
-        if (companyDoc) {
-          const foundAssociates = await AssociateModel.find({
-            associateCompany: companyDoc._id,
-          }).select("_id");
-          const matchingIds = foundAssociates.map((a) => a._id);
-          dynamicQuery.associate = { $in: matchingIds };
-        } else {
-          dynamicQuery.associate = { $in: [] };
-        }
-      }
-      // 2) Associate ID
-      else if (filters.associateId) {
-        const assocId = filters.associateId.toString();
-        delete filters.associateId;
-
-        const foundAssoc = await AssociateModel.findById(assocId).select(
-          "associateCompany"
-        );
-
-        if (foundAssoc) {
-          const foundAssociates = await AssociateModel.find({
-            associateCompany: foundAssoc.associateCompany,
-          }).select("_id");
-
-          const matchingIds = foundAssociates.map((a) => a._id);
-          dynamicQuery.associate = { $in: matchingIds };
-        } else {
-          dynamicQuery.associate = { $in: [] };
-        }
-      }
-      // 3) Role-based logic
-      else {
-        if (userRole === "Admin") {
-          // Admin sees everything
-        } else if (userRole === "Associate") {
-          dynamicQuery = {
-            $and: [
-              dynamicQuery,
-              {
-                $or: [{ associate: userId }, { isLive: true }],
-              },
-            ],
-          };
-        } else {
-          dynamicQuery.selected = true;
-          dynamicQuery.isLive = true;
-        }
-      }
-
-      // 🔥 New section: Product and SubCategory Normalized Lookup
-
-      let productId: string | null = null;
-      let subCategoryId: string | null = null;
-
-      // Handle subCategory first
-      if (filters.subCategory) {
-        const rawSubCategoryName = filters.subCategory.toString();
-        const normalizedSubCategoryName =
-          normalizeCompanyName(rawSubCategoryName); // using same normalize function
-        const subCategoryDoc = await SubCategoryModel.findOne<{
-          _id: Types.ObjectId;
-        }>({
-          name: new RegExp("^" + normalizedSubCategoryName + "$", "i"),
-        }).select("_id");
-
-        if (subCategoryDoc) {
-          subCategoryId = subCategoryDoc._id.toString();
-        } else {
-          dynamicQuery.productVariant = { $in: [] }; // no subCategory found
-        }
-      }
-
-      // Handle product
-      if (filters.product) {
-        const rawProductName = filters.product.toString();
-        const normalizedProductName = normalizeCompanyName(rawProductName); // reuse
-        const productDoc = await ProductModel.findOne<{
-          _id: Types.ObjectId;
-          subCategory: Types.ObjectId;
-        }>({
-          name: new RegExp("^" + normalizedProductName + "$", "i"),
-        }).select("_id subCategory");
-
-        if (productDoc) {
-          productId = productDoc._id.toString();
-
-          // If subCategoryId is also set, make sure the product belongs to that subCategory
-          if (
-            subCategoryId &&
-            productDoc.subCategory.toString() !== subCategoryId
-          ) {
-            dynamicQuery.productVariant = { $in: [] }; // product not matching subcategory
-          }
-        } else {
-          dynamicQuery.productVariant = { $in: [] }; // no product found
-        }
-      }
-
-      if (productId || subCategoryId) {
-        const productVariantQuery: any = {};
-
-        if (productId) {
-          productVariantQuery.product = productId;
-        }
-
-        if (subCategoryId && !productVariantQuery.product) {
-          // only subCategory filtering needed
-          const productsInSubCategory = await ProductModel.find({
-            subCategory: subCategoryId,
-          }).select("_id");
-
-          const productIdsFromSubCategory = productsInSubCategory.map(
-            (p) => p._id
-          );
-
-          productVariantQuery.product = { $in: productIdsFromSubCategory };
-        }
-
-        if (Object.keys(productVariantQuery).length > 0) {
-          const matchingVariants = await ProductVariantModel.find(
-            productVariantQuery
-          ).select("_id");
-
-          const variantIds = matchingVariants.map((v) => v._id);
-
-          dynamicQuery.productVariant = { $in: variantIds };
-        }
-      }
-
-      // console.log(
-      //   "Final dynamicQuery =>",
-      //   JSON.stringify(dynamicQuery, null, 2)
-      // );
-
-      const variantRates = await this.variantRateRepository.getVariantRates(
-        req,
-        pagination,
-        dynamicQuery
-      );
-
-      return res.json({
-        data: variantRates,
-        message: "Variant Rates retrieved successfully",
-      });
-    } catch (error) {
-      logError(error, req, "VariantRateService-getVariantRates");
-      return res.status(500).json({ error: "Variant Rates retrieval failed" });
+    } else if (userRole !== "Admin") {
+      dynamicQuery.selected = true;
+      dynamicQuery.isLive = true;
     }
+
+    // Map name filters to ObjectIds
+    const ids: Types.ObjectId[] = [];
+
+    if (filters.subCategory) {
+      const subCat = await SubCategoryModel.findOne({
+        name: new RegExp(`^${filters.subCategory}$`, "i"),
+      }).lean<{ _id: Types.ObjectId }>();
+      if (subCat) ids.push(subCat._id);
+      else
+        return res.json({
+          data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
+          message: "No matching subCategory found",
+        });
+    }
+
+    if (filters.product) {
+      const prod = await ProductModel.findOne({
+        name: new RegExp(`^${filters.product}$`, "i"),
+      })
+        .lean<{ _id: Types.ObjectId; subCategory: Types.ObjectId }>();
+      if (prod) {
+        if (
+          filters.subCategory &&
+          prod.subCategory.toString() !== ids[0]?.toString()
+        ) {
+          return res.json({
+            data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
+            message: "Product does not match subCategory",
+          });
+        }
+        ids.push(prod._id);
+      } else {
+        return res.json({
+          data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
+          message: "No matching product found",
+        });
+      }
+    }
+
+    // Now treat `ids[0]` as subCategory or `ids[1]` as product
+    if (ids.length > 0) {
+      const variantQuery: any = {};
+      if (ids.length === 2) variantQuery.product = ids[1];
+      else variantQuery.subCategory = ids[0];
+
+      const variants = await ProductVariantModel.find(variantQuery)
+        .select("_id")
+        .lean<{ _id: Types.ObjectId }[]>();
+
+      const variantIds = variants.map((v) => v._id as Types.ObjectId);
+      if (variantIds.length === 0) {
+        return res.json({
+          data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
+          message: "No variants found for filter",
+        });
+      }
+      dynamicQuery.productVariant = { $in: variantIds };
+    }
+
+    const variantData = await this.variantRateRepository.getVariantRates(
+      req,
+      { page, limit },
+      dynamicQuery
+    );
+    return res.json({
+      data: variantData,
+      message: "Variant Rates retrieved successfully",
+    });
+  } catch (error) {
+    logError(error, req, "VariantRateService-getVariantRates");
+    return res.status(500).json({ error: "Variant Rates retrieval failed." });
   }
+}
+
 
   public async getVariantRate(req: Request, res: Response) {
     try {

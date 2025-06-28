@@ -3,7 +3,7 @@ import AssociateRepository from "../database/repositories/associate";
 import { logError } from "../utils/errorLogger";
 import { hashPassword } from "../utils/passwordUtils";
 import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
+import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 
 class AssociateService {
   private associateRepository: AssociateRepository;
@@ -14,12 +14,13 @@ class AssociateService {
 
   public async getAssociates(req: Request, res: Response) {
     try {
+      const { page, limit, ...filters } = req.query;
       const pagination = paginationHandler(req);
-      const search = searchHandler(req);
+      const dynamicQuery = buildDynamicQuery(filters);
       const associates = await this.associateRepository.getAssociates(
         req,
         pagination,
-        search
+        dynamicQuery
       );
       res.json({
         data: associates,
@@ -34,7 +35,6 @@ class AssociateService {
   public async getAssociate(req: Request, res: Response) {
     try {
       const { id } = req.params;
-    
 
       const associate = await this.associateRepository.getAssociateById(
         req,

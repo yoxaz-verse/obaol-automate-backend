@@ -4,8 +4,8 @@ import { Request, Response } from "express";
 import InventoryManagerRepository from "../database/repositories/inventoryManager";
 import { logError } from "../utils/errorLogger";
 import { paginationHandler } from "../utils/paginationHandler";
-import { searchHandler } from "../utils/searchHandler";
 import { hashPassword } from "../utils/passwordUtils";
+import { buildDynamicQuery } from "../utils/buildDynamicQuery";
 
 class InventoryManagerService {
   private inventoryManagerRepository: InventoryManagerRepository;
@@ -16,20 +16,25 @@ class InventoryManagerService {
 
   public async getInventoryManagers(req: Request, res: Response) {
     try {
+      const { page, limit, ...filters } = req.query;
       const pagination = paginationHandler(req);
-      const search = searchHandler(req);
+      const dynamicQuery = buildDynamicQuery(filters);
       const inventoryManagers =
         await this.inventoryManagerRepository.getInventoryManagers(
           req,
           pagination,
-          search
+          dynamicQuery
         );
       res.sendArrayFormatted(
         inventoryManagers,
         "Customers retrieved successfully"
       );
     } catch (error) {
-      await logError(error, req, "InventoryManagerService-getInventoryManagers");
+      await logError(
+        error,
+        req,
+        "InventoryManagerService-getInventoryManagers"
+      );
       res.status(500).json({ error: "Internal Server Error" });
     }
   }

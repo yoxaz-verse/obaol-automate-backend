@@ -1,6 +1,7 @@
 import { Document, Types } from "mongoose";
 
 export interface IProductVariant extends Document {
+  _id: string;
   name: string;
   description: string;
   isAvailable: boolean;

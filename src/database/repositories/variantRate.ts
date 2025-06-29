@@ -20,9 +20,11 @@ class VariantRateRepository {
     totalPages?: number;
   }> {
     try {
+      console.log("query");
       console.log(query);
-      
+
       const variantRatesDoc = await VariantRateModel.find(query)
+
         .populate({
           path: "productVariant",
           populate: { path: "product", select: "name" },
@@ -55,6 +57,8 @@ class VariantRateRepository {
         })
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
+      console.log("variantRatesDoc");
+      console.log(variantRatesDoc);
       // Convert to plain objects
       let variantRates = variantRatesDoc.map(
         (doc) => doc.toObject() as IVariantRate

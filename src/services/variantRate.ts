@@ -1,15 +1,12 @@
 import { Request, Response } from "express";
 import VariantRateRepository from "../database/repositories/variantRate";
 import { logError } from "../utils/errorLogger";
-import { IPagination } from "../interfaces/pagination";
 import { buildDynamicQuery } from "../utils/buildDynamicQuery";
-import { AssociateCompanyModel } from "../database/models/associateCompany";
-import { AssociateModel } from "../database/models/associate";
 import { ProductVariantModel } from "../database/models/productVariant";
 import { ProductModel } from "../database/models/product";
 import { SubCategoryModel } from "../database/models/subCategory";
-import mongoose, { Types } from "mongoose";
-import { CategoryModel } from "../database/models/category";
+import { Types } from "mongoose";
+import { isValidObjectId } from "mongoose";
 
 class VariantRateService {
   private variantRateRepository: VariantRateRepository;
@@ -18,109 +15,154 @@ class VariantRateService {
     this.variantRateRepository = new VariantRateRepository();
   }
 
-public async getVariantRates(req: Request, res: Response) {
-  try {
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 10;
-    const { page: _, limit: __, ...filters } = req.query;
+  public async getVariantRates(req: Request, res: Response) {
+    try {
+      // 1) Pagination
+      const page = parseInt(req.query.page as string, 10) || 1;
+      const limit = parseInt(req.query.limit as string, 10) || 10;
 
-    // Clean out empty filters
-    Object.entries(filters).forEach(([k, v]) => {
-      if (v === "" || v == null) delete filters[k];
-    });
+      // 2) Extract & clean filters
+      const { page: _, limit: __, ...rawFilters } = req.query;
+      const filters = Object.entries(rawFilters).reduce<any>((acc, [k, v]) => {
+        if (v != null && v !== "") acc[k] = v;
+        return acc;
+      }, {});
 
-    let dynamicQuery = buildDynamicQuery(filters as any);
+      // 3) Build base dynamicQuery for simple fields (dates, booleans, IDs, regex)
+      let dynamicQuery = buildDynamicQuery(filters);
 
-    const userRole = req.user?.role;
-    const userId = req.user?.id;
+      // 4) Role‑based visibility
+      const userRole = req.user?.role;
+      const userId = req.user?.id;
+      if (userRole === "Associate") {
+        dynamicQuery = {
+          $and: [
+            dynamicQuery,
+            { $or: [{ associate: userId }, { isLive: true }] },
+          ],
+        };
+      } else if (userRole !== "Admin") {
+        dynamicQuery.selected = true;
+        dynamicQuery.isLive = true;
+      }
 
-    if (userRole === "Associate") {
-      dynamicQuery = {
-        $and: [
-          dynamicQuery,
-          { $or: [{ associate: userId }, { isLive: true }] },
-          // optionally further constraints
-        ],
-      };
-    } else if (userRole !== "Admin") {
-      dynamicQuery.selected = true;
-      dynamicQuery.isLive = true;
-    }
+      // 5) Handle subCategory→ProductVariant and product→ProductVariant mapping
+      let variantFilter: any = {}; // for ProductVariantModel
 
-    // Map name filters to ObjectIds
-    const ids: Types.ObjectId[] = [];
+      // a) subCategory filter
+      if (filters.subCategory) {
+        let subCatId: Types.ObjectId | null = null;
 
-    if (filters.subCategory) {
-      const subCat = await SubCategoryModel.findOne({
-        name: new RegExp(`^${filters.subCategory}$`, "i"),
-      }).lean<{ _id: Types.ObjectId }>();
-      if (subCat) ids.push(subCat._id);
-      else
-        return res.json({
-          data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
-          message: "No matching subCategory found",
-        });
-    }
+        if (isValidObjectId(filters.subCategory)) {
+          // by ID
+          subCatId = new Types.ObjectId(filters.subCategory as string);
+        } else {
+          // by name
+          const sc = await SubCategoryModel.findOne({
+            name: new RegExp(`^${filters.subCategory}$`, "i"),
+          })
+            .select("_id")
+            .lean();
+          if (sc) subCatId = new Types.ObjectId(sc._id);
+        }
 
-    if (filters.product) {
-      const prod = await ProductModel.findOne({
-        name: new RegExp(`^${filters.product}$`, "i"),
-      })
-        .lean<{ _id: Types.ObjectId; subCategory: Types.ObjectId }>();
-      if (prod) {
-        if (
-          filters.subCategory &&
-          prod.subCategory.toString() !== ids[0]?.toString()
-        ) {
+        if (!subCatId) {
           return res.json({
             data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
-            message: "Product does not match subCategory",
+            message: "No matching subCategory found",
           });
         }
-        ids.push(prod._id);
-      } else {
-        return res.json({
-          data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
-          message: "No matching product found",
-        });
+
+        // fetch all products under that subCategory
+        const prods = await ProductModel.find({ subCategory: subCatId })
+          .select("_id")
+          .lean<{ _id: Types.ObjectId }[]>();
+        const prodIds = prods.map((p) => p._id);
+        if (prodIds.length === 0) {
+          return res.json({
+            data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
+            message: "No products in that subCategory",
+          });
+        }
+        variantFilter.product = { $in: prodIds };
       }
-    }
 
-    // Now treat `ids[0]` as subCategory or `ids[1]` as product
-    if (ids.length > 0) {
-      const variantQuery: any = {};
-      if (ids.length === 2) variantQuery.product = ids[1];
-      else variantQuery.subCategory = ids[0];
+      // b) product filter (overrides/combines with subCategory)
+      if (filters.product) {
+        let prodId: Types.ObjectId | null = null;
 
-      const variants = await ProductVariantModel.find(variantQuery)
-        .select("_id")
-        .lean<{ _id: Types.ObjectId }[]>();
+        if (isValidObjectId(filters.product)) {
+          prodId = new Types.ObjectId(filters.product as string);
+        } else {
+          const pd = await ProductModel.findOne({
+            name: new RegExp(`^${filters.product}$`, "i"),
+          })
+            .select("_id subCategory")
+            .lean<{ _id: Types.ObjectId; subCategory: Types.ObjectId }>();
+          if (pd) {
+            // if both subCategory and product are provided, ensure they match
+            if (
+              filters.subCategory &&
+              pd.subCategory.toString() !==
+                String(variantFilter.product?.["$in"]?.[0]?.toString())
+            ) {
+              return res.json({
+                data: {
+                  data: [],
+                  totalCount: 0,
+                  currentPage: page,
+                  totalPages: 0,
+                },
+                message: "Product does not belong to selected subCategory",
+              });
+            }
+            prodId = pd._id;
+          }
+        }
 
-      const variantIds = variants.map((v) => v._id as Types.ObjectId);
-      if (variantIds.length === 0) {
-        return res.json({
-          data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
-          message: "No variants found for filter",
-        });
+        if (!prodId) {
+          return res.json({
+            data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
+            message: "No matching product found",
+          });
+        }
+
+        variantFilter.product = prodId;
       }
-      dynamicQuery.productVariant = { $in: variantIds };
-    }
 
-    const variantData = await this.variantRateRepository.getVariantRates(
-      req,
-      { page, limit },
-      dynamicQuery
-    );
-    return res.json({
-      data: variantData,
-      message: "Variant Rates retrieved successfully",
-    });
-  } catch (error) {
-    logError(error, req, "VariantRateService-getVariantRates");
-    return res.status(500).json({ error: "Variant Rates retrieval failed." });
+      // c) fetch matching ProductVariant IDs
+      if (variantFilter.product) {
+        const variants = await ProductVariantModel.find(variantFilter)
+          .select("_id")
+          .lean<{ _id: Types.ObjectId }[]>();
+        const variantIds = variants.map((v) => v._id);
+        if (variantIds.length === 0) {
+          return res.json({
+            data: { data: [], totalCount: 0, currentPage: page, totalPages: 0 },
+            message: "No product variants found matching filters",
+          });
+        }
+        dynamicQuery.productVariant = { $in: variantIds };
+      }
+      delete dynamicQuery.subCategory;
+      delete dynamicQuery.product;
+      delete dynamicQuery.category;
+      // 6) Final data fetch
+      const result = await this.variantRateRepository.getVariantRates(
+        req,
+        { page, limit },
+        dynamicQuery
+      );
+
+      return res.json({
+        data: result,
+        message: "Variant Rates retrieved successfully",
+      });
+    } catch (err) {
+      logError(err, req, "VariantRateService-getVariantRates");
+      return res.status(500).json({ error: "Variant Rates retrieval failed." });
+    }
   }
-}
-
 
   public async getVariantRate(req: Request, res: Response) {
     try {

@@ -6,20 +6,31 @@ import { calcInsurance } from "../services/insurance.service";
 
 export async function calculateCIF(req: Request, res: Response) {
   try {
-    const { originCoords, originPort, destPort, cargoValueUSD, unitWeightTon } =
-      req.body as {
-        originCoords: [number, number];
-        originPort: string;
-        destPort: string;
-        cargoValueUSD: number;
-        unitWeightTon: number;
-      };
+    const {
+      originCoords,
+      destinationCoords,
+      originPort,
+      destPort,
+      cargoValueUSD,
+      unitWeightTon,
+    } = req.body as {
+      originCoords: [number, number];
+      destinationCoords: [number, number];
+      originPort: string;
+      destPort: string;
+      cargoValueUSD: number;
+      unitWeightTon: number;
+    };
 
+    console.log("Inland cost");
     // 1) Inland cost
-    const distanceKm = await getDistanceKm(originCoords, originCoords);
+    const distanceKm = await getDistanceKm(originCoords, destinationCoords);
     // → Replace second originCoords with actual port coords lookup in real code
+    console.log("Replace second originCoords");
+
     const ratePerKmPerTon = 0.1; // USD per km per ton, adjust as needed
     const inlandCostUSD = distanceKm * ratePerKmPerTon * unitWeightTon;
+    console.log("Ocean cost");
 
     // 2) Ocean cost
     const oceanCostPerTEU = getOceanRate(originPort, destPort);

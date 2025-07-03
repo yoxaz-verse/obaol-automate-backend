@@ -50,3 +50,28 @@ export async function calculateCIF(req: Request, res: Response) {
     res.status(500).json({ error: err.message });
   }
 }
+
+export async function calculateDomesticCost(req: Request, res: Response) {
+  try {
+    const { originCoords, destinationCoords, cargoValueUSD, unitWeightTon } =
+      req.body;
+
+    const distanceKm = await getDistanceKm(originCoords, destinationCoords);
+    const ratePerKmPerTon = 0.1; // Same as international
+    const inlandCostUSD = distanceKm * ratePerKmPerTon * unitWeightTon;
+
+    const gstRate = 0.05;
+    const gstUSD = cargoValueUSD * gstRate;
+
+    const totalCostUSD = inlandCostUSD + cargoValueUSD + gstUSD;
+
+    res.json({
+      distanceKm,
+      inlandCostUSD,
+      gstUSD,
+      totalCostUSD,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}

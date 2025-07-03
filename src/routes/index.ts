@@ -44,7 +44,7 @@ import divisionRoute from "./divisionRoute";
 import designationRoute from "./designationRoute";
 import enquiryProcessStatusRoute from "./enquiryProcessStatusRoute";
 import companyTypeRoute from "./companyTypeRoute";
-import { calculateCIF } from "../controllers/cif.controller";
+import { calculateCIF, calculateDomesticCost } from "../controllers/cif.controller";
 
 // Initialize the main router
 const router = Router();
@@ -64,6 +64,7 @@ router.use(`${prefix}/associate`, associateRoute);
 
 router.use(`${prefix}/timeSheet`, timeSheetRoute);
 router.post(`${prefix}/cif`, calculateCIF);
+router.post(`${prefix}/cif/domestic`, calculateDomesticCost);
 
 router.use(`${prefix}/projects`, projectRoute);
 router.use(`${prefix}/projectType`, projectTypeRoute);

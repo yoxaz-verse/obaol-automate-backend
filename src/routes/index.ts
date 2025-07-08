@@ -45,8 +45,6 @@ import designationRoute from "./designationRoute";
 import enquiryProcessStatusRoute from "./enquiryProcessStatusRoute";
 import companyTypeRoute from "./companyTypeRoute";
 import unLoCodeRoute from "./unLoCodeRoute";
-import unLoCodeFunctionRoute from "./unLoCodeFunctionRoute";
-import unLoCodeStatusRoute from "./unLoCodeStatusRoute";
 import countryRoute from "./countryRoute";
 import {
   calculateCIF,
@@ -111,8 +109,8 @@ router.use(`${prefix}/companyType`, companyTypeRoute);
 
 router.use(`${prefix}/companyType`, companyTypeRoute);
 
-router.use(`${prefix}/unLoCodeFunction`, unLoCodeFunctionRoute);
-router.use(`${prefix}/unLoCodeStatus`, unLoCodeStatusRoute);
+// router.use(`${prefix}/unLoCodeFunction`, unLoCodeFunctionRoute);
+// router.use(`${prefix}/unLoCodeStatus`, unLoCodeStatusRoute);
 router.use(`${prefix}/country`, countryRoute);
 router.use(`${prefix}/unLoCode`, unLoCodeRoute);
 

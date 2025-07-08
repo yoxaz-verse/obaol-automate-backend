@@ -44,7 +44,14 @@ import divisionRoute from "./divisionRoute";
 import designationRoute from "./designationRoute";
 import enquiryProcessStatusRoute from "./enquiryProcessStatusRoute";
 import companyTypeRoute from "./companyTypeRoute";
-import { calculateCIF, calculateDomesticCost } from "../controllers/cif.controller";
+import unLoCodeRoute from "./unLoCodeRoute";
+import unLoCodeFunctionRoute from "./unLoCodeFunctionRoute";
+import unLoCodeStatusRoute from "./unLoCodeStatusRoute";
+import countryRoute from "./countryRoute";
+import {
+  calculateCIF,
+  calculateDomesticCost,
+} from "../controllers/cif.controller";
 
 // Initialize the main router
 const router = Router();
@@ -101,6 +108,13 @@ router.use(`${prefix}/state`, stateRoute);
 router.use(`${prefix}/designation`, designationRoute);
 router.use(`${prefix}/enquiryProcessStatus`, enquiryProcessStatusRoute);
 router.use(`${prefix}/companyType`, companyTypeRoute);
+
+router.use(`${prefix}/companyType`, companyTypeRoute);
+
+router.use(`${prefix}/unLoCodeFunction`, unLoCodeFunctionRoute);
+router.use(`${prefix}/unLoCodeStatus`, unLoCodeStatusRoute);
+router.use(`${prefix}/country`, countryRoute);
+router.use(`${prefix}/unLoCode`, unLoCodeRoute);
 
 // router.use(`${prefix}/variantRate`, variantRateRoute);
 

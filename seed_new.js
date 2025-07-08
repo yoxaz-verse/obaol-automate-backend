@@ -4,7 +4,7 @@ const csv = require("csv-parser");
 
 const MONGODB_URI =
   process.env.MONGODB_URI ||
-  "mongodb+srv://yakobyte:AU5ZldseqnrEtMUK@obaol-cluster.oq0ij.mongodb.net/obaol";
+  "mongodb+srv://yakobyte:AU5ZldseqnrEtMUK@obaol-cluster.oq0ij.mongodb.net/port";
 
 mongoose
   .connect(MONGODB_URI, {

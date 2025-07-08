@@ -6,6 +6,7 @@ const GH_KEY = process.env.GH_KEY;
 const ORS_KEY = process.env.ORS_KEY;
 
 if (!GH_KEY) throw new Error("❌ Missing GH_KEY in .env");
+if (!ORS_KEY) throw new Error("❌ Missing ORS_KEY in .env");
 
 /**
  * Validates coordinate format [latitude, longitude]

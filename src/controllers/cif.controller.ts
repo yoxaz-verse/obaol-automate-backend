@@ -1,8 +1,20 @@
-// controllers/cif.controller.ts
+/**
+ * The functions calculateCIF and calculateDomesticCost in cif.controller.ts calculate the total cost
+ * of international and domestic shipping respectively based on various factors like distance, weight,
+ * and value of cargo.
+ * @param {Request} req - `req` is the request object representing the HTTP request made to the server.
+ * It contains information about the request such as headers, parameters, body, and more. In the
+ * provided code snippet, `req` is of type `Request` imported from the Express library, which is
+ * commonly used in Node
+ * @param {Response} res - The `res` parameter in the functions `calculateCIF` and
+ * `calculateDomesticCost` represents the response object in Express. This object is used to send a
+ * response back to the client making the request. It contains methods like `json()` to send JSON
+ * responses, `status()` to set
+ */
 import { Request, Response } from "express";
 import { getDistanceKm } from "../services/inland.service";
-import { getOceanRate } from "../services/ocean.service";
 import { calcInsurance } from "../services/insurance.service";
+import { getOceanRateAPI } from "../services/ocean.service";
 
 export async function calculateCIF(req: Request, res: Response) {
   try {
@@ -22,31 +34,33 @@ export async function calculateCIF(req: Request, res: Response) {
       unitWeightTon: number;
     };
 
-    console.log("Inland cost");
-    // 1) Inland cost
+    console.log("📍 Calculating Inland Distance...");
     const distanceKm = await getDistanceKm(originCoords, destinationCoords);
-    // → Replace second originCoords with actual port coords lookup in real code
-    console.log("Replace second originCoords");
 
-    const ratePerKmPerTon = 0.1; // USD per km per ton, adjust as needed
+    const ratePerKmPerTon = 0.1;
     const inlandCostUSD = distanceKm * ratePerKmPerTon * unitWeightTon;
-    console.log("Ocean cost");
 
-    // 2) Ocean cost
-    const oceanCostPerTEU = getOceanRate(originPort, destPort);
+    console.log("🌊 Fetching Ocean Freight...");
+    const oceanCostPerTEU = await getOceanRateAPI(originPort, destPort);
     const oceanCostUSD = (unitWeightTon / 10) * oceanCostPerTEU;
 
-    // 3) Insurance
+    console.log("💰 Calculating Insurance...");
     const insuranceUSD = calcInsurance(
       cargoValueUSD,
       inlandCostUSD + oceanCostUSD
     );
 
-    // 4) Total CIF
     const cifUSD = inlandCostUSD + oceanCostUSD + insuranceUSD;
 
-    res.json({ distanceKm, inlandCostUSD, oceanCostUSD, insuranceUSD, cifUSD });
+    res.json({
+      distanceKm,
+      inlandCostUSD,
+      oceanCostUSD,
+      insuranceUSD,
+      cifUSD,
+    });
   } catch (err: any) {
+    console.error("❌ CIF Calculation Error:", err);
     res.status(500).json({ error: err.message });
   }
 }
@@ -57,7 +71,7 @@ export async function calculateDomesticCost(req: Request, res: Response) {
       req.body;
 
     const distanceKm = await getDistanceKm(originCoords, destinationCoords);
-    const ratePerKmPerTon = 0.1; // Same as international
+    const ratePerKmPerTon = 0.1;
     const inlandCostUSD = distanceKm * ratePerKmPerTon * unitWeightTon;
 
     const gstRate = 0.05;
@@ -72,6 +86,7 @@ export async function calculateDomesticCost(req: Request, res: Response) {
       totalCostUSD,
     });
   } catch (err: any) {
+    console.error("❌ Domestic Cost Error:", err);
     res.status(500).json({ error: err.message });
   }
 }

@@ -12,9 +12,11 @@ class VerificationService {
     ip: string,
     userAgent: string
   ) {
+  console.log("Over Here 3");
     const Model = getUserModel(userType) as any;
     const user = await Model.findById(userId);
     if (!user) throw new Error(`${userType} not found`);
+  console.log("Over Here 4");
 
     // Check if already verified
     if (user?.verified?.[method] === true) {

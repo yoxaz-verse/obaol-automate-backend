@@ -14,6 +14,7 @@ import {
 import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { ProjectManagerModel } from "../database/models/projectManager";
 import { AssociateModel } from "../database/models/associate";
+import { EmployeeModel } from "../database/models/employee";
 interface UserModel {
   findOne: (query: object) => Promise<any>;
 }
@@ -30,9 +31,10 @@ const getUserModel = (role: string): UserModel | null => {
       return InventoryManagerModel;
     case "ProjectManager":
       return ProjectManagerModel;
-
     case "Associate":
       return AssociateModel;
+    case "Employee":
+      return EmployeeModel;
     default:
       return null;
   }
@@ -58,8 +60,12 @@ export const authenticateUser = async (req: Request, res: Response) => {
         message: "Authentication failed: Invalid email or password",
       });
     }
+    console.log(password);
+    console.log("user.password", user.password);
 
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log(isMatch);
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,

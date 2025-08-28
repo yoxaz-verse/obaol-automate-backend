@@ -1,6 +1,9 @@
 // src/services/rateAttachmentService.ts
 
-import { IRateAttachment, RateAttachmentModel } from "../database/models/rateAttachmentModel";
+import {
+  IRateAttachment,
+  RateAttachmentModel,
+} from "../database/models/rateAttachmentModel";
 
 class RateAttachmentService {
   /**

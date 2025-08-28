@@ -3,24 +3,12 @@ import { Router } from "express";
 import customerRoute from "./customerRoute";
 import adminRoute from "./adminRoute";
 
-import timeSheetRoute from "./timesheetRoute";
-
-import activityStatusRoute from "./activityStatusRoute";
-import activityTypeRoute from "./activityTypeRoute";
-import activityFileRoute from "./activityFileRoute";
-import activityRoute from "./activityRoute";
-import projectTypeRoute from "./projectTypeRoute";
-import projectRoute from "./projectRoute";
-import projectStatusRoute from "./projectStatusRoute";
-import locationTypeRoute from "./locationTypeRoute";
-import locationRoute from "./locationRoute";
-import locationManagerRoute from "./locationManagerRoute";
 import authRoute from "./authRoute";
 import verifyTokenRoute from "./verifyTokenRoute";
 import inventoryManagerRoute from "./inventoryManagerRoute";
-import projectManagerRoute from "./projectManagerRoute";
 import statusHistoryRoute from "./statusHistoryRoute";
 
+import employeeRoute from "./employeeRoute";
 import associateRoute from "./associateRoute";
 import associateCompanyRoute from "./associateCompanyRoute";
 
@@ -41,7 +29,11 @@ import stateRoute from "./stateRoute";
 import districtRoute from "./districtRoute";
 import divisionRoute from "./divisionRoute";
 
+import jobRoleRoute from "./jobRoleRoute";
+import jobTypeRoute from "./jobTypeRoute";
+import languageRoute from "./languageRoute";
 import designationRoute from "./designationRoute";
+
 import enquiryProcessStatusRoute from "./enquiryProcessStatusRoute";
 import companyTypeRoute from "./companyTypeRoute";
 import unLoCodeRoute from "./unLoCodeRoute";
@@ -53,6 +45,12 @@ import {
   calculateDomesticCost,
 } from "../controllers/cif.controller";
 
+import certificationRoute from "./certificationRoute";
+import companyBusinessModelRoute from "./companyBusinessModelRoute";
+import companyStageRoute from "./companyStageRoute";
+import generalIntentRoute from "./generalIntentRoute";
+import researchedCompanyRoute from "./researchedCompanyRoute";
+import subIntentRoute from "./subIntentRoute";
 // Initialize the main router
 const router = Router();
 const version = "v1";
@@ -68,49 +66,49 @@ router.use(`${prefix}/verification`, verificationRoutes);
 router.use(`${prefix}/admin`, adminRoute);
 router.use(`${prefix}/customer`, customerRoute);
 router.use(`${prefix}/associate`, associateRoute);
-
-router.use(`${prefix}/timeSheet`, timeSheetRoute);
-router.post(`${prefix}/cif`, calculateCIF);
-router.post(`${prefix}/cif/domestic`, calculateDomesticCost);
-
-router.use(`${prefix}/projects`, projectRoute);
-router.use(`${prefix}/projectType`, projectTypeRoute);
-router.use(`${prefix}/projectStatus`, projectStatusRoute);
-router.use(`${prefix}/projectManager`, projectManagerRoute);
-
-router.use(`${prefix}/activity`, activityRoute);
-router.use(`${prefix}/activityFile`, activityFileRoute);
-router.use(`${prefix}/activityStatus`, activityStatusRoute);
-router.use(`${prefix}/activityType`, activityTypeRoute);
+router.use(`${prefix}/employee`, employeeRoute);
 router.use(`${prefix}/inventoryManager`, inventoryManagerRoute);
 
-router.use(`${prefix}/locationType`, locationTypeRoute);
-router.use(`${prefix}/locationManager`, locationManagerRoute);
-router.use(`${prefix}/location`, locationRoute);
-router.use(`${prefix}/associateCompany`, associateCompanyRoute);
+// User Essentials
+router.use(`${prefix}/designation`, designationRoute);
+router.use(`${prefix}/jobRole`, jobRoleRoute);
+router.use(`${prefix}/jobType`, jobTypeRoute);
+router.use(`${prefix}/language`, languageRoute);
 
+// Company
+router.use(`${prefix}/associateCompany`, associateCompanyRoute);
+router.use(`${prefix}/researchedCompany`, researchedCompanyRoute);
+
+// Company & Research Essential
+router.use(`${prefix}/certification`, certificationRoute);
+router.use(`${prefix}/companyBusinessModel`, companyBusinessModelRoute);
+router.use(`${prefix}/generalIntent`, generalIntentRoute);
+router.use(`${prefix}/subIntent`, subIntentRoute);
+router.use(`${prefix}/companyStage`, companyStageRoute);
+router.use(`${prefix}/companyType`, companyTypeRoute);
+
+// Catalog
 router.use(`${prefix}/category`, categoryRoute);
 router.use(`${prefix}/subCategory`, subCategoryRoute);
-
 router.use(`${prefix}/product`, productRoute);
 router.use(`${prefix}/productVariant`, productVariantRoute);
 router.use(`${prefix}/variantRate`, variantRateRoute);
 router.use(`${prefix}/displayedRate`, displayedRateRoute);
 
+// Enquiry
 router.use(`${prefix}/enquiry`, enquiryRoute);
+router.use(`${prefix}/enquiryProcessStatus`, enquiryProcessStatusRoute);
 
+// Address
 router.use(`${prefix}/abbreviation`, abbreviationRoute);
 router.use(`${prefix}/pincodeEntry`, pincodeEntryRoute);
 router.use(`${prefix}/division`, divisionRoute);
 router.use(`${prefix}/district`, districtRoute);
 router.use(`${prefix}/state`, stateRoute);
 
-router.use(`${prefix}/designation`, designationRoute);
-router.use(`${prefix}/enquiryProcessStatus`, enquiryProcessStatusRoute);
-router.use(`${prefix}/companyType`, companyTypeRoute);
-
-router.use(`${prefix}/companyType`, companyTypeRoute);
-
+// Logistics
+router.post(`${prefix}/cif`, calculateCIF);
+router.post(`${prefix}/cif/domestic`, calculateDomesticCost);
 router.use(`${prefix}/unLoCodeFunction`, unLoCodeFunctionRoute);
 router.use(`${prefix}/unLoCodeStatus`, unLoCodeStatusRoute);
 router.use(`${prefix}/country`, countryRoute);

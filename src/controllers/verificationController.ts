@@ -17,6 +17,7 @@ export const sendOTP = async (req: Request, res: Response) => {
   if (!userId || !userType || !method) {
     return res.status(400).json({ message: "Missing required parameters" });
   }
+  console.log(userType);
 
   try {
     await verificationService.initiateVerification(

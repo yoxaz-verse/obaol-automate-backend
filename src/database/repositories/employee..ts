@@ -7,6 +7,7 @@ class EmployeeRepository {
   public async getEmployees(req: Request, pagination: IPagination, query: any) {
     try {
       const docs = await EmployeeModel.find(query)
+        .populate("state district jobType jobRole languageKnown")
         .limit(pagination.limit)
         .skip((pagination.page - 1) * pagination.limit);
       const totalCount = await EmployeeModel.countDocuments(query);

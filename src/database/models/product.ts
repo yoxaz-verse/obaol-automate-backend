@@ -9,7 +9,7 @@ const ProductSchema = new Schema({
     ref: "SubCategory",
     required: true,
   },
-  locations: [{ type: Schema.Types.ObjectId, ref: "Location" }],
+  state: [{ type: Schema.Types.ObjectId, ref: "State" }],
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -4,7 +4,7 @@ const ResearchedCompanySchema = new mongoose.Schema(
   {
     submittedBy: {
       type: mongoose.Types.ObjectId,
-      ref: "User",
+      ref: "Employee",
       required: false,
     }, // optional but useful
     name: { type: String, required: true },
@@ -33,6 +33,17 @@ const ResearchedCompanySchema = new mongoose.Schema(
     // Misc
     painPoints: { type: String, default: null },
     websiteLink: { type: String },
+
+    isApproved: { type: Boolean, default: false },
+    isRejected: { type: Boolean, default: false },
+    resubmitted: { type: Boolean, default: false },
+    feedback: { type: String, required: true },
+
+    assignedTo: {
+      type: mongoose.Types.ObjectId,
+      ref: "Employee",
+      required: false,
+    }, // optional but useful
   },
   { timestamps: true }
 );

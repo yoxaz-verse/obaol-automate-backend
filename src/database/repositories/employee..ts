@@ -25,7 +25,9 @@ class EmployeeRepository {
 
   public async getEmployeeById(req: Request, id: string) {
     try {
-      const doc = await EmployeeModel.findById(id);
+      const doc = await EmployeeModel.findById(id).populate(
+        "state district jobType jobRole languageKnown"
+      );
       if (!doc) throw new Error("Employee not found");
       return doc.toObject();
     } catch (error) {

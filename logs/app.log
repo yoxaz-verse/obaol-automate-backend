@@ -3119,3 +3119,9 @@ Error: Cannot set headers after they are sent to the client
 2025-09-13T19:29:28.264Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
 2025-09-13T19:31:18.018Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
 2025-09-13T19:34:51.728Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-10-05T07:50:12.778Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2025-10-08T17:23:55.557Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-10-10T06:45:42.765Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2025-10-10T06:48:59.057Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2025-12-02T17:52:08.377Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ENOTFOUND _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2025-12-02T18:00:24.920Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 

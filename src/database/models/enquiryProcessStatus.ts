@@ -1,7 +1,7 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 
 interface IEnquiryProcessStatus extends mongoose.Document {
-  _id: string;
+  _id: Types.ObjectId | string;  // accept both during conversions
   name: string;
   priority?: number;
 }

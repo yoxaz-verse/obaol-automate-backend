@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { ProjectModel } from "./project";
 import { CustomerModel } from "./customer";
 import { ActivityStatusModel } from "./activityStatus";
@@ -7,7 +7,7 @@ import { InventoryManagerModel } from "./inventoryManager";
 import { boolean } from "joi";
 
 interface IActivity extends mongoose.Document {
-  _id: string;
+  _id: Types.ObjectId | string; // accept both during conversions
   title: string;
   description: string;
   project: mongoose.Schema.Types.ObjectId | typeof ProjectModel;

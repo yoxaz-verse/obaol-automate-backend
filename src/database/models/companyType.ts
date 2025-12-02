@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
+import { Types } from "mongoose";
 
 interface ICompanyType extends mongoose.Document {
-  _id: string;
+  _id: Types.ObjectId | string;  // accept both during conversions
   name: string;
 }
 

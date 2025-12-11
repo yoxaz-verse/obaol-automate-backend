@@ -1,7 +1,7 @@
 import { Document, Types } from "mongoose";
 
 export interface ISubCategory extends Document {
-  _id: string;
+  _id: Types.ObjectId;
   name: string;
   description?: string;
   category: Types.ObjectId;

@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { Types } from "mongoose";
 
 interface IActivityStatus extends mongoose.Document {
-  _id: Types.ObjectId | string;  // accept both during conversions
+  _id: Types.ObjectId ;  // accept both during conversions
   name: string;
   description?: string;
   isActive: boolean;

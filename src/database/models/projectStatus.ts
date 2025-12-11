@@ -1,7 +1,7 @@
 import mongoose, { Types } from "mongoose";
 
 interface IProjectStatus extends mongoose.Document {
-  _id: Types.ObjectId | string;  // accept both during conversions
+  _id: Types.ObjectId ;  // accept both during conversions
   name: string;
   priority?: number;
 }

@@ -18,7 +18,7 @@ const InventoryManagerSchema = new mongoose.Schema<IInventoryManager>(
   { timestamps: true }
 );
 
-// Optionally, add pre-save hook for hashing passwords
+// its is Optionally, add pre-save hook for hashing passwords
 /*
 import bcrypt from "bcrypt";
 

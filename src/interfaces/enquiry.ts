@@ -16,7 +16,7 @@ export interface IEnquiry extends Document {
   productAssociate: Types.ObjectId; // Required
   createdAt?: Date;
   rate?: number;
-  status: String;
+  status: Types.ObjectId;
   commission?: number;
   mediatorCommission?: number;
 }
@@ -54,7 +54,7 @@ export interface IUpdateEnquiry {
   productVariant?: Types.ObjectId;
   mediatorAssociate?: Types.ObjectId | null;
   productAssociate?: Types.ObjectId;
-  status: String;
+  status: Types.ObjectId;
   rate?: number;
   commission?: number;
   mediatorCommission?: number;

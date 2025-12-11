@@ -1,5 +1,7 @@
+import { Types } from "mongoose";
+
 export interface ICustomer {
-  _id: string;
+  _id: Types.ObjectId;
   email: string;
   isActive?: boolean;
   isDeleted?: boolean;

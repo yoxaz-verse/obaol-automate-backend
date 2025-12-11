@@ -7,7 +7,7 @@ import { InventoryManagerModel } from "./inventoryManager";
 import { boolean } from "joi";
 
 interface IActivity extends mongoose.Document {
-  _id: Types.ObjectId | string; // accept both during conversions
+  _id: Types.ObjectId; // accept both during conversions
   title: string;
   description: string;
   project: mongoose.Schema.Types.ObjectId | typeof ProjectModel;

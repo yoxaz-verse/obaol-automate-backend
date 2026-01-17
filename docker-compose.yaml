@@ -5,25 +5,20 @@ services:
     build: .
     ports:
       - "5001:5001"
-    volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
     environment:
+      PORT: 5001
       NODE_ENV: development
-
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile # Mount the Caddyfile
-      - caddy_data:/data # Caddy data for SSL/TLS certificates
-      - caddy_config:/config # Caddy configuration files
+      MONGODB_URI: mongodb+srv://yakobyte:AU5ZldseqnrEtMUK@obaol-cluster.oq0ij.mongodb.net/oboal
+      JWT_SECRET: dev-secret
     depends_on:
-      - backend
+      - mongo
+
+  mongo:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
 
 volumes:
-  caddy_data:
-  caddy_config:
+  mongo_data:

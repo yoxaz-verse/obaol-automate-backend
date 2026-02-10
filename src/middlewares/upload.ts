@@ -5,39 +5,21 @@ import fs from "fs";
 import sanitize from "sanitize-filename";
 import logger from "../utils/logger";
 import envVars from "../config/validateEnv";
-import { ActivityModel } from "../database/models/activity";
 
 // Dynamic folder structure for different entity types based on URL params
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     try {
       // Extract parameters from the request body
-      const { projectId, activityId, locationId } = req.body;
-
-      // Check if `activityId` exists, fetch `projectId` from the database
-      if (activityId) {
-        let projectId: string | undefined = undefined;
-        const activity = await ActivityModel.findById(activityId)
-          .select("project")
-          .lean();
-        if (!activity) {
-          throw new Error(`Activity with ID ${activityId} not found.`);
-        }
-        // projectId = activity.id.toString();
-      }
+      const { locationId } = req.body;
 
       // Dynamically build folder path based on entity type
       let folderPath = "";
 
-      if (projectId) {
-        folderPath = path.join("project", sanitize(projectId));
-        if (activityId) {
-          folderPath = path.join(folderPath, "activity", sanitize(activityId));
-        }
-      } else if (locationId) {
+      if (locationId) {
         folderPath = path.join("location", sanitize(locationId));
       } else {
-        throw new Error("Entity type not found in the URL parameters.");
+        folderPath = "general"; // Default fallback
       }
 
       // Set the base upload directory

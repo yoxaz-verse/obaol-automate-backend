@@ -1,23 +1,19 @@
-import VerificationRepository from "../database/repositories/verificationRepository";
-// controllers/VerificationController.ts
-
-import { getUserModel } from "../utils/userModelMapper";
-import verificationService from "../services/verificationService";
 import { Request, Response } from "express";
+import { VerificationModel } from "../database/models/verification";
+import verificationService from "../services/verification.service";
 
 export const sendOTP = async (req: Request, res: Response) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   const userAgent = req.headers["user-agent"] || "unknown";
-  console.log("Over Here");
 
   const userId = req.user?.id;
   const userType = req.user?.role;
+  const email = req.user?.email;
   const { method } = req.body;
 
   if (!userId || !userType || !method) {
     return res.status(400).json({ message: "Missing required parameters" });
   }
-  console.log(userType);
 
   try {
     await verificationService.initiateVerification(
@@ -25,7 +21,8 @@ export const sendOTP = async (req: Request, res: Response) => {
       userType,
       method,
       ip?.toString() ?? "unknown",
-      userAgent
+      userAgent?.toString() ?? "unknown",
+      email
     );
     res.status(200).json({ message: `OTP sent to ${userType}` });
   } catch (error: any) {
@@ -34,7 +31,6 @@ export const sendOTP = async (req: Request, res: Response) => {
 };
 
 export const verifyOTP = async (req: Request, res: Response) => {
-  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   const userId = req.user?.id;
   const userType = req.user?.role;
   const { code, method } = req.body;
@@ -61,11 +57,11 @@ export const checkVerificationStatus = async (req: Request, res: Response) => {
   }
 
   try {
-    const record = await VerificationRepository.findCode(
+    const record = await VerificationModel.findOne({
       userId,
       userType,
       method
-    );
+    }).sort({ createdAt: -1 });
 
     const verified = record?.verified === true;
     return res.status(200).json({ verified });

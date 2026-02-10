@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { passwordPlugin } from "./plugins/password.plugin";
 
 interface ITime {
   hour: number;
@@ -28,6 +29,7 @@ interface IEmployee extends mongoose.Document {
   isActive: boolean;
   isDeleted: boolean;
   role: string;
+  comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
 const timeSchema = new mongoose.Schema(
@@ -40,6 +42,7 @@ const timeSchema = new mongoose.Schema(
   { _id: false }
 );
 
+
 const workingHourSchema = new mongoose.Schema(
   {
     start: { type: timeSchema, required: true },
@@ -47,6 +50,7 @@ const workingHourSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
 
 const employeeSchema = new mongoose.Schema(
   {
@@ -75,6 +79,8 @@ const employeeSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+employeeSchema.plugin(passwordPlugin);
 
 export const EmployeeModel = mongoose.model<IEmployee>(
   "Employee",

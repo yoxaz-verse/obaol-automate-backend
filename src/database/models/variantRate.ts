@@ -2,6 +2,8 @@ import mongoose, { Schema } from "mongoose";
 import { IVariantRate } from "../../interfaces/variantRate";
 import { AssociateModel } from "./associate";
 import { Types } from "mongoose";
+import { RelationshipSync } from "../../core/behaviors/relationshipSync";
+import { TimeCalculations } from "../../core/behaviors/timeCalculations";
 
 const VariantRateSchema: Schema = new Schema({
   rate: { type: Number, required: true },
@@ -39,14 +41,20 @@ const VariantRateSchema: Schema = new Schema({
  */
 VariantRateSchema.pre<IVariantRate>("save", async function (next) {
   try {
-    if (this.isModified("associate") && this.associate) {
+    if (
+      RelationshipSync.shouldSyncAssociateCompany(
+        this.isModified("associate"),
+        this.associate
+      )
+    ) {
       const assocDoc = await AssociateModel.findById(this.associate).select(
         "associateCompany"
       );
       if (!assocDoc) {
         throw new Error("Invalid `associate` – no such Associate found.");
       }
-      this.associateCompany = assocDoc.associateCompany;
+      // Handle optional associateCompany field (can be null for new registrations)
+      this.associateCompany = assocDoc.associateCompany || undefined;
     }
     next();
   } catch {
@@ -54,8 +62,14 @@ VariantRateSchema.pre<IVariantRate>("save", async function (next) {
   }
 });
 VariantRateSchema.pre<IVariantRate>("save", function (next) {
-  if (this.isModified("isLive") && this.isLive && !this.lastLiveAt) {
-    this.lastLiveAt = new Date();
+  if (this.isModified("isLive")) {
+    const newDate = TimeCalculations.determineLastLiveAt(
+      this.isLive,
+      this.lastLiveAt || null
+    );
+    if (newDate) {
+      this.lastLiveAt = newDate;
+    }
   }
   next();
 });

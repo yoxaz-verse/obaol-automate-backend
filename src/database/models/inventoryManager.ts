@@ -1,7 +1,12 @@
 import mongoose from "mongoose";
 import { IInventoryManager } from "../../interfaces/inventoryManager";
+import { passwordPlugin } from "./plugins/password.plugin";
 
-const InventoryManagerSchema = new mongoose.Schema<IInventoryManager>(
+interface IInventoryManagerDoc extends Omit<IInventoryManager, "_id">, mongoose.Document {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+const InventoryManagerSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
@@ -12,29 +17,15 @@ const InventoryManagerSchema = new mongoose.Schema<IInventoryManager>(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
       required: true,
-    }, // Linking to Admin
-    role: { type: String, default: "InventoryManager" }, // Assign default role
+    },
+    role: { type: String, default: "InventoryManager" },
   },
   { timestamps: true }
 );
 
-// its is Optionally, add pre-save hook for hashing passwords
-/*
-import bcrypt from "bcrypt";
+InventoryManagerSchema.plugin(passwordPlugin);
 
-InventoryManagerSchema.pre<IInventoryManager>("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-*/
-
-export const InventoryManagerModel = mongoose.model<IInventoryManager>(
+export const InventoryManagerModel = mongoose.model<IInventoryManagerDoc>(
   "InventoryManager",
   InventoryManagerSchema
 );

@@ -8,8 +8,12 @@ import cookieParser from "cookie-parser";
 import routes from "./routes";
 import path from "path";
 import apiLogger from "./middlewares/apiLogger";
+import { registerAllHooks } from "./core/hooks"; // Ensure this path is correct
 
 const app = express();
+
+// Register Hooks
+registerAllHooks();
 
 // Optional Helmet settings
 // app.use(helmet({ ... }));

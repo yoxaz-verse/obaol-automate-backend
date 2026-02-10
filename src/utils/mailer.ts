@@ -8,6 +8,7 @@ const mailjetClient = mailjet.apiConnect(
 );
 
 export async function sendOtpEmail(toEmail: string, code: string) {
+  console.log(`📧 Attempting to send OTP email to: ${toEmail} with code: ${code}`);
   try {
     const result = await mailjetClient
       .post("send", { version: "v3.1" })
@@ -26,13 +27,14 @@ export async function sendOtpEmail(toEmail: string, code: string) {
         ],
       });
 
-    console.log("✅ Email sent to :", toEmail);
+    console.log("✅ Email sent successfully to:", toEmail, "Result:", JSON.stringify(result.body, null, 2));
   } catch (error: any) {
     console.error(
-      "❌ Failed to send Mailjet email:",
-      error.response?.data || error.message
+      "❌ Failed to send Mailjet email to:", toEmail,
+      "Error:", error.response?.data || error.message,
+      "Full Error Object:", JSON.stringify(error, null, 2)
     );
-    throw new Error("Email sending failed");
+    throw new Error(`Email sending failed: ${error.message}`);
   }
 }
 

@@ -1,10 +1,17 @@
-// cron.ts
 import cron from "node-cron";
-import { deactivateExpiredVariantRates } from "./services/deactivateExpired";
+import { VariantRateModel } from "./database/models/variantRate";
+import logger from "./utils/logger";
 
-cron.schedule("0 * * * *", () => {
-  console.log("⏱ Cron: Checking expired variant rates...");
-  deactivateExpiredVariantRates().catch((err) => {
-    console.error("❌ Cron error:", err);
-  });
+// Cron job to run every day at midnight
+cron.schedule("0 0 * * *", async () => {
+  try {
+    logger.info("Running daily variant rate reset cron job...");
+    const result = await VariantRateModel.updateMany(
+      { isLive: true },
+      { $set: { isLive: false } }
+    );
+    logger.info(`Successfully offlined ${result.modifiedCount} variant rates.`);
+  } catch (err) {
+    logger.error("❌ Cron error:", err);
+  }
 });

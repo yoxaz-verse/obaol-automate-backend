@@ -21,7 +21,8 @@ declare global {
 }
 
 const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
-  const token = req.cookies.token;
+  // Prioritize HttpOnly cookie 'auth_token', fallback to 'token' or Authorization header
+  const token = req.cookies.auth_token || req.cookies.token || req.headers.authorization?.split(" ")[1];
 
   if (!token) {
     console.log("No token provided");

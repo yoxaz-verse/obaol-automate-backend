@@ -1,7 +1,12 @@
 import mongoose from "mongoose";
 import { IProjectManager } from "../../interfaces/projectManager";
+import { passwordPlugin } from "./plugins/password.plugin";
 
-const ProjectManagerSchema = new mongoose.Schema<IProjectManager>(
+interface IProjectManagerDoc extends Omit<IProjectManager, "_id">, mongoose.Document {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+const ProjectManagerSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
     isActive: { type: Boolean, default: true },
@@ -12,29 +17,15 @@ const ProjectManagerSchema = new mongoose.Schema<IProjectManager>(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
       required: true,
-    }, // Linking to Admin
-    role: { type: String, default: "projectManager" }, // Assign default role
+    },
+    role: { type: String, default: "projectManager" },
   },
   { timestamps: true }
 );
 
-// Optionally, add pre-save hook for hashing passwords
-/*
-import bcrypt from "bcrypt";
+ProjectManagerSchema.plugin(passwordPlugin);
 
-ProjectManagerSchema.pre<IProjectManager>("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-*/
-
-export const ProjectManagerModel = mongoose.model<IProjectManager>(
+export const ProjectManagerModel = mongoose.model<IProjectManagerDoc>(
   "ProjectManager",
   ProjectManagerSchema
 );

@@ -22,6 +22,7 @@ export const isEmailTaken = async (email: string): Promise<boolean> => {
     associateExists
   );
 };
+
 import { Request, Response, NextFunction } from "express";
 import { AssociateModel } from "./associate";
 

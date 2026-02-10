@@ -19,6 +19,7 @@ const AssociateCompanySchema = new mongoose.Schema(
       required: false,
     },
     phoneSecondary: { type: String, required: true },
+    assignedEmployee: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
   },
   { timestamps: true }
 );

@@ -1,5 +1,3 @@
-// tsconfig.json
-
 {
   "compilerOptions": {
     "target": "ES6",
@@ -12,16 +10,37 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": "src",
     "paths": {
-      "@config/*": ["config/*"],
-      "@controllers/*": ["controllers/*"],
-      "@database/*": ["database/*"],
-      "@interfaces/*": ["interfaces/*"],
-      "@middlewares/*": ["middlewares/*"],
-      "@routes/*": ["routes/*"],
-      "@services/*": ["services/*"],
-      "@utils/*": ["utils/*"]
+      "@config/*": [
+        "config/*"
+      ],
+      "@controllers/*": [
+        "controllers/*"
+      ],
+      "@database/*": [
+        "database/*"
+      ],
+      "@interfaces/*": [
+        "interfaces/*"
+      ],
+      "@middlewares/*": [
+        "middlewares/*"
+      ],
+      "@routes/*": [
+        "routes/*"
+      ],
+      "@services/*": [
+        "services/*"
+      ],
+      "@utils/*": [
+        "utils/*"
+      ]
     }
   },
-  "include": ["src", "seed.js"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src",
+    "seed.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

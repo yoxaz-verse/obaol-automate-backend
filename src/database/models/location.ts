@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { ILocation } from "../../interfaces/location";
+import { IdentityGenerator } from "../../core/behaviors/identityGenerator";
 
 const LocationSchema = new mongoose.Schema<ILocation>(
   {
@@ -56,8 +57,10 @@ LocationSchema.pre<ILocation>("save", async function (next) {
         );
       }
 
-      const sequenceNumber = counter.sequenceValue.toString().padStart(5, "0");
-      this.customId = `MG-${provinceKey}-${sequenceNumber}`;
+      this.customId = IdentityGenerator.formatLocationId(
+        provinceKey,
+        counter.sequenceValue
+      );
       console.log(`Generated customId: ${this.customId}`);
     }
     await session.commitTransaction();

@@ -26,10 +26,18 @@ const DisplayedRateSchema: Schema = new Schema({
  * Pre-save hook to automatically set `associateCompany`
  * based on the `associate` field.
  */
+import { RelationshipSync } from "../../core/behaviors/relationshipSync";
+
+// ...
+
 DisplayedRateSchema.pre<IDisplayedRate>("save", async function (next) {
   try {
-    // only do this if `associate` is present/modified
-    if (this.isModified("associate")) {
+    if (
+      RelationshipSync.shouldSyncAssociateCompany(
+        this.isModified("associate"),
+        this.associate
+      )
+    ) {
       // fetch the associate doc
       const assocDoc = await AssociateModel.findById(this.associate).select(
         "associateCompany"
@@ -37,8 +45,8 @@ DisplayedRateSchema.pre<IDisplayedRate>("save", async function (next) {
       if (!assocDoc) {
         throw new Error("Invalid `associate` – no such Associate found.");
       }
-      // set the `associateCompany` from the associate doc
-      this.associateCompany = assocDoc.associateCompany;
+      // Handle optional associateCompany field (can be null for new registrations)
+      this.associateCompany = assocDoc.associateCompany || undefined;
     }
     next();
   } catch {

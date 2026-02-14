@@ -6,9 +6,10 @@ import { Document, Types } from "mongoose";
 export interface IEnquiry extends Document {
   phoneNumber: string;
   name: string;
+  email?: string;
   specification?: string;
-  quantity?: string;
-  quantityUnit?: Types.ObjectId; // Required
+  quantity?: number;
+  quantityUnit?: string;
   variantRate: Types.ObjectId; // Required
   displayRate?: Types.ObjectId | null; // Can be null
   productVariant: Types.ObjectId; // Required
@@ -16,7 +17,9 @@ export interface IEnquiry extends Document {
   productAssociate: Types.ObjectId; // Required
   createdAt?: Date;
   rate?: number;
-  status: Types.ObjectId;
+  status: string;
+
+  associateCompany?: Types.ObjectId;
   commission?: number;
   mediatorCommission?: number;
 }
@@ -27,14 +30,16 @@ export interface IEnquiry extends Document {
 export interface ICreateEnquiry {
   phoneNumber: string;
   name: string;
+  email?: string;
   specification?: string;
-  quantity?: string;
-  quantityUnit?: Types.ObjectId; // Required
+  quantity?: number;
+  quantityUnit?: string;
   variantRate: Types.ObjectId;
   displayRate?: Types.ObjectId | null;
   productVariant: Types.ObjectId;
   mediatorAssociate?: Types.ObjectId | null;
   productAssociate: Types.ObjectId;
+  associateCompany?: Types.ObjectId;
   rate?: number;
   commission?: number;
   mediatorCommission?: number;
@@ -46,15 +51,17 @@ export interface ICreateEnquiry {
 export interface IUpdateEnquiry {
   phoneNumber?: string;
   name?: string;
-  quantity?: string;
-  quantityUnit?: Types.ObjectId; // Required
+  email?: string;
+  quantity?: number;
+  quantityUnit?: string;
   specification?: string;
   variantRate?: Types.ObjectId;
   displayRate?: Types.ObjectId | null;
   productVariant?: Types.ObjectId;
   mediatorAssociate?: Types.ObjectId | null;
   productAssociate?: Types.ObjectId;
-  status: Types.ObjectId;
+  status?: string;
+  associateCompany?: Types.ObjectId;
   rate?: number;
   commission?: number;
   mediatorCommission?: number;

@@ -1,38 +1,32 @@
 import mongoose from "mongoose";
 import { passwordPlugin } from "./plugins/password.plugin";
+import { IAssociate } from "../../interfaces/associate";
 
-interface IAssociate extends mongoose.Document {
-  name: string;
-  email: string;
-  phone?: string;
-  phoneSecondary?: string;
-  associateCompany?: mongoose.Types.ObjectId;
-  password: string;
-  role: string;
-  designation?: mongoose.Types.ObjectId;
-  isActive: boolean;
-  comparePassword(candidatePassword: string): Promise<boolean>;
+export interface IAssociateDocument extends IAssociate, mongoose.Document {
+    _id: any;
+    comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-const AssociateSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    phone: { type: String, required: false },
-    phoneSecondary: { type: String, required: false },
-    associateCompany: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "AssociateCompany",
-      required: false,
+const associateSchema = new mongoose.Schema(
+    {
+        name: { type: String, required: true },
+        email: { type: String, required: true, unique: true },
+        designation: { type: String },
+        phone: { type: String, required: true },
+        phoneSecondary: { type: String },
+        associateCompany: { type: mongoose.Schema.Types.ObjectId, ref: "AssociateCompany" },
+        password: { type: String, required: true },
+        isActive: { type: Boolean, default: true },
+        isDeleted: { type: Boolean, default: false },
     },
-    password: { type: String, required: true },
-    role: { type: String, default: "Associate" },
-    designation: { type: mongoose.Types.ObjectId, ref: "Designation", required: false },
-    isActive: { type: Boolean, default: true },
-  },
-  { timestamps: true }
+    {
+        timestamps: true,
+    }
 );
 
-AssociateSchema.plugin(passwordPlugin);
+associateSchema.plugin(passwordPlugin);
 
-export const AssociateModel = mongoose.model<IAssociate>("Associate", AssociateSchema);
+export const AssociateModel = mongoose.model<IAssociateDocument>(
+    "Associate",
+    associateSchema
+);

@@ -1,0 +1,17 @@
+
+> Obaol Surpeme@1.0.0 dev
+> nodemon --exec ts-node -r tsconfig-paths/register src/index.ts
+
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: ts,json[39m
+[32m[nodemon] starting `ts-node -r tsconfig-paths/register src/index.ts`[39m
+2026-02-14T04:26:22.965Z [[32MINFO[39M]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+OBAOL Server is running on port 5001
+Environment: development
+https://<your-domain>/api/v1/web
+[API_LOGGER] Incoming request: GET /api/v1/web/enquiries?limit=1
+No token provided
+2026-02-14T04:26:29.340Z [INFO]: {"method":"GET","url":"/api/v1/web/enquiries?limit=1","status":401,"ip":"127.0.0.1","responseTime":"2ms","userAgent":"curl/8.7.1"}
+127.0.0.1 - - [14/Feb/2026:04:26:29 +0000] "GET /api/v1/web/enquiries?limit=1 HTTP/1.1" 401 70

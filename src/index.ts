@@ -8,12 +8,29 @@ import { prefix } from "./routes";
 const PORTD = Number(PORT) || 5001;
 
 async function startServer() {
-  await connectDB();
-  app.listen(PORTD, '0.0.0.0', () => {
-    console.log(`OBAOL Server is running on port ${PORTD}`);
-    console.log(`Environment: ${NODE_ENV}`);
-    console.log(`${BASE_URL}/api${prefix}`);
-  });
+  try {
+    await connectDB();
+    app.listen(PORTD, '0.0.0.0', () => {
+      console.log(`OBAOL Server is running on port ${PORTD}`);
+      console.log(`Environment: ${NODE_ENV}`);
+      console.log(`${BASE_URL}/api${prefix}`);
+    });
+  } catch (error) {
+    console.error("❌ Server startup failed:", error);
+    process.exit(1);
+  }
 }
+
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
 app.use("/uploads", express.static(path.join(__dirname, "./uploads")));
 startServer();

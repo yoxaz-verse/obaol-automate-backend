@@ -1,0 +1,17 @@
+
+> Obaol Surpeme@1.0.0 dev
+> nodemon --exec ts-node -r tsconfig-paths/register src/index.ts
+
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: ts,json[39m
+[32m[nodemon] starting `ts-node -r tsconfig-paths/register src/index.ts`[39m
+2026-02-13T18:55:57.420Z [[32MINFO[39M]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node -r tsconfig-paths/register src/index.ts`[39m
+2026-02-13T18:56:23.532Z [[32MINFO[39M]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+OBAOL Server is running on port 5001
+Environment: development
+https://<your-domain>/api/v1/web

@@ -30,6 +30,7 @@ import { GeneralIntentModel } from "../../database/models/generalIntent";
 import { SubIntentModel } from "../../database/models/subIntent";
 import { ResearchedCompanyModel } from "../../database/models/researchedCompany";
 import { EnquiryModel } from "../../database/models/enquiry";
+import { OrderModel } from "../../database/models/order";
 import { EnquiryProcessStatusModel } from "../../database/models/enquiryProcessStatus";
 import { AbbreviationModel } from "../../database/models/abbreviation";
 import { UnLoCodeModel } from "../../database/models/unLoCode";
@@ -78,12 +79,28 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         searchableFields: ["name", "email", "phone"],
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            associateCompany: "associate-companies",
+            "associateCompany.companyType": "company-types",
+            "associateCompany.state": "states",
+            "associateCompany.district": "districts",
+            "associateCompany.division": "divisions",
+            "associateCompany.pincodeEntry": "pincode-entries",
+            designation: "designations"
+        },
     },
     "employees": {
         model: EmployeeModel,
         searchableFields: ["firstName", "lastName", "email"],
         sortableFields: ["createdAt", "firstName"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            district: "districts",
+            state: "states",
+            jobRole: "job-roles",
+            jobType: "job-types",
+            languageKnown: "languages"
+        },
     },
     "customers": {
         model: CustomerModel,
@@ -129,7 +146,13 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             productVariant: "product-variants",
             "productVariant.product": "products",
             associate: "associates",
-            associateCompany: "associate-companies"
+            "associate.associateCompany": "associate-companies",
+            associateCompany: "associate-companies",
+            "associateCompany.pincodeEntry": "pincode-entries",
+            "associateCompany.state": "states",
+            "associateCompany.district": "districts",
+            "associateCompany.division": "divisions",
+            "associateCompany.assignedEmployee": "employees"
         },
     },
     "displayed-rates": {
@@ -142,6 +165,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "variantRate.productVariant": "product-variants",
             "variantRate.productVariant.product": "products",
             associate: "associates",
+            "associate.associateCompany": "associate-companies",
             associateCompany: "associate-companies"
         },
     },
@@ -182,18 +206,21 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         searchableFields: ["name"],
         sortableFields: ["name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: { state: "states" },
     },
     "divisions": {
         model: DivisionModel,
         searchableFields: ["name"],
         sortableFields: ["name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: { district: "districts" },
     },
     "pincode-entries": {
         model: PincodeEntryModel,
         searchableFields: ["pincode", "officeName"],
         sortableFields: ["pincode"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: { division: "divisions" },
     },
     "location-types": {
         model: LocationTypeModel,
@@ -203,9 +230,15 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "un-lo-codes": {
         model: UnLoCodeModel,
-        searchableFields: ["name", "code", "country"],
-        sortableFields: ["name", "code"],
+        searchableFields: ["name", "loCode", "country"],
+        sortableFields: ["name", "loCode"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            country: "countries",
+            functions: "un-lo-code-functions",
+            status: "un-lo-code-statuses",
+            adminArea: "un-lo-code-admin-areas",
+        },
     },
     "un-lo-code-functions": {
         model: UnLoCodeFunctionModel,
@@ -215,8 +248,8 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "un-lo-code-statuses": {
         model: UnLoCodeStatusModel,
-        searchableFields: ["name", "code"],
-        sortableFields: ["name"],
+        searchableFields: ["description", "code"],
+        sortableFields: ["description"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
     },
     "un-lo-code-admin-areas": {
@@ -232,13 +265,33 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         searchableFields: ["name"],
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
-        relations: { assignedEmployee: "employees" },
+        relations: {
+            state: "states",
+            district: "districts",
+            division: "divisions",
+            pincodeEntry: "pincode-entries",
+            companyType: "company-types",
+            assignedEmployee: "employees"
+        },
     },
     "researched-companies": {
         model: ResearchedCompanyModel,
         searchableFields: ["name", "website"],
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            submittedBy: "employees",
+            product: "products",
+            certification: "certifications",
+            companyBusinessModel: "company-business-models",
+            companyType: "company-types",
+            companyStage: "company-stages",
+            companyIntent: "sub-intents",
+            state: "states",
+            district: "districts",
+            division: "divisions",
+            pincodeEntry: "pincode-entries"
+        }
     },
     "company-stages": {
         model: CompanyStageModel,
@@ -285,11 +338,31 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
             variantRate: "variant-rates",
+            "variantRate.productVariant": "product-variants",
+            "variantRate.associateCompany": "associate-companies",
+            "variantRate.associateCompany.assignedEmployee": "employees",
             productVariant: "product-variants",
             "productVariant.product": "products",
             status: "enquiry-process-statuses",
             productAssociate: "associates",
-            mediatorAssociate: "associates"
+            "productAssociate.associateCompany": "associate-companies",
+            "productAssociate.associateCompany.assignedEmployee": "employees",
+            mediatorAssociate: "associates",
+            associateCompany: "associate-companies"
+        },
+    },
+    "orders": {
+        model: OrderModel,
+        searchableFields: ["status", "paymentStatus", "invoiceId"],
+        sortableFields: ["createdAt", "updatedAt"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            enquiry: "enquiries",
+            "enquiry.associateCompany": "associate-companies",
+            "enquiry.associateCompany.assignedEmployee": "employees",
+            "enquiry.productVariant": "product-variants",
+            "enquiry.productVariant.product": "products",
+            "enquiry.productAssociate": "associates"
         },
     },
     "enquiry-process-statuses": {

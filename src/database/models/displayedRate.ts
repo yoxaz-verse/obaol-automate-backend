@@ -46,7 +46,7 @@ DisplayedRateSchema.pre<IDisplayedRate>("save", async function (next) {
         throw new Error("Invalid `associate` – no such Associate found.");
       }
       // Handle optional associateCompany field (can be null for new registrations)
-      this.associateCompany = assocDoc.associateCompany || undefined;
+      this.associateCompany = (assocDoc as any).associateCompany || undefined;
     }
     next();
   } catch {

@@ -27,14 +27,12 @@ const VariantRateSchema: Schema = new Schema({
   tags: [{ type: Types.ObjectId, ref: "Tag" }],
   isLive: { type: Boolean, default: false },
   duration: { type: Number, default: 1 }, // duration in days
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
   lastEditTime: { type: Date },
   coolingStartTime: { type: Date },
   hiddenDraftOf: { type: Schema.Types.ObjectId, ref: "VariantRate" },
   // ✅ NEW FIELD
   lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
-});
+}, { timestamps: true });
 
 /**
  * Pre-save hook to auto-populate associateCompany

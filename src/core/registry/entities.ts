@@ -29,7 +29,7 @@ import { CertificationModel } from "../../database/models/certification";
 import { GeneralIntentModel } from "../../database/models/generalIntent";
 import { SubIntentModel } from "../../database/models/subIntent";
 import { ResearchedCompanyModel } from "../../database/models/researchedCompany";
-import { EnquiryModel } from "../../database/models/enquiry";
+import { InquiryModel } from "../../database/models/enquiry";
 import { OrderModel } from "../../database/models/order";
 import { EnquiryProcessStatusModel } from "../../database/models/enquiryProcessStatus";
 import { AbbreviationModel } from "../../database/models/abbreviation";
@@ -42,6 +42,7 @@ import { DisplayedRateModel } from "../../database/models/displayedRate";
 import { StatusHistoryModel } from "../../database/models/statusHistory";
 import { LocationTypeModel } from "../../database/models/locationType";
 import { RateAttachmentModel } from "../../database/models/rateAttachmentModel";
+import { CatalogItemModel } from "../../database/models/catalogItem";
 import FileModel from "../../database/models/file";
 
 export interface EntityConfig {
@@ -167,6 +168,19 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             associate: "associates",
             "associate.associateCompany": "associate-companies",
             associateCompany: "associate-companies"
+        },
+    },
+    "catalog-items": {
+        model: CatalogItemModel,
+        searchableFields: ["customTitle", "customDescription"],
+        sortableFields: ["createdAt", "updatedAt"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            productVariantId: "product-variants",
+            "productVariantId.product": "products",
+            baseRateId: "variant-rates",
+            associateId: "associates",
+            associateCompanyId: "associate-companies"
         },
     },
     "rate-attachments": {
@@ -330,25 +344,18 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         allowedOperations: ["list", "create", "read", "update", "delete"],
     },
 
-    // --- Enquiries ---
+    // --- Inquiries (Clean Engine) ---
     "enquiries": {
-        model: EnquiryModel,
-        searchableFields: ["subject", "message", "email"],
-        sortableFields: ["createdAt"],
+        model: InquiryModel,
+        searchableFields: ["specifications"],
+        sortableFields: ["createdAt", "status"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
-            variantRate: "variant-rates",
-            "variantRate.productVariant": "product-variants",
-            "variantRate.associateCompany": "associate-companies",
-            "variantRate.associateCompany.assignedEmployee": "employees",
-            productVariant: "product-variants",
-            "productVariant.product": "products",
-            status: "enquiry-process-statuses",
-            productAssociate: "associates",
-            "productAssociate.associateCompany": "associate-companies",
-            "productAssociate.associateCompany.assignedEmployee": "employees",
-            mediatorAssociate: "associates",
-            associateCompany: "associate-companies"
+            productId: "products",
+            buyerAssociateId: "associates",
+            sellerAssociateId: "associates",
+            mediatorAssociateId: "associates",
+            assignedEmployeeId: "employees"
         },
     },
     "orders": {

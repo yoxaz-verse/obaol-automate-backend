@@ -29,3 +29,16 @@ export const getSystemMetrics = async (req: Request, res: Response, next: NextFu
         next(error);
     }
 };
+
+export const getAssociateMetrics = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const associateId = (req.user as any)?.id;
+        if (!associateId) {
+            return res.status(400).json({ status: 400, message: "User is not an associate" });
+        }
+        const data = await AnalyticsService.getAssociateMetrics(associateId);
+        res.sendFormatted(data, "Associate metrics retrieved successfully");
+    } catch (error) {
+        next(error);
+    }
+};

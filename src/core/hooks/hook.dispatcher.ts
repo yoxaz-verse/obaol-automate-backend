@@ -68,7 +68,7 @@ export class HookDispatcher {
     ): Promise<void> {
         const hook = this.postWriteHooks.get(entity);
         if (hook) {
-            await hook(result, mode, req);
+            await hook(entity, result, mode, req);
         }
     }
 }

@@ -20,7 +20,11 @@ const DisplayedRateSchema: Schema = new Schema({
     ref: "AssociateCompany",
     required: false, // We'll set it automatically
   },
-});
+  isLive: {
+    type: Boolean,
+    default: true,
+  },
+}, { timestamps: true });
 
 /**
  * Pre-save hook to automatically set `associateCompany`

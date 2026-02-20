@@ -1,0 +1,7 @@
+Error: Error: querySrv ETIMEOUT _mongodb._tcp.obaol-automate.y70b8.mongodb.net
+    at QueryReqWrap.onresolve [as oncomplete] (node:internal/dns/promises:294:17) {
+  errno: undefined,
+  code: 'ETIMEOUT',
+  syscall: 'querySrv',
+  hostname: '_mongodb._tcp.obaol-automate.y70b8.mongodb.net'
+}

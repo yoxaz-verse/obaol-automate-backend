@@ -1,32 +1,97 @@
 import mongoose, { Schema } from "mongoose";
-import { IEnquiry } from "../../interfaces/enquiry";
+import { IInquiry } from "../../interfaces/enquiry";
+import { InquiryStatus } from "../../core/inquiry/inquiryStateMachine";
 
-const EnquirySchema: Schema = new Schema(
+const InquirySchema: Schema = new Schema(
     {
-        phoneNumber: { type: String, required: true },
-        name: { type: String, required: true },
-        email: { type: String },
-        specification: { type: String },
-        quantity: { type: Number },
-        quantityUnit: { type: String },
-        variantRate: { type: Schema.Types.ObjectId, ref: "VariantRate", required: true },
-        displayRate: { type: Schema.Types.ObjectId, ref: "DisplayedRate" },
-        productVariant: { type: Schema.Types.ObjectId, ref: "ProductVariant", required: true },
-        mediatorAssociate: { type: Schema.Types.ObjectId, ref: "Associate" },
-        productAssociate: { type: Schema.Types.ObjectId, ref: "Associate", required: true },
-        rate: { type: Number },
-        status: { type: String, default: "Pending" },
-        associateCompany: { type: Schema.Types.ObjectId, ref: "AssociateCompany" },
-        commission: { type: Number },
-        mediatorCommission: { type: Number },
-        order: { type: Schema.Types.ObjectId, ref: "Order" },
+        // Product details
+        productId: {
+            type: Schema.Types.ObjectId,
+            ref: "Product",
+            required: true,
+            index: true
+        },
+        quantity: {
+            type: Number,
+            min: 0
+        },
+        specifications: {
+            type: String,
+            maxlength: 2000
+        },
+
+        // Associate roles (all reference Associate collection)
+        buyerAssociateId: {
+            type: Schema.Types.ObjectId,
+            ref: "Associate",
+            required: true,
+            index: true
+        },
+        sellerAssociateId: {
+            type: Schema.Types.ObjectId,
+            ref: "Associate",
+            required: true,
+            index: true
+        },
+        mediatorAssociateId: {
+            type: Schema.Types.ObjectId,
+            ref: "Associate",
+            default: null,
+            index: true
+        },
+
+        // Internal assignment
+        assignedEmployeeId: {
+            type: Schema.Types.ObjectId,
+            ref: "Employee",
+            default: null,
+            index: true
+        },
+
+        // Status (controlled by state machine)
+        status: {
+            type: String,
+            enum: Object.values(InquiryStatus),
+            default: InquiryStatus.NEW,
+            required: true,
+            index: true
+        },
+
+        // Internal notes (NEVER exposed to associates)
+        notes: {
+            type: String,
+            maxlength: 5000,
+            select: false // Exclude by default in queries
+        },
+
+        // Audit fields
+        createdBy: {
+            type: Schema.Types.ObjectId,
+            required: true,
+            index: true
+        }
     },
     {
-        timestamps: true,
+        timestamps: true
     }
 );
 
-export const EnquiryModel = mongoose.model<IEnquiry>(
-    "Enquiry",
-    EnquirySchema
+// Compound indexes for efficient querying
+InquirySchema.index({ status: 1, createdAt: -1 });
+InquirySchema.index({ assignedEmployeeId: 1, status: 1 });
+InquirySchema.index({ buyerAssociateId: 1, createdAt: -1 });
+InquirySchema.index({ sellerAssociateId: 1, createdAt: -1 });
+
+// Validation: Buyer and seller must be different
+InquirySchema.pre<IInquiry>("save", function (next) {
+    if (this.buyerAssociateId.equals(this.sellerAssociateId)) {
+        next(new Error("Buyer and seller cannot be the same associate"));
+    } else {
+        next();
+    }
+});
+
+export const InquiryModel = mongoose.model<IInquiry>(
+    "Inquiry",
+    InquirySchema
 );

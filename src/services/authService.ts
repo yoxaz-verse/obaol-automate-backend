@@ -56,7 +56,12 @@ export const authenticateUser = async (req: Request, res: Response) => {
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        const userForToken = { ...user.toObject(), role: finalRole };
+        const userForToken = {
+            ...user.toObject(),
+            role: finalRole,
+            // Ensure associateCompany is included if present (for AssociateCompany scope)
+            associateCompany: user.associateCompany
+        };
         const token = generateJWTToken(userForToken);
 
         res.cookie("auth_token", token, {

@@ -1,0 +1,51 @@
+import { Router } from "express";
+import { InquiryController } from "../../controllers/InquiryController";
+import authenticateToken from "../../middlewares/auth";
+
+const router = Router();
+const inquiryController = new InquiryController();
+
+/**
+ * All inquiry routes require authentication
+ */
+router.use(authenticateToken);
+
+/**
+ * Create inquiry
+ * POST /api/v1/web/inquiries
+ */
+router.post("/", inquiryController.create.bind(inquiryController));
+
+/**
+ * List inquiries with role-based filtering
+ * GET /api/v1/web/inquiries?status=NEW&page=1&limit=20
+ */
+router.get("/", inquiryController.list.bind(inquiryController));
+
+/**
+ * Get inquiry by ID
+ * GET /api/v1/web/inquiries/:id
+ */
+router.get("/:id", inquiryController.getById.bind(inquiryController));
+
+/**
+ * Update inquiry status (validates state transitions)
+ * PATCH /api/v1/web/inquiries/:id/status
+ * Body: { status: "CONTACTED" }
+ */
+router.patch("/:id/status", inquiryController.updateStatus.bind(inquiryController));
+
+/**
+ * Assign employee to inquiry (admin only)
+ * PATCH /api/v1/web/inquiries/:id/assign
+ * Body: { employeeId: "..." }
+ */
+router.patch("/:id/assign", inquiryController.assignEmployee.bind(inquiryController));
+
+/**
+ * Get inquiry event history (admin/assigned employee only)
+ * GET /api/v1/web/inquiries/:id/events
+ */
+router.get("/:id/events", inquiryController.getEvents.bind(inquiryController));
+
+export default router;

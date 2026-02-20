@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { OrderModel } from "../database/models/order";
-import { EnquiryModel } from "../database/models/enquiry";
+import { InquiryModel as EnquiryModel } from "../database/models/enquiry";
 import { CrudEngine } from "../core/engine/crud.engine";
 import { logError } from "../utils/errorLogger";
 

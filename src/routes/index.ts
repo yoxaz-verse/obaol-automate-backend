@@ -28,6 +28,10 @@ router.use(`${prefix}/verification`, verificationRoutes);
 import orderRoutes from "./v1/orderRoutes";
 router.use(`${prefix}/orders`, orderRoutes);
 
+// Inquiries (Clean deterministic engine)
+import inquiryRoutes from "./v1/inquiryRoutes";
+router.use(`${prefix}/inquiries`, inquiryRoutes);
+
 // Analytics
 import analyticsRoutes from "./analyticsRoutes";
 router.use(`${prefix}/analytics`, analyticsRoutes);
@@ -35,6 +39,14 @@ router.use(`${prefix}/analytics`, analyticsRoutes);
 // Logistics / Calculation (Custom Controllers)
 router.post(`${prefix}/cif`, calculateCIF);
 router.post(`${prefix}/cif/domestic`, calculateDomesticCost);
+
+// Catalog Management (Associate)
+import catalogRoutes from "./v1/catalogRoutes";
+router.use(`${prefix}/catalog`, catalogRoutes);
+
+// Diagnostic Routes (Development)
+import diagnosticRoutes from "./diagnosticRoutes";
+router.use(`${prefix}/diagnostic`, diagnosticRoutes);
 
 // Public Routes (No Auth)
 import { GenericCrudController } from "../controllers/genericCrudController";

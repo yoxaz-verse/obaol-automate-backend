@@ -29,8 +29,13 @@ export const employeeFilterHook = async (query: any, mode: string, id: string | 
             return { ...query, _id: { $in: assignedIds } };
         }
 
-        // If we are looking at variant-rates, enquiries or displayed-rates
-        if (req.params?.entity === "variant-rates" || req.params?.entity === "enquiries" || req.params?.entity === "displayed-rates") {
+        // If we are looking at enquiries
+        if (req.params?.entity === "enquiries") {
+            return { ...query, assignedEmployeeId: user.id };
+        }
+
+        // If we are looking at variant-rates or displayed-rates
+        if (req.params?.entity === "variant-rates" || req.params?.entity === "displayed-rates") {
             return { ...query, associateCompany: { $in: assignedIds } };
         }
 

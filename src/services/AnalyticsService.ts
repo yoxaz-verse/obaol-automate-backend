@@ -1,6 +1,8 @@
-import { EnquiryModel } from "../database/models/enquiry";
+import { InquiryModel as EnquiryModel } from "../database/models/enquiry";
 import { VariantRateModel } from "../database/models/variantRate";
 import { AssociateModel } from "../database/models/associate";
+import { DisplayedRateModel } from "../database/models/displayedRate";
+import { CatalogItemModel } from "../database/models/catalogItem";
 import mongoose from "mongoose";
 
 export class AnalyticsService {
@@ -88,6 +90,45 @@ export class AnalyticsService {
             newEnquiriesToday,
             totalLiveRates,
             totalAssociates
+        };
+    }
+
+    /**
+     * Get specific metrics for an associate
+     */
+    static async getAssociateMetrics(associateId: string) {
+        const id = new mongoose.Types.ObjectId(associateId);
+
+        const [
+            listedProducts,
+            liveProducts,
+            totalInquiries,
+            associate,
+            myProductsCount,
+            obaolCatalogCount
+        ] = await Promise.all([
+            VariantRateModel.countDocuments({ associate: id }),
+            VariantRateModel.countDocuments({ associate: id, isLive: true }),
+            EnquiryModel.countDocuments({
+                $or: [
+                    { buyerAssociateId: id },
+                    { sellerAssociateId: id },
+                    { mediatorAssociateId: id }
+                ]
+            }),
+            AssociateModel.findById(id).populate("associateCompany"),
+            DisplayedRateModel.countDocuments({ associate: id }),
+            CatalogItemModel.countDocuments({ associateId: id })
+        ]);
+
+        return {
+            listedProducts,
+            liveProducts,
+            totalInquiries,
+            myItemsCount: myProductsCount,
+            obaolCatalogCount,
+            companyName: (associate?.associateCompany as any)?.name || "No Company Linked",
+            associateName: associate?.name
         };
     }
 }

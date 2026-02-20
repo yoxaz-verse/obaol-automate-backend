@@ -3507,3 +3507,98 @@ Error: Cannot set headers after they are sent to the client
 2026-02-14T05:17:08.212Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
 2026-02-14T05:21:46.059Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
 2026-02-14T06:45:14.382Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T06:50:48.776Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T06:53:38.997Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T07:35:39.235Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T07:36:18.759Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T07:39:33.895Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T07:49:56.349Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T08:13:02.870Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T08:13:31.084Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T08:14:02.765Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T08:20:22.565Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T08:26:53.845Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T09:15:58.842Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T09:37:37.296Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T09:37:46.443Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T13:22:33.188Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T14:02:30.827Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T14:45:07.239Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T14:45:18.981Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T15:26:19.925Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T15:26:42.749Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T15:26:55.967Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T15:27:05.532Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T15:29:23.923Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T15:29:34.038Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T15:59:13.694Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T17:37:56.553Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T17:39:27.753Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T18:12:04.607Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T18:30:00.924Z [INFO]: Running daily variant rate reset cron job... 
+2026-02-14T18:30:01.139Z [INFO]: Successfully offlined 1 variant rates. 
+2026-02-14T18:44:43.281Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T18:45:00.558Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T18:54:07.281Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T18:56:14.853Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T18:56:34.098Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T18:56:49.112Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T18:57:32.096Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T18:58:04.343Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T19:39:20.959Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-14T19:39:26.852Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T19:39:57.503Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T19:40:07.267Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T19:56:05.132Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-14T20:10:46.596Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-14T20:20:44.862Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-15T11:04:01.205Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-15T11:10:25.601Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-15T11:11:14.478Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-15T11:12:21.851Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-15T11:16:31.133Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T11:17:59.770Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND obaol-cluster-shard-00-01.oq0ij.mongodb.net"}
+2026-02-15T11:18:36.521Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-15T11:30:22.267Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2026-02-15T11:31:53.087Z [ERROR]: MongoDB Connection Error: {"error":"getaddrinfo ENOTFOUND obaol-cluster-shard-00-01.oq0ij.mongodb.net"}
+2026-02-15T11:39:45.448Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-15T12:30:35.419Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T12:33:35.757Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-15T12:42:07.224Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T12:43:32.913Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-15T12:51:18.804Z [ERROR]: unhandledRejection: getaddrinfo ENOTFOUND obaol-cluster-shard-00-01.oq0ij.mongodb.net
+MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-01.oq0ij.mongodb.net
+    at Topology.selectServer (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/sdam/topology.ts:635:30)
+    at async tryOperation (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/operations/execute_operation.ts:266:16)
+    at async executeOperation (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/operations/execute_operation.ts:119:12)
+    at async FindCursor._initialize (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/find_cursor.ts:92:22)
+    at async FindCursor.cursorInit (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts:949:21)
+    at async FindCursor.fetchBatch (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts:987:7)
+    at async FindCursor.next (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts:608:9)
+    at async Collection.findOne (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/collection.ts:552:20)
+    at async model.Query._findOne (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:2710:15)
+    at async model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:63) {"error":{"errorLabelSet":{},"reason":{"type":"ReplicaSetNoPrimary","servers":{"obaol-cluster-shard-00-01.oq0ij.mongodb.net:27017":{"address":"obaol-cluster-shard-00-01.oq0ij.mongodb.net:27017","type":"Unknown","hosts":[],"passives":[],"arbiters":[],"tags":{},"minWireVersion":0,"maxWireVersion":0,"roundTripTime":-1,"minRoundTripTime":0,"lastUpdateTime":351416119,"lastWriteDate":0,"error":{"errorLabelSet":{},"beforeHandshake":false},"topologyVersion":null,"setName":null,"setVersion":null,"electionId":null,"logicalSessionTimeoutMinutes":null,"maxMessageSizeBytes":null,"maxWriteBatchSize":null,"maxBsonObjectSize":null,"primary":null,"me":null,"$clusterTime":null,"iscryptd":false},"obaol-cluster-shard-00-02.oq0ij.mongodb.net:27017":{"address":"obaol-cluster-shard-00-02.oq0ij.mongodb.net:27017","type":"Unknown","hosts":[],"passives":[],"arbiters":[],"tags":{},"minWireVersion":0,"maxWireVersion":0,"roundTripTime":-1,"minRoundTripTime":0,"lastUpdateTime":351416079,"lastWriteDate":0,"error":{"errorLabelSet":{},"beforeHandshake":false},"topologyVersion":null,"setName":null,"setVersion":null,"electionId":null,"logicalSessionTimeoutMinutes":null,"maxMessageSizeBytes":null,"maxWriteBatchSize":null,"maxBsonObjectSize":null,"primary":null,"me":null,"$clusterTime":null,"iscryptd":false},"obaol-cluster-shard-00-00.oq0ij.mongodb.net:27017":{"address":"obaol-cluster-shard-00-00.oq0ij.mongodb.net:27017","type":"Unknown","hosts":[],"passives":[],"arbiters":[],"tags":{},"minWireVersion":0,"maxWireVersion":0,"roundTripTime":-1,"minRoundTripTime":0,"lastUpdateTime":351415790,"lastWriteDate":0,"error":{"errorLabelSet":{},"beforeHandshake":false},"topologyVersion":null,"setName":null,"setVersion":null,"electionId":null,"logicalSessionTimeoutMinutes":null,"maxMessageSizeBytes":null,"maxWriteBatchSize":null,"maxBsonObjectSize":null,"primary":null,"me":null,"$clusterTime":null,"iscryptd":false}},"stale":false,"compatible":true,"heartbeatFrequencyMS":10000,"localThresholdMS":15,"setName":"atlas-q2r2uk-shard-0","maxElectionId":{"$oid":"7fffffff0000000000000302"},"maxSetVersion":368,"commonWireVersion":0,"logicalSessionTimeoutMinutes":null}},"stack":"MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-01.oq0ij.mongodb.net\n    at Topology.selectServer (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/sdam/topology.ts:635:30)\n    at async tryOperation (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/operations/execute_operation.ts:266:16)\n    at async executeOperation (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/operations/execute_operation.ts:119:12)\n    at async FindCursor._initialize (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/find_cursor.ts:92:22)\n    at async FindCursor.cursorInit (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts:949:21)\n    at async FindCursor.fetchBatch (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts:987:7)\n    at async FindCursor.next (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts:608:9)\n    at async Collection.findOne (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/collection.ts:552:20)\n    at async model.Query._findOne (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:2710:15)\n    at async model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:63)","rejection":true,"date":"Sun Feb 15 2026 18:21:18 GMT+0530 (India Standard Time)","process":{"pid":33286,"uid":501,"gid":20,"cwd":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend","execPath":"/usr/local/bin/node","version":"v24.12.0","argv":["/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/.bin/ts-node","/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/src/index.ts"],"memoryUsage":{"rss":95141888,"heapTotal":458719232,"heapUsed":452827152,"external":28462674,"arrayBuffers":24207855}},"os":{"loadavg":[5.6279296875,7.04541015625,6.8095703125],"uptime":351411},"trace":[{"column":30,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/sdam/topology.ts","function":"Topology.selectServer","line":635,"method":"selectServer","native":false},{"column":16,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/operations/execute_operation.ts","function":"async tryOperation","line":266,"method":null,"native":false},{"column":12,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/operations/execute_operation.ts","function":"async executeOperation","line":119,"method":null,"native":false},{"column":22,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/find_cursor.ts","function":"async FindCursor._initialize","line":92,"method":"_initialize","native":false},{"column":21,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts","function":"async FindCursor.cursorInit","line":949,"method":"cursorInit","native":false},{"column":7,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts","function":"async FindCursor.fetchBatch","line":987,"method":"fetchBatch","native":false},{"column":9,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cursor/abstract_cursor.ts","function":"async FindCursor.next","line":608,"method":"next","native":false},{"column":20,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/collection.ts","function":"async Collection.findOne","line":552,"method":"findOne","native":false},{"column":15,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"async model.Query._findOne","line":2710,"method":"_findOne","native":false},{"column":63,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"async model.Query.exec","line":4627,"method":"exec","native":false}]}
+2026-02-15T12:56:31.470Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T13:00:25.865Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T13:01:49.871Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T13:03:00.948Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T13:04:26.228Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T13:05:25.502Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T13:07:35.956Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ETIMEOUT _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-02-15T13:09:50.071Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-15T13:33:14.127Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-15T13:33:45.654Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-15T13:43:19.132Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-15T14:06:10.547Z [ERROR]: MongoDB Connection Error: {"error":"read ECONNRESET"}
+2026-02-15T14:09:43.017Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2026-02-15T14:10:41.374Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-20T18:11:08.586Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2026-02-20T18:11:45.650Z [ERROR]: MongoDB Connection Error: {"error":"Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"}
+2026-02-20T18:11:59.277Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-20T18:30:00.274Z [INFO]: Running daily variant rate reset cron job... 
+2026-02-20T18:30:01.972Z [INFO]: Successfully offlined 0 variant rates. 
+2026-02-20T18:46:13.984Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-20T20:19:25.452Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-20T20:27:13.009Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-20T20:47:31.461Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-20T23:18:08.725Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 

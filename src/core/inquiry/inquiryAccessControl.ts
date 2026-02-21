@@ -74,13 +74,18 @@ export function getAssociateRole(
 ): "buyer" | "seller" | "mediator" | null {
     const assocIdStr = associateId.toString();
 
-    if (inquiry.buyerAssociateId?.toString() === assocIdStr) {
+    const getAttrId = (val: any) => {
+        if (!val) return null;
+        return (val._id || val).toString();
+    };
+
+    if (getAttrId(inquiry.buyerAssociateId) === assocIdStr) {
         return "buyer";
     }
-    if (inquiry.sellerAssociateId?.toString() === assocIdStr) {
+    if (getAttrId(inquiry.sellerAssociateId) === assocIdStr) {
         return "seller";
     }
-    if (inquiry.mediatorAssociateId?.toString() === assocIdStr) {
+    if (getAttrId(inquiry.mediatorAssociateId) === assocIdStr) {
         return "mediator";
     }
 

@@ -18,6 +18,10 @@ const associateSchema = new mongoose.Schema(
         password: { type: String, required: true },
         isActive: { type: Boolean, default: true },
         isDeleted: { type: Boolean, default: false },
+        isEmailVerified: { type: Boolean, default: false },
+        isPhoneVerified: { type: Boolean, default: false },
+        isOneToOneVerified: { type: Boolean, default: false },
+        isCompanyVerified: { type: Boolean, default: false },
     },
     {
         timestamps: true,

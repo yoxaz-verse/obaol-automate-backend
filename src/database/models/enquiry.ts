@@ -19,6 +19,18 @@ const InquirySchema: Schema = new Schema(
             type: String,
             maxlength: 2000
         },
+        variantRateId: {
+            type: Schema.Types.ObjectId,
+            ref: "VariantRate",
+            default: null,
+            index: true
+        },
+        catalogItemId: {
+            type: Schema.Types.ObjectId,
+            ref: "CatalogItem",
+            default: null,
+            index: true
+        },
 
         // Associate roles (all reference Associate collection)
         buyerAssociateId: {
@@ -40,6 +52,30 @@ const InquirySchema: Schema = new Schema(
             index: true
         },
 
+        // Commercial terms
+        preferredIncoterm: {
+            type: Schema.Types.ObjectId,
+            ref: "Incoterm",
+            default: null,
+            index: true
+        },
+
+        // Supplier commitment window (e.g. price valid until)
+        supplierCommitUntil: {
+            type: Date,
+            default: null
+        },
+
+        // Acceptance markers
+        sellerAcceptedAt: {
+            type: Date,
+            default: null
+        },
+        buyerConfirmedAt: {
+            type: Date,
+            default: null
+        },
+
         // Internal assignment
         assignedEmployeeId: {
             type: Schema.Types.ObjectId,
@@ -55,6 +91,20 @@ const InquirySchema: Schema = new Schema(
             default: InquiryStatus.NEW,
             required: true,
             index: true
+        },
+
+        // Financials & Commissions
+        rate: {
+            type: Number,
+            min: 0
+        },
+        adminCommission: {
+            type: Number,
+            min: 0
+        },
+        mediatorCommission: {
+            type: Number,
+            min: 0
         },
 
         // Internal notes (NEVER exposed to associates)

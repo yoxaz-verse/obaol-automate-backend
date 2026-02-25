@@ -44,6 +44,7 @@ import { LocationTypeModel } from "../../database/models/locationType";
 import { RateAttachmentModel } from "../../database/models/rateAttachmentModel";
 import { CatalogItemModel } from "../../database/models/catalogItem";
 import FileModel from "../../database/models/file";
+import { IncotermModel } from "../../database/models/incoterm";
 
 export interface EntityConfig {
     model: Model<any>;
@@ -376,6 +377,13 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         model: EnquiryProcessStatusModel,
         searchableFields: ["name"],
         sortableFields: ["name"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+    },
+
+    "incoterms": {
+        model: IncotermModel,
+        searchableFields: ["code", "name"],
+        sortableFields: ["code", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
     },
 

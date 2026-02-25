@@ -15,11 +15,24 @@ export interface IInquiry extends Document {
   sellerAssociateId: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
 
+  // Commercial terms
+  preferredIncoterm?: Types.ObjectId | null;
+  supplierCommitUntil?: Date | null;
+
+  // Acceptance markers
+  sellerAcceptedAt?: Date | null;
+  buyerConfirmedAt?: Date | null;
+
   // Internal assignment
   assignedEmployeeId?: Types.ObjectId | null;
 
   // Status management
   status: InquiryStatus;
+
+  // Financials & Commissions
+  rate?: number;
+  adminCommission?: number;
+  mediatorCommission?: number;
 
   // Internal notes (hidden from associates)
   notes?: string;
@@ -41,6 +54,11 @@ export interface ICreateInquiry {
   sellerAssociateId: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
   assignedEmployeeId?: Types.ObjectId | null;
+  preferredIncoterm?: Types.ObjectId | null;
+  supplierCommitUntil?: Date | null;
+  rate?: number;
+  adminCommission?: number;
+  mediatorCommission?: number;
   notes?: string;
   createdBy: Types.ObjectId;
 }
@@ -54,6 +72,8 @@ export interface IUpdateInquiry {
   buyerAssociateId?: Types.ObjectId;
   sellerAssociateId?: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
+  preferredIncoterm?: Types.ObjectId | null;
+  supplierCommitUntil?: Date | null;
   notes?: string;
 }
 

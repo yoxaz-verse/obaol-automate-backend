@@ -43,6 +43,24 @@ router.patch("/:id/status", inquiryController.updateStatus.bind(inquiryControlle
 router.patch("/:id/assign", inquiryController.assignEmployee.bind(inquiryController));
 
 /**
+ * Seller commits inquiry until a date
+ * PATCH /api/v1/web/inquiries/:id/commit
+ */
+router.patch("/:id/commit", inquiryController.commitUntil.bind(inquiryController));
+
+/**
+ * Seller accepts inquiry
+ * PATCH /api/v1/web/inquiries/:id/seller-accept
+ */
+router.patch("/:id/seller-accept", inquiryController.sellerAccept.bind(inquiryController));
+
+/**
+ * Buyer confirms inquiry (all good to go)
+ * PATCH /api/v1/web/inquiries/:id/buyer-confirm
+ */
+router.patch("/:id/buyer-confirm", inquiryController.buyerConfirm.bind(inquiryController));
+
+/**
  * Get inquiry event history (admin/assigned employee only)
  * GET /api/v1/web/inquiries/:id/events
  */

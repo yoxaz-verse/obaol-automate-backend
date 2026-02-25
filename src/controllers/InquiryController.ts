@@ -16,9 +16,12 @@ import {
     filterInquiryFields,
     buildInquiryAccessFilter,
     InquiryAccessContext,
-    UserRole
+    UserRole,
+    getAssociateRole
 } from "../core/inquiry/inquiryAccessControl";
 import { Types } from "mongoose";
+import { VariantRateModel } from "../database/models/variantRate";
+import { CatalogItemModel } from "../database/models/catalogItem";
 
 /**
  * Inquiry Controller
@@ -39,8 +42,13 @@ export class InquiryController {
                 sellerAssociateId,
                 mediatorAssociateId,
                 assignedEmployeeId,
+                variantRateId,
+                catalogItemId,
+                preferredIncoterm,
+                supplierCommitUntil,
                 notes
             } = req.body;
+            let { rate, adminCommission, mediatorCommission } = req.body;
 
             // Validation
             if (!productId || !buyerAssociateId || !sellerAssociateId) {
@@ -48,6 +56,24 @@ export class InquiryController {
                     success: false,
                     message: "productId, buyerAssociateId, and sellerAssociateId are required"
                 });
+            }
+
+            // Backend Rate & Commission Lookup
+            if (catalogItemId) {
+                const catalogItem = await CatalogItemModel.findById(catalogItemId).populate("baseRateId");
+                if (catalogItem) {
+                    const baseRate = catalogItem.baseRateId as any;
+                    rate = baseRate?.rate || 0;
+                    adminCommission = baseRate?.commission || 0;
+                    mediatorCommission = catalogItem.margin || 0;
+                }
+            } else if (variantRateId) {
+                const variantRate = await VariantRateModel.findById(variantRateId);
+                if (variantRate) {
+                    rate = variantRate.rate || 0;
+                    adminCommission = variantRate.commission || 0;
+                    mediatorCommission = 0;
+                }
             }
 
             // Create inquiry
@@ -59,6 +85,13 @@ export class InquiryController {
                 sellerAssociateId,
                 mediatorAssociateId,
                 assignedEmployeeId,
+                variantRateId,
+                catalogItemId,
+                preferredIncoterm,
+                supplierCommitUntil,
+                rate,
+                adminCommission,
+                mediatorCommission,
                 notes,
                 status: InquiryStatus.NEW,
                 createdBy: req.user!.id
@@ -84,6 +117,259 @@ export class InquiryController {
             res.status(201).json({
                 success: true,
                 data: inquiry
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Seller commits the inquiry until a specific date (price/stock commitment)
+     * PATCH /api/v1/web/inquiries/:id/commit
+     */
+    async commitUntil(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const { commitUntil } = req.body;
+
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid inquiry ID"
+                });
+            }
+
+            if (!commitUntil) {
+                return res.status(400).json({
+                    success: false,
+                    message: "commitUntil is required"
+                });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Inquiry not found"
+                });
+            }
+
+            const context: InquiryAccessContext = {
+                userId: req.user!.id,
+                userRole: req.user!.role,
+                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
+            };
+
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied"
+                });
+            }
+
+            // Only seller associate, admin, or assigned employee can commit
+            const isAdmin = req.user!.role === UserRole.ADMIN;
+            const isAssignedEmployee =
+                (req.user!.role === UserRole.EMPLOYEE || req.user!.role === "team") &&
+                inquiry.assignedEmployeeId?.toString() === req.user!.id;
+
+            let isSeller = false;
+            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
+                const role = getAssociateRole(inquiry as any, context.associateId);
+                isSeller = role === "seller";
+            }
+
+            if (!isAdmin && !isAssignedEmployee && !isSeller) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Only the supplier, assigned employee, or admin can commit this inquiry"
+                });
+            }
+
+            const previousValue = inquiry.supplierCommitUntil
+                ? inquiry.supplierCommitUntil.toISOString()
+                : null;
+
+            inquiry.supplierCommitUntil = new Date(commitUntil);
+            await inquiry.save();
+
+            await createInquiryEvent(
+                inquiry._id,
+                InquiryEventType.UPDATED,
+                req.user!.id,
+                {
+                    previousValue,
+                    newValue: inquiry.supplierCommitUntil.toISOString(),
+                    metadata: { field: "supplierCommitUntil" }
+                }
+            );
+
+            res.json({
+                success: true,
+                data: inquiry,
+                message: "Inquiry committed until date updated"
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Seller accepts the inquiry
+     * PATCH /api/v1/web/inquiries/:id/seller-accept
+     */
+    async sellerAccept(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid inquiry ID"
+                });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Inquiry not found"
+                });
+            }
+
+            const context: InquiryAccessContext = {
+                userId: req.user!.id,
+                userRole: req.user!.role,
+                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
+            };
+
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied"
+                });
+            }
+
+            let isSeller = false;
+            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
+                const role = getAssociateRole(inquiry as any, context.associateId);
+                isSeller = role === "seller";
+            }
+
+            const isAdmin = req.user!.role === UserRole.ADMIN;
+
+            if (!isSeller && !isAdmin) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Only the supplier or admin can accept this inquiry"
+                });
+            }
+
+            if (inquiry.sellerAcceptedAt) {
+                return res.json({
+                    success: true,
+                    data: inquiry,
+                    message: "Inquiry already accepted by supplier"
+                });
+            }
+
+            inquiry.sellerAcceptedAt = new Date();
+            await inquiry.save();
+
+            await createInquiryEvent(
+                inquiry._id,
+                InquiryEventType.UPDATED,
+                req.user!.id,
+                {
+                    metadata: { action: "SELLER_ACCEPTED" }
+                }
+            );
+
+            res.json({
+                success: true,
+                data: inquiry,
+                message: "Inquiry accepted by supplier"
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Buyer confirms everything is good to go
+     * PATCH /api/v1/web/inquiries/:id/buyer-confirm
+     */
+    async buyerConfirm(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid inquiry ID"
+                });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Inquiry not found"
+                });
+            }
+
+            const context: InquiryAccessContext = {
+                userId: req.user!.id,
+                userRole: req.user!.role,
+                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
+            };
+
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied"
+                });
+            }
+
+            let isBuyer = false;
+            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
+                const role = getAssociateRole(inquiry as any, context.associateId);
+                isBuyer = role === "buyer";
+            }
+
+            const isAdmin = req.user!.role === UserRole.ADMIN;
+
+            if (!isBuyer && !isAdmin) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Only the buyer or admin can confirm this inquiry"
+                });
+            }
+
+            if (inquiry.buyerConfirmedAt) {
+                return res.json({
+                    success: true,
+                    data: inquiry,
+                    message: "Inquiry already confirmed by buyer"
+                });
+            }
+
+            inquiry.buyerConfirmedAt = new Date();
+            await inquiry.save();
+
+            await createInquiryEvent(
+                inquiry._id,
+                InquiryEventType.UPDATED,
+                req.user!.id,
+                {
+                    metadata: { action: "BUYER_CONFIRMED" }
+                }
+            );
+
+            res.json({
+                success: true,
+                data: inquiry,
+                message: "Inquiry confirmed by buyer"
             });
         } catch (error: any) {
             next(error);

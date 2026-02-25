@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { VerificationModel } from "../database/models/verification";
+import { AssociateModel } from "../database/models/associate";
 import verificationService from "../services/verification.service";
 
 export const sendOTP = async (req: Request, res: Response) => {
@@ -41,6 +42,16 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
   try {
     await verificationService.verify(userId, userType, code, method);
+
+    // Sync verification status back to Associate model if applicable
+    if (userType === "Associate") {
+      const updatePayload: any = {};
+      if (method === "email") updatePayload.isEmailVerified = true;
+      if (method === "phone") updatePayload.isPhoneVerified = true;
+
+      await AssociateModel.findByIdAndUpdate(userId, updatePayload);
+    }
+
     res.status(200).json({ message: `${userType} verified successfully` });
   } catch (error: any) {
     res.status(400).json({ message: error.message });

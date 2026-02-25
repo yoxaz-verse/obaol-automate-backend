@@ -39,6 +39,11 @@ export function canAccessInquiry(
 ): boolean {
     const { userId, userRole, associateId } = context;
 
+    const getAttrId = (val: any) => {
+        if (!val) return null;
+        return (val._id || val).toString();
+    };
+
     // Admin has full access
     if (userRole === UserRole.ADMIN) {
         return true;
@@ -46,16 +51,16 @@ export function canAccessInquiry(
 
     // Employee: can access if assigned
     if (userRole === UserRole.EMPLOYEE) {
-        return inquiry.assignedEmployeeId?.toString() === userId.toString();
+        return getAttrId(inquiry.assignedEmployeeId) === userId.toString();
     }
 
     // Associate: can access if involved (buyer, seller, or mediator)
     if (userRole === UserRole.ASSOCIATE && associateId) {
         const assocIdStr = associateId.toString();
         return (
-            inquiry.buyerAssociateId?.toString() === assocIdStr ||
-            inquiry.sellerAssociateId?.toString() === assocIdStr ||
-            inquiry.mediatorAssociateId?.toString() === assocIdStr
+            getAttrId(inquiry.buyerAssociateId) === assocIdStr ||
+            getAttrId(inquiry.sellerAssociateId) === assocIdStr ||
+            getAttrId(inquiry.mediatorAssociateId) === assocIdStr
         );
     }
 
@@ -120,28 +125,54 @@ export function filterInquiryFields(
 
         if (associateRole === "buyer") {
             // Buyer can see: product, quantity, specifications, status
-            const { notes, assignedEmployeeId, ...safeFields } = inquiry;
+            const { notes, assignedEmployeeId, sellerAssociateId, mediatorAssociateId, ...safeFields } = inquiry;
             return {
                 ...safeFields,
-                // Explicitly exclude sensitive fields
+                // Explicitly exclude sensitive fields and counterparties
                 notes: undefined,
-                assignedEmployeeId: undefined
+                assignedEmployeeId: undefined,
+                sellerAssociateId: undefined,
+                mediatorAssociateId: undefined
             };
         }
 
-        if (associateRole === "seller" || associateRole === "mediator") {
-            // Seller/Mediator can see: product, quantity, status (no specifications)
+        if (associateRole === "seller") {
+            // Seller can see: product, quantity, status (no specifications, no buyer)
             const {
                 notes,
                 assignedEmployeeId,
                 specifications,
+                buyerAssociateId,
+                mediatorAssociateId,
                 ...safeFields
             } = inquiry;
             return {
                 ...safeFields,
                 notes: undefined,
                 assignedEmployeeId: undefined,
-                specifications: undefined
+                specifications: undefined,
+                buyerAssociateId: undefined,
+                mediatorAssociateId: undefined
+            };
+        }
+
+        if (associateRole === "mediator") {
+            // Mediator can see: product, quantity, status (no specifications, no buyer/seller names)
+            const {
+                notes,
+                assignedEmployeeId,
+                specifications,
+                buyerAssociateId,
+                sellerAssociateId,
+                ...safeFields
+            } = inquiry;
+            return {
+                ...safeFields,
+                notes: undefined,
+                assignedEmployeeId: undefined,
+                specifications: undefined,
+                buyerAssociateId: undefined,
+                sellerAssociateId: undefined
             };
         }
     }

@@ -21,9 +21,14 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
 
             if (view === "marketplace") {
                 // MARKETPLACE: Show all external rates (live or not)
+                // Filter: (associate != associateId) OR (associate exists: false)
                 const marketQuery = {
                     ...query,
-                    associate: { $ne: associateId }
+                    $or: [
+                        { associate: { $ne: associateId } },
+                        { associate: { $exists: false } },
+                        { associate: null }
+                    ]
                 };
                 delete marketQuery.view; // CRITICAL: Prevent Mongo from searching for a 'view' field that doesn't exist
                 console.log(`[AssociateHook] Marketplace Query:`, JSON.stringify(marketQuery));

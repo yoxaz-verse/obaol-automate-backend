@@ -44,6 +44,10 @@ router.post(`${prefix}/cif/domestic`, calculateDomesticCost);
 import catalogRoutes from "./v1/catalogRoutes";
 router.use(`${prefix}/catalog`, catalogRoutes);
 
+// Company Metrics
+import { CompanyController } from "../controllers/CompanyController";
+router.get(`${prefix}/associate-companies/:id/stats`, CompanyController.getTeamStats);
+
 // Diagnostic Routes (Development)
 import diagnosticRoutes from "./diagnosticRoutes";
 router.use(`${prefix}/diagnostic`, diagnosticRoutes);

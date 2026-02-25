@@ -9,6 +9,10 @@ export interface IAssociate {
   password: string;
   isActive?: boolean;
   isDeleted?: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
+  isOneToOneVerified?: boolean;
+  isCompanyVerified?: boolean;
 }
 
 export interface ICreateAssociate {
@@ -20,6 +24,10 @@ export interface ICreateAssociate {
   password: string;
   isActive?: boolean;
   isDeleted?: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
+  isOneToOneVerified?: boolean;
+  isCompanyVerified?: boolean;
 }
 
 export interface IUpdateAssociate {
@@ -31,4 +39,8 @@ export interface IUpdateAssociate {
   password?: string;
   isActive?: boolean;
   isDeleted?: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
+  isOneToOneVerified?: boolean;
+  isCompanyVerified?: boolean;
 }

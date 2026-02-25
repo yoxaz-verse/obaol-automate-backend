@@ -90,7 +90,14 @@ export class CrudEngine extends BaseService {
         delete query.page;
         delete query.limit;
 
+        // Cast boolean strings to actual booleans
+        Object.keys(query).forEach(key => {
+            if (query[key] === "true") query[key] = true;
+            if (query[key] === "false") query[key] = false;
+        });
+
         const filterQuery = { ...query, ...searchQuery };
+        console.log(`[CrudEngine] findAll [${this.entityName}] Final Filter Query:`, JSON.stringify(filterQuery));
 
         // 4. Handling Population
         const populate = config?.relations ? this.buildPopulateArray(config.relations) : undefined;

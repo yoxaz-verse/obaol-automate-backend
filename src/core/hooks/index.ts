@@ -3,6 +3,7 @@ import { employeeFilterHook } from "./employeeAccessHooks";
 import { associateFilterHook } from "./associateAccessHooks";
 import { companyStatsHook } from "./companyStatsHooks";
 import { categoryFilterHook } from "./categoryHooks";
+import { orderFilterHook } from "./orderAccessHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
@@ -17,6 +18,7 @@ export const registerAllHooks = () => {
 
     HookDispatcher.registerPreRead("enquiries", employeeFilterHook);
     HookDispatcher.registerPreRead("associates", employeeFilterHook);
+    HookDispatcher.registerPreRead("orders", orderFilterHook);
 
     // RBAC Hooks for Associates
     HookDispatcher.registerPreRead("catalog-items", associateFilterHook);

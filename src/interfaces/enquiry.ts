@@ -25,6 +25,15 @@ export interface IInquiry extends Document {
 
   // Internal assignment
   assignedEmployeeId?: Types.ObjectId | null;
+  order?: Types.ObjectId | null;
+  responsibilityPlan?: {
+    procurementBy?: "buyer" | "seller" | "obaol";
+    certificateBy?: "buyer" | "seller" | "obaol";
+    transportBy?: "buyer" | "seller" | "obaol";
+    shippingBy?: "buyer" | "seller" | "obaol";
+    packagingBy?: "buyer" | "seller" | "obaol";
+    qualityTestingBy?: "buyer" | "seller" | "obaol";
+  };
 
   // Status management
   status: InquiryStatus;

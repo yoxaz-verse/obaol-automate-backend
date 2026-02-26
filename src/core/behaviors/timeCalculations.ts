@@ -16,9 +16,9 @@ export class TimeCalculations {
      */
     static determineLastLiveAt(
         isLive: boolean,
-        currentLastLiveAt: Date | null
+        _currentLastLiveAt: Date | null
     ): Date | null {
-        if (isLive && !currentLastLiveAt) {
+        if (isLive) {
             return new Date();
         }
         return null;

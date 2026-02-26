@@ -75,11 +75,25 @@ const InquirySchema: Schema = new Schema(
             type: Date,
             default: null
         },
+        responsibilityPlan: {
+            procurementBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            certificateBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            transportBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            shippingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            packagingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            qualityTestingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+        },
 
         // Internal assignment
         assignedEmployeeId: {
             type: Schema.Types.ObjectId,
             ref: "Employee",
+            default: null,
+            index: true
+        },
+        order: {
+            type: Schema.Types.ObjectId,
+            ref: "Order",
             default: null,
             index: true
         },

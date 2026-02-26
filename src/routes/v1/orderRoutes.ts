@@ -1,8 +1,11 @@
 import express from "express";
 import { OrderController } from "../../controllers/orderController";
+import authenticateToken from "../../middlewares/auth";
 
 const router = express.Router();
 const orderController = new OrderController(); // Assuming standard CRUD methods exist
+
+router.use(authenticateToken);
 
 router.post("/", orderController.create);
 router.get("/", orderController.getAll);

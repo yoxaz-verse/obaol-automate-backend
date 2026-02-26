@@ -356,6 +356,9 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             buyerAssociateId: "associates",
             sellerAssociateId: "associates",
             mediatorAssociateId: "associates",
+            "buyerAssociateId.associateCompany": "associate-companies",
+            "sellerAssociateId.associateCompany": "associate-companies",
+            "mediatorAssociateId.associateCompany": "associate-companies",
             assignedEmployeeId: "employees"
         },
     },
@@ -366,11 +369,14 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
             enquiry: "enquiries",
-            "enquiry.associateCompany": "associate-companies",
-            "enquiry.associateCompany.assignedEmployee": "employees",
-            "enquiry.productVariant": "product-variants",
-            "enquiry.productVariant.product": "products",
-            "enquiry.productAssociate": "associates"
+            "enquiry.productId": "products",
+            "enquiry.buyerAssociateId": "associates",
+            "enquiry.sellerAssociateId": "associates",
+            "enquiry.mediatorAssociateId": "associates",
+            "enquiry.buyerAssociateId.associateCompany": "associate-companies",
+            "enquiry.sellerAssociateId.associateCompany": "associate-companies",
+            "enquiry.mediatorAssociateId.associateCompany": "associate-companies",
+            "enquiry.assignedEmployeeId": "employees"
         },
     },
     "enquiry-process-statuses": {

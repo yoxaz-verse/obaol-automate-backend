@@ -7,6 +7,23 @@ export interface IAssociateCompany {
   phoneSecondary: string;
   isActive?: boolean;
   isDeleted?: boolean;
+  supervisor?: string;
+  logo?: string;
+  banner?: string;
+  description?: string;
+  aboutUs?: string;
+  address?: string;
+  website?: string;
+  socialLinks?: {
+    linkedin?: string;
+    facebook?: string;
+    twitter?: string;
+    instagram?: string;
+  };
+  tags?: string[];
+  subdomain?: string;
+  customDomain?: string;
+  isWebsiteLive?: boolean;
 }
 
 export interface ICreateAssociateCompany {
@@ -17,6 +34,23 @@ export interface ICreateAssociateCompany {
   phoneSecondary: string;
   isActive?: boolean;
   isDeleted?: boolean;
+  supervisor?: string;
+  logo?: string;
+  banner?: string;
+  description?: string;
+  aboutUs?: string;
+  address?: string;
+  website?: string;
+  socialLinks?: {
+    linkedin?: string;
+    facebook?: string;
+    twitter?: string;
+    instagram?: string;
+  };
+  tags?: string[];
+  subdomain?: string;
+  customDomain?: string;
+  isWebsiteLive?: boolean;
 }
 
 export interface IUpdateAssociateCompany {
@@ -27,4 +61,21 @@ export interface IUpdateAssociateCompany {
   phoneSecondary?: string;
   isActive?: boolean;
   isDeleted?: boolean;
+  supervisor?: string;
+  logo?: string;
+  banner?: string;
+  description?: string;
+  aboutUs?: string;
+  address?: string;
+  website?: string;
+  socialLinks?: {
+    linkedin?: string;
+    facebook?: string;
+    twitter?: string;
+    instagram?: string;
+  };
+  tags?: string[];
+  subdomain?: string;
+  customDomain?: string;
+  isWebsiteLive?: boolean;
 }

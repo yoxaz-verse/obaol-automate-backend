@@ -17,6 +17,7 @@ export interface IVariantRate extends Document {
   createdAt?: Date;
   updatedAt?: Date;
   lastLiveAt?: Date;
+  lastLiveDate?: Date;
 
   // ✅ NEW FIELDS
   lastEditTime?: Date; // Timestamp of last allowed edit
@@ -41,6 +42,7 @@ export interface ICreateVariantRate {
   coolingStartTime?: Date;
   hiddenDraftOf?: Types.ObjectId;
   lastLiveAt?: Date;
+  lastLiveDate?: Date;
 }
 
 export interface IUpdateVariantRate {
@@ -60,4 +62,5 @@ export interface IUpdateVariantRate {
   coolingStartTime?: Date;
   hiddenDraftOf?: Types.ObjectId;
   lastLiveAt?: Date;
+  lastLiveDate?: Date;
 }

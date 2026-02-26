@@ -54,8 +54,10 @@ router.use(`${prefix}/diagnostic`, diagnosticRoutes);
 
 // Public Routes (No Auth)
 import { GenericCrudController } from "../controllers/genericCrudController";
+import brandRoutes from "./v1/brandRoutes";
 const publicCrud = new GenericCrudController();
 router.get(`${prefix}/products`, (req, res, next) => { (req.params as any).entity = "products"; next(); }, publicCrud.handleRequest.bind(publicCrud));
+router.use(`${prefix}/brand`, brandRoutes);
 
 
 // --- Generic CRUD Route (Low Priority / Catch-All) ---

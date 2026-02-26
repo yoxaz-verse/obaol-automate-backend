@@ -32,6 +32,7 @@ const VariantRateSchema: Schema = new Schema({
   hiddenDraftOf: { type: Schema.Types.ObjectId, ref: "VariantRate" },
   // ✅ NEW FIELD
   lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
+  lastLiveDate: { type: Date, default: null },
 }, { timestamps: true });
 
 /**
@@ -67,6 +68,7 @@ VariantRateSchema.pre<IVariantRate>("save", function (next) {
     );
     if (newDate) {
       this.lastLiveAt = newDate;
+      this.lastLiveDate = newDate;
     }
   }
   next();

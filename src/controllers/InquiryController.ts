@@ -108,9 +108,21 @@ export class InquiryController {
             // Populate relations
             await inquiry.populate([
                 { path: "productId", select: "name description" },
-                { path: "buyerAssociateId", select: "name email phone" },
-                { path: "sellerAssociateId", select: "name email phone" },
-                { path: "mediatorAssociateId", select: "name email phone" },
+                {
+                    path: "buyerAssociateId",
+                    select: "name email phone associateCompany",
+                    populate: { path: "associateCompany", select: "name" }
+                },
+                {
+                    path: "sellerAssociateId",
+                    select: "name email phone associateCompany",
+                    populate: { path: "associateCompany", select: "name" }
+                },
+                {
+                    path: "mediatorAssociateId",
+                    select: "name email phone associateCompany",
+                    populate: { path: "associateCompany", select: "name" }
+                },
                 { path: "assignedEmployeeId", select: "name email" }
             ]);
 
@@ -395,9 +407,21 @@ export class InquiryController {
             const inquiry = await InquiryModel.findById(id)
                 .populate([
                     { path: "productId", select: "name description" },
-                    { path: "buyerAssociateId", select: "name email phone" },
-                    { path: "sellerAssociateId", select: "name email phone" },
-                    { path: "mediatorAssociateId", select: "name email phone" },
+                    {
+                        path: "buyerAssociateId",
+                        select: "name email phone associateCompany",
+                        populate: { path: "associateCompany", select: "name" }
+                    },
+                    {
+                        path: "sellerAssociateId",
+                        select: "name email phone associateCompany",
+                        populate: { path: "associateCompany", select: "name" }
+                    },
+                    {
+                        path: "mediatorAssociateId",
+                        select: "name email phone associateCompany",
+                        populate: { path: "associateCompany", select: "name" }
+                    },
                     { path: "assignedEmployeeId", select: "name email" }
                 ])
                 .select("+notes"); // Include notes for access control filtering
@@ -466,9 +490,21 @@ export class InquiryController {
                 InquiryModel.find(filters)
                     .populate([
                         { path: "productId", select: "name description" },
-                        { path: "buyerAssociateId", select: "name email phone" },
-                        { path: "sellerAssociateId", select: "name email phone" },
-                        { path: "mediatorAssociateId", select: "name email phone" },
+                        {
+                            path: "buyerAssociateId",
+                            select: "name email phone associateCompany",
+                            populate: { path: "associateCompany", select: "name" }
+                        },
+                        {
+                            path: "sellerAssociateId",
+                            select: "name email phone associateCompany",
+                            populate: { path: "associateCompany", select: "name" }
+                        },
+                        {
+                            path: "mediatorAssociateId",
+                            select: "name email phone associateCompany",
+                            populate: { path: "associateCompany", select: "name" }
+                        },
                         { path: "assignedEmployeeId", select: "name email" }
                     ])
                     .sort({ createdAt: -1 })

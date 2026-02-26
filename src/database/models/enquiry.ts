@@ -82,7 +82,62 @@ const InquirySchema: Schema = new Schema(
             shippingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
             packagingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
             qualityTestingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            cargoInsuranceBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            exportCustomsBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+            importCustomsBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+            dutiesTaxesBy: { type: String, enum: ["buyer"], default: "buyer" },
+            portHandlingBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+            destinationInlandTransportBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+            destinationInspectionBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+            finalDeliveryConfirmationBy: { type: String, enum: ["obaol"], default: "obaol" },
         },
+        executionContext: {
+            tradeType: { type: String, enum: ["DOMESTIC", "INTERNATIONAL"], default: "DOMESTIC" },
+            originCountry: { type: String, default: null },
+            originState: { type: String, default: null },
+            originDistrict: { type: String, default: null },
+            originPort: { type: String, default: null },
+            destinationCountry: { type: String, default: null },
+            destinationState: { type: String, default: null },
+            destinationDistrict: { type: String, default: null },
+            destinationPort: { type: String, default: null },
+            routeNotes: { type: String, default: null },
+        },
+        responsibilitiesFinalizedAt: {
+            type: Date,
+            default: null
+        },
+        executionInquiries: [
+            {
+                type: {
+                    type: String,
+                    enum: ["PROCUREMENT", "CERTIFICATION", "TRANSPORTATION", "SHIPPING", "PACKAGING", "QUALITY_TESTING"],
+                    required: true
+                },
+                ownerBy: {
+                    type: String,
+                    enum: ["buyer", "seller", "obaol"],
+                    required: true
+                },
+                status: {
+                    type: String,
+                    enum: ["OPEN", "IN_PROGRESS", "COMPLETED"],
+                    default: "OPEN"
+                },
+                title: { type: String, required: true },
+                details: {
+                    tradeType: { type: String, enum: ["DOMESTIC", "INTERNATIONAL"], default: "DOMESTIC" },
+                    from: { type: String, default: null },
+                    to: { type: String, default: null },
+                    routeNotes: { type: String, default: null },
+                    requiresShipping: { type: Boolean, default: false }
+                },
+                bidAmount: { type: Number, default: null },
+                commitNote: { type: String, default: null },
+                committedAt: { type: Date, default: null },
+                createdAt: { type: Date, default: Date.now }
+            }
+        ],
 
         // Internal assignment
         assignedEmployeeId: {

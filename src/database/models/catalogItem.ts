@@ -10,6 +10,8 @@ export interface ICatalogItem extends Document {
     isLive: boolean;
     customTitle?: string;
     customDescription?: string;
+    lastLiveAt?: Date | null;
+    lastLiveDate?: Date | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -60,6 +62,8 @@ const CatalogItemSchema: Schema = new Schema(
             type: String,
             trim: true,
         },
+        lastLiveAt: { type: Date, default: null },
+        lastLiveDate: { type: Date, default: null },
     },
     {
         timestamps: true,
@@ -71,6 +75,19 @@ CatalogItemSchema.index(
     { associateId: 1, baseRateId: 1 },
     { unique: true }
 );
+
+CatalogItemSchema.pre<ICatalogItem>("save", function (next) {
+    if (this.isModified("isLive")) {
+        // We reuse the logic from TimeCalculations if possible, otherwise we set it manually
+        // Since I'm in the backend, I should check if TimeCalculations is available
+        if (this.isLive) {
+            const now = new Date();
+            this.lastLiveAt = now;
+            this.lastLiveDate = now;
+        }
+    }
+    next();
+});
 
 export const CatalogItemModel = mongoose.model<ICatalogItem>(
     "CatalogItem",

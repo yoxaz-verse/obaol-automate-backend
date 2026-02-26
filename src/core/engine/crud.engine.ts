@@ -90,10 +90,15 @@ export class CrudEngine extends BaseService {
         delete query.page;
         delete query.limit;
 
-        // Cast boolean strings to actual booleans
+        // Cast boolean strings to actual booleans and handle arrays with $in
         Object.keys(query).forEach(key => {
-            if (query[key] === "true") query[key] = true;
-            if (query[key] === "false") query[key] = false;
+            if (query[key] === "true") {
+                query[key] = true;
+            } else if (query[key] === "false") {
+                query[key] = false;
+            } else if (Array.isArray(query[key]) && !key.startsWith('$')) {
+                query[key] = { $in: query[key] };
+            }
         });
 
         const filterQuery = { ...query, ...searchQuery };

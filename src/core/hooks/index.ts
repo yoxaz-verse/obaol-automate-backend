@@ -21,8 +21,14 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreRead("orders", orderFilterHook);
 
     // RBAC Hooks for Associates
-    HookDispatcher.registerPreRead("catalog-items", associateFilterHook);
-    HookDispatcher.registerPreRead("displayed-rates", associateFilterHook);
+    HookDispatcher.registerPreRead("catalog-items", async (query, mode, id, req) => {
+        let q = await categoryFilterHook(query, mode, id, req);
+        return await associateFilterHook(q, mode, id, req);
+    });
+    HookDispatcher.registerPreRead("displayed-rates", async (query, mode, id, req) => {
+        let q = await categoryFilterHook(query, mode, id, req);
+        return await associateFilterHook(q, mode, id, req);
+    });
 
     // Dynamic Statistics Hooks
     HookDispatcher.registerPostRead("associate-companies", companyStatsHook);

@@ -33,7 +33,45 @@ export interface IInquiry extends Document {
     shippingBy?: "buyer" | "seller" | "obaol";
     packagingBy?: "buyer" | "seller" | "obaol";
     qualityTestingBy?: "buyer" | "seller" | "obaol";
+    cargoInsuranceBy?: "buyer" | "seller" | "obaol";
+    exportCustomsBy?: "buyer" | "seller" | "obaol";
+    importCustomsBy?: "buyer" | "obaol";
+    dutiesTaxesBy?: "buyer";
+    portHandlingBy?: "buyer" | "obaol";
+    destinationInlandTransportBy?: "buyer" | "obaol";
+    destinationInspectionBy?: "buyer" | "obaol";
+    finalDeliveryConfirmationBy?: "obaol";
   };
+  executionContext?: {
+    tradeType?: "DOMESTIC" | "INTERNATIONAL";
+    originCountry?: string;
+    originState?: string;
+    originDistrict?: string;
+    originPort?: string;
+    destinationCountry?: string;
+    destinationState?: string;
+    destinationDistrict?: string;
+    destinationPort?: string;
+    routeNotes?: string;
+  };
+  responsibilitiesFinalizedAt?: Date | null;
+  executionInquiries?: Array<{
+    type: "PROCUREMENT" | "CERTIFICATION" | "TRANSPORTATION" | "SHIPPING" | "PACKAGING" | "QUALITY_TESTING";
+    ownerBy: "buyer" | "seller" | "obaol";
+    status: "OPEN" | "IN_PROGRESS" | "COMPLETED";
+    title: string;
+    details?: {
+      tradeType?: "DOMESTIC" | "INTERNATIONAL";
+      from?: string;
+      to?: string;
+      routeNotes?: string;
+      requiresShipping?: boolean;
+    };
+    bidAmount?: number;
+    commitNote?: string;
+    committedAt?: Date | null;
+    createdAt: Date;
+  }>;
 
   // Status management
   status: InquiryStatus;

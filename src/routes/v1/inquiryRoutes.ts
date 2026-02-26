@@ -23,6 +23,12 @@ router.post("/", inquiryController.create.bind(inquiryController));
 router.get("/", inquiryController.list.bind(inquiryController));
 
 /**
+ * List sea ports only (UN/LOCODE function code "1")
+ * GET /api/v1/web/inquiries/sea-ports?country=...
+ */
+router.get("/sea-ports", inquiryController.listSeaPorts.bind(inquiryController));
+
+/**
  * Get inquiry by ID
  * GET /api/v1/web/inquiries/:id
  */
@@ -59,6 +65,18 @@ router.patch("/:id/seller-accept", inquiryController.sellerAccept.bind(inquiryCo
  * PATCH /api/v1/web/inquiries/:id/buyer-confirm
  */
 router.patch("/:id/buyer-confirm", inquiryController.buyerConfirm.bind(inquiryController));
+
+/**
+ * Finalize responsibility plan and generate execution inquiries
+ * PATCH /api/v1/web/inquiries/:id/finalize-responsibilities
+ */
+router.patch("/:id/finalize-responsibilities", inquiryController.finalizeResponsibilities.bind(inquiryController));
+
+/**
+ * Update execution inquiry (bid/commit/status)
+ * PATCH /api/v1/web/inquiries/:id/execution-inquiries/:type
+ */
+router.patch("/:id/execution-inquiries/:type", inquiryController.updateExecutionInquiry.bind(inquiryController));
 
 /**
  * Get inquiry event history (admin/assigned employee only)

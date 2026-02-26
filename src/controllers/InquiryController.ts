@@ -22,12 +22,69 @@ import {
 import { Types } from "mongoose";
 import { VariantRateModel } from "../database/models/variantRate";
 import { CatalogItemModel } from "../database/models/catalogItem";
+import { CountryModel } from "../database/models/country";
+import { StateModel } from "../database/models/state";
+import { DistrictModel } from "../database/models/district";
+import { UnLoCodeModel } from "../database/models/unLoCode";
+import { UnLoCodeFunctionsModel } from "../database/models/unLoCodeFunction";
 
 /**
  * Inquiry Controller
  * Implements business logic with state machine and access control
  */
 export class InquiryController {
+    /**
+     * List only sea ports (UN/LOCODE function code "1")
+     * GET /api/v1/web/inquiries/sea-ports?country=...
+     */
+    async listSeaPorts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const country = String(req.query.country || "");
+            const page = Math.max(parseInt(String(req.query.page || "1"), 10), 1);
+            const limit = Math.min(Math.max(parseInt(String(req.query.limit || "200"), 10), 1), 2000);
+
+            const seaPortFn = await UnLoCodeFunctionsModel.findOne({ code: "1", isDeleted: false }).select("_id");
+            if (!seaPortFn?._id) {
+                return res.json({
+                    success: true,
+                    data: { data: [], page, limit, total: 0, pages: 0 },
+                });
+            }
+
+            const query: any = {
+                isDeleted: false,
+                functions: seaPortFn._id,
+            };
+            if (country && Types.ObjectId.isValid(country)) {
+                query.country = new Types.ObjectId(country);
+            }
+
+            const skip = (page - 1) * limit;
+            const [rows, total] = await Promise.all([
+                UnLoCodeModel.find(query)
+                    .select("name loCode country functions status")
+                    .populate("country", "name")
+                    .sort({ name: 1 })
+                    .skip(skip)
+                    .limit(limit),
+                UnLoCodeModel.countDocuments(query),
+            ]);
+
+            res.json({
+                success: true,
+                data: {
+                    data: rows,
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                },
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
     /**
      * Create a new inquiry
      * POST /api/v1/web/inquiries
@@ -382,6 +439,375 @@ export class InquiryController {
                 success: true,
                 data: inquiry,
                 message: "Inquiry confirmed by buyer"
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Finalize responsibilities and generate execution inquiries
+     * PATCH /api/v1/web/inquiries/:id/finalize-responsibilities
+     */
+    async finalizeResponsibilities(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+
+            const context: InquiryAccessContext = {
+                userId: req.user!.id,
+                userRole: req.user!.role,
+                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
+            };
+
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({ success: false, message: "Access denied" });
+            }
+
+            const isAdmin = req.user!.role === UserRole.ADMIN;
+            let isBuyerOrSeller = false;
+            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
+                const role = getAssociateRole(inquiry as any, context.associateId);
+                isBuyerOrSeller = role === "buyer" || role === "seller";
+            }
+            if (!isAdmin && !isBuyerOrSeller) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Only admin, buyer, or supplier can finalize responsibilities"
+                });
+            }
+
+            if (!inquiry.sellerAcceptedAt || !inquiry.buyerConfirmedAt) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Supplier acceptance and buyer confirmation are required before finalization"
+                });
+            }
+
+            const planRaw: any = inquiry.responsibilityPlan || {};
+            const plan: any = {
+                ...planRaw,
+                exportCustomsBy: planRaw.exportCustomsBy || planRaw.certificateBy || "obaol",
+                cargoInsuranceBy: planRaw.cargoInsuranceBy || planRaw.shippingBy || "obaol",
+                importCustomsBy: planRaw.importCustomsBy || "buyer",
+                dutiesTaxesBy: planRaw.dutiesTaxesBy || "buyer",
+                portHandlingBy: planRaw.portHandlingBy || "buyer",
+                destinationInlandTransportBy: planRaw.destinationInlandTransportBy || "buyer",
+                destinationInspectionBy: planRaw.destinationInspectionBy || "buyer",
+                finalDeliveryConfirmationBy: planRaw.finalDeliveryConfirmationBy || "obaol",
+            };
+
+            const bodyContext = req.body?.executionContext || {};
+            const mergedContext: any = {
+                ...(inquiry as any).executionContext,
+                ...bodyContext,
+            };
+            const tradeType = String(mergedContext.tradeType || "DOMESTIC").toUpperCase() === "INTERNATIONAL"
+                ? "INTERNATIONAL"
+                : "DOMESTIC";
+            mergedContext.tradeType = tradeType;
+            const isIndiaName = (name: any) => String(name || "").trim().toLowerCase() === "india";
+            let isFromIndia = false;
+            let isToIndia = false;
+            if (tradeType === "INTERNATIONAL") {
+                const [originCountryRef, destinationCountryRef] = await Promise.all([
+                    mergedContext.originCountry && Types.ObjectId.isValid(String(mergedContext.originCountry))
+                        ? CountryModel.findById(mergedContext.originCountry).select("name")
+                        : null,
+                    mergedContext.destinationCountry && Types.ObjectId.isValid(String(mergedContext.destinationCountry))
+                        ? CountryModel.findById(mergedContext.destinationCountry).select("name")
+                        : null,
+                ]);
+                isFromIndia = isIndiaName((originCountryRef as any)?.name) || isIndiaName(mergedContext.originCountryName);
+                isToIndia = isIndiaName((destinationCountryRef as any)?.name) || isIndiaName(mergedContext.destinationCountryName);
+            }
+
+            const allowedByKey: Record<string, Set<string>> = {
+                procurementBy: new Set(["buyer", "seller", "obaol"]),
+                qualityTestingBy: new Set(["buyer", "seller", "obaol"]),
+                packagingBy: new Set(["buyer", "seller", "obaol"]),
+                transportBy: new Set(["buyer", "seller", "obaol"]),
+                shippingBy: new Set(["buyer", "seller", "obaol"]),
+                cargoInsuranceBy: new Set(["buyer", "seller", "obaol"]),
+                exportCustomsBy: new Set(["buyer", "seller", "obaol"]),
+                importCustomsBy: new Set(["buyer", "obaol"]),
+                dutiesTaxesBy: new Set(["buyer"]),
+                portHandlingBy: new Set(["buyer", "obaol"]),
+                destinationInlandTransportBy: new Set(["buyer", "obaol"]),
+                destinationInspectionBy: new Set(["buyer", "obaol"]),
+                finalDeliveryConfirmationBy: new Set(["obaol"]),
+            };
+            const domesticRequiredKeys = [
+                "procurementBy",
+                "qualityTestingBy",
+                "packagingBy",
+                "transportBy",
+            ];
+            const internationalRequiredKeys = [
+                "shippingBy",
+                ...(isFromIndia ? ["exportCustomsBy"] : []),
+                ...(isToIndia
+                    ? [
+                        "importCustomsBy",
+                        "dutiesTaxesBy",
+                        "portHandlingBy",
+                        "destinationInlandTransportBy",
+                        "destinationInspectionBy",
+                        "finalDeliveryConfirmationBy",
+                    ]
+                    : []),
+            ];
+            const requiredPlanKeys = tradeType === "INTERNATIONAL"
+                ? [...domesticRequiredKeys, ...internationalRequiredKeys]
+                : domesticRequiredKeys;
+            for (const key of requiredPlanKeys) {
+                const value = String(plan[key] || "");
+                if (!allowedByKey[key]?.has(value)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Responsibility plan is incomplete or invalid: ${key}`
+                    });
+                }
+            }
+
+            if (tradeType === "DOMESTIC") {
+                if (!mergedContext.originState || !mergedContext.destinationState) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Domestic trade requires originState and destinationState"
+                    });
+                }
+                if (!mergedContext.originDistrict || !mergedContext.destinationDistrict) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Domestic trade requires originDistrict and destinationDistrict"
+                    });
+                }
+                mergedContext.originCountry = null;
+                mergedContext.destinationCountry = null;
+                mergedContext.originPort = null;
+                mergedContext.destinationPort = null;
+            } else {
+                if (!mergedContext.originCountry || !mergedContext.destinationCountry) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "International trade requires originCountry and destinationCountry"
+                    });
+                }
+                if (!mergedContext.originPort || !mergedContext.destinationPort) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "International trade requires originPort and destinationPort"
+                    });
+                }
+                mergedContext.originState = null;
+                mergedContext.destinationState = null;
+                mergedContext.originDistrict = null;
+                mergedContext.destinationDistrict = null;
+            }
+
+            if ((inquiry as any).responsibilitiesFinalizedAt) {
+                return res.json({
+                    success: true,
+                    data: inquiry,
+                    message: "Responsibilities already finalized"
+                });
+            }
+
+            const [originCountryDoc, destinationCountryDoc, originStateDoc, destinationStateDoc, originDistrictDoc, destinationDistrictDoc, originPortDoc, destinationPortDoc] = await Promise.all([
+                mergedContext.originCountry && Types.ObjectId.isValid(String(mergedContext.originCountry))
+                    ? CountryModel.findById(mergedContext.originCountry).select("name")
+                    : null,
+                mergedContext.destinationCountry && Types.ObjectId.isValid(String(mergedContext.destinationCountry))
+                    ? CountryModel.findById(mergedContext.destinationCountry).select("name")
+                    : null,
+                mergedContext.originState && Types.ObjectId.isValid(String(mergedContext.originState))
+                    ? StateModel.findById(mergedContext.originState).select("name")
+                    : null,
+                mergedContext.destinationState && Types.ObjectId.isValid(String(mergedContext.destinationState))
+                    ? StateModel.findById(mergedContext.destinationState).select("name")
+                    : null,
+                mergedContext.originDistrict && Types.ObjectId.isValid(String(mergedContext.originDistrict))
+                    ? DistrictModel.findById(mergedContext.originDistrict).select("name")
+                    : null,
+                mergedContext.destinationDistrict && Types.ObjectId.isValid(String(mergedContext.destinationDistrict))
+                    ? DistrictModel.findById(mergedContext.destinationDistrict).select("name")
+                    : null,
+                mergedContext.originPort && Types.ObjectId.isValid(String(mergedContext.originPort))
+                    ? UnLoCodeModel.findById(mergedContext.originPort).select("name loCode")
+                    : null,
+                mergedContext.destinationPort && Types.ObjectId.isValid(String(mergedContext.destinationPort))
+                    ? UnLoCodeModel.findById(mergedContext.destinationPort).select("name loCode")
+                    : null,
+            ]);
+
+            const routeFrom =
+                tradeType === "INTERNATIONAL"
+                    ? [originPortDoc ? `${(originPortDoc as any).name} (${(originPortDoc as any).loCode})` : null, originCountryDoc ? (originCountryDoc as any).name : null]
+                        .filter(Boolean)
+                        .join(", ")
+                    : [originDistrictDoc ? (originDistrictDoc as any).name : null, originStateDoc ? (originStateDoc as any).name : null]
+                        .filter(Boolean)
+                        .join(", ");
+            const routeTo =
+                tradeType === "INTERNATIONAL"
+                    ? [destinationPortDoc ? `${(destinationPortDoc as any).name} (${(destinationPortDoc as any).loCode})` : null, destinationCountryDoc ? (destinationCountryDoc as any).name : null]
+                        .filter(Boolean)
+                        .join(", ")
+                    : [destinationDistrictDoc ? (destinationDistrictDoc as any).name : null, destinationStateDoc ? (destinationStateDoc as any).name : null]
+                        .filter(Boolean)
+                        .join(", ");
+            const baseDetails = {
+                tradeType,
+                from: routeFrom,
+                to: routeTo,
+                routeNotes: mergedContext.routeNotes || "",
+                requiresShipping: tradeType === "INTERNATIONAL",
+            };
+
+            const executionInquiries = [
+                { type: "PROCUREMENT", ownerBy: plan.procurementBy, title: "Procurement Inquiry", details: baseDetails },
+                ...(tradeType === "INTERNATIONAL" && isFromIndia
+                    ? [{ type: "CERTIFICATION", ownerBy: plan.exportCustomsBy, title: "Export Customs Clearance Inquiry", details: baseDetails }]
+                    : []),
+                { type: "TRANSPORTATION", ownerBy: plan.transportBy, title: "Transportation Inquiry", details: baseDetails },
+                ...(tradeType === "INTERNATIONAL"
+                    ? [{ type: "SHIPPING", ownerBy: plan.shippingBy, title: "Freight Forwarding & Shipping Inquiry", details: { ...baseDetails, requiresShipping: true } }]
+                    : []),
+                { type: "PACKAGING", ownerBy: plan.packagingBy, title: "Packaging Inquiry", details: baseDetails },
+                { type: "QUALITY_TESTING", ownerBy: plan.qualityTestingBy, title: "Quality Testing & Assurance Inquiry", details: baseDetails },
+            ].map((x: any) => ({
+                ...x,
+                status: "OPEN" as const,
+                createdAt: new Date()
+            }));
+
+            (inquiry as any).responsibilitiesFinalizedAt = new Date();
+            (inquiry as any).responsibilityPlan = plan;
+            (inquiry as any).executionContext = mergedContext;
+            (inquiry as any).executionInquiries = executionInquiries;
+            await inquiry.save();
+
+            await createInquiryEvent(
+                inquiry._id,
+                InquiryEventType.UPDATED,
+                req.user!.id,
+                {
+                    metadata: {
+                        action: "RESPONSIBILITIES_FINALIZED",
+                        executionInquiryCount: executionInquiries.length
+                    }
+                }
+            );
+
+            return res.json({
+                success: true,
+                data: inquiry,
+                message: "Responsibilities finalized and execution inquiries generated"
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Update one execution inquiry item (bid / commit / status)
+     * PATCH /api/v1/web/inquiries/:id/execution-inquiries/:type
+     */
+    async updateExecutionInquiry(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id, type } = req.params;
+            const { bidAmount, commitNote, status } = req.body;
+
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+
+            const context: InquiryAccessContext = {
+                userId: req.user!.id,
+                userRole: req.user!.role,
+                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
+            };
+
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({ success: false, message: "Access denied" });
+            }
+
+            const isAdmin = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.EMPLOYEE;
+            let associateRole: "buyer" | "seller" | "mediator" | null = null;
+            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
+                associateRole = getAssociateRole(inquiry as any, context.associateId);
+            }
+
+            const normalizedType = String(type || "").toUpperCase();
+            const tasks = ((inquiry as any).executionInquiries || []) as any[];
+            const idx = tasks.findIndex((t) => String(t?.type || "").toUpperCase() === normalizedType);
+            if (idx < 0) {
+                return res.status(404).json({ success: false, message: "Execution inquiry item not found" });
+            }
+
+            const task = tasks[idx];
+            const ownerBy = String(task.ownerBy || "").toLowerCase();
+            const canAct =
+                isAdmin ||
+                (ownerBy === "buyer" && associateRole === "buyer") ||
+                (ownerBy === "seller" && associateRole === "seller");
+
+            if (!canAct) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You are not authorized to update this execution inquiry"
+                });
+            }
+
+            if (typeof bidAmount === "number" && !Number.isNaN(bidAmount)) {
+                task.bidAmount = bidAmount;
+                if (!status) task.status = "IN_PROGRESS";
+            }
+            if (typeof commitNote === "string") {
+                task.commitNote = commitNote;
+            }
+            if (status && ["OPEN", "IN_PROGRESS", "COMPLETED"].includes(String(status).toUpperCase())) {
+                task.status = String(status).toUpperCase();
+            }
+            if (task.status === "COMPLETED") {
+                task.committedAt = new Date();
+            }
+
+            tasks[idx] = task;
+            (inquiry as any).executionInquiries = tasks;
+            await inquiry.save();
+
+            await createInquiryEvent(
+                inquiry._id,
+                InquiryEventType.UPDATED,
+                req.user!.id,
+                {
+                    metadata: {
+                        action: "EXECUTION_INQUIRY_UPDATED",
+                        type: normalizedType,
+                        status: task.status
+                    }
+                }
+            );
+
+            return res.json({
+                success: true,
+                data: inquiry,
+                message: "Execution inquiry updated"
             });
         } catch (error: any) {
             next(error);

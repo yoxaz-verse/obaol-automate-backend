@@ -13,6 +13,45 @@ export class OrderController {
 
     public create = async (req: Request, res: Response) => {
         try {
+            if (!req.body.enquiry) {
+                return res.status(400).json({ success: false, message: "enquiry is required to create order" });
+            }
+
+            const enquiry = await EnquiryModel.findById(req.body.enquiry);
+            if (!enquiry) {
+                return res.status(404).json({ success: false, message: "Source inquiry not found" });
+            }
+
+            if (!enquiry.sellerAcceptedAt || !enquiry.buyerConfirmedAt) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Supplier acceptance and buyer confirmation are required before conversion"
+                });
+            }
+
+            const responsibilityPlan: any = (enquiry as any).responsibilityPlan || {};
+            const requiredKeys = [
+                "procurementBy",
+                "certificateBy",
+                "transportBy",
+                "shippingBy",
+                "packagingBy",
+                "qualityTestingBy"
+            ];
+            const allowedOwners = new Set(["buyer", "seller", "obaol"]);
+            const isPlanComplete = requiredKeys.every((k) => allowedOwners.has(String(responsibilityPlan?.[k] || "")));
+            if (!isPlanComplete || !(enquiry as any).responsibilitiesFinalizedAt) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Responsibilities must be finalized before conversion"
+                });
+            }
+
+            // If frontend does not send responsibilities, inherit from finalized enquiry plan.
+            if (!req.body.responsibilities) {
+                req.body.responsibilities = responsibilityPlan;
+            }
+
             const order = await this.engine.create(req, req.body);
 
             if (req.body.enquiry) {

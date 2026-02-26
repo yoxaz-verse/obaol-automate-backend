@@ -1,58 +1,96 @@
 import { SubCategoryModel } from "../../database/models/subCategory";
 import { ProductModel } from "../../database/models/product";
 import { ProductVariantModel } from "../../database/models/productVariant";
+import { VariantRateModel } from "../../database/models/variantRate";
 
 /**
- * Hook to filter variant-rates by category.
- * Reads 'category' from query, finds related product variants, and filters by those.
+ * Hook to filter variant-rates, catalog-items, and displayed-rates by hierarchy (category, subCategory, product).
+ * Translates these high-level filters into appropriate IDs for each entity.
  */
 export const categoryFilterHook = async (query: any, mode: string, id: string | undefined, req: any): Promise<any> => {
-    // Only run if 'category' is in the query
-    if (query.category) {
-        const categoryId = query.category;
+    const { category, subCategory, product, ...restQuery } = query;
 
-        // Remove 'category' from query so it doesn't fail in the main repository find
-        const { category, ...restQuery } = query;
+    // If none of the hierarchical filters are present, return original query
+    if (!category && !subCategory && !product) {
+        return query;
+    }
 
-        try {
-            // 1. Find SubCategories
-            const subCategories = await SubCategoryModel.find({ category: categoryId }).select("_id");
-            const subCategoryIds = subCategories.map(sc => sc._id);
+    try {
+        let currentTargetIds: any[] = [];
+        let hasFilter = false;
 
-            // 2. Find Products
+        // 1. Handle Product Filter (Direct parent of ProductVariant)
+        if (product) {
+            hasFilter = true;
+            currentTargetIds = Array.isArray(product) ? product : [product];
+        }
+        // 2. Handle SubCategory Filter
+        else if (subCategory) {
+            hasFilter = true;
+            const subCategoryIds = Array.isArray(subCategory) ? subCategory : [subCategory];
             const products = await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id");
-            const productIds = products.map(p => p._id);
+            currentTargetIds = products.map(p => p._id);
+        }
+        // 3. Handle Category Filter
+        else if (category) {
+            hasFilter = true;
+            const categoryIds = Array.isArray(category) ? category : [category];
+            const subCategories = await SubCategoryModel.find({ category: { $in: categoryIds } }).select("_id");
+            const subCategoryIds = subCategories.map(sc => sc._id);
+            const products = await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id");
+            currentTargetIds = products.map(p => p._id);
+        }
 
-            // 3. Find ProductVariants
-            const productVariants = await ProductVariantModel.find({ product: { $in: productIds } }).select("_id");
+        if (hasFilter) {
+            // Find ProductVariants for the resulting products
+            const productVariants = await ProductVariantModel.find({ product: { $in: currentTargetIds } }).select("_id");
             const productVariantIds = productVariants.map(pv => pv._id);
 
-            // 4. Apply filter
-            // If productVariantIds is empty, we should return empty result
-            if (productVariantIds.length === 0) {
-                return { ...restQuery, _id: "000000000000000000000000" };
+            const entity = req.params?.entity;
+            let filterField = "productVariant";
+            let finalTargetIds = productVariantIds;
+
+            if (entity === "catalog-items") {
+                filterField = "productVariantId";
+            } else if (entity === "displayed-rates") {
+                // For displayed-rates, we need to find the VariantRate IDs first
+                const variantRates = await VariantRateModel.find({ productVariant: { $in: productVariantIds } }).select("_id");
+                finalTargetIds = variantRates.map(vr => vr._id);
+                filterField = "variantRate";
             }
 
-            // Merge with existing productVariant filter if it exists
-            if (restQuery.productVariant) {
+            // If no target IDs found but we had a filter, return a query that results in nothing
+            if (finalTargetIds.length === 0) {
+                return { ...restQuery, [filterField]: { $in: ["000000000000000000000000"] } };
+            }
+
+            // Merge with existing filter if it exists
+            if (restQuery[filterField]) {
+                const existing = Array.isArray(restQuery[filterField])
+                    ? restQuery[filterField]
+                    : [restQuery[filterField]];
+
                 return {
                     ...restQuery,
-                    $and: [
-                        { productVariant: { $in: productVariantIds } },
-                        { productVariant: restQuery.productVariant }
-                    ]
+                    [filterField]: { $in: finalTargetIds.filter(id => existing.includes(String(id))) }
                 };
             }
 
-            return { ...restQuery, productVariant: { $in: productVariantIds } };
-
-        } catch (error) {
-            console.error("Error in categoryFilterHook:", error);
-            // In case of error, maybe return original query (which might fail due to 'category' field) 
-            // or empty result. Let's fail safe to empty.
-            return { ...restQuery, _id: "000000000000000000000000" };
+            return { ...restQuery, [filterField]: { $in: finalTargetIds } };
         }
+
+    } catch (error) {
+        console.error("Error in categoryFilterHook:", error);
+        // Determine the filter field for the error case as well
+        const entity = req.params?.entity;
+        let filterField = "productVariant";
+        if (entity === "catalog-items") {
+            filterField = "productVariantId";
+        } else if (entity === "displayed-rates") {
+            filterField = "variantRate";
+        }
+        return { ...restQuery, [filterField]: { $in: ["000000000000000000000000"] } };
     }
 
-    return query;
+    return restQuery;
 };

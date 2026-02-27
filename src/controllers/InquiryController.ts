@@ -51,24 +51,29 @@ export class InquiryController {
                 });
             }
 
-            const query: any = {
-                isDeleted: false,
-                functions: seaPortFn._id,
-            };
+            const query: any = { isDeleted: false };
             if (country && Types.ObjectId.isValid(country)) {
                 query.country = new Types.ObjectId(country);
             }
+            const rawRows = await UnLoCodeModel.find(query)
+                .select("name loCode country functions status")
+                .populate("country", "name")
+                .populate("functions", "code name")
+                .sort({ name: 1 })
+                .limit(5000);
 
+            // Strictly keep only maritime sea ports (UN/LOCODE function code "1")
+            const seaRows = rawRows.filter((row: any) => {
+                const functions = Array.isArray(row?.functions) ? row.functions : [];
+                return functions.some((fn: any) => {
+                    const code = String(fn?.code || "");
+                    const id = String(fn?._id || fn || "");
+                    return code === "1" || id === String(seaPortFn._id);
+                });
+            });
+            const total = seaRows.length;
             const skip = (page - 1) * limit;
-            const [rows, total] = await Promise.all([
-                UnLoCodeModel.find(query)
-                    .select("name loCode country functions status")
-                    .populate("country", "name")
-                    .sort({ name: 1 })
-                    .skip(skip)
-                    .limit(limit),
-                UnLoCodeModel.countDocuments(query),
-            ]);
+            const rows = seaRows.slice(skip, skip + limit);
 
             res.json({
                 success: true,
@@ -165,6 +170,30 @@ export class InquiryController {
             // Populate relations
             await inquiry.populate([
                 { path: "productId", select: "name description" },
+                {
+                    path: "variantRateId",
+                    select: "productVariant rate commission",
+                    populate: {
+                        path: "productVariant",
+                        select: "name product",
+                        populate: { path: "product", select: "name" }
+                    }
+                },
+                {
+                    path: "catalogItemId",
+                    select: "productVariantId baseRateId finalPrice margin",
+                    populate: [
+                        {
+                            path: "productVariantId",
+                            select: "name product",
+                            populate: { path: "product", select: "name" }
+                        },
+                        {
+                            path: "baseRateId",
+                            select: "rate commission"
+                        }
+                    ]
+                },
                 {
                     path: "buyerAssociateId",
                     select: "name email phone associateCompany",
@@ -834,6 +863,30 @@ export class InquiryController {
                 .populate([
                     { path: "productId", select: "name description" },
                     {
+                        path: "variantRateId",
+                        select: "productVariant rate commission",
+                        populate: {
+                            path: "productVariant",
+                            select: "name product",
+                            populate: { path: "product", select: "name" }
+                        }
+                    },
+                    {
+                        path: "catalogItemId",
+                        select: "productVariantId baseRateId finalPrice margin",
+                        populate: [
+                            {
+                                path: "productVariantId",
+                                select: "name product",
+                                populate: { path: "product", select: "name" }
+                            },
+                            {
+                                path: "baseRateId",
+                                select: "rate commission"
+                            }
+                        ]
+                    },
+                    {
                         path: "buyerAssociateId",
                         select: "name email phone associateCompany",
                         populate: { path: "associateCompany", select: "name" }
@@ -916,6 +969,30 @@ export class InquiryController {
                 InquiryModel.find(filters)
                     .populate([
                         { path: "productId", select: "name description" },
+                        {
+                            path: "variantRateId",
+                            select: "productVariant rate commission",
+                            populate: {
+                                path: "productVariant",
+                                select: "name product",
+                                populate: { path: "product", select: "name" }
+                            }
+                        },
+                        {
+                            path: "catalogItemId",
+                            select: "productVariantId baseRateId finalPrice margin",
+                            populate: [
+                                {
+                                    path: "productVariantId",
+                                    select: "name product",
+                                    populate: { path: "product", select: "name" }
+                                },
+                                {
+                                    path: "baseRateId",
+                                    select: "rate commission"
+                                }
+                            ]
+                        },
                         {
                             path: "buyerAssociateId",
                             select: "name email phone associateCompany",

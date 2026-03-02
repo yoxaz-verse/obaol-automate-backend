@@ -29,6 +29,63 @@ import {
 } from "../constants/companyInterests";
 
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const COUNTRY_ALIAS_TO_CODE: Record<string, string> = {
+    UAE: "AE",
+    USA: "US",
+    UK: "GB",
+    KSA: "SA",
+};
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const normalizeCountryToken = (value: string) => String(value || "").trim().toUpperCase().replace(/[^A-Z]/g, "");
+const countryAcronym = (name: string) =>
+    String(name || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((part) => part[0]?.toUpperCase() || "")
+        .join("");
+
+const resolveCountry = async (countryInput: any) => {
+    const raw = String(countryInput || "").trim();
+    if (!raw) return null;
+
+    if (mongoose.Types.ObjectId.isValid(raw)) {
+        const byId = await CountryModel.findById(raw).select("_id name code").lean();
+        if (byId) return byId;
+    }
+
+    const token = normalizeCountryToken(raw);
+    const mappedCode = COUNTRY_ALIAS_TO_CODE[token] || token;
+
+    let found = await CountryModel.findOne({
+        $or: [
+            { code: mappedCode },
+            { name: new RegExp(`^${escapeRegex(raw)}$`, "i") },
+        ],
+    })
+        .select("_id name code")
+        .lean();
+    if (found) return found;
+
+    const words = raw.split(/\s+/).map((w) => w.trim()).filter(Boolean);
+    if (words.length > 0) {
+        found = await CountryModel.findOne({
+            $and: words.map((word) => ({ name: new RegExp(escapeRegex(word), "i") })),
+        })
+            .select("_id name code")
+            .lean();
+        if (found) return found;
+    }
+
+    if (token.length >= 2 && token.length <= 4) {
+        const countries = await CountryModel.find({ isDeleted: { $ne: true } }).select("_id name code").lean();
+        const byAcronym = countries.find((row: any) => countryAcronym(String(row?.name || "")) === token);
+        if (byAcronym) return byAcronym;
+    }
+
+    return null;
+};
 
 const syncCompanyInterests = async (params: {
     associateCompanyId: any;
@@ -530,21 +587,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
                             message: "For international company, country name is required."
                         });
                     }
-                    let countryExists: any = null;
-                    if (mongoose.Types.ObjectId.isValid(companyCountry)) {
-                        countryExists = await CountryModel.findById(companyCountry).select("_id name code").lean();
-                    } else {
-                        const upperCode = companyCountry.toUpperCase();
-                        const escaped = companyCountry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                        countryExists = await CountryModel.findOne({
-                            $or: [
-                                { code: upperCode },
-                                { name: new RegExp(`^${escaped}$`, "i") },
-                            ],
-                        })
-                            .select("_id name code")
-                            .lean();
-                    }
+                    const countryExists: any = await resolveCountry(companyCountry);
                     if (!countryExists) {
                         return res.status(400).json({
                             success: false,
@@ -655,16 +698,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
                 finalAssociatePincode = associatePincodeEntry || undefined;
             } else {
                 if (!associateCountry) return res.status(400).json({ success: false, message: "For international address, country is required." });
-                let countryExists: any = null;
-                if (mongoose.Types.ObjectId.isValid(associateCountry)) {
-                    countryExists = await CountryModel.findById(associateCountry).select("_id name code").lean();
-                } else {
-                    const upperCode = associateCountry.toUpperCase();
-                    const escaped = associateCountry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                    countryExists = await CountryModel.findOne({
-                        $or: [{ code: upperCode }, { name: new RegExp(`^${escaped}$`, "i") }],
-                    }).select("_id name code").lean();
-                }
+                const countryExists: any = await resolveCountry(associateCountry);
                 if (!countryExists) return res.status(400).json({ success: false, message: "Invalid country." });
                 resolvedAssociateCountryId = countryExists._id;
             }

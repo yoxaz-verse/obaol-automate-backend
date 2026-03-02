@@ -8,6 +8,7 @@ export interface DecodedToken {
   id: string;
   email: string;
   role: string;
+  associateCompany?: string | null;
   iat: number;
   exp: number;
 }

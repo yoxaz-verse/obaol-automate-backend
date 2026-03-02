@@ -27,12 +27,33 @@ import { StateModel } from "../database/models/state";
 import { DistrictModel } from "../database/models/district";
 import { UnLoCodeModel } from "../database/models/unLoCode";
 import { UnLoCodeFunctionsModel } from "../database/models/unLoCodeFunction";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
 
 /**
  * Inquiry Controller
  * Implements business logic with state machine and access control
  */
 export class InquiryController {
+    private buildAccessContext(req: Request): InquiryAccessContext {
+        return {
+            userId: req.user!.id,
+            userRole: req.user!.role,
+            associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null),
+            associateCompanyId: (req.user as any)?.associateCompany || null,
+        };
+    }
+
+    private async getCapabilityMatchedProviderIds(type: string): Promise<string[]> {
+        const rows = await AssociateCompanyModel.find({
+            isDeleted: { $ne: true },
+            serviceCapabilities: { $in: [String(type || "").toUpperCase()] },
+        })
+            .select("_id")
+            .limit(5000)
+            .lean();
+        return rows.map((row: any) => String(row._id));
+    }
+
     /**
      * List only sea ports (UN/LOCODE function code "1")
      * GET /api/v1/web/inquiries/sea-ports?country=...
@@ -111,6 +132,11 @@ export class InquiryController {
                 notes
             } = req.body;
             let { rate, adminCommission, mediatorCommission } = req.body;
+            const roleLower = String(req.user?.role || "").toLowerCase();
+            const isEmployeeCreator = roleLower === "employee" || roleLower === "team";
+            const normalizedAssignedEmployeeId = isEmployeeCreator
+                ? req.user!.id
+                : (assignedEmployeeId || null);
 
             // Validation
             if (!productId || !buyerAssociateId || !sellerAssociateId) {
@@ -146,7 +172,7 @@ export class InquiryController {
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
-                assignedEmployeeId,
+                assignedEmployeeId: normalizedAssignedEmployeeId,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -252,11 +278,7 @@ export class InquiryController {
                 });
             }
 
-            const context: InquiryAccessContext = {
-                userId: req.user!.id,
-                userRole: req.user!.role,
-                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
-            };
+            const context: InquiryAccessContext = this.buildAccessContext(req);
 
             if (!canAccessInquiry(inquiry as any, context)) {
                 return res.status(403).json({
@@ -335,11 +357,7 @@ export class InquiryController {
                 });
             }
 
-            const context: InquiryAccessContext = {
-                userId: req.user!.id,
-                userRole: req.user!.role,
-                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
-            };
+            const context: InquiryAccessContext = this.buildAccessContext(req);
 
             if (!canAccessInquiry(inquiry as any, context)) {
                 return res.status(403).json({
@@ -416,11 +434,7 @@ export class InquiryController {
                 });
             }
 
-            const context: InquiryAccessContext = {
-                userId: req.user!.id,
-                userRole: req.user!.role,
-                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
-            };
+            const context: InquiryAccessContext = this.buildAccessContext(req);
 
             if (!canAccessInquiry(inquiry as any, context)) {
                 return res.status(403).json({
@@ -491,11 +505,7 @@ export class InquiryController {
                 return res.status(404).json({ success: false, message: "Inquiry not found" });
             }
 
-            const context: InquiryAccessContext = {
-                userId: req.user!.id,
-                userRole: req.user!.role,
-                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
-            };
+            const context: InquiryAccessContext = this.buildAccessContext(req);
 
             if (!canAccessInquiry(inquiry as any, context)) {
                 return res.status(403).json({ success: false, message: "Access denied" });
@@ -702,7 +712,7 @@ export class InquiryController {
                 requiresShipping: tradeType === "INTERNATIONAL",
             };
 
-            const executionInquiries = [
+            const executionInquirySeed = [
                 { type: "PROCUREMENT", ownerBy: plan.procurementBy, title: "Procurement Inquiry", details: baseDetails },
                 ...(tradeType === "INTERNATIONAL" && isFromIndia
                     ? [{ type: "CERTIFICATION", ownerBy: plan.exportCustomsBy, title: "Export Customs Clearance Inquiry", details: baseDetails }]
@@ -713,9 +723,18 @@ export class InquiryController {
                     : []),
                 { type: "PACKAGING", ownerBy: plan.packagingBy, title: "Packaging Inquiry", details: baseDetails },
                 { type: "QUALITY_TESTING", ownerBy: plan.qualityTestingBy, title: "Quality Testing & Assurance Inquiry", details: baseDetails },
-            ].map((x: any) => ({
+            ];
+
+            const candidateSets = await Promise.all(
+                executionInquirySeed.map((x: any) => this.getCapabilityMatchedProviderIds(x.type))
+            );
+
+            const executionInquiries = executionInquirySeed.map((x: any, index: number) => ({
                 ...x,
                 status: "OPEN" as const,
+                candidateProviders: candidateSets[index] || [],
+                bids: [],
+                committedProvider: null,
                 createdAt: new Date()
             }));
 
@@ -765,11 +784,7 @@ export class InquiryController {
                 return res.status(404).json({ success: false, message: "Inquiry not found" });
             }
 
-            const context: InquiryAccessContext = {
-                userId: req.user!.id,
-                userRole: req.user!.role,
-                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
-            };
+            const context: InquiryAccessContext = this.buildAccessContext(req);
 
             if (!canAccessInquiry(inquiry as any, context)) {
                 return res.status(403).json({ success: false, message: "Access denied" });
@@ -790,8 +805,15 @@ export class InquiryController {
 
             const task = tasks[idx];
             const ownerBy = String(task.ownerBy || "").toLowerCase();
+            const associateCompanyId = String(context.associateCompanyId || "");
+            const candidateProviders = Array.isArray(task?.candidateProviders) ? task.candidateProviders : [];
+            const isProviderCandidate = Boolean(
+                associateCompanyId &&
+                candidateProviders.some((provider: any) => String(provider?._id || provider || "") === associateCompanyId)
+            );
             const canAct =
                 isAdmin ||
+                isProviderCandidate ||
                 (ownerBy === "buyer" && associateRole === "buyer") ||
                 (ownerBy === "seller" && associateRole === "seller");
 
@@ -809,8 +831,37 @@ export class InquiryController {
             if (typeof commitNote === "string") {
                 task.commitNote = commitNote;
             }
+            if (isProviderCandidate && (typeof bidAmount === "number" || typeof commitNote === "string")) {
+                const bidRows = Array.isArray(task.bids) ? task.bids : [];
+                const existingBidIndex = bidRows.findIndex(
+                    (bid: any) => String(bid?.company?._id || bid?.company || "") === associateCompanyId
+                );
+                const now = new Date();
+                const bidPayload = {
+                    company: associateCompanyId,
+                    amount: typeof bidAmount === "number" && !Number.isNaN(bidAmount) ? bidAmount : null,
+                    note: typeof commitNote === "string" ? commitNote : "",
+                    status: "SUBMITTED",
+                    createdBy: context.associateId || null,
+                    createdAt: now,
+                    updatedAt: now,
+                };
+                if (existingBidIndex >= 0) {
+                    bidRows[existingBidIndex] = {
+                        ...bidRows[existingBidIndex],
+                        ...bidPayload,
+                        createdAt: bidRows[existingBidIndex]?.createdAt || now,
+                    };
+                } else {
+                    bidRows.push(bidPayload);
+                }
+                task.bids = bidRows;
+            }
             if (status && ["OPEN", "IN_PROGRESS", "COMPLETED"].includes(String(status).toUpperCase())) {
-                task.status = String(status).toUpperCase();
+                const nextStatus = String(status).toUpperCase();
+                if (!isProviderCandidate || isAdmin || nextStatus !== "COMPLETED") {
+                    task.status = nextStatus;
+                }
             }
             if (task.status === "COMPLETED") {
                 task.committedAt = new Date();
@@ -901,7 +952,10 @@ export class InquiryController {
                         select: "name email phone associateCompany",
                         populate: { path: "associateCompany", select: "name" }
                     },
-                    { path: "assignedEmployeeId", select: "name email" }
+                    { path: "assignedEmployeeId", select: "name email" },
+                    { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
+                    { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
+                    { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
                 ])
                 .select("+notes"); // Include notes for access control filtering
 
@@ -913,11 +967,7 @@ export class InquiryController {
             }
 
             // Build access context
-            const context: InquiryAccessContext = {
-                userId: req.user!.id,
-                userRole: req.user!.role,
-                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
-            };
+            const context: InquiryAccessContext = this.buildAccessContext(req);
 
             // Check access
             if (!canAccessInquiry(inquiry, context)) {
@@ -948,11 +998,7 @@ export class InquiryController {
             const { status, page = 1, limit = 20 } = req.query;
 
             // Build access context
-            const context: InquiryAccessContext = {
-                userId: req.user!.id,
-                userRole: req.user!.role,
-                associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null)
-            };
+            const context: InquiryAccessContext = this.buildAccessContext(req);
 
             // Build access filter
             const accessFilter = buildInquiryAccessFilter(context);
@@ -1008,7 +1054,10 @@ export class InquiryController {
                             select: "name email phone associateCompany",
                             populate: { path: "associateCompany", select: "name" }
                         },
-                        { path: "assignedEmployeeId", select: "name email" }
+                        { path: "assignedEmployeeId", select: "name email" },
+                        { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
+                        { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
+                        { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
                     ])
                     .sort({ createdAt: -1 })
                     .skip(skip)

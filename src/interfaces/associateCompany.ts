@@ -3,8 +3,13 @@ export interface IAssociateCompany {
   name: string;
   email: string;
   phone: string;
+  phoneCountryCode?: string;
+  phoneNational?: string;
   location: string;
   phoneSecondary: string;
+  phoneSecondaryCountryCode?: string;
+  phoneSecondaryNational?: string;
+  serviceCapabilities?: string[];
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;
@@ -24,14 +29,27 @@ export interface IAssociateCompany {
   subdomain?: string;
   customDomain?: string;
   isWebsiteLive?: boolean;
+  gstin?: string;
+  legalRegistrationNumber?: string;
+  legalComplianceInfo?: string;
+  registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  isApproved?: boolean;
+  approvedAt?: Date;
+  approvedBy?: string;
+  reviewNotes?: string;
 }
 
 export interface ICreateAssociateCompany {
   name: string;
   email: string;
   phone: string;
+  phoneCountryCode?: string;
+  phoneNational?: string;
   location: string;
   phoneSecondary: string;
+  phoneSecondaryCountryCode?: string;
+  phoneSecondaryNational?: string;
+  serviceCapabilities?: string[];
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;
@@ -51,14 +69,27 @@ export interface ICreateAssociateCompany {
   subdomain?: string;
   customDomain?: string;
   isWebsiteLive?: boolean;
+  gstin?: string;
+  legalRegistrationNumber?: string;
+  legalComplianceInfo?: string;
+  registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  isApproved?: boolean;
+  approvedAt?: Date;
+  approvedBy?: string;
+  reviewNotes?: string;
 }
 
 export interface IUpdateAssociateCompany {
   name?: string;
   email?: string;
   phone?: string;
+  phoneCountryCode?: string;
+  phoneNational?: string;
   location?: string;
   phoneSecondary?: string;
+  phoneSecondaryCountryCode?: string;
+  phoneSecondaryNational?: string;
+  serviceCapabilities?: string[];
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;
@@ -78,4 +109,12 @@ export interface IUpdateAssociateCompany {
   subdomain?: string;
   customDomain?: string;
   isWebsiteLive?: boolean;
+  gstin?: string;
+  legalRegistrationNumber?: string;
+  legalComplianceInfo?: string;
+  registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  isApproved?: boolean;
+  approvedAt?: Date;
+  approvedBy?: string;
+  reviewNotes?: string;
 }

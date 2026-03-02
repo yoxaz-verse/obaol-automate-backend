@@ -5,11 +5,10 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IVerification extends Document {
   userId: string; // _id from user model
   userType:
-    | "Associate"
-    | "Customer"
-    | "InventoryManager"
-    | "Admin"
-    | "Employee"; // extend as needed
+  | "Associate"
+  | "InventoryManager"
+  | "Admin"
+  | "Employee"; // extend as needed
   method: "email" | "phone";
   code: string;
   ipAddress: string;
@@ -23,7 +22,7 @@ const VerificationSchema = new Schema<IVerification>({
   userType: {
     type: String,
     required: true,
-    enum: ["Associate", "Customer", "InventoryManager", "Admin", "Employee"],
+    enum: ["Associate", "InventoryManager", "Admin", "Employee"],
   },
   method: { type: String, enum: ["email", "phone"], required: true },
   code: { type: String, required: true },

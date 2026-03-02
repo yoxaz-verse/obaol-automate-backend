@@ -5,11 +5,13 @@ import path from "path";
 import express from "express";
 import "./cron"; // ✅ Add this line to start cron jobs!
 import { prefix } from "./routes";
+import { seedCompanyFunctions } from "./seeds/companyFunctions.seed";
 const PORTD = Number(PORT) || 5001;
 
 async function startServer() {
   try {
     await connectDB();
+    await seedCompanyFunctions();
     app.listen(PORTD, '0.0.0.0', () => {
       console.log(`OBAOL Server is running on port ${PORTD}`);
       console.log(`Environment: ${NODE_ENV}`);

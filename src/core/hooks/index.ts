@@ -4,6 +4,13 @@ import { associateFilterHook } from "./associateAccessHooks";
 import { companyStatsHook } from "./companyStatsHooks";
 import { categoryFilterHook } from "./categoryHooks";
 import { orderFilterHook } from "./orderAccessHooks";
+import { associateReadNormalizationHook } from "./associateReadNormalizationHook";
+import {
+    companyFunctionMasterWriteHook,
+    companySubFunctionMasterWriteHook,
+    companyFunctionMappingWriteHook,
+} from "./companyFunctionHooks";
+import { companyFunctionReadHook } from "./companyFunctionReadHook";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
@@ -19,6 +26,7 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreRead("enquiries", employeeFilterHook);
     HookDispatcher.registerPreRead("associates", employeeFilterHook);
     HookDispatcher.registerPreRead("orders", orderFilterHook);
+    HookDispatcher.registerPostRead("associates", associateReadNormalizationHook);
 
     // RBAC Hooks for Associates
     HookDispatcher.registerPreRead("catalog-items", async (query, mode, id, req) => {
@@ -27,9 +35,16 @@ export const registerAllHooks = () => {
     });
     HookDispatcher.registerPreRead("displayed-rates", async (query, mode, id, req) => {
         let q = await categoryFilterHook(query, mode, id, req);
+        q = await employeeFilterHook(q, mode, id, req);
         return await associateFilterHook(q, mode, id, req);
     });
 
     // Dynamic Statistics Hooks
     HookDispatcher.registerPostRead("associate-companies", companyStatsHook);
+
+    // Company capability masters are admin managed and soft-deactivation only.
+    HookDispatcher.registerPreWrite("company-functions", companyFunctionMasterWriteHook);
+    HookDispatcher.registerPreWrite("company-sub-functions", companySubFunctionMasterWriteHook);
+    HookDispatcher.registerPreWrite("company-function-mappings", companyFunctionMappingWriteHook);
+    HookDispatcher.registerPostRead("company-functions", companyFunctionReadHook);
 };

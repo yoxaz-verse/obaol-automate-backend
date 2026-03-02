@@ -132,6 +132,19 @@ const InquirySchema: Schema = new Schema(
                     routeNotes: { type: String, default: null },
                     requiresShipping: { type: Boolean, default: false }
                 },
+                candidateProviders: [{ type: Schema.Types.ObjectId, ref: "AssociateCompany" }],
+                bids: [
+                    {
+                        company: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true },
+                        amount: { type: Number, default: null },
+                        note: { type: String, default: null },
+                        status: { type: String, enum: ["OPEN", "SUBMITTED", "WITHDRAWN", "AWARDED"], default: "SUBMITTED" },
+                        createdBy: { type: Schema.Types.ObjectId, ref: "Associate", default: null },
+                        createdAt: { type: Date, default: Date.now },
+                        updatedAt: { type: Date, default: Date.now }
+                    }
+                ],
+                committedProvider: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null },
                 bidAmount: { type: Number, default: null },
                 commitNote: { type: String, default: null },
                 committedAt: { type: Date, default: null },

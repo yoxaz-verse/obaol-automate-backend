@@ -2,14 +2,12 @@
 
 import { InventoryManagerModel } from "./inventoryManager";
 import { AdminModel } from "./admin";
-import { CustomerModel } from "./customer";
 import { ProjectManagerModel } from "./projectManager";
 
 export const isEmailTaken = async (email: string): Promise<boolean> => {
   // Check in all relevant user collections
   const projectManagerExists = await ProjectManagerModel.findOne({ email });
   const inventoryManagerExists = await InventoryManagerModel.findOne({ email });
-  const customerExists = await CustomerModel.findOne({ email });
   const adminExists = await AdminModel.findOne({ email });
   const associateExists = await AssociateModel.findOne({ email });
   // Add checks for other user types if needed
@@ -17,7 +15,6 @@ export const isEmailTaken = async (email: string): Promise<boolean> => {
   return !!(
     inventoryManagerExists ||
     projectManagerExists ||
-    customerExists ||
     adminExists ||
     associateExists
   );

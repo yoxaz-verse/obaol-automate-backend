@@ -15,6 +15,7 @@ export interface InquiryAccessContext {
     userId: Types.ObjectId | string;
     userRole: string;
     associateId?: Types.ObjectId | string | null;
+    associateCompanyId?: Types.ObjectId | string | null;
 }
 
 export interface InquiryDocument {
@@ -27,6 +28,26 @@ export interface InquiryDocument {
     [key: string]: any;
 }
 
+const getAttrId = (val: any) => {
+    if (!val) return null;
+    return (val._id || val).toString();
+};
+
+export function isExecutionProviderForCompany(
+    inquiry: InquiryDocument,
+    associateCompanyId?: Types.ObjectId | string | null
+): boolean {
+    if (!associateCompanyId) return false;
+    const companyId = associateCompanyId.toString();
+    const tasks = Array.isArray((inquiry as any)?.executionInquiries)
+        ? (inquiry as any).executionInquiries
+        : [];
+    return tasks.some((task: any) => {
+        const candidates = Array.isArray(task?.candidateProviders) ? task.candidateProviders : [];
+        return candidates.some((candidate: any) => getAttrId(candidate) === companyId);
+    });
+}
+
 /**
  * Check if user has access to view an inquiry
  * @param inquiry - Inquiry document
@@ -37,31 +58,32 @@ export function canAccessInquiry(
     inquiry: InquiryDocument,
     context: InquiryAccessContext
 ): boolean {
-    const { userId, userRole, associateId } = context;
-
-    const getAttrId = (val: any) => {
-        if (!val) return null;
-        return (val._id || val).toString();
-    };
+    const { userId, userRole, associateId, associateCompanyId } = context;
+    const roleLower = String(userRole || "").toLowerCase();
 
     // Admin has full access
-    if (userRole === UserRole.ADMIN) {
+    if (userRole === UserRole.ADMIN || roleLower === "admin") {
         return true;
     }
 
     // Employee: can access if assigned
-    if (userRole === UserRole.EMPLOYEE) {
-        return getAttrId(inquiry.assignedEmployeeId) === userId.toString();
+    if (userRole === UserRole.EMPLOYEE || roleLower === "employee" || roleLower === "team") {
+        return (
+            getAttrId(inquiry.assignedEmployeeId) === userId.toString() ||
+            getAttrId((inquiry as any).createdBy) === userId.toString()
+        );
     }
 
     // Associate: can access if involved (buyer, seller, or mediator)
     if (userRole === UserRole.ASSOCIATE && associateId) {
         const assocIdStr = associateId.toString();
-        return (
+        const isCoreParty = (
             getAttrId(inquiry.buyerAssociateId) === assocIdStr ||
             getAttrId(inquiry.sellerAssociateId) === assocIdStr ||
             getAttrId(inquiry.mediatorAssociateId) === assocIdStr
         );
+        if (isCoreParty) return true;
+        return isExecutionProviderForCompany(inquiry, associateCompanyId);
     }
 
     return false;
@@ -78,11 +100,6 @@ export function getAssociateRole(
     associateId: Types.ObjectId | string
 ): "buyer" | "seller" | "mediator" | null {
     const assocIdStr = associateId.toString();
-
-    const getAttrId = (val: any) => {
-        if (!val) return null;
-        return (val._id || val).toString();
-    };
 
     if (getAttrId(inquiry.buyerAssociateId) === assocIdStr) {
         return "buyer";
@@ -108,13 +125,16 @@ export function filterInquiryFields(
     inquiry: InquiryDocument,
     context: InquiryAccessContext
 ): Partial<InquiryDocument> {
-    const { userRole, associateId } = context;
+    const { userRole, associateId, associateCompanyId } = context;
+    const roleLower = String(userRole || "").toLowerCase();
 
     // Admin and assigned employee: full access
     if (
         userRole === UserRole.ADMIN ||
-        (userRole === UserRole.EMPLOYEE &&
-            inquiry.assignedEmployeeId?.toString() === context.userId.toString())
+        roleLower === "admin" ||
+        ((userRole === UserRole.EMPLOYEE || roleLower === "employee" || roleLower === "team") &&
+            (getAttrId(inquiry.assignedEmployeeId) === context.userId.toString() ||
+                getAttrId((inquiry as any).createdBy) === context.userId.toString()))
     ) {
         return inquiry;
     }
@@ -175,6 +195,30 @@ export function filterInquiryFields(
                 sellerAssociateId: undefined
             };
         }
+
+        // Capability-matched provider companies can access execution task context only.
+        if (isExecutionProviderForCompany(inquiry, associateCompanyId)) {
+            const {
+                notes,
+                assignedEmployeeId,
+                buyerAssociateId,
+                sellerAssociateId,
+                mediatorAssociateId,
+                adminCommission,
+                mediatorCommission,
+                ...safeFields
+            } = inquiry;
+            return {
+                ...safeFields,
+                notes: undefined,
+                assignedEmployeeId: undefined,
+                buyerAssociateId: undefined,
+                sellerAssociateId: undefined,
+                mediatorAssociateId: undefined,
+                adminCommission: undefined,
+                mediatorCommission: undefined,
+            };
+        }
     }
 
     // Default: return minimal safe fields
@@ -194,25 +238,32 @@ export function filterInquiryFields(
 export function buildInquiryAccessFilter(
     context: InquiryAccessContext
 ): Record<string, any> {
-    const { userId, userRole, associateId } = context;
+    const { userId, userRole, associateId, associateCompanyId } = context;
+    const roleLower = String(userRole || "").toLowerCase();
 
     // Admin: no filter (access all)
-    if (userRole === UserRole.ADMIN) {
+    if (userRole === UserRole.ADMIN || roleLower === "admin") {
         return {};
     }
 
     // Employee: only assigned inquiries
-    if (userRole === UserRole.EMPLOYEE) {
-        return { assignedEmployeeId: userId };
+    if (userRole === UserRole.EMPLOYEE || roleLower === "employee" || roleLower === "team") {
+        return {
+            $or: [{ assignedEmployeeId: userId }, { createdBy: userId }]
+        };
     }
 
     // Associate: where involved as buyer, seller, or mediator
     if (userRole === UserRole.ASSOCIATE && associateId) {
+        const providerFilter = associateCompanyId
+            ? [{ "executionInquiries.candidateProviders": associateCompanyId }]
+            : [];
         return {
             $or: [
                 { buyerAssociateId: associateId },
                 { sellerAssociateId: associateId },
-                { mediatorAssociateId: associateId }
+                { mediatorAssociateId: associateId },
+                ...providerFilter,
             ]
         };
     }

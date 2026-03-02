@@ -4,10 +4,6 @@ import authRoute from "./authRoute";
 import verifyTokenRoute from "./verifyTokenRoute";
 import verificationRoutes from "./verificationRoutes";
 import genericCrudRoute from "./genericCrudRoute";
-import {
-  calculateCIF,
-  calculateDomesticCost,
-} from "../controllers/cif.controller";
 
 // Initialize the main router
 const router = Router();
@@ -36,9 +32,14 @@ router.use(`${prefix}/inquiries`, inquiryRoutes);
 import analyticsRoutes from "./analyticsRoutes";
 router.use(`${prefix}/analytics`, analyticsRoutes);
 
-// Logistics / Calculation (Custom Controllers)
-router.post(`${prefix}/cif`, calculateCIF);
-router.post(`${prefix}/cif/domestic`, calculateDomesticCost);
+// Company Function System
+import companyFunctionRoutes from "./v1/companyFunctionRoutes";
+router.use(`${prefix}`, companyFunctionRoutes);
+
+// Approvals (Admin)
+import approvalRoutes from "./v1/approvalRoutes";
+router.use(`${prefix}/approvals`, approvalRoutes);
+
 
 // Catalog Management (Associate)
 import catalogRoutes from "./v1/catalogRoutes";

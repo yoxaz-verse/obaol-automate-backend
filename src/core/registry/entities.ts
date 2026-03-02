@@ -1,5 +1,4 @@
 import { Model } from "mongoose";
-import { CustomerModel } from "../../database/models/customer";
 import { LocationModel } from "../../database/models/location";
 import { ProductModel } from "../../database/models/product";
 import { ProductVariantModel } from "../../database/models/productVariant";
@@ -45,6 +44,9 @@ import { RateAttachmentModel } from "../../database/models/rateAttachmentModel";
 import { CatalogItemModel } from "../../database/models/catalogItem";
 import FileModel from "../../database/models/file";
 import { IncotermModel } from "../../database/models/incoterm";
+import { CompanyFunctionModel } from "../../database/models/companyFunction";
+import { CompanySubFunctionModel } from "../../database/models/companySubFunction";
+import { CompanyFunctionMappingModel } from "../../database/models/companyFunctionMapping";
 
 export interface EntityConfig {
     model: Model<any>;
@@ -103,12 +105,6 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             jobType: "job-types",
             languageKnown: "languages"
         },
-    },
-    "customers": {
-        model: CustomerModel,
-        searchableFields: ["name", "email", "phone", "companyName"],
-        sortableFields: ["createdAt", "name"],
-        allowedOperations: ["list", "create", "read", "update", "delete"],
     },
 
     // --- Catalog (Products & Rates) ---
@@ -325,6 +321,32 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         searchableFields: ["name"],
         sortableFields: ["name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+    },
+    "company-functions": {
+        model: CompanyFunctionModel,
+        searchableFields: ["name", "slug", "description"],
+        sortableFields: ["orderIndex", "name", "createdAt"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+    },
+    "company-sub-functions": {
+        model: CompanySubFunctionModel,
+        searchableFields: ["name", "slug", "description"],
+        sortableFields: ["orderIndex", "name", "createdAt"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            functionId: "company-functions",
+        },
+    },
+    "company-function-mappings": {
+        model: CompanyFunctionMappingModel,
+        searchableFields: [],
+        sortableFields: ["createdAt"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            companyId: "associate-companies",
+            functionId: "company-functions",
+            subFunctionId: "company-sub-functions",
+        },
     },
     "certifications": {
         model: CertificationModel,

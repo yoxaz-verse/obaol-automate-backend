@@ -3796,3 +3796,345 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-00.oq0ij
 2026-02-27T12:28:21.671Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
 2026-02-27T12:28:39.085Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
 2026-02-27T12:57:02.999Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-27T17:34:06.062Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-27T18:30:00.854Z [INFO]: Running daily variant rate reset cron job... 
+2026-02-27T18:30:01.076Z [INFO]: Successfully offlined 0 variant rates. 
+2026-02-27T19:42:32.947Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-27T21:30:56.208Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-27T21:31:10.306Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-27T21:34:13.970Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-27T21:34:24.496Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-27T21:34:36.800Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T05:19:36.656Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T05:43:13.381Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T06:20:18.879Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T06:20:34.104Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T09:08:47.245Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T09:09:16.000Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T09:09:38.115Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T09:10:00.616Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T09:10:24.649Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T09:11:49.543Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T09:12:40.651Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T09:13:04.033Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T10:36:33.213Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T18:30:00.823Z [INFO]: Running daily variant rate reset cron job... 
+2026-02-28T18:30:00.933Z [INFO]: Successfully offlined 0 variant rates. 
+2026-02-28T18:46:21.413Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:46:48.939Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:47:07.516Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T18:47:38.053Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:48:07.634Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:48:28.898Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T18:49:14.160Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T18:49:35.179Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T18:49:55.954Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:50:23.169Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:50:42.600Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:51:34.578Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T18:52:09.464Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T18:52:48.002Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:53:08.420Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:56:41.295Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T18:57:43.163Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T19:01:01.339Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T19:29:28.081Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T19:29:50.223Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T19:30:11.258Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T19:30:30.058Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T19:39:25.142Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-02-28T19:39:39.671Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T20:03:30.001Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T20:03:47.302Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T20:04:02.780Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-02-28T20:04:18.634Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T20:04:34.079Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-02-28T20:14:31.137Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T04:56:17.261Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T07:14:30.905Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T07:15:01.813Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T07:15:25.555Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T10:21:52.744Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T10:45:39.148Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T10:46:04.736Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T10:46:30.674Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T10:46:40.924Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T10:47:58.652Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T10:48:21.132Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T11:02:13.178Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T11:46:06.046Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T11:46:28.975Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T11:46:56.714Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T11:47:18.498Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T11:47:53.744Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T11:48:18.989Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T11:48:46.207Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T11:49:13.603Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T11:50:12.347Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T11:51:20.358Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T11:51:47.404Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T11:52:05.401Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T11:52:46.302Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T12:59:59.810Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T13:00:16.824Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T13:00:42.712Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T13:00:59.618Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T13:09:29.468Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T14:53:28.554Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T15:04:07.429Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T15:05:41.765Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T16:48:48.193Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=754 
+2026-03-01T16:48:50.699Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2505 failCount=1 
+2026-03-01T16:48:53.202Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5008 failCount=2 
+2026-03-01T16:48:53.689Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=487 
+2026-03-01T16:56:00.723Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T16:56:39.475Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T17:06:01.716Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=696 
+2026-03-01T17:06:04.227Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2508 failCount=1 
+2026-03-01T17:06:06.729Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5010 failCount=2 
+2026-03-01T17:06:07.051Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=321 
+2026-03-01T17:06:20.303Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=1328 
+2026-03-01T17:06:22.806Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=3 
+2026-03-01T17:06:23.752Z [WARN]: [PORT_RESOLVER] provider=GEONAMES status=error attempt=1 durationMs=2505 failCount=1 
+2026-03-01T17:06:24.580Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=1662 
+2026-03-01T17:06:24.580Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:06:25.308Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5005 failCount=4 
+2026-03-01T17:06:25.308Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:06:25.402Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=2 durationMs=4155 
+2026-03-01T17:06:25.402Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:06:31.925Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=492 
+2026-03-01T17:06:31.927Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:06:32.885Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=163 
+2026-03-01T17:06:32.885Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:06:33.611Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=1829 
+2026-03-01T17:06:33.612Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:09:51.835Z [ERROR]: unhandledRejection: Cast to ObjectId failed for value "4b554dcb261ccd2baf4813ea6ea7c047a16a0eda" (type string) at path "originPort" because of "BSONError"
+CastError: Cast to ObjectId failed for value "4b554dcb261ccd2baf4813ea6ea7c047a16a0eda" (type string) at path "originPort" because of "BSONError"
+    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)
+    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)
+    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)
+    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)
+    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)
+    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)
+    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)
+    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)
+    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {"error":{"stringValue":"\"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda\"","valueType":"string","kind":"ObjectId","value":"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda","path":"originPort","reason":{},"name":"CastError","message":"Cast to ObjectId failed for value \"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda\" (type string) at path \"originPort\" because of \"BSONError\""},"stack":"CastError: Cast to ObjectId failed for value \"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda\" (type string) at path \"originPort\" because of \"BSONError\"\n    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)\n    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)\n    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)\n    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)\n    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)\n    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)\n    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)\n    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)\n    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)\n    at processTicksAndRejections (node:internal/process/task_queues:103:5)","rejection":true,"date":"Sun Mar 01 2026 22:39:51 GMT+0530 (India Standard Time)","process":{"pid":96443,"uid":501,"gid":20,"cwd":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend","execPath":"/usr/local/bin/node","version":"v24.12.0","argv":["/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/.bin/ts-node","/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/src/index.ts"],"memoryUsage":{"rss":63307776,"heapTotal":531775488,"heapUsed":528473952,"external":28227454,"arrayBuffers":23830023}},"os":{"loadavg":[4.49267578125,3.97509765625,3.71337890625],"uptime":156501},"trace":[{"column":11,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js","function":"SchemaObjectId.cast","line":253,"method":"cast","native":false},{"column":12,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.applySetters","line":1288,"method":"applySetters","native":false},{"column":17,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.castForQuery","line":1724,"method":"castForQuery","native":false},{"column":19,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdateVal","line":633,"method":null,"native":false},{"column":24,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"walkUpdatePath","line":438,"method":null,"native":false},{"column":7,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdate","line":144,"method":null,"native":false},{"column":10,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._castUpdate","line":4874,"method":"_castUpdate","native":false},{"column":23,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._findOneAndUpdate","line":3497,"method":"_findOneAndUpdate","native":false},{"column":80,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query.exec","line":4627,"method":"exec","native":false},{"column":5,"file":"node:internal/process/task_queues","function":"processTicksAndRejections","line":103,"method":null,"native":false}]}
+2026-03-01T17:13:06.551Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T17:16:33.897Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=556 
+2026-03-01T17:16:36.408Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2508 failCount=1 
+2026-03-01T17:16:38.911Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5011 failCount=2 
+2026-03-01T17:16:39.716Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=804 
+2026-03-01T17:16:45.882Z [ERROR]: unhandledRejection: Cast to ObjectId failed for value "4b554dcb261ccd2baf4813ea6ea7c047a16a0eda" (type string) at path "originPort" because of "BSONError"
+CastError: Cast to ObjectId failed for value "4b554dcb261ccd2baf4813ea6ea7c047a16a0eda" (type string) at path "originPort" because of "BSONError"
+    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)
+    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)
+    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)
+    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)
+    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)
+    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)
+    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)
+    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)
+    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {"error":{"stringValue":"\"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda\"","valueType":"string","kind":"ObjectId","value":"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda","path":"originPort","reason":{},"name":"CastError","message":"Cast to ObjectId failed for value \"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda\" (type string) at path \"originPort\" because of \"BSONError\""},"stack":"CastError: Cast to ObjectId failed for value \"4b554dcb261ccd2baf4813ea6ea7c047a16a0eda\" (type string) at path \"originPort\" because of \"BSONError\"\n    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)\n    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)\n    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)\n    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)\n    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)\n    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)\n    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)\n    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)\n    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)\n    at processTicksAndRejections (node:internal/process/task_queues:103:5)","rejection":true,"date":"Sun Mar 01 2026 22:46:45 GMT+0530 (India Standard Time)","process":{"pid":98272,"uid":501,"gid":20,"cwd":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend","execPath":"/usr/local/bin/node","version":"v24.12.0","argv":["/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/.bin/ts-node","/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/src/index.ts"],"memoryUsage":{"rss":139329536,"heapTotal":537149440,"heapUsed":532054144,"external":28158615,"arrayBuffers":23772724}},"os":{"loadavg":[4.2412109375,4.25390625,3.97705078125],"uptime":156915},"trace":[{"column":11,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js","function":"SchemaObjectId.cast","line":253,"method":"cast","native":false},{"column":12,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.applySetters","line":1288,"method":"applySetters","native":false},{"column":17,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.castForQuery","line":1724,"method":"castForQuery","native":false},{"column":19,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdateVal","line":633,"method":null,"native":false},{"column":24,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"walkUpdatePath","line":438,"method":null,"native":false},{"column":7,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdate","line":144,"method":null,"native":false},{"column":10,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._castUpdate","line":4874,"method":"_castUpdate","native":false},{"column":23,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._findOneAndUpdate","line":3497,"method":"_findOneAndUpdate","native":false},{"column":80,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query.exec","line":4627,"method":"exec","native":false},{"column":5,"file":"node:internal/process/task_queues","function":"processTicksAndRejections","line":103,"method":null,"native":false}]}
+2026-03-01T17:20:23.994Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T17:22:27.617Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T17:22:47.720Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T17:27:20.617Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=894 
+2026-03-01T17:27:23.123Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2504 failCount=1 
+2026-03-01T17:27:25.625Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5007 failCount=2 
+2026-03-01T17:27:25.944Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=316 
+2026-03-01T17:27:47.530Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=521 
+2026-03-01T17:27:50.034Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=3 
+2026-03-01T17:27:52.537Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5006 failCount=4 
+2026-03-01T17:27:52.538Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:33:02.466Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T17:33:19.815Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T17:33:33.610Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T17:37:35.067Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T17:39:49.355Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=1063 
+2026-03-01T17:39:51.858Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=1 
+2026-03-01T17:39:54.359Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5004 failCount=2 
+2026-03-01T17:39:54.660Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=300 
+2026-03-01T17:40:30.063Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=1585 
+2026-03-01T17:40:32.567Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=3 
+2026-03-01T17:40:35.069Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5005 failCount=4 
+2026-03-01T17:40:35.069Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T17:53:30.158Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T18:15:58.707Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T18:16:13.544Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T18:16:25.587Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T18:27:52.993Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=568 
+2026-03-01T18:27:55.504Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2506 failCount=1 
+2026-03-01T18:27:58.006Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5008 failCount=2 
+2026-03-01T18:27:58.325Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=318 
+2026-03-01T18:28:26.389Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=527 
+2026-03-01T18:28:26.780Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=927 
+2026-03-01T18:28:28.649Z [INFO]: [PORT_RESOLVER] provider=OVERPASS status=ok attempt=1 durationMs=2260 
+2026-03-01T18:28:28.650Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:28:29.284Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=3 
+2026-03-01T18:28:31.786Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5005 failCount=4 
+2026-03-01T18:28:31.787Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:28:31.899Z [ERROR]: unhandledRejection: Cast to ObjectId failed for value "8bac3ba6e14378121dadb18dc3d49ac617000f50" (type string) at path "destinationPort" because of "BSONError"
+CastError: Cast to ObjectId failed for value "8bac3ba6e14378121dadb18dc3d49ac617000f50" (type string) at path "destinationPort" because of "BSONError"
+    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)
+    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)
+    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)
+    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)
+    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)
+    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)
+    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)
+    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)
+    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {"error":{"stringValue":"\"8bac3ba6e14378121dadb18dc3d49ac617000f50\"","valueType":"string","kind":"ObjectId","value":"8bac3ba6e14378121dadb18dc3d49ac617000f50","path":"destinationPort","reason":{},"name":"CastError","message":"Cast to ObjectId failed for value \"8bac3ba6e14378121dadb18dc3d49ac617000f50\" (type string) at path \"destinationPort\" because of \"BSONError\""},"stack":"CastError: Cast to ObjectId failed for value \"8bac3ba6e14378121dadb18dc3d49ac617000f50\" (type string) at path \"destinationPort\" because of \"BSONError\"\n    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)\n    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)\n    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)\n    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)\n    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)\n    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)\n    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)\n    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)\n    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)\n    at processTicksAndRejections (node:internal/process/task_queues:103:5)","rejection":true,"date":"Sun Mar 01 2026 23:58:31 GMT+0530 (India Standard Time)","process":{"pid":6207,"uid":501,"gid":20,"cwd":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend","execPath":"/usr/local/bin/node","version":"v24.12.0","argv":["/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/.bin/ts-node","/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/src/index.ts"],"memoryUsage":{"rss":123273216,"heapTotal":566820864,"heapUsed":560954144,"external":29630064,"arrayBuffers":25233180}},"os":{"loadavg":[2.34033203125,2.5205078125,3.0263671875],"uptime":161221},"trace":[{"column":11,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js","function":"SchemaObjectId.cast","line":253,"method":"cast","native":false},{"column":12,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.applySetters","line":1288,"method":"applySetters","native":false},{"column":17,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.castForQuery","line":1724,"method":"castForQuery","native":false},{"column":19,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdateVal","line":633,"method":null,"native":false},{"column":24,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"walkUpdatePath","line":438,"method":null,"native":false},{"column":7,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdate","line":144,"method":null,"native":false},{"column":10,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._castUpdate","line":4874,"method":"_castUpdate","native":false},{"column":23,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._findOneAndUpdate","line":3497,"method":"_findOneAndUpdate","native":false},{"column":80,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query.exec","line":4627,"method":"exec","native":false},{"column":5,"file":"node:internal/process/task_queues","function":"processTicksAndRejections","line":103,"method":null,"native":false}]}
+2026-03-01T18:31:04.038Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T18:36:27.669Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=609 
+2026-03-01T18:36:30.172Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=1 
+2026-03-01T18:36:32.095Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=771 
+2026-03-01T18:36:32.188Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=790 
+2026-03-01T18:36:32.675Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5006 failCount=2 
+2026-03-01T18:36:33.015Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=340 
+2026-03-01T18:36:34.598Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2502 failCount=3 
+2026-03-01T18:36:34.691Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=4 
+2026-03-01T18:36:36.644Z [INFO]: [PORT_RESOLVER] provider=OVERPASS status=ok attempt=2 durationMs=4456 
+2026-03-01T18:36:36.645Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:36:37.100Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5004 failCount=5 
+2026-03-01T18:36:37.100Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:36:37.595Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=475 
+2026-03-01T18:36:39.556Z [ERROR]: unhandledRejection: Cast to ObjectId failed for value "8bac3ba6e14378121dadb18dc3d49ac617000f50" (type string) at path "destinationPort" because of "BSONError"
+CastError: Cast to ObjectId failed for value "8bac3ba6e14378121dadb18dc3d49ac617000f50" (type string) at path "destinationPort" because of "BSONError"
+    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)
+    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)
+    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)
+    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)
+    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)
+    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)
+    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)
+    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)
+    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {"error":{"stringValue":"\"8bac3ba6e14378121dadb18dc3d49ac617000f50\"","valueType":"string","kind":"ObjectId","value":"8bac3ba6e14378121dadb18dc3d49ac617000f50","path":"destinationPort","reason":{},"name":"CastError","message":"Cast to ObjectId failed for value \"8bac3ba6e14378121dadb18dc3d49ac617000f50\" (type string) at path \"destinationPort\" because of \"BSONError\""},"stack":"CastError: Cast to ObjectId failed for value \"8bac3ba6e14378121dadb18dc3d49ac617000f50\" (type string) at path \"destinationPort\" because of \"BSONError\"\n    at SchemaObjectId.cast (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js:253:11)\n    at SchemaObjectId.SchemaType.applySetters (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1288:12)\n    at SchemaObjectId.SchemaType.castForQuery (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js:1724:17)\n    at castUpdateVal (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:633:19)\n    at walkUpdatePath (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:438:24)\n    at castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js:144:7)\n    at model.Query._castUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4874:10)\n    at model.Query._findOneAndUpdate (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:3497:23)\n    at model.Query.exec (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js:4627:80)\n    at processTicksAndRejections (node:internal/process/task_queues:103:5)","rejection":true,"date":"Mon Mar 02 2026 00:06:39 GMT+0530 (India Standard Time)","process":{"pid":7397,"uid":501,"gid":20,"cwd":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend","execPath":"/usr/local/bin/node","version":"v24.12.0","argv":["/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/.bin/ts-node","/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/src/index.ts"],"memoryUsage":{"rss":150634496,"heapTotal":1026441216,"heapUsed":789858696,"external":158112831,"arrayBuffers":153677090}},"os":{"loadavg":[3.1357421875,2.71826171875,2.87158203125],"uptime":161709},"trace":[{"column":11,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schema/objectId.js","function":"SchemaObjectId.cast","line":253,"method":"cast","native":false},{"column":12,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.applySetters","line":1288,"method":"applySetters","native":false},{"column":17,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/schemaType.js","function":"SchemaObjectId.SchemaType.castForQuery","line":1724,"method":"castForQuery","native":false},{"column":19,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdateVal","line":633,"method":null,"native":false},{"column":24,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"walkUpdatePath","line":438,"method":null,"native":false},{"column":7,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/helpers/query/castUpdate.js","function":"castUpdate","line":144,"method":null,"native":false},{"column":10,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._castUpdate","line":4874,"method":"_castUpdate","native":false},{"column":23,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query._findOneAndUpdate","line":3497,"method":"_findOneAndUpdate","native":false},{"column":80,"file":"/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongoose/lib/query.js","function":"model.Query.exec","line":4627,"method":"exec","native":false},{"column":5,"file":"node:internal/process/task_queues","function":"processTicksAndRejections","line":103,"method":null,"native":false}]}
+2026-03-01T18:38:20.883Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T18:38:43.063Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T18:39:42.199Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=505 
+2026-03-01T18:39:44.706Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2507 failCount=1 
+2026-03-01T18:39:47.207Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5008 failCount=2 
+2026-03-01T18:39:47.513Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=305 
+2026-03-01T18:39:47.565Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=562 
+2026-03-01T18:39:47.751Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=529 
+2026-03-01T18:39:50.068Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=3 
+2026-03-01T18:39:50.253Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2502 failCount=4 
+2026-03-01T18:39:51.455Z [INFO]: [PORT_RESOLVER] provider=OVERPASS status=ok attempt=2 durationMs=3704 
+2026-03-01T18:39:51.456Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:39:52.569Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5004 failCount=5 
+2026-03-01T18:39:52.570Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:39:53.168Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=582 
+2026-03-01T18:39:55.671Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2503 failCount=6 
+2026-03-01T18:39:58.173Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5005 failCount=7 
+2026-03-01T18:39:58.173Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:41:39.951Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=823 
+2026-03-01T18:41:39.952Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:41:39.955Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=854 
+2026-03-01T18:41:39.956Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:42:10.374Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=500 
+2026-03-01T18:42:12.878Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2502 failCount=8 
+2026-03-01T18:42:15.078Z [INFO]: [PORT_RESOLVER] provider=OVERPASS status=ok attempt=2 durationMs=4702 
+2026-03-01T18:42:15.078Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:42:15.601Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=523 
+2026-03-01T18:42:18.103Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2502 failCount=9 
+2026-03-01T18:42:20.606Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5004 failCount=10 
+2026-03-01T18:42:20.607Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:42:23.476Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=2205 
+2026-03-01T18:42:25.979Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2502 failCount=11 
+2026-03-01T18:42:28.481Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5004 failCount=12 
+2026-03-01T18:42:28.482Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:42:29.029Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=543 
+2026-03-01T18:42:29.030Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:49:56.550Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T18:50:09.853Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T18:50:21.343Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T18:50:57.475Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T18:55:17.689Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=529 
+2026-03-01T18:55:17.692Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=539 
+2026-03-01T18:55:20.200Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2510 failCount=1 
+2026-03-01T18:55:20.205Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=1 durationMs=2513 failCount=2 
+2026-03-01T18:55:22.703Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5013 failCount=3 
+2026-03-01T18:55:22.709Z [WARN]: [PORT_RESOLVER] provider=OVERPASS status=error attempt=2 durationMs=5017 failCount=4 
+2026-03-01T18:55:23.016Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=312 
+2026-03-01T18:55:23.019Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=309 
+2026-03-01T18:55:23.865Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=478 
+2026-03-01T18:55:23.865Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:55:23.886Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=501 
+2026-03-01T18:55:23.886Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:55:45.035Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=1177 
+2026-03-01T18:55:45.036Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:55:45.038Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=546 
+2026-03-01T18:55:45.039Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:55:47.456Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=160 
+2026-03-01T18:55:47.457Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:55:49.824Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=159 
+2026-03-01T18:55:49.824Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:55:55.709Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=945 
+2026-03-01T18:55:55.709Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:01.421Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=690 
+2026-03-01T18:56:01.421Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:02.263Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=295 
+2026-03-01T18:56:02.264Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:07.338Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=483 
+2026-03-01T18:56:07.338Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:08.275Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=158 
+2026-03-01T18:56:08.276Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:11.901Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=548 
+2026-03-01T18:56:11.901Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:12.047Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=689 
+2026-03-01T18:56:12.047Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:12.549Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=160 
+2026-03-01T18:56:12.549Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:12.655Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=264 
+2026-03-01T18:56:12.655Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:27.651Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=2324 
+2026-03-01T18:56:27.651Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T18:56:28.289Z [INFO]: [PORT_RESOLVER] provider=GEONAMES status=ok attempt=1 durationMs=257 
+2026-03-01T18:56:28.289Z [INFO]: [PORT_RESOLVER] provider=OPEN_SNAPSHOT status=ok attempt=1 durationMs=0 
+2026-03-01T19:34:37.211Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T19:36:52.278Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T19:37:50.200Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T19:38:53.967Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T20:13:51.106Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T20:18:29.782Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T20:18:36.186Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T20:23:36.181Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T20:38:21.239Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T20:38:28.199Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T20:41:54.513Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T20:53:47.124Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T20:56:24.064Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T20:58:41.301Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T20:58:45.738Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T20:58:55.532Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:01:00.378Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:18:05.526Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T21:18:26.423Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:18:47.212Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:19:37.165Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:19:47.609Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:19:52.077Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:20:02.293Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:20:17.331Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T21:20:25.347Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:20:32.207Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:20:37.915Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:20:50.391Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:21:07.425Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:21:23.853Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:24:09.103Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:24:22.506Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T21:24:35.186Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T21:24:47.169Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T21:24:55.739Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-01T21:26:08.633Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T21:26:33.223Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T22:03:31.393Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T22:04:24.690Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-01T22:04:52.302Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-01T22:14:59.088Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-02T05:36:08.095Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 

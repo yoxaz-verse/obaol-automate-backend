@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { passwordPlugin } from "./plugins/password.plugin";
+import { normalizePhoneInput } from "../../utils/phone";
 
 interface ITime {
     hour: number;
@@ -17,6 +18,8 @@ interface IEmployee extends mongoose.Document {
     name: string;
     email: string;
     phone: string;
+    phoneCountryCode?: string;
+    phoneNational?: string;
     password: string;
     address: string;
     district?: mongoose.Types.ObjectId;
@@ -57,6 +60,8 @@ const employeeSchema = new mongoose.Schema(
         name: { type: String, required: true },
         email: { type: String, required: true, unique: true },
         phone: { type: String, required: true },
+        phoneCountryCode: { type: String, default: "+91" },
+        phoneNational: { type: String, default: "" },
         password: { type: String, required: true },
         address: { type: String, required: true },
         district: { type: mongoose.Types.ObjectId, ref: "District" },
@@ -79,6 +84,44 @@ const employeeSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+employeeSchema.pre("save", function (next) {
+    const normalized = normalizePhoneInput({
+        rawPhone: (this as any).phone,
+        rawCountryCode: (this as any).phoneCountryCode,
+        rawNational: (this as any).phoneNational,
+    });
+    (this as any).phone = normalized.e164;
+    (this as any).phoneCountryCode = normalized.countryCode;
+    (this as any).phoneNational = normalized.national;
+    next();
+});
+
+employeeSchema.pre("findOneAndUpdate", function (next) {
+    const update: any = this.getUpdate() || {};
+    const payload = update.$set ? update.$set : update;
+    const hasPhone =
+        Object.prototype.hasOwnProperty.call(payload, "phone") ||
+        Object.prototype.hasOwnProperty.call(payload, "phoneCountryCode") ||
+        Object.prototype.hasOwnProperty.call(payload, "phoneNational");
+    if (hasPhone) {
+        const normalized = normalizePhoneInput({
+            rawPhone: payload.phone,
+            rawCountryCode: payload.phoneCountryCode,
+            rawNational: payload.phoneNational,
+        });
+        payload.phone = normalized.e164;
+        payload.phoneCountryCode = normalized.countryCode;
+        payload.phoneNational = normalized.national;
+    }
+    if (update.$set) {
+        update.$set = payload;
+        this.setUpdate(update);
+    } else {
+        this.setUpdate(payload);
+    }
+    next();
+});
 
 employeeSchema.plugin(passwordPlugin);
 

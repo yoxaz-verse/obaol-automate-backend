@@ -67,6 +67,17 @@ export interface IInquiry extends Document {
       routeNotes?: string;
       requiresShipping?: boolean;
     };
+    candidateProviders?: Array<Types.ObjectId | string>;
+    bids?: Array<{
+      company: Types.ObjectId | string;
+      amount?: number;
+      note?: string;
+      status?: "OPEN" | "SUBMITTED" | "WITHDRAWN" | "AWARDED";
+      createdBy?: Types.ObjectId | string | null;
+      createdAt?: Date;
+      updatedAt?: Date;
+    }>;
+    committedProvider?: Types.ObjectId | string | null;
     bidAmount?: number;
     commitNote?: string;
     committedAt?: Date | null;

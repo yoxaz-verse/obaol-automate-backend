@@ -3,6 +3,7 @@ import { VariantRateModel } from "../database/models/variantRate";
 import { AssociateModel } from "../database/models/associate";
 import { DisplayedRateModel } from "../database/models/displayedRate";
 import { CatalogItemModel } from "../database/models/catalogItem";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
 import mongoose from "mongoose";
 
 export class AnalyticsService {
@@ -129,6 +130,77 @@ export class AnalyticsService {
             obaolCatalogCount,
             companyName: (associate?.associateCompany as any)?.name || "No Company Linked",
             associateName: associate?.name
+        };
+    }
+
+    /**
+     * Get scoped metrics for an employee based on assigned associate companies.
+     */
+    static async getEmployeeMetrics(employeeId: string) {
+        const id = new mongoose.Types.ObjectId(employeeId);
+        const companyRows = await AssociateCompanyModel.find({
+            assignedEmployee: id,
+            isDeleted: { $ne: true },
+        }).select("_id").lean();
+
+        const companyIds = companyRows.map((row: any) => row._id);
+        const companyCount = companyIds.length;
+
+        const inquiryFilter = { $or: [{ assignedEmployeeId: id }, { createdBy: id }] };
+        const incompleteStatuses = ["COMPLETED", "CLOSED", "CANCELLED", "CONVERTED"];
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        const [
+            totalAssignedEnquiries,
+            pendingAssignedEnquiries,
+            newAssignedEnquiriesToday,
+            totalAssignedRates,
+            liveAssignedRates,
+            distinctProductVariants,
+            distinctLiveProductVariants,
+        ] = await Promise.all([
+            EnquiryModel.countDocuments(inquiryFilter),
+            EnquiryModel.countDocuments({
+                ...inquiryFilter,
+                status: { $nin: incompleteStatuses },
+            }),
+            EnquiryModel.countDocuments({
+                ...inquiryFilter,
+                createdAt: { $gte: yesterday },
+            }),
+            companyCount
+                ? VariantRateModel.countDocuments({ associateCompany: { $in: companyIds } })
+                : Promise.resolve(0),
+            companyCount
+                ? VariantRateModel.countDocuments({ associateCompany: { $in: companyIds }, isLive: true })
+                : Promise.resolve(0),
+            companyCount
+                ? VariantRateModel.distinct("productVariant", { associateCompany: { $in: companyIds } }).then((arr) => arr.length)
+                : Promise.resolve(0),
+            companyCount
+                ? VariantRateModel.distinct("productVariant", { associateCompany: { $in: companyIds }, isLive: true }).then((arr) => arr.length)
+                : Promise.resolve(0),
+        ]);
+
+        const liveRatePercentage = totalAssignedRates > 0
+            ? Math.round((liveAssignedRates / totalAssignedRates) * 100)
+            : 0;
+        const liveProductPercentage = distinctProductVariants > 0
+            ? Math.round((distinctLiveProductVariants / distinctProductVariants) * 100)
+            : 0;
+
+        return {
+            assignedCompanies: companyCount,
+            totalAssignedEnquiries,
+            pendingAssignedEnquiries,
+            newAssignedEnquiriesToday,
+            totalAssignedRates,
+            liveAssignedRates,
+            totalAssignedProducts: distinctProductVariants,
+            liveAssignedProducts: distinctLiveProductVariants,
+            liveRatePercentage,
+            liveProductPercentage,
         };
     }
 }

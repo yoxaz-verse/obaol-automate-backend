@@ -42,3 +42,17 @@ export const getAssociateMetrics = async (req: Request, res: Response, next: Nex
         next(error);
     }
 };
+
+export const getEmployeeMetrics = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const role = String((req.user as any)?.role || "");
+        const employeeId = String((req.user as any)?.id || "");
+        if (!employeeId || (role !== "Employee" && role !== "Admin")) {
+            return res.status(400).json({ status: 400, message: "User is not an employee" });
+        }
+        const data = await AnalyticsService.getEmployeeMetrics(employeeId);
+        res.sendFormatted(data, "Employee metrics retrieved successfully");
+    } catch (error) {
+        next(error);
+    }
+};

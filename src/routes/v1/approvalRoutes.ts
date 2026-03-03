@@ -8,6 +8,8 @@ const router = Router();
 router.use(authenticateToken);
 router.use(authorizeRoles("Admin"));
 
+router.post("/bulk-approve-existing", approvalController.approveExistingPending.bind(approvalController));
+
 router.get("/associates", approvalController.listAssociates.bind(approvalController));
 router.patch("/associates/:id", approvalController.actionAssociate.bind(approvalController));
 

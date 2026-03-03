@@ -7,6 +7,7 @@ import { TimeCalculations } from "../../core/behaviors/timeCalculations";
 
 const VariantRateSchema: Schema = new Schema({
   rate: { type: Number, required: true },
+  quantity: { type: Number, required: false, min: 0 },
   commission: { type: Number },
   selected: { type: Boolean, default: false },
   productVariant: {

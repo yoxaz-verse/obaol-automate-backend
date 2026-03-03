@@ -11,6 +11,7 @@ import {
     companyFunctionMappingWriteHook,
 } from "./companyFunctionHooks";
 import { companyFunctionReadHook } from "./companyFunctionReadHook";
+import { variantRateLivePreWriteHook, variantRateNotificationPostWriteHook } from "./notificationHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
@@ -41,6 +42,10 @@ export const registerAllHooks = () => {
 
     // Dynamic Statistics Hooks
     HookDispatcher.registerPostRead("associate-companies", companyStatsHook);
+
+    // Notifications for variant live events
+    HookDispatcher.registerPreWrite("variant-rates", variantRateLivePreWriteHook);
+    HookDispatcher.registerPostWrite("variant-rates", variantRateNotificationPostWriteHook);
 
     // Company capability masters are admin managed and soft-deactivation only.
     HookDispatcher.registerPreWrite("company-functions", companyFunctionMasterWriteHook);

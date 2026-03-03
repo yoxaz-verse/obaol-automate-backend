@@ -40,6 +40,10 @@ router.use(`${prefix}`, companyFunctionRoutes);
 import approvalRoutes from "./v1/approvalRoutes";
 router.use(`${prefix}/approvals`, approvalRoutes);
 
+// Notifications (Authenticated)
+import notificationRoutes from "./v1/notificationRoutes";
+router.use(`${prefix}/notifications`, notificationRoutes);
+
 
 // Catalog Management (Associate)
 import catalogRoutes from "./v1/catalogRoutes";

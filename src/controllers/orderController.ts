@@ -3,6 +3,8 @@ import { OrderModel } from "../database/models/order";
 import { InquiryModel as EnquiryModel } from "../database/models/enquiry";
 import { CrudEngine } from "../core/engine/crud.engine";
 import { logError } from "../utils/errorLogger";
+import { notificationService } from "../services/notificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -60,6 +62,21 @@ export class OrderController {
                     order: order._id
                 });
             }
+
+            const recipients = await notificationService.buildInquiryRecipients(enquiry as any);
+            notificationService.removeActor(recipients, req.user?.id || null);
+            await notificationService.createNotifications({
+                recipientMap: recipients,
+                createdByUserId: req.user?.id || null,
+                type: NotificationTypes.ORDER_CONVERTED,
+                title: "Inquiry converted to order",
+                message: "An inquiry has been converted and order execution has started.",
+                entityType: NotificationEntityTypes.ORDER,
+                entityId: order._id,
+                route: `/dashboard/orders/${order._id}`,
+                payload: { enquiryId: enquiry._id, orderId: order._id },
+                priority: "high",
+            });
 
             res.status(201).json({ success: true, data: order });
         } catch (error: any) {

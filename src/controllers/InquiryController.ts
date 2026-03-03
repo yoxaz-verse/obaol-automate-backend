@@ -28,12 +28,42 @@ import { DistrictModel } from "../database/models/district";
 import { UnLoCodeModel } from "../database/models/unLoCode";
 import { UnLoCodeFunctionsModel } from "../database/models/unLoCodeFunction";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { notificationService } from "../services/notificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 
 /**
  * Inquiry Controller
  * Implements business logic with state machine and access control
  */
 export class InquiryController {
+    private async notifyInquiryParticipants(params: {
+        inquiry: any;
+        actorId?: string | null;
+        type: string;
+        title: string;
+        message: string;
+        route?: string;
+        payload?: Record<string, any>;
+        priority?: "low" | "medium" | "high";
+    }) {
+        const recipients = await notificationService.buildInquiryRecipients(params.inquiry);
+        notificationService.removeActor(recipients, params.actorId || null);
+        const inquiryId = String(params.inquiry?._id || "");
+        if (!inquiryId) return;
+        await notificationService.createNotifications({
+            recipientMap: recipients,
+            createdByUserId: params.actorId || null,
+            type: params.type,
+            title: params.title,
+            message: params.message,
+            entityType: NotificationEntityTypes.INQUIRY,
+            entityId: inquiryId,
+            route: params.route || `/dashboard/enquiries/${inquiryId}`,
+            payload: { inquiryId, ...(params.payload || {}) },
+            priority: params.priority || "medium",
+        });
+    }
+
     private buildAccessContext(req: Request): InquiryAccessContext {
         return {
             userId: req.user!.id,
@@ -238,6 +268,16 @@ export class InquiryController {
                 { path: "assignedEmployeeId", select: "name email" }
             ]);
 
+            await this.notifyInquiryParticipants({
+                inquiry,
+                actorId: req.user!.id,
+                type: NotificationTypes.INQUIRY_CREATED,
+                title: "New inquiry created",
+                message: "A new inquiry relevant to your trade flow was created.",
+                payload: { status: InquiryStatus.NEW },
+                priority: "high",
+            });
+
             res.status(201).json({
                 success: true,
                 data: inquiry
@@ -400,6 +440,16 @@ export class InquiryController {
                     metadata: { action: "SELLER_ACCEPTED" }
                 }
             );
+
+            await this.notifyInquiryParticipants({
+                inquiry,
+                actorId: req.user!.id,
+                type: NotificationTypes.INQUIRY_SUPPLIER_ACCEPTED,
+                title: "Supplier accepted inquiry",
+                message: "Supplier has accepted the inquiry. Move to next confirmation steps.",
+                payload: { action: "SELLER_ACCEPTED" },
+                priority: "high",
+            });
 
             res.json({
                 success: true,
@@ -1140,6 +1190,15 @@ export class InquiryController {
                 }
             );
 
+            await this.notifyInquiryParticipants({
+                inquiry,
+                actorId: req.user!.id,
+                type: NotificationTypes.INQUIRY_STATUS_CHANGED,
+                title: "Inquiry status updated",
+                message: `Inquiry moved from ${previousStatus} to ${status}.`,
+                payload: { previousStatus, status },
+            });
+
             res.json({
                 success: true,
                 data: inquiry,
@@ -1208,6 +1267,16 @@ export class InquiryController {
             );
 
             await inquiry.populate("assignedEmployeeId", "name email");
+
+            await this.notifyInquiryParticipants({
+                inquiry,
+                actorId: req.user!.id,
+                type: NotificationTypes.INQUIRY_ASSIGNED,
+                title: "Inquiry assignment updated",
+                message: "A responsible employee has been assigned for this inquiry.",
+                payload: { previousEmployee, employeeId },
+                priority: "high",
+            });
 
             res.json({
                 success: true,

@@ -18,6 +18,78 @@ const buildSearch = (search: any, fields: string[]) => {
 };
 
 export class ApprovalController {
+  async approveExistingPending(req: Request, res: Response) {
+    try {
+      const notes = String(req.body?.notes || "Approved in bulk from existing records.").trim();
+      const adminId = String(req.user?.id || "");
+      const approvedByObjectId =
+        mongoose.Types.ObjectId.isValid(adminId) ? new mongoose.Types.ObjectId(adminId) : undefined;
+
+      const now = new Date();
+
+      // Only move pending/legacy records to APPROVED.
+      // Do not force-approve explicit REJECTED records.
+      const associateFilter: any = {
+        isDeleted: { $ne: true },
+        $or: [
+          { registrationStatus: { $exists: false } },
+          { registrationStatus: null },
+          { registrationStatus: "" },
+          { registrationStatus: "PENDING_REVIEW" },
+        ],
+      };
+
+      const companyFilter: any = {
+        isDeleted: { $ne: true },
+        $or: [
+          { registrationStatus: { $exists: false } },
+          { registrationStatus: null },
+          { registrationStatus: "" },
+          { registrationStatus: "PENDING_REVIEW" },
+        ],
+      };
+
+      const [associateResult, companyResult] = await Promise.all([
+        AssociateModel.updateMany(
+          associateFilter,
+          {
+            $set: {
+              registrationStatus: "APPROVED",
+              isActive: true,
+              isCompanyVerified: true,
+              ...(notes ? { onboardingContactNotes: notes } : {}),
+            },
+          }
+        ),
+        AssociateCompanyModel.updateMany(
+          companyFilter,
+          {
+            $set: {
+              registrationStatus: "APPROVED",
+              isApproved: true,
+              approvedAt: now,
+              approvedBy: approvedByObjectId,
+              reviewNotes: notes,
+            },
+          }
+        ),
+      ]);
+
+      return res.json({
+        success: true,
+        message: "Existing pending associates and companies approved successfully.",
+        data: {
+          associatesMatched: associateResult.matchedCount || 0,
+          associatesModified: associateResult.modifiedCount || 0,
+          companiesMatched: companyResult.matchedCount || 0,
+          companiesModified: companyResult.modifiedCount || 0,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error?.message || "Failed to bulk-approve existing records." });
+    }
+  }
+
   async listAssociates(req: Request, res: Response) {
     try {
       const page = Math.max(1, Number(req.query.page || 1));

@@ -7,7 +7,7 @@ dotenv.config();
 
 async function run() {
   try {
-    const uri = process.env.MONGODB_URI as string;
+    const uri = (process.env.MONGODB_URI || process.env.MONGO_URI) as string;
     if (!uri) throw new Error("MONGODB_URI is missing.");
     await mongoose.connect(uri);
 
@@ -16,15 +16,30 @@ async function run() {
     const associatesResult = await AssociateModel.updateMany(
       {
         isDeleted: { $ne: true },
-        isActive: true,
-        $or: [{ registrationStatus: { $exists: false } }, { registrationStatus: null }, { registrationStatus: "" }],
+        $or: [
+          { registrationStatus: { $exists: false } },
+          { registrationStatus: null },
+          { registrationStatus: "" },
+          { registrationStatus: "PENDING_REVIEW" },
+        ],
       },
-      { $set: { registrationStatus: "APPROVED" } }
+      {
+        $set: {
+          registrationStatus: "APPROVED",
+          isActive: true,
+          isCompanyVerified: true,
+        },
+      }
     );
 
     const baseCompanyFilter: any = {
       isDeleted: { $ne: true },
-      $or: [{ registrationStatus: { $exists: false } }, { registrationStatus: null }, { registrationStatus: "" }],
+      $or: [
+        { registrationStatus: { $exists: false } },
+        { registrationStatus: null },
+        { registrationStatus: "" },
+        { registrationStatus: "PENDING_REVIEW" },
+      ],
     };
     const companyFilter = approveLegacyCompanies ? baseCompanyFilter : { ...baseCompanyFilter, _id: null };
 

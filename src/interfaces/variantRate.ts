@@ -2,6 +2,7 @@ import mongoose, { Document, Types } from "mongoose";
 
 export interface IVariantRate extends Document {
   rate: number;
+  quantity?: number;
   selected?: boolean;
   productVariant: Types.ObjectId;
   associate: Types.ObjectId;
@@ -27,6 +28,7 @@ export interface IVariantRate extends Document {
 
 export interface ICreateVariantRate {
   rate: number;
+  quantity?: number;
   productVariant: Types.ObjectId;
   selected?: boolean;
   commission?: number;
@@ -47,6 +49,7 @@ export interface ICreateVariantRate {
 
 export interface IUpdateVariantRate {
   rate?: number;
+  quantity?: number;
   productVariant?: Types.ObjectId;
   selected?: boolean;
   commission?: number;

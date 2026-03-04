@@ -28,7 +28,13 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.auth_token || req.cookies.token || req.headers.authorization?.split(" ")[1];
 
   if (!token) {
-    console.log("No token provided");
+    const ua = String(req.headers["user-agent"] || "");
+    const braveLike = /\bbrave\b/i.test(ua) || /\bchrom(e|ium)\b/i.test(ua);
+    console.log("No token provided", {
+      origin: String(req.headers.origin || ""),
+      host: String(req.headers["x-forwarded-host"] || req.headers.host || ""),
+      browserHint: braveLike ? "chromium-family" : "other",
+    });
     return res.status(401).json({
       success: false,
       message: "Authentication failed: No token provided",

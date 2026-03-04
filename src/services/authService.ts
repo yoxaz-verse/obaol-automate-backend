@@ -22,6 +22,7 @@ import { generateJWTToken } from "../utils/tokenUtils";
 import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
 import { normalizePhoneInput } from "../utils/phone";
+import { getAuthCookieOptions } from "../utils/cookieOptions";
 import {
     COMPANY_INTERESTS,
     normalizeAssociateInterests,
@@ -230,12 +231,19 @@ export const authenticateUser = async (req: Request, res: Response) => {
             associateCompany: user.associateCompany
         };
         const token = generateJWTToken(userForToken);
+        const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+        const cookieOptions = getAuthCookieOptions(host);
 
-        res.cookie("auth_token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 24 * 60 * 60 * 1000
+        res.setHeader("Cache-Control", "no-store");
+        res.cookie("auth_token", token, cookieOptions);
+        logger.info("Auth cookie set", {
+            route: "login",
+            origin: String(req.headers.origin || ""),
+            host,
+            userAgent: String(req.headers["user-agent"] || "").slice(0, 160),
+            sameSite: cookieOptions.sameSite,
+            secure: cookieOptions.secure,
+            hasDomain: Boolean(cookieOptions.domain),
         });
 
         res.json({
@@ -328,7 +336,11 @@ export const completePasswordReset = async (req: Request, res: Response) => {
 };
 
 export const logoutUser = async (req: Request, res: Response) => {
-    res.clearCookie("auth_token");
+    const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+    const cookieOptions = getAuthCookieOptions(host);
+    const { maxAge: _maxAge, ...clearCookieOptions } = cookieOptions;
+    res.setHeader("Cache-Control", "no-store");
+    res.clearCookie("auth_token", clearCookieOptions);
     res.json({ success: true, message: "Logged out successfully" });
 };
 

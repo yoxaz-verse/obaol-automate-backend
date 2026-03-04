@@ -41,6 +41,8 @@ app.use(
       // Add any other allowed origins
     ],
     credentials: true, // <--- Needed for cross-site cookie usage
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Language"],
   })
 );
 

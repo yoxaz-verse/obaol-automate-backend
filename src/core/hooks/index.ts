@@ -15,6 +15,7 @@ import { companyFunctionReadHook } from "./companyFunctionReadHook";
 import { variantRateLivePreWriteHook, variantRateNotificationPostWriteHook } from "./notificationHooks";
 import { variantRateOwnershipPreWriteHook } from "./variantRateOwnershipHooks";
 import { employeeAssociateCreatePreWriteHook, employeeCompanyCreatePreWriteHook } from "./employeeOnboardingHooks";
+import { employeeVariantRateWritePreHook } from "./employeeVariantRateWriteHook";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
@@ -50,6 +51,7 @@ export const registerAllHooks = () => {
     // Variant-rate guards + notifications (single dispatcher slot, so compose hooks in order)
     HookDispatcher.registerPreWrite("variant-rates", async (payload, mode, id, req) => {
         let nextPayload = await variantRateOwnershipPreWriteHook(payload, mode, id, req);
+        nextPayload = await employeeVariantRateWritePreHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLivePreWriteHook(nextPayload, mode, id, req);
         return nextPayload;
     });

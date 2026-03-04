@@ -45,6 +45,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     companyInterestsConfigured = companyInterests.length > 0;
   }
 
+  res.setHeader("Cache-Control", "no-store");
   res.status(200).json({
     success: true,
     user: {

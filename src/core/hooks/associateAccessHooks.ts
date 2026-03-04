@@ -50,7 +50,17 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
                 delete (marketQuery as any).view;
                 return marketQuery;
             } else {
-                // DEFAULT / MY PRODUCTS: Show only my own
+                // DEFAULT / MY PRODUCTS: Show only my own (only when linked to a company)
+                const associate = await AssociateModel.findById(associateId)
+                    .select("_id associateCompany")
+                    .lean();
+
+                if (!associate || !(associate as any).associateCompany) {
+                    const emptyOwnProductsQuery: any = { ...query, _id: "000000000000000000000000" };
+                    delete emptyOwnProductsQuery.view;
+                    return emptyOwnProductsQuery;
+                }
+
                 return { ...query, associate: associateId };
             }
         }

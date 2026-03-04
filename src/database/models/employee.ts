@@ -32,6 +32,9 @@ interface IEmployee extends mongoose.Document {
     isActive: boolean;
     isDeleted: boolean;
     role: string;
+    lastSeenAt?: Date | null;
+    presenceUpdatedAt?: Date | null;
+    presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -79,6 +82,9 @@ const employeeSchema = new mongoose.Schema(
         isActive: { type: Boolean, default: true },
         isDeleted: { type: Boolean, default: false },
         role: { type: String, default: "team" },
+        lastSeenAt: { type: Date, default: null, index: true },
+        presenceUpdatedAt: { type: Date, default: null },
+        presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
     },
     {
         timestamps: true,

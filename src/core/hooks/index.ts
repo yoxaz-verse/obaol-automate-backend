@@ -5,6 +5,7 @@ import { companyStatsHook } from "./companyStatsHooks";
 import { categoryFilterHook } from "./categoryHooks";
 import { orderFilterHook } from "./orderAccessHooks";
 import { associateReadNormalizationHook } from "./associateReadNormalizationHook";
+import { employeeReadNormalizationHook } from "./employeeReadNormalizationHook";
 import {
     companyFunctionMasterWriteHook,
     companySubFunctionMasterWriteHook,
@@ -12,6 +13,8 @@ import {
 } from "./companyFunctionHooks";
 import { companyFunctionReadHook } from "./companyFunctionReadHook";
 import { variantRateLivePreWriteHook, variantRateNotificationPostWriteHook } from "./notificationHooks";
+import { variantRateOwnershipPreWriteHook } from "./variantRateOwnershipHooks";
+import { employeeAssociateCreatePreWriteHook, employeeCompanyCreatePreWriteHook } from "./employeeOnboardingHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
@@ -28,6 +31,7 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreRead("associates", employeeFilterHook);
     HookDispatcher.registerPreRead("orders", orderFilterHook);
     HookDispatcher.registerPostRead("associates", associateReadNormalizationHook);
+    HookDispatcher.registerPostRead("employees", employeeReadNormalizationHook);
 
     // RBAC Hooks for Associates
     HookDispatcher.registerPreRead("catalog-items", async (query, mode, id, req) => {
@@ -43,13 +47,19 @@ export const registerAllHooks = () => {
     // Dynamic Statistics Hooks
     HookDispatcher.registerPostRead("associate-companies", companyStatsHook);
 
-    // Notifications for variant live events
-    HookDispatcher.registerPreWrite("variant-rates", variantRateLivePreWriteHook);
+    // Variant-rate guards + notifications (single dispatcher slot, so compose hooks in order)
+    HookDispatcher.registerPreWrite("variant-rates", async (payload, mode, id, req) => {
+        let nextPayload = await variantRateOwnershipPreWriteHook(payload, mode, id, req);
+        nextPayload = await variantRateLivePreWriteHook(nextPayload, mode, id, req);
+        return nextPayload;
+    });
     HookDispatcher.registerPostWrite("variant-rates", variantRateNotificationPostWriteHook);
 
     // Company capability masters are admin managed and soft-deactivation only.
     HookDispatcher.registerPreWrite("company-functions", companyFunctionMasterWriteHook);
     HookDispatcher.registerPreWrite("company-sub-functions", companySubFunctionMasterWriteHook);
     HookDispatcher.registerPreWrite("company-function-mappings", companyFunctionMappingWriteHook);
+    HookDispatcher.registerPreWrite("associates", employeeAssociateCreatePreWriteHook);
+    HookDispatcher.registerPreWrite("associate-companies", employeeCompanyCreatePreWriteHook);
     HookDispatcher.registerPostRead("company-functions", companyFunctionReadHook);
 };

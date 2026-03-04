@@ -31,6 +31,7 @@ const VariantRateSchema: Schema = new Schema({
   lastEditTime: { type: Date },
   coolingStartTime: { type: Date },
   hiddenDraftOf: { type: Schema.Types.ObjectId, ref: "VariantRate" },
+  isDeleted: { type: Boolean, default: false, index: true },
   // ✅ NEW FIELD
   lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
   lastLiveDate: { type: Date, default: null },

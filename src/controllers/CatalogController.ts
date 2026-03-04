@@ -23,14 +23,25 @@ export class CatalogController {
 
             // 1. Get Associate & Company details
             const associate = await AssociateModel.findById(associateId).session(session);
-            if (!associate?.associateCompany) {
-                throw new Error("Associate is not linked to a company");
+            if (!associate) {
+                throw new Error("Associate profile was not found");
             }
 
             // 2. Validate Base Rate
             const baseRate = await VariantRateModel.findById(baseRateId).session(session);
             if (!baseRate) {
                 throw new Error("Invalid base rate");
+            }
+
+            const hasLinkedCompany = Boolean((associate as any)?.associateCompany);
+            const isOwnRate = String((baseRate as any)?.associate || "") === String(associateId);
+            if (!hasLinkedCompany && isOwnRate) {
+                const guardedError: any = new Error(
+                    "Link a company to add your own rate. You can add marketplace rates to your personal catalog."
+                );
+                guardedError.status = 403;
+                guardedError.statusCode = 403;
+                throw guardedError;
             }
 
             // 3. Check for existing item to prevent duplicates
@@ -50,7 +61,7 @@ export class CatalogController {
             // 5. Create Catalog Item
             const newItem = await CatalogItemModel.create([{
                 associateId,
-                associateCompanyId: associate.associateCompany,
+                associateCompanyId: (associate as any).associateCompany || undefined,
                 productVariantId,
                 baseRateId,
                 margin: Number(margin) || 0,
@@ -61,13 +72,17 @@ export class CatalogController {
             }], { session });
 
             // 6. Sync with DisplayedRate (Personal Markup)
+            const displayedRateUpdate: any = {
+                commission: Number(margin) || 0,
+                selected: true
+            };
+            if ((associate as any).associateCompany) {
+                displayedRateUpdate.associateCompany = (associate as any).associateCompany;
+            }
+
             await DisplayedRateModel.findOneAndUpdate(
                 { associate: associateId, variantRate: baseRateId },
-                {
-                    commission: Number(margin) || 0,
-                    selected: true,
-                    associateCompany: associate.associateCompany
-                },
+                displayedRateUpdate,
                 { upsert: true, session }
             );
 

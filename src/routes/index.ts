@@ -44,6 +44,10 @@ router.use(`${prefix}/approvals`, approvalRoutes);
 import notificationRoutes from "./v1/notificationRoutes";
 router.use(`${prefix}/notifications`, notificationRoutes);
 
+// Presence ping (authenticated)
+import presenceRoutes from "./v1/presenceRoutes";
+router.use(`${prefix}/presence`, presenceRoutes);
+
 
 // Catalog Management (Associate)
 import catalogRoutes from "./v1/catalogRoutes";

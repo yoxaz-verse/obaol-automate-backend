@@ -50,6 +50,9 @@ const associateSchema = new mongoose.Schema(
         },
         onboardingContactNotes: { type: String, default: "" },
         registrationSource: { type: String, default: "SELF_REGISTERED" },
+        lastSeenAt: { type: Date, default: null, index: true },
+        presenceUpdatedAt: { type: Date, default: null },
+        presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
     },
     {
         timestamps: true,

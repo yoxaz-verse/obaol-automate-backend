@@ -11,6 +11,7 @@ import {
   getRegisterCompanies,
   getRegisterDesignations,
   getRegisterCountries,
+  getRegisterPincodes,
   getCompanyInterestsStatus,
   upsertCompanyInterests,
 } from "../services/authService";
@@ -24,6 +25,7 @@ authRoute.get("/register/options", getRegisterOptions);
 authRoute.get("/register/companies", getRegisterCompanies);
 authRoute.get("/register/designations", getRegisterDesignations);
 authRoute.get("/register/countries", getRegisterCountries);
+authRoute.get("/register/pincodes", getRegisterPincodes);
 authRoute.get("/company-interests/status", authenticateToken, getCompanyInterestsStatus);
 authRoute.put("/company-interests", authenticateToken, upsertCompanyInterests);
 authRoute.post("/logout", logoutUser);

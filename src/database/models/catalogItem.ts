@@ -27,7 +27,7 @@ const CatalogItemSchema: Schema = new Schema(
         associateCompanyId: {
             type: Schema.Types.ObjectId,
             ref: "AssociateCompany",
-            required: true,
+            required: false,
             index: true,
         },
         productVariantId: {

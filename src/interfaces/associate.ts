@@ -26,6 +26,9 @@ export interface IAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  lastSeenAt?: Date | null;
+  presenceUpdatedAt?: Date | null;
+  presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
 }
 
 export interface ICreateAssociate {
@@ -53,6 +56,9 @@ export interface ICreateAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  lastSeenAt?: Date | null;
+  presenceUpdatedAt?: Date | null;
+  presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
 }
 
 export interface IUpdateAssociate {
@@ -80,4 +86,7 @@ export interface IUpdateAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  lastSeenAt?: Date | null;
+  presenceUpdatedAt?: Date | null;
+  presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
 }

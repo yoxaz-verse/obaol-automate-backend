@@ -439,7 +439,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
         if (existingAssociate || existingAdmin || existingEmployee) {
             return res.status(400).json({
                 success: false,
-                message: "Registration failed. Please try again." // Generic error - no email enumeration
+                message: "Registration failed. This email is already registered."
             });
         }
 
@@ -766,13 +766,13 @@ export const registerAssociate = async (req: Request, res: Response) => {
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
-                message: "Registration failed. Please try again."
+                message: "Registration failed. The email or company name is already registered."
             });
         }
 
         res.status(500).json({
             success: false,
-            message: "Registration failed. Please try again later."
+            message: error?.message || "Registration failed. Please try again later."
         });
     }
 };
@@ -790,7 +790,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             statesRes,
             districtsRes,
             divisionsRes,
-            pincodeEntriesRes,
             countriesRes,
             companyFunctionsRes,
             companySubFunctionsRes,
@@ -805,7 +804,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             StateModel.find({ isDeleted: { $ne: true } }).select("_id name code").sort({ name: 1 }).lean(),
             DistrictModel.find({ isDeleted: { $ne: true } }).select("_id name state").sort({ name: 1 }).lean(),
             DivisionModel.find({ isDeleted: { $ne: true } }).select("_id name district").sort({ name: 1 }).lean(),
-            PincodeEntryModel.find({ isDeleted: { $ne: true } }).select("_id pincode officename division").sort({ pincode: 1 }).limit(4000).lean(),
             CountryModel.find({ isDeleted: { $ne: true } }).select("_id name code").sort({ name: 1 }).lean(),
             CompanyFunctionModel.find({ isActive: true }).select("_id name slug description orderIndex").sort({ orderIndex: 1, name: 1 }).lean(),
             CompanySubFunctionModel.find({ isActive: true }).select("_id functionId name slug description orderIndex").sort({ orderIndex: 1, name: 1 }).lean(),
@@ -817,7 +815,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
         const states = statesRes.status === "fulfilled" ? statesRes.value : [];
         const districts = districtsRes.status === "fulfilled" ? districtsRes.value : [];
         const divisions = divisionsRes.status === "fulfilled" ? divisionsRes.value : [];
-        const pincodeEntries = pincodeEntriesRes.status === "fulfilled" ? pincodeEntriesRes.value : [];
         const countries = countriesRes.status === "fulfilled" ? countriesRes.value : [];
         const companyFunctions = companyFunctionsRes.status === "fulfilled" ? companyFunctionsRes.value : [];
         const companySubFunctions = companySubFunctionsRes.status === "fulfilled" ? companySubFunctionsRes.value : [];
@@ -828,7 +825,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             statesRes.status !== "fulfilled" ? "states" : null,
             districtsRes.status !== "fulfilled" ? "districts" : null,
             divisionsRes.status !== "fulfilled" ? "divisions" : null,
-            pincodeEntriesRes.status !== "fulfilled" ? "pincodeEntries" : null,
             countriesRes.status !== "fulfilled" ? "countries" : null,
             companyFunctionsRes.status !== "fulfilled" ? "companyFunctions" : null,
             companySubFunctionsRes.status !== "fulfilled" ? "companySubFunctions" : null,
@@ -843,7 +839,7 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
                 states,
                 districts,
                 divisions,
-                pincodeEntries,
+                pincodeEntries: [], // Pincodes are now fetched dynamically
                 countries,
                 companyFunctions,
                 companySubFunctions,
@@ -870,7 +866,7 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             },
             meta: {
                 partial: true,
-                failedKeys: ["companyTypes", "existingCompanies", "designations", "states", "districts", "divisions", "pincodeEntries", "countries", "companyFunctions", "companySubFunctions"],
+                failedKeys: ["companyTypes", "existingCompanies", "designations", "states", "districts", "divisions", "countries", "companyFunctions", "companySubFunctions"],
                 error: error?.message || "Failed to load registration options.",
             },
         });
@@ -916,6 +912,31 @@ export const getRegisterDesignations = async (_req: Request, res: Response) => {
  * Public Registration Countries
  * GET /auth/register/countries
  */
+/**
+ * Public Registration Pincodes for a division
+ * GET /auth/register/pincodes?divisionId=...
+ */
+export const getRegisterPincodes = async (req: Request, res: Response) => {
+    try {
+        const divisionId = String(req.query.divisionId || "").trim();
+        if (!divisionId || !mongoose.Types.ObjectId.isValid(divisionId)) {
+            return res.status(400).json({ success: false, message: "Valid divisionId is required." });
+        }
+
+        const pincodes = await PincodeEntryModel.find({
+            division: divisionId,
+            isDeleted: { $ne: true }
+        })
+            .select("_id pincode officename")
+            .sort({ pincode: 1, officename: 1 })
+            .lean();
+
+        res.json({ success: true, data: pincodes });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error?.message || "Failed to load pincodes." });
+    }
+};
+
 export const getRegisterCountries = async (_req: Request, res: Response) => {
     try {
         const countries = await CountryModel.find({ isDeleted: { $ne: true } })

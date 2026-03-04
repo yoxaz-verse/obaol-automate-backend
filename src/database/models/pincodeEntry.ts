@@ -12,8 +12,8 @@ interface IPincodeEntry extends mongoose.Document {
 
 const PincodeEntrySchema = new mongoose.Schema(
   {
-    pincode: { type: String, required: true, unique: true },
-    officename: { type: String, required: true, unique: true },
+    pincode: { type: String, required: true },
+    officename: { type: String, required: true },
     latitude: { type: Number },
     longitude: { type: Number },
     division: { type: mongoose.Schema.Types.ObjectId, ref: "Division" },

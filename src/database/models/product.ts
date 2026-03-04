@@ -10,6 +10,7 @@ const ProductSchema = new Schema({
     required: true,
   },
   state: [{ type: Schema.Types.ObjectId, ref: "State" }],
+  isDeleted: { type: Boolean, default: false, index: true },
   createdAt: { type: Date, default: Date.now },
 });
 

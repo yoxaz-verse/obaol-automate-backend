@@ -57,7 +57,8 @@ export class GenericCrudController {
 
         } catch (error: any) {
             logError(error, req, "GenericCrudController");
-            res.status(500).json({ success: false, message: error.message || "Internal Server Error" });
+            const status = Number(error?.statusCode || error?.status || 500);
+            res.status(status).json({ success: false, message: error.message || "Internal Server Error" });
         }
     }
 }

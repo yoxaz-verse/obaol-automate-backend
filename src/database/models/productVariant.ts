@@ -6,6 +6,7 @@ const ProductVariantSchema = new Schema({
   description: { type: String, required: true },
   isAvailable: { type: Boolean, default: true },
   isLive: { type: Boolean, default: false },
+  isDeleted: { type: Boolean, default: false, index: true },
   product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
   createdAt: { type: Date, default: Date.now },
 });

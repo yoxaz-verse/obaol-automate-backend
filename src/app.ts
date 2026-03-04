@@ -5,6 +5,7 @@ import { responseFormatter } from "./utils/responseFormatter";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import { localizationMiddleware } from "./middlewares/localizationMiddleware";
 import routes from "./routes";
 import path from "path";
 import apiLogger from "./middlewares/apiLogger";
@@ -49,6 +50,9 @@ app.use(morgan("common"));
 
 // Cookie parsing
 app.use(cookieParser());
+
+// Localization
+app.use(localizationMiddleware);
 
 // Serve static uploads if needed
 app.use(

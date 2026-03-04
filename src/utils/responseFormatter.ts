@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { t } from "./i18n";
 
 interface ResponseFormat {
   success: boolean;
@@ -22,6 +23,7 @@ export const formatResponse = (
     error,
   };
 };
+
 export const formatArrayResponse = (
   success: boolean,
   data: any = null,
@@ -35,6 +37,7 @@ export const formatArrayResponse = (
     error,
   };
 };
+
 declare global {
   namespace Express {
     interface Response {
@@ -54,23 +57,29 @@ export const responseFormatter = (
   res: Response,
   next: NextFunction
 ) => {
+  const lang = req.language || "en";
+
   res.sendFormatted = (
     data: any,
     message: string = "",
     status: number = 200
   ) => {
-    res.status(status).json(formatResponse(true, data, message));
+    const translatedMessage = message ? t(message, lang) : "";
+    res.status(status).json(formatResponse(true, data, translatedMessage));
   };
+
   res.sendArrayFormatted = (
     data: any,
     message: string = "",
     status: number = 200
   ) => {
-    res.status(status).json(formatArrayResponse(true, data, message));
+    const translatedMessage = message ? t(message, lang) : "";
+    res.status(status).json(formatArrayResponse(true, data, translatedMessage));
   };
 
   res.sendError = (error: any, message: string = "", status: number = 500) => {
-    res.status(status).json(formatResponse(false, null, message, error));
+    const translatedMessage = message ? t(message, lang) : "";
+    res.status(status).json(formatResponse(false, null, translatedMessage, error));
   };
 
   next();

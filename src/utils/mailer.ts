@@ -1,15 +1,20 @@
 // utils/mailer.ts
 
 import mailjet from "node-mailjet";
+import { t } from "./i18n";
 
 const mailjetClient = mailjet.apiConnect(
   process.env.MAILJET_API_KEY || "1232159e0de6174b723725c726be4ac8",
   process.env.MAILJET_SECRET_KEY || "30ba632a67b1f1b305ccbe70155ab9a0"
 );
 
-export async function sendOtpEmail(toEmail: string, code: string) {
-  console.log(`📧 Attempting to send OTP email to: ${toEmail} with code: ${code}`);
+export async function sendOtpEmail(toEmail: string, code: string, lang: string = "en") {
+  console.log(`📧 Attempting to send OTP email to: ${toEmail} with code: ${code} (Lang: ${lang})`);
   try {
+    const subject = t("Your OTP Code", lang);
+    const textPart = t("Your verification code is: {code}", lang, { code });
+    const htmlPart = `<h3>${subject}</h3><p><strong>${code}</strong></p><p>${t("This code will expire shortly.", lang)}</p>`;
+
     const result = await mailjetClient
       .post("send", { version: "v3.1" })
       .request({
@@ -17,12 +22,12 @@ export async function sendOtpEmail(toEmail: string, code: string) {
           {
             From: {
               Email: process.env.MAILJET_SENDER_EMAIL || "obaol.biz@gmail.com",
-              Name: "Obaol Verification",
+              Name: t("Obaol Verification", lang),
             },
             To: [{ Email: toEmail }],
-            Subject: "Your OTP Code",
-            TextPart: `Your verification code is: ${code}`,
-            HTMLPart: `<h3>Your OTP Code</h3><p><strong>${code}</strong></p><p>This code will expire shortly.</p>`,
+            Subject: subject,
+            TextPart: textPart,
+            HTMLPart: htmlPart,
           },
         ],
       });

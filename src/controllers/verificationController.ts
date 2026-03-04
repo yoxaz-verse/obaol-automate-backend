@@ -23,7 +23,8 @@ export const sendOTP = async (req: Request, res: Response) => {
       method,
       ip?.toString() ?? "unknown",
       userAgent?.toString() ?? "unknown",
-      email
+      email,
+      req.language
     );
     res.status(200).json({ message: `OTP sent to ${userType}` });
   } catch (error: any) {

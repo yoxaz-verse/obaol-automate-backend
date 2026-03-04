@@ -285,7 +285,8 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
             "email",
             ip.toString(),
             userAgent,
-            email
+            email,
+            req.language
         );
 
         res.json({ success: true, message: "OTP sent to your email" });

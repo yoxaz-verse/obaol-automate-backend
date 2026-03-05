@@ -17,6 +17,22 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
             const view = req.query?.view;
 
             if (view === "marketplace") {
+                const associateProfile = await AssociateModel.findById(associateId)
+                    .select("_id associateCompany")
+                    .lean();
+                const hasLinkedCompany = Boolean((associateProfile as any)?.associateCompany);
+
+                // No-company associate: mediator mode should see full marketplace (live/offline tabs),
+                // excluding only their own rows.
+                if (!hasLinkedCompany) {
+                    const fullMarketplaceQuery: any = {
+                        ...query,
+                        associate: { $ne: associateId },
+                    };
+                    delete fullMarketplaceQuery.view;
+                    return fullMarketplaceQuery;
+                }
+
                 // MARKETPLACE (Associate): only approved/verified supplier ecosystem, excluding self-owned rates.
                 const [approvedCompanies, approvedAssociates] = await Promise.all([
                     AssociateCompanyModel.find({

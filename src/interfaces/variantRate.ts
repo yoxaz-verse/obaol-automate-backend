@@ -24,6 +24,7 @@ export interface IVariantRate extends Document {
   lastEditTime?: Date; // Timestamp of last allowed edit
   coolingStartTime?: Date; // Timestamp when cooldown started
   hiddenDraftOf?: Types.ObjectId; // If this is a draft, link to original live rate
+  unit?: string; // KG, MT, Quintal
 }
 
 export interface ICreateVariantRate {
@@ -45,6 +46,7 @@ export interface ICreateVariantRate {
   hiddenDraftOf?: Types.ObjectId;
   lastLiveAt?: Date;
   lastLiveDate?: Date;
+  unit?: string;
 }
 
 export interface IUpdateVariantRate {
@@ -66,4 +68,5 @@ export interface IUpdateVariantRate {
   hiddenDraftOf?: Types.ObjectId;
   lastLiveAt?: Date;
   lastLiveDate?: Date;
+  unit?: string;
 }

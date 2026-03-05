@@ -7,6 +7,7 @@ export interface IDisplayedRate extends Document {
   associate: Types.ObjectId; // Reference to Associate model
   associateCompany?: Types.ObjectId; // Reference to Associate model
   selected?: boolean;
+  unit?: string;
 }
 
 export interface ICreateDisplayedRate {
@@ -14,6 +15,7 @@ export interface ICreateDisplayedRate {
   variantRate: Types.ObjectId;
   associate: Types.ObjectId;
   selected?: boolean;
+  unit?: string;
 }
 
 export interface IUpdateDisplayedRate {
@@ -21,4 +23,5 @@ export interface IUpdateDisplayedRate {
   variantRate?: Types.ObjectId;
   associate?: Types.ObjectId;
   selected?: boolean;
+  unit?: string;
 }

@@ -12,6 +12,7 @@ export interface ICatalogItem extends Document {
     customDescription?: string;
     lastLiveAt?: Date | null;
     lastLiveDate?: Date | null;
+    unit?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -64,6 +65,7 @@ const CatalogItemSchema: Schema = new Schema(
         },
         lastLiveAt: { type: Date, default: null },
         lastLiveDate: { type: Date, default: null },
+        unit: { type: String, default: 'KG' },
     },
     {
         timestamps: true,

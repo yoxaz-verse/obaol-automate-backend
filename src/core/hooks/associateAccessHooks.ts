@@ -1,6 +1,5 @@
 import { CatalogItemModel } from "../../database/models/catalogItem";
 import { AssociateModel } from "../../database/models/associate";
-import { AssociateCompanyModel } from "../../database/models/associateCompany";
 
 /**
  * Hook to inject filters for associates.
@@ -14,55 +13,24 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
         const associateId = user.id;
 
         if (req.params?.entity === "variant-rates") {
-            const view = req.query?.view;
+            const view = String(req.query?.view || "").toLowerCase();
 
             if (view === "marketplace") {
-                const associateProfile = await AssociateModel.findById(associateId)
-                    .select("_id associateCompany")
-                    .lean();
-                const hasLinkedCompany = Boolean((associateProfile as any)?.associateCompany);
-
-                // No-company associate: mediator mode should see full marketplace (live/offline tabs),
-                // excluding only their own rows.
-                if (!hasLinkedCompany) {
-                    const fullMarketplaceQuery: any = {
-                        ...query,
-                        associate: { $ne: associateId },
-                    };
-                    delete fullMarketplaceQuery.view;
-                    return fullMarketplaceQuery;
-                }
-
-                // MARKETPLACE (Associate): only approved/verified supplier ecosystem, excluding self-owned rates.
-                const [approvedCompanies, approvedAssociates] = await Promise.all([
-                    AssociateCompanyModel.find({
-                        registrationStatus: "APPROVED",
-                        isApproved: true
-                    })
-                        .select("_id")
-                        .lean(),
-                    AssociateModel.find({
-                        registrationStatus: "APPROVED",
-                        isActive: true
-                    })
-                        .select("_id")
-                        .lean(),
-                ]);
-
-                const approvedCompanyIds = approvedCompanies.map((c: any) => c._id);
-                const approvedAssociateIds = approvedAssociates.map((a: any) => a._id);
-
-                if (!approvedCompanyIds.length || !approvedAssociateIds.length) {
-                    const emptyMarketplaceQuery: any = { ...query, _id: "000000000000000000000000" };
-                    delete emptyMarketplaceQuery.view;
-                    return emptyMarketplaceQuery;
-                }
-
-                const marketQuery = {
+                // MARKETPLACE (Associate): show full marketplace (live/offline tabs controlled by request),
+                // excluding only self-owned rates.
+                const marketQuery: any = {
                     ...query,
-                    associate: { $in: approvedAssociateIds, $ne: associateId },
-                    associateCompany: { $in: approvedCompanyIds }
+                    associate: { $ne: associateId },
                 };
+
+                // Offline tab should include legacy rows where isLive is missing/null too.
+                const isOfflineRequest =
+                    marketQuery.isLive === false ||
+                    String(marketQuery.isLive).toLowerCase() === "false";
+                if (isOfflineRequest) {
+                    marketQuery.isLive = { $ne: true };
+                }
+
                 delete (marketQuery as any).view;
                 return marketQuery;
             } else {

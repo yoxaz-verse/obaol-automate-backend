@@ -24,6 +24,7 @@ const DisplayedRateSchema: Schema = new Schema({
     type: Boolean,
     default: true,
   },
+  unit: { type: String, default: 'KG' },
 }, { timestamps: true });
 
 /**

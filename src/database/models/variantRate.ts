@@ -35,6 +35,7 @@ const VariantRateSchema: Schema = new Schema({
   // ✅ NEW FIELD
   lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
   lastLiveDate: { type: Date, default: null },
+  unit: { type: String, default: 'KG', enum: ['KG', 'MT', 'Quintal'] },
 }, { timestamps: true });
 
 /**

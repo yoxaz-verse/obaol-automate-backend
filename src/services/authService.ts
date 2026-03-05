@@ -541,6 +541,12 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         message: "Please select at least one company sub-function."
                     });
                 }
+                if (selectedSubFunctionIds.length > 10) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "You can select up to 10 company sub-functions."
+                    });
+                }
                 if (companyGstin && !GST_REGEX.test(companyGstin)) {
                     return res.status(400).json({
                         success: false,

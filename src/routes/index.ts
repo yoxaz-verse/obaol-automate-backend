@@ -48,6 +48,14 @@ router.use(`${prefix}/notifications`, notificationRoutes);
 import presenceRoutes from "./v1/presenceRoutes";
 router.use(`${prefix}/presence`, presenceRoutes);
 
+// Employee hierarchy + commissions (exact + aliased paths)
+import employeeHierarchyRoutes from "./v1/employeeHierarchyRoutes";
+import commissionRoutes from "./v1/commissionRoutes";
+router.use("/employees", employeeHierarchyRoutes);
+router.use("/commissions", commissionRoutes);
+router.use(`${prefix}/employees`, employeeHierarchyRoutes);
+router.use(`${prefix}/commissions`, commissionRoutes);
+
 
 // Catalog Management (Associate)
 import catalogRoutes from "./v1/catalogRoutes";

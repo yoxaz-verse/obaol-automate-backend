@@ -43,6 +43,10 @@ export interface IOrderMilestones {
 export interface IOrder extends Document {
     enquiry: Types.ObjectId;
     status: string;
+    profit?: number | null;
+    closedByEmployee?: Types.ObjectId | null;
+    associateCompanyId?: Types.ObjectId | null;
+    commissionProcessedAt?: Date | null;
     trackingId?: string;
     logistics: ILogistics[];
     responsibilities?: IOrderResponsibilities;
@@ -54,6 +58,9 @@ export interface IOrder extends Document {
 export interface ICreateOrder {
     enquiry: Types.ObjectId;
     status?: string;
+    profit?: number | null;
+    closedByEmployee?: Types.ObjectId | null;
+    associateCompanyId?: Types.ObjectId | null;
     trackingId?: string;
     logistics?: ILogistics[];
     responsibilities?: IOrderResponsibilities;
@@ -62,6 +69,10 @@ export interface ICreateOrder {
 
 export interface IUpdateOrder {
     status?: string;
+    profit?: number | null;
+    closedByEmployee?: Types.ObjectId | null;
+    associateCompanyId?: Types.ObjectId | null;
+    commissionProcessedAt?: Date | null;
     trackingId?: string;
     logistics?: ILogistics[];
     responsibilities?: IOrderResponsibilities;

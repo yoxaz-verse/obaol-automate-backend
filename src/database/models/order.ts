@@ -54,6 +54,10 @@ const OrderSchema: Schema = new Schema(
     {
         enquiry: { type: Schema.Types.ObjectId, ref: "Inquiry", required: true },
         status: { type: String, default: "Procuring" },
+        profit: { type: Number, default: null },
+        closedByEmployee: { type: Schema.Types.ObjectId, ref: "Employee", default: null },
+        associateCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null },
+        commissionProcessedAt: { type: Date, default: null },
         trackingId: { type: String },
         logistics: [LogisticsSchema],
         responsibilities: { type: ResponsibilitiesSchema, default: {} },
@@ -63,5 +67,10 @@ const OrderSchema: Schema = new Schema(
         timestamps: true,
     }
 );
+
+OrderSchema.index({ status: 1 });
+OrderSchema.index({ commissionProcessedAt: 1 });
+OrderSchema.index({ closedByEmployee: 1 });
+OrderSchema.index({ associateCompanyId: 1 });
 
 export const OrderModel = mongoose.model<IOrder>("Order", OrderSchema);

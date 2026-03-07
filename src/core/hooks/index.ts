@@ -16,6 +16,9 @@ import { variantRateLivePreWriteHook, variantRateNotificationPostWriteHook } fro
 import { variantRateOwnershipPreWriteHook } from "./variantRateOwnershipHooks";
 import { employeeAssociateCreatePreWriteHook, employeeCompanyCreatePreWriteHook } from "./employeeOnboardingHooks";
 import { employeeVariantRateWritePreHook } from "./employeeVariantRateWriteHook";
+import { orderCommissionPreWriteHook } from "./orderCommissionPreWriteHook";
+import { orderCommissionPostWriteHook } from "./orderCommissionPostWriteHook";
+import { employeeMentorValidationHook } from "./employeeMentorValidationHook";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
@@ -63,5 +66,8 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreWrite("company-function-mappings", companyFunctionMappingWriteHook);
     HookDispatcher.registerPreWrite("associates", employeeAssociateCreatePreWriteHook);
     HookDispatcher.registerPreWrite("associate-companies", employeeCompanyCreatePreWriteHook);
+    HookDispatcher.registerPreWrite("employees", employeeMentorValidationHook);
+    HookDispatcher.registerPreWrite("orders", orderCommissionPreWriteHook);
+    HookDispatcher.registerPostWrite("orders", orderCommissionPostWriteHook);
     HookDispatcher.registerPostRead("company-functions", companyFunctionReadHook);
 };

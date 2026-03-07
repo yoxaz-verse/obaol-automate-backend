@@ -95,10 +95,11 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "employees": {
         model: EmployeeModel,
-        searchableFields: ["firstName", "lastName", "email"],
-        sortableFields: ["createdAt", "firstName"],
+        searchableFields: ["name", "email", "phone"],
+        sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
+            mentorEmployee: "employees",
             district: "districts",
             state: "states",
             jobRole: "job-roles",

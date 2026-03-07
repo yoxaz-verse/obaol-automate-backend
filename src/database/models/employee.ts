@@ -32,6 +32,7 @@ interface IEmployee extends mongoose.Document {
     isActive: boolean;
     isDeleted: boolean;
     role: string;
+    mentorEmployee?: mongoose.Types.ObjectId | null;
     lastSeenAt?: Date | null;
     presenceUpdatedAt?: Date | null;
     presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
@@ -82,6 +83,7 @@ const employeeSchema = new mongoose.Schema(
         isActive: { type: Boolean, default: true },
         isDeleted: { type: Boolean, default: false },
         role: { type: String, default: "team" },
+        mentorEmployee: { type: mongoose.Types.ObjectId, ref: "Employee", default: null, index: true },
         lastSeenAt: { type: Date, default: null, index: true },
         presenceUpdatedAt: { type: Date, default: null },
         presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },

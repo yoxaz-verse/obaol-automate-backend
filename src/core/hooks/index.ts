@@ -19,6 +19,7 @@ import { employeeVariantRateWritePreHook } from "./employeeVariantRateWriteHook"
 import { orderCommissionPreWriteHook } from "./orderCommissionPreWriteHook";
 import { orderCommissionPostWriteHook } from "./orderCommissionPostWriteHook";
 import { employeeMentorValidationHook } from "./employeeMentorValidationHook";
+import { organizationReportPreReadHook, organizationReportPreWriteHook } from "./organizationReportHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
@@ -32,7 +33,10 @@ export const registerAllHooks = () => {
     });
 
     HookDispatcher.registerPreRead("enquiries", employeeFilterHook);
-    HookDispatcher.registerPreRead("associates", employeeFilterHook);
+    HookDispatcher.registerPreRead("associates", async (query, mode, id, req) => {
+        let q = await employeeFilterHook(query, mode, id, req);
+        return await associateFilterHook(q, mode, id, req);
+    });
     HookDispatcher.registerPreRead("orders", orderFilterHook);
     HookDispatcher.registerPostRead("associates", associateReadNormalizationHook);
     HookDispatcher.registerPostRead("employees", employeeReadNormalizationHook);
@@ -68,6 +72,8 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreWrite("associate-companies", employeeCompanyCreatePreWriteHook);
     HookDispatcher.registerPreWrite("employees", employeeMentorValidationHook);
     HookDispatcher.registerPreWrite("orders", orderCommissionPreWriteHook);
+    HookDispatcher.registerPreRead("organization-reports", organizationReportPreReadHook);
+    HookDispatcher.registerPreWrite("organization-reports", organizationReportPreWriteHook);
     HookDispatcher.registerPostWrite("orders", orderCommissionPostWriteHook);
     HookDispatcher.registerPostRead("company-functions", companyFunctionReadHook);
 };

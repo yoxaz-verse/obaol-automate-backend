@@ -47,6 +47,7 @@ import { IncotermModel } from "../../database/models/incoterm";
 import { CompanyFunctionModel } from "../../database/models/companyFunction";
 import { CompanySubFunctionModel } from "../../database/models/companySubFunction";
 import { CompanyFunctionMappingModel } from "../../database/models/companyFunctionMapping";
+import { OrganizationReportModel } from "../../database/models/organizationReport";
 
 export interface EntityConfig {
     model: Model<any>;
@@ -283,7 +284,21 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             division: "divisions",
             pincodeEntry: "pincode-entries",
             companyType: "company-types",
-            assignedEmployee: "employees"
+            assignedEmployee: "employees",
+            supervisor: "associates"
+        },
+    },
+    "organization-reports": {
+        model: OrganizationReportModel,
+        searchableFields: ["reasonCode", "description"],
+        sortableFields: ["createdAt", "status"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            reporterAssociateId: "associates",
+            targetAssociateId: "associates",
+            reporterCompanyId: "associate-companies",
+            targetCompanyId: "associate-companies",
+            reviewedBy: "admins",
         },
     },
     "researched-companies": {

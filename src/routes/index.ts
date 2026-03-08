@@ -48,6 +48,10 @@ router.use(`${prefix}/notifications`, notificationRoutes);
 import presenceRoutes from "./v1/presenceRoutes";
 router.use(`${prefix}/presence`, presenceRoutes);
 
+// Organization reports (custom admin actions + generic CRUD via catch-all)
+import organizationReportRoutes from "./v1/organizationReportRoutes";
+router.use(`${prefix}/organization-reports`, organizationReportRoutes);
+
 // Employee hierarchy + commissions (exact + aliased paths)
 import employeeHierarchyRoutes from "./v1/employeeHierarchyRoutes";
 import commissionRoutes from "./v1/commissionRoutes";

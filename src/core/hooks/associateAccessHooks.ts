@@ -1,6 +1,14 @@
 import { CatalogItemModel } from "../../database/models/catalogItem";
 import { AssociateModel } from "../../database/models/associate";
 
+const EMPTY_QUERY = { _id: "000000000000000000000000" };
+
+const mergeWithScope = (baseQuery: any, scopeQuery: any) => {
+    const base = { ...(baseQuery || {}) };
+    if (!Object.keys(base).length) return scopeQuery;
+    return { $and: [base, scopeQuery] };
+};
+
 /**
  * Hook to inject filters for associates.
  * Ensures associates only see their own catalog items and personalized rates.
@@ -40,7 +48,7 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
                     .lean();
 
                 if (!associate || !(associate as any).associateCompany) {
-                    const emptyOwnProductsQuery: any = { ...query, _id: "000000000000000000000000" };
+                    const emptyOwnProductsQuery: any = { ...query, ...EMPTY_QUERY };
                     delete emptyOwnProductsQuery.view;
                     return emptyOwnProductsQuery;
                 }
@@ -57,6 +65,25 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
         // If we are looking at displayed-rates
         if (req.params?.entity === "displayed-rates") {
             return { ...query, associate: associateId };
+        }
+
+        // If we are looking at associates, scope to own company members (+ self fallback).
+        if (req.params?.entity === "associates") {
+            const associate = await AssociateModel.findById(associateId)
+                .select("_id associateCompany")
+                .lean();
+            const ownCompanyId = String((associate as any)?.associateCompany || "");
+
+            if (!ownCompanyId) {
+                return mergeWithScope(query, { _id: associateId });
+            }
+
+            return mergeWithScope(query, {
+                $or: [
+                    { _id: associateId },
+                    { associateCompany: ownCompanyId },
+                ],
+            });
         }
     }
 

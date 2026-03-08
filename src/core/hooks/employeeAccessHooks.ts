@@ -73,15 +73,15 @@ export const employeeFilterHook = async (query: any, mode: string, id: string | 
 
         // If we are looking at variant-rates or displayed-rates
         if (req.params?.entity === "variant-rates" || req.params?.entity === "displayed-rates") {
-            const view = String(req.query?.view || "").toLowerCase();
+            const isMarketplaceView =
+                req?.__marketplaceView === true ||
+                String(req.query?.view || "").toLowerCase() === "marketplace";
 
-            if (req.params?.entity === "variant-rates" && view === "marketplace") {
+            if (req.params?.entity === "variant-rates" && isMarketplaceView) {
                 if (assignedIds.length === 0) {
                     return { ...query };
                 }
-                const marketQuery = { ...query, associateCompany: { $nin: assignedIds } };
-                delete (marketQuery as any).view;
-                return marketQuery;
+                return { ...query, associateCompany: { $nin: assignedIds } };
             }
 
             return mergeScopedCompanyQuery(query, "associateCompany");

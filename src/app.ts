@@ -34,8 +34,6 @@ app.use(
     origin: [
       "http://localhost:3000",
       "http://localhost:3001",
-      "https://automate.obaol.com",
-      "https://www.automate.obaol.com",
       "https://obaol.com",
       "https://www.obaol.com",
       // Add any other allowed origins

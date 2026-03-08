@@ -21,9 +21,11 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
         const associateId = user.id;
 
         if (req.params?.entity === "variant-rates") {
-            const view = String(req.query?.view || "").toLowerCase();
+            const isMarketplaceView =
+                req?.__marketplaceView === true ||
+                String(req.query?.view || "").toLowerCase() === "marketplace";
 
-            if (view === "marketplace") {
+            if (isMarketplaceView) {
                 // MARKETPLACE (Associate): show full marketplace (live/offline tabs controlled by request),
                 // excluding only self-owned rates.
                 const marketQuery: any = {
@@ -31,15 +33,6 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
                     associate: { $ne: associateId },
                 };
 
-                // Offline tab should include legacy rows where isLive is missing/null too.
-                const isOfflineRequest =
-                    marketQuery.isLive === false ||
-                    String(marketQuery.isLive).toLowerCase() === "false";
-                if (isOfflineRequest) {
-                    marketQuery.isLive = { $ne: true };
-                }
-
-                delete (marketQuery as any).view;
                 return marketQuery;
             } else {
                 // DEFAULT / MY PRODUCTS: Show only my own (only when linked to a company)
@@ -49,7 +42,6 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
 
                 if (!associate || !(associate as any).associateCompany) {
                     const emptyOwnProductsQuery: any = { ...query, ...EMPTY_QUERY };
-                    delete emptyOwnProductsQuery.view;
                     return emptyOwnProductsQuery;
                 }
 

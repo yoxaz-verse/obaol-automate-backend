@@ -7,7 +7,7 @@ services:
       - "5001:5001"
     environment:
       PORT: 5001
-      NODE_ENV: development
+      NODE_ENV: production
       MONGODB_URI: mongodb+srv://yakobyte:AU5ZldseqnrEtMUK@obaol-cluster.oq0ij.mongodb.net/oboal
       JWT_SECRET: dev-secret
     depends_on:

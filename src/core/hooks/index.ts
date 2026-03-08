@@ -20,14 +20,17 @@ import { orderCommissionPreWriteHook } from "./orderCommissionPreWriteHook";
 import { orderCommissionPostWriteHook } from "./orderCommissionPostWriteHook";
 import { employeeMentorValidationHook } from "./employeeMentorValidationHook";
 import { organizationReportPreReadHook, organizationReportPreWriteHook } from "./organizationReportHooks";
+import { variantRateMarketplaceQueryHook } from "./variantRateMarketplaceQueryHook";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Employees (Overseers)
     HookDispatcher.registerPreRead("associate-companies", employeeFilterHook);
 
-    // Composite hook for variant-rates: Category Filter -> Employee Filter -> Associate Filter
+    // Composite hook for variant-rates:
+    // Marketplace normalization -> Category Filter -> Employee Filter -> Associate Filter
     HookDispatcher.registerPreRead("variant-rates", async (query, mode, id, req) => {
-        let q = await categoryFilterHook(query, mode, id, req);
+        let q = await variantRateMarketplaceQueryHook(query, mode, id, req);
+        q = await categoryFilterHook(q, mode, id, req);
         q = await employeeFilterHook(q, mode, id, req);
         return await associateFilterHook(q, mode, id, req);
     });

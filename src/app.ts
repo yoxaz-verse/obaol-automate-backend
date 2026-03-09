@@ -40,7 +40,7 @@ app.use(
     ],
     credentials: true, // <--- Needed for cross-site cookie usage
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Language", "Identifier", "IDENTIFIER", "ngrok-skip-browser-warning"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Language", "Identifier", "IDENTIFIER", "ngrok-skip-browser-warning", "Accept"],
   })
 );
 

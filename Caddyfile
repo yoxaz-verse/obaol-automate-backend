@@ -1,5 +1,0 @@
-backend.obaol.com  {
-    reverse_proxy backend:5001 {
-        header_down Strict-Transport-Security "max-age=31536000;"
-    }
-}

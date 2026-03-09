@@ -48,6 +48,7 @@ import { CompanyFunctionModel } from "../../database/models/companyFunction";
 import { CompanySubFunctionModel } from "../../database/models/companySubFunction";
 import { CompanyFunctionMappingModel } from "../../database/models/companyFunctionMapping";
 import { OrganizationReportModel } from "../../database/models/organizationReport";
+import { InventoryModel } from "../../database/models/inventory";
 
 export interface EntityConfig {
     model: Model<any>;
@@ -187,6 +188,22 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         searchableFields: ["name"],
         sortableFields: ["createdAt"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
+    },
+    "inventories": {
+        model: InventoryModel,
+        searchableFields: ["warehouseName", "quantity"],
+        sortableFields: ["createdAt", "quantity"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            product: "products",
+            productVariant: "product-variants",
+            associate: "associates",
+            associateCompany: "associate-companies",
+            state: "states",
+            district: "districts",
+            division: "divisions",
+            pincodeEntry: "pincode-entries"
+        },
     },
 
     // --- Locations & Geography ---

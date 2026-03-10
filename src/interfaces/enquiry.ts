@@ -9,6 +9,7 @@ export interface IInquiry extends Document {
   productId: Types.ObjectId;
   quantity?: number;
   specifications?: string;
+  packagingSpecifications?: string;
 
   // Associate roles
   buyerAssociateId: Types.ObjectId;
@@ -66,6 +67,9 @@ export interface IInquiry extends Document {
       to?: string;
       routeNotes?: string;
       requiresShipping?: boolean;
+      fromState?: string | null;
+      fromDistrict?: string | null;
+      packagingSpecifications?: string | null;
     };
     candidateProviders?: Array<Types.ObjectId | string>;
     bids?: Array<{
@@ -108,6 +112,7 @@ export interface ICreateInquiry {
   productId: Types.ObjectId;
   quantity?: number;
   specifications?: string;
+  packagingSpecifications?: string;
   buyerAssociateId: Types.ObjectId;
   sellerAssociateId: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
@@ -127,6 +132,7 @@ export interface ICreateInquiry {
 export interface IUpdateInquiry {
   quantity?: number;
   specifications?: string;
+  packagingSpecifications?: string;
   buyerAssociateId?: Types.ObjectId;
   sellerAssociateId?: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;

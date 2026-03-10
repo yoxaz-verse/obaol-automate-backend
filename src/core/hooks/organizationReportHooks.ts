@@ -1,7 +1,11 @@
 import mongoose from "mongoose";
 import { AssociateModel } from "../../database/models/associate";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
-import { ORGANIZATION_REPORT_REASONS } from "../../database/models/organizationReport";
+import {
+  ORGANIZATION_REPORT_REASONS,
+  OrganizationReportModel,
+} from "../../database/models/organizationReport";
+import { normalizeCompanyInterests } from "../../constants/companyInterests";
 import { ExecutionMode, HookFunction } from "../types";
 
 const EMPTY_QUERY = { _id: "000000000000000000000000" };
@@ -15,8 +19,17 @@ const buildError = (message: string, status = 400) => {
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 
+const stripControlQueryKeys = (query: any) => {
+  const base = { ...(query || {}) };
+  delete base.page;
+  delete base.limit;
+  delete base.sort;
+  delete base.search;
+  return base;
+};
+
 const mergeWithScope = (baseQuery: any, scopeQuery: any) => {
-  const base = { ...(baseQuery || {}) };
+  const base = stripControlQueryKeys(baseQuery);
   if (!Object.keys(base).length) return scopeQuery;
   return { $and: [base, scopeQuery] };
 };
@@ -36,8 +49,18 @@ export const organizationReportPreReadHook: HookFunction = async (query, _mode, 
   }
 
   const notDeletedScope = { isDeleted: { $ne: true } };
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[organization-reports] preRead incoming", {
+      role: roleLower,
+      queryKeys: Object.keys(query || {}),
+    });
+  }
   if (roleLower === "admin") {
-    return mergeWithScope(query, notDeletedScope);
+    const merged = mergeWithScope(query, notDeletedScope);
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[organization-reports] preRead merged-admin", merged);
+    }
+    return merged;
   }
 
   if (roleLower !== "associate") {
@@ -59,7 +82,14 @@ export const organizationReportPreReadHook: HookFunction = async (query, _mode, 
     ? { ...notDeletedScope, reporterCompanyId }
     : { ...notDeletedScope, reporterAssociateId: actorId };
 
-  return mergeWithScope(query, scopeQuery);
+  const merged = mergeWithScope(query, scopeQuery);
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[organization-reports] preRead merged-associate", {
+      isSupervisor,
+      merged,
+    });
+  }
+  return merged;
 };
 
 export const organizationReportPreWriteHook: HookFunction = async (payload, mode, _id, req) => {
@@ -93,6 +123,63 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
   }
 
   const nextPayload: any = { ...(payload || {}) };
+  const reasonCode = String(nextPayload.reasonCode || "").trim().toUpperCase();
+  if (!ORGANIZATION_REPORT_REASONS.includes(reasonCode as any)) {
+    throw buildError("Invalid reasonCode for organization report.");
+  }
+
+  const description = String(nextPayload.description || "").trim();
+  if (!description) {
+    throw buildError("description is required.");
+  }
+
+  if (reasonCode === "COMPANY_INTEREST_UPDATE") {
+    const requestedInterests = normalizeCompanyInterests(nextPayload?.payload?.requestedInterests);
+    if (!requestedInterests.length) {
+      throw buildError("At least one valid requested interest is required for company interest update.");
+    }
+
+    // Keep only one active company-interest request per company.
+    const supersedeResult = await OrganizationReportModel.updateMany(
+      {
+        reasonCode: "COMPANY_INTEREST_UPDATE",
+        reporterCompanyId,
+        isDeleted: { $ne: true },
+        status: { $in: ["PENDING_REVIEW", "UNDER_REVIEW"] },
+      },
+      {
+        $set: {
+          status: "REJECTED",
+          adminNotes: "Auto-cancelled: superseded by newer company interest request.",
+          actionType: "NONE",
+          reviewedAt: new Date(),
+          reviewedBy: null,
+        },
+      }
+    );
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[organization-reports] superseded prior company-interest requests", {
+        reporterCompanyId,
+        modifiedCount: supersedeResult.modifiedCount,
+      });
+    }
+
+    nextPayload.reasonCode = reasonCode;
+    nextPayload.description = description;
+    nextPayload.reporterAssociateId = actorId;
+    nextPayload.reporterCompanyId = reporterCompanyId;
+    nextPayload.targetAssociateId = actorId;
+    nextPayload.targetCompanyId = reporterCompanyId;
+    nextPayload.payload = { requestedInterests };
+    nextPayload.status = "PENDING_REVIEW";
+    nextPayload.actionType = "NONE";
+    nextPayload.adminNotes = "";
+    nextPayload.reviewedBy = null;
+    nextPayload.reviewedAt = null;
+    nextPayload.isDeleted = false;
+    return nextPayload;
+  }
+
   const targetAssociateId = String(nextPayload.targetAssociateId || "").trim();
   if (!mongoose.Types.ObjectId.isValid(targetAssociateId)) {
     throw buildError("targetAssociateId must be a valid associate id.");
@@ -114,16 +201,6 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
   const targetCompanyId = String((targetAssociate as any)?.associateCompany || "");
   if (!targetCompanyId || targetCompanyId !== reporterCompanyId) {
     throw buildError("You can report only members of your own company.", 403);
-  }
-
-  const reasonCode = String(nextPayload.reasonCode || "").trim().toUpperCase();
-  if (!ORGANIZATION_REPORT_REASONS.includes(reasonCode as any)) {
-    throw buildError("Invalid reasonCode for organization report.");
-  }
-
-  const description = String(nextPayload.description || "").trim();
-  if (!description) {
-    throw buildError("description is required.");
   }
 
   nextPayload.reasonCode = reasonCode;

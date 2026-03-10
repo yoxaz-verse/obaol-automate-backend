@@ -151,6 +151,7 @@ export class InquiryController {
                 productId,
                 quantity,
                 specifications,
+                packagingSpecifications,
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
@@ -199,6 +200,7 @@ export class InquiryController {
                 productId,
                 quantity,
                 specifications,
+                packagingSpecifications,
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
@@ -595,6 +597,15 @@ export class InquiryController {
             };
 
             const bodyContext = req.body?.executionContext || {};
+            const packagingSpecifications = String(
+                req.body?.packagingSpecifications ?? (inquiry as any)?.packagingSpecifications ?? ""
+            ).trim();
+            if (!packagingSpecifications) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Packaging specifications are required before finalizing responsibilities",
+                });
+            }
             const mergedContext: any = {
                 ...(inquiry as any).executionContext,
                 ...bodyContext,
@@ -760,6 +771,9 @@ export class InquiryController {
                 to: routeTo,
                 routeNotes: mergedContext.routeNotes || "",
                 requiresShipping: tradeType === "INTERNATIONAL",
+                fromState: originStateDoc ? (originStateDoc as any).name : null,
+                fromDistrict: originDistrictDoc ? (originDistrictDoc as any).name : null,
+                packagingSpecifications: null,
             };
 
             const executionInquirySeed = [
@@ -771,7 +785,15 @@ export class InquiryController {
                 ...(tradeType === "INTERNATIONAL"
                     ? [{ type: "SHIPPING", ownerBy: plan.shippingBy, title: "Freight Forwarding & Shipping Inquiry", details: { ...baseDetails, requiresShipping: true } }]
                     : []),
-                { type: "PACKAGING", ownerBy: plan.packagingBy, title: "Packaging Inquiry", details: baseDetails },
+                {
+                    type: "PACKAGING",
+                    ownerBy: plan.packagingBy,
+                    title: "Packaging Inquiry",
+                    details: {
+                        ...baseDetails,
+                        packagingSpecifications,
+                    },
+                },
                 { type: "QUALITY_TESTING", ownerBy: plan.qualityTestingBy, title: "Quality Testing & Assurance Inquiry", details: baseDetails },
             ];
 
@@ -791,6 +813,7 @@ export class InquiryController {
             (inquiry as any).responsibilitiesFinalizedAt = new Date();
             (inquiry as any).responsibilityPlan = plan;
             (inquiry as any).executionContext = mergedContext;
+            (inquiry as any).packagingSpecifications = packagingSpecifications;
             (inquiry as any).executionInquiries = executionInquiries;
             await inquiry.save();
 
@@ -823,7 +846,7 @@ export class InquiryController {
     async updateExecutionInquiry(req: Request, res: Response, next: NextFunction) {
         try {
             const { id, type } = req.params;
-            const { bidAmount, commitNote, status } = req.body;
+            const { bidAmount, commitNote, status, committedProvider } = req.body;
 
             if (!Types.ObjectId.isValid(id)) {
                 return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
@@ -840,7 +863,8 @@ export class InquiryController {
                 return res.status(403).json({ success: false, message: "Access denied" });
             }
 
-            const isAdmin = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.EMPLOYEE;
+            const isAdmin = req.user!.role === UserRole.ADMIN;
+            const isEmployeeUser = req.user!.role === UserRole.EMPLOYEE || req.user!.role === "team";
             let associateRole: "buyer" | "seller" | "mediator" | null = null;
             if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
                 associateRole = getAssociateRole(inquiry as any, context.associateId);
@@ -861,11 +885,15 @@ export class InquiryController {
                 associateCompanyId &&
                 candidateProviders.some((provider: any) => String(provider?._id || provider || "") === associateCompanyId)
             );
-            const canAct =
-                isAdmin ||
+            const assignedEmployeeId = inquiry.assignedEmployeeId?.toString() || "";
+            const isAssignedEmployee = Boolean(isEmployeeUser && assignedEmployeeId && assignedEmployeeId === req.user!.id);
+            const canBid =
                 isProviderCandidate ||
                 (ownerBy === "buyer" && associateRole === "buyer") ||
                 (ownerBy === "seller" && associateRole === "seller");
+            const canCommit = isAdmin || isAssignedEmployee;
+            const canUpdateStatus = isAdmin;
+            const canAct = canBid || canCommit || canUpdateStatus;
 
             if (!canAct) {
                 return res.status(403).json({
@@ -874,11 +902,10 @@ export class InquiryController {
                 });
             }
 
-            if (typeof bidAmount === "number" && !Number.isNaN(bidAmount)) {
+            if ((canBid || canCommit) && typeof bidAmount === "number" && !Number.isNaN(bidAmount)) {
                 task.bidAmount = bidAmount;
-                if (!status) task.status = "IN_PROGRESS";
             }
-            if (typeof commitNote === "string") {
+            if ((canBid || canCommit) && typeof commitNote === "string") {
                 task.commitNote = commitNote;
             }
             if (isProviderCandidate && (typeof bidAmount === "number" || typeof commitNote === "string")) {
@@ -907,11 +934,59 @@ export class InquiryController {
                 }
                 task.bids = bidRows;
             }
-            if (status && ["OPEN", "IN_PROGRESS", "COMPLETED"].includes(String(status).toUpperCase())) {
+            if (canUpdateStatus && status && ["OPEN", "IN_PROGRESS", "COMPLETED"].includes(String(status).toUpperCase())) {
                 const nextStatus = String(status).toUpperCase();
-                if (!isProviderCandidate || isAdmin || nextStatus !== "COMPLETED") {
-                    task.status = nextStatus;
+                task.status = nextStatus;
+            }
+
+            if (committedProvider) {
+                if (!canCommit) {
+                    return res.status(403).json({
+                        success: false,
+                        message: "You are not authorized to commit this execution inquiry"
+                    });
                 }
+                const committedProviderId = String(committedProvider || "");
+                if (!Types.ObjectId.isValid(committedProviderId)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid committedProvider id"
+                    });
+                }
+
+                const isCommittedCandidate = candidateProviders.some(
+                    (provider: any) => String(provider?._id || provider || "") === committedProviderId
+                );
+                if (!isCommittedCandidate) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Committed provider is not in candidate providers"
+                    });
+                }
+
+                task.committedProvider = committedProviderId;
+                const bidRows = Array.isArray(task.bids) ? task.bids : [];
+                task.bids = bidRows.map((bid: any) => {
+                    const bidCompanyId = String(bid?.company?._id || bid?.company || "");
+                    return {
+                        ...bid,
+                        status: bidCompanyId === committedProviderId ? "AWARDED" : (bid?.status || "SUBMITTED"),
+                        updatedAt: new Date(),
+                    };
+                });
+
+                if (!(typeof task.bidAmount === "number" && !Number.isNaN(task.bidAmount))) {
+                    const winningBid = task.bids.find(
+                        (bid: any) => String(bid?.company?._id || bid?.company || "") === committedProviderId
+                    );
+                    const winningAmount = Number(winningBid?.amount);
+                    if (!Number.isNaN(winningAmount)) {
+                        task.bidAmount = winningAmount;
+                    }
+                }
+
+                task.status = "COMPLETED";
+                task.committedAt = new Date();
             }
             if (task.status === "COMPLETED") {
                 task.committedAt = new Date();

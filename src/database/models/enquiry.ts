@@ -19,6 +19,12 @@ const InquirySchema: Schema = new Schema(
             type: String,
             maxlength: 2000
         },
+        packagingSpecifications: {
+            type: String,
+            maxlength: 4000,
+            trim: true,
+            default: ""
+        },
         variantRateId: {
             type: Schema.Types.ObjectId,
             ref: "VariantRate",
@@ -130,7 +136,10 @@ const InquirySchema: Schema = new Schema(
                     from: { type: String, default: null },
                     to: { type: String, default: null },
                     routeNotes: { type: String, default: null },
-                    requiresShipping: { type: Boolean, default: false }
+                    requiresShipping: { type: Boolean, default: false },
+                    fromState: { type: String, default: null },
+                    fromDistrict: { type: String, default: null },
+                    packagingSpecifications: { type: String, default: null },
                 },
                 candidateProviders: [{ type: Schema.Types.ObjectId, ref: "AssociateCompany" }],
                 bids: [

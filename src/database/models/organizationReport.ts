@@ -12,6 +12,7 @@ export const ORGANIZATION_REPORT_ACTIONS = [
   "NONE",
   "DEACTIVATE_ASSOCIATE",
   "REMOVE_FROM_COMPANY",
+  "APPLY_COMPANY_INTERESTS",
 ] as const;
 
 export const ORGANIZATION_REPORT_REASONS = [
@@ -20,6 +21,7 @@ export const ORGANIZATION_REPORT_REASONS = [
   "WRONG_COMPANY_LINK",
   "SPAM_BEHAVIOR",
   "PROFILE_ISSUE",
+  "COMPANY_INTEREST_UPDATE",
   "OTHER",
 ] as const;
 
@@ -61,6 +63,9 @@ const OrganizationReportSchema = new Schema(
       required: true,
       trim: true,
       maxlength: 1000,
+    },
+    payload: {
+      requestedInterests: [{ type: String, trim: true }],
     },
     status: {
       type: String,
@@ -105,4 +110,3 @@ export const OrganizationReportModel = mongoose.model(
   "OrganizationReport",
   OrganizationReportSchema
 );
-

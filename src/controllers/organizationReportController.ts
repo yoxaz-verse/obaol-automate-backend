@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { AssociateModel } from "../database/models/associate";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
+import { normalizeCompanyInterests } from "../constants/companyInterests";
 import {
   ORGANIZATION_REPORT_ACTIONS,
   ORGANIZATION_REPORT_STATUSES,
@@ -73,6 +76,48 @@ export class OrganizationReportController {
         mongoose.Types.ObjectId.isValid(String(req.user?.id || ""))
           ? new mongoose.Types.ObjectId(String(req.user?.id))
           : undefined;
+
+      if (actionType === "APPLY_COMPANY_INTERESTS") {
+        const requestedInterests = normalizeCompanyInterests((report as any)?.payload?.requestedInterests);
+        if (!requestedInterests.length) {
+          return res.status(400).json({
+            success: false,
+            message: "No valid requestedInterests found in report payload.",
+          });
+        }
+
+        const targetCompanyId = String((report as any)?.targetCompanyId || "");
+        if (!mongoose.Types.ObjectId.isValid(targetCompanyId)) {
+          return res.status(400).json({ success: false, message: "Invalid target company for report." });
+        }
+
+        const company = await AssociateCompanyModel.findOne({
+          _id: targetCompanyId,
+          isDeleted: { $ne: true },
+        })
+          .select("_id")
+          .lean();
+        if (!company) {
+          return res.status(404).json({ success: false, message: "Target company not found." });
+        }
+
+        await CompanyInterestProfileModel.findOneAndUpdate(
+          { associateCompanyId: targetCompanyId },
+          {
+            $set: {
+              interests: requestedInterests,
+              isConfigured: requestedInterests.length > 0,
+              updatedBy: reviewedBy || null,
+              updatedByRole: req.user?.role || null,
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+
+        await AssociateCompanyModel.findByIdAndUpdate(targetCompanyId, {
+          $set: { serviceCapabilities: requestedInterests },
+        });
+      }
 
       const updateDoc: any = {
         actionType,

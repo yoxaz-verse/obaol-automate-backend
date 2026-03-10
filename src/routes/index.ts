@@ -28,6 +28,11 @@ router.use(`${prefix}/orders`, orderRoutes);
 import inquiryRoutes from "./v1/inquiryRoutes";
 router.use(`${prefix}/inquiries`, inquiryRoutes);
 
+// Standalone service requests
+import serviceRequestRoutes from "./v1/serviceRequestRoutes";
+router.use(`${prefix}/service-requests`, serviceRequestRoutes);
+console.info(`[routes] mounted ${prefix}/service-requests`);
+
 // Analytics
 import analyticsRoutes from "./analyticsRoutes";
 router.use(`${prefix}/analytics`, analyticsRoutes);
@@ -76,8 +81,50 @@ router.use(`${prefix}/diagnostic`, diagnosticRoutes);
 // Public Routes (No Auth)
 import { GenericCrudController } from "../controllers/genericCrudController";
 import brandRoutes from "./v1/brandRoutes";
+import { ProductModel } from "../database/models/product";
 const publicCrud = new GenericCrudController();
 router.get(`${prefix}/products`, (req, res, next) => { (req.params as any).entity = "products"; next(); }, publicCrud.handleRequest.bind(publicCrud));
+router.get(`${prefix}/products/slug/:slug`, async (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").toLowerCase().trim();
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        message: "Product slug is required.",
+      });
+    }
+
+    const product = await ProductModel.findOne({
+      slug,
+      isDeleted: { $ne: true },
+    })
+      .populate({
+        path: "subCategory",
+        select: "name description category",
+        populate: { path: "category", select: "name description" },
+      })
+      .populate("state", "name")
+      .lean();
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: product,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load product details.",
+      error: error?.message || "Unknown error",
+    });
+  }
+});
 router.use(`${prefix}/brand`, brandRoutes);
 
 

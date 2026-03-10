@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { normalizePhoneInput } from "../../utils/phone";
+import { normalizeCapabilities } from "../../utils/companyCapabilities";
 
 const AssociateCompanySchema = new mongoose.Schema(
   {
@@ -110,6 +111,7 @@ AssociateCompanySchema.pre("save", async function (next) {
     const inferred = inferCapabilitiesFromCompanyTypeName(String(companyTypeDoc?.name || ""));
     if (inferred.length) self.serviceCapabilities = inferred;
   }
+  self.serviceCapabilities = normalizeCapabilities(self.serviceCapabilities);
 
   if (!self.subdomain || !self.slug) {
     const baseValue = self.name
@@ -182,6 +184,9 @@ AssociateCompanySchema.pre("findOneAndUpdate", function (next) {
       return next(new Error("Invalid GSTIN format."));
     }
     payload.gstin = gstin || undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "serviceCapabilities")) {
+    payload.serviceCapabilities = normalizeCapabilities(payload.serviceCapabilities);
   }
 
   if (update.$set) {

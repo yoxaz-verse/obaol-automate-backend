@@ -3,7 +3,7 @@ import { AdminModel } from "../database/models/admin";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { NotificationModel } from "../database/models/notification";
 
-type RecipientRole = "Admin" | "Employee" | "Associate";
+type RecipientRole = "Admin" | "Operator" | "Associate";
 
 type CreateNotificationParams = {
   recipientMap: Map<string, RecipientRole>;
@@ -11,7 +11,7 @@ type CreateNotificationParams = {
   type: string;
   title: string;
   message: string;
-  entityType: "INQUIRY" | "ORDER" | "VARIANT_RATE";
+  entityType: "INQUIRY" | "ORDER" | "VARIANT_RATE" | "SERVICE_REQUEST" | "APPROVAL";
   entityId: any;
   route: string;
   payload?: Record<string, any>;
@@ -51,7 +51,7 @@ class NotificationService {
     this.addRecipient(map, inquiry?.buyerAssociateId, "Associate");
     this.addRecipient(map, inquiry?.sellerAssociateId, "Associate");
     this.addRecipient(map, inquiry?.mediatorAssociateId, "Associate");
-    this.addRecipient(map, inquiry?.assignedEmployeeId, "Employee");
+    this.addRecipient(map, inquiry?.assignedOperatorId, "Operator");
     await this.addAdmins(map);
     return map;
   }
@@ -63,8 +63,8 @@ class NotificationService {
 
     const companyId = this.normalizeId(variantRate?.associateCompany);
     if (companyId) {
-      const company = await AssociateCompanyModel.findById(companyId).select("assignedEmployee").lean();
-      this.addRecipient(map, (company as any)?.assignedEmployee, "Employee");
+      const company = await AssociateCompanyModel.findById(companyId).select("assignedOperator").lean();
+      this.addRecipient(map, (company as any)?.assignedOperator, "Operator");
     }
     return map;
   }
@@ -135,4 +135,3 @@ class NotificationService {
 }
 
 export const notificationService = new NotificationService();
-

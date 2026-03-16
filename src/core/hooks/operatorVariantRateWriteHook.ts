@@ -2,9 +2,9 @@ import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { VariantRateModel } from "../../database/models/variantRate";
 import { ExecutionMode, HookFunction } from "../types";
 
-const isEmployeeActor = (req: any) => {
+const isOperatorActor = (req: any) => {
   const role = String(req?.user?.role || "").toLowerCase();
-  return role === "employee" || role === "team";
+  return role === "operator" || role === "team";
 };
 
 const forbidden = (message: string) => {
@@ -14,15 +14,15 @@ const forbidden = (message: string) => {
   return err;
 };
 
-export const employeeVariantRateWritePreHook: HookFunction = async (payload, mode, id, req) => {
-  if (!isEmployeeActor(req)) return payload;
+export const operatorVariantRateWritePreHook: HookFunction = async (payload, mode, id, req) => {
+  if (!isOperatorActor(req)) return payload;
 
-  const employeeId = String(req?.user?.id || "");
-  if (!employeeId) {
-    throw forbidden("Unauthorized employee session.");
+  const operatorId = String(req?.user?.id || "");
+  if (!operatorId) {
+    throw forbidden("Unauthorized operator session.");
   }
 
-  const assignedCompanies = await AssociateCompanyModel.find({ assignedEmployee: employeeId })
+  const assignedCompanies = await AssociateCompanyModel.find({ assignedOperator: operatorId })
     .select("_id")
     .lean();
   const assignedIdSet = new Set(assignedCompanies.map((company: any) => String(company._id)));

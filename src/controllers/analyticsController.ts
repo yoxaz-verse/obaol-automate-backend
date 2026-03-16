@@ -43,15 +43,16 @@ export const getAssociateMetrics = async (req: Request, res: Response, next: Nex
     }
 };
 
-export const getEmployeeMetrics = async (req: Request, res: Response, next: NextFunction) => {
+export const getOperatorMetrics = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const role = String((req.user as any)?.role || "");
-        const employeeId = String((req.user as any)?.id || "");
-        if (!employeeId || (role !== "Employee" && role !== "Admin")) {
-            return res.status(400).json({ status: 400, message: "User is not an employee" });
+        const roleLower = role.toLowerCase();
+        const operatorId = String((req.user as any)?.id || "");
+        if (!operatorId || (roleLower !== "operator" && roleLower !== "admin")) {
+            return res.status(400).json({ status: 400, message: "User is not an operator" });
         }
-        const data = await AnalyticsService.getEmployeeMetrics(employeeId);
-        res.sendFormatted(data, "Employee metrics retrieved successfully");
+        const data = await AnalyticsService.getOperatorMetrics(operatorId);
+        res.sendFormatted(data, "Operator metrics retrieved successfully");
     } catch (error) {
         next(error);
     }

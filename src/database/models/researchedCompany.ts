@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 
 const ResearchedCompanySchema = new mongoose.Schema(
   {
-    submittedBy: {
+    submittedByOperator: {
       type: mongoose.Types.ObjectId,
-      ref: "Employee",
+      ref: "Operator",
       required: false,
     }, // optional but useful
     name: { type: String, required: true },
@@ -41,11 +41,15 @@ const ResearchedCompanySchema = new mongoose.Schema(
 
     assignedTo: {
       type: mongoose.Types.ObjectId,
-      ref: "Employee",
+      ref: "Operator",
       required: false,
     }, // optional but useful
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
 export const ResearchedCompanyModel = mongoose.model(

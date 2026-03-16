@@ -10,6 +10,8 @@ export interface IInquiry extends Document {
   quantity?: number;
   specifications?: string;
   packagingSpecifications?: string;
+  variantRateId?: Types.ObjectId | null;
+  catalogItemId?: Types.ObjectId | null;
 
   // Associate roles
   buyerAssociateId: Types.ObjectId;
@@ -25,7 +27,7 @@ export interface IInquiry extends Document {
   buyerConfirmedAt?: Date | null;
 
   // Internal assignment
-  assignedEmployeeId?: Types.ObjectId | null;
+  assignedOperatorId?: Types.ObjectId | null;
   order?: Types.ObjectId | null;
   responsibilityPlan?: {
     procurementBy?: "buyer" | "seller" | "obaol";
@@ -90,6 +92,10 @@ export interface IInquiry extends Document {
 
   // Status management
   status: InquiryStatus;
+  workflowStage?: string;
+  isDemo?: boolean;
+  demoTag?: string;
+  demoCreatedBy?: Types.ObjectId | null;
 
   // Financials & Commissions
   rate?: number;
@@ -116,13 +122,17 @@ export interface ICreateInquiry {
   buyerAssociateId: Types.ObjectId;
   sellerAssociateId: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
-  assignedEmployeeId?: Types.ObjectId | null;
+  assignedOperatorId?: Types.ObjectId | null;
   preferredIncoterm?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
   rate?: number;
   adminCommission?: number;
   mediatorCommission?: number;
   notes?: string;
+  workflowStage?: string;
+  isDemo?: boolean;
+  demoTag?: string;
+  demoCreatedBy?: Types.ObjectId | null;
   createdBy: Types.ObjectId;
 }
 
@@ -139,6 +149,10 @@ export interface IUpdateInquiry {
   preferredIncoterm?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
   notes?: string;
+  workflowStage?: string;
+  isDemo?: boolean;
+  demoTag?: string;
+  demoCreatedBy?: Types.ObjectId | null;
 }
 
 /**

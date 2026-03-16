@@ -20,6 +20,7 @@ const VariantRateSchema: Schema = new Schema({
   division: { type: mongoose.Types.ObjectId, ref: "Division" },
   pincodeEntry: { type: mongoose.Types.ObjectId, ref: "PincodeEntry" },
   associate: { type: Schema.Types.ObjectId, ref: "Associate" },
+  sourceInventory: { type: Schema.Types.ObjectId, ref: "Inventory", default: null },
   associateCompany: {
     type: Schema.Types.ObjectId,
     ref: "AssociateCompany",
@@ -32,6 +33,9 @@ const VariantRateSchema: Schema = new Schema({
   coolingStartTime: { type: Date },
   hiddenDraftOf: { type: Schema.Types.ObjectId, ref: "VariantRate" },
   isDeleted: { type: Boolean, default: false, index: true },
+  isDemo: { type: Boolean, default: false, index: true },
+  demoTag: { type: String, default: null, index: true },
+  demoCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
   // ✅ NEW FIELD
   lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
   lastLiveDate: { type: Date, default: null },

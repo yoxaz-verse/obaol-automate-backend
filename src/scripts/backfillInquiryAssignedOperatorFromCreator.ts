@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { InquiryModel } from "../database/models/enquiry";
-import { EmployeeModel } from "../database/models/employee";
+import { OperatorModel } from "../database/models/operator";
 
 dotenv.config();
 
@@ -12,10 +12,10 @@ async function run() {
     await mongoose.connect(uri);
 
     const rows = await InquiryModel.find({
-      $or: [{ assignedEmployeeId: null }, { assignedEmployeeId: { $exists: false } }],
+      $or: [{ assignedOperatorId: null }, { assignedOperatorId: { $exists: false } }],
       createdBy: { $exists: true, $ne: null },
     })
-      .select("_id createdBy assignedEmployeeId")
+      .select("_id createdBy assignedOperatorId")
       .lean();
 
     let updated = 0;
@@ -28,15 +28,15 @@ async function run() {
         continue;
       }
 
-      const employeeExists = await EmployeeModel.exists({ _id: creatorId, isDeleted: { $ne: true } });
-      if (!employeeExists) {
+      const operatorExists = await OperatorModel.exists({ _id: creatorId, isDeleted: { $ne: true } });
+      if (!operatorExists) {
         skipped++;
         continue;
       }
 
       await InquiryModel.updateOne(
         { _id: row._id },
-        { $set: { assignedEmployeeId: creatorId } }
+        { $set: { assignedOperatorId: creatorId } }
       );
       updated++;
     }
@@ -51,4 +51,3 @@ async function run() {
 }
 
 run();
-

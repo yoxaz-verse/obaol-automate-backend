@@ -7,7 +7,7 @@ import { Types } from "mongoose";
 
 export enum UserRole {
     ADMIN = "Admin",
-    EMPLOYEE = "Employee",
+    OPERATOR = "Operator",
     ASSOCIATE = "Associate"
 }
 
@@ -23,7 +23,7 @@ export interface InquiryDocument {
     buyerAssociateId?: Types.ObjectId;
     sellerAssociateId?: Types.ObjectId;
     mediatorAssociateId?: Types.ObjectId | null;
-    assignedEmployeeId?: Types.ObjectId | null;
+    assignedOperatorId?: Types.ObjectId | null;
     notes?: string;
     [key: string]: any;
 }
@@ -66,10 +66,15 @@ export function canAccessInquiry(
         return true;
     }
 
-    // Employee: can access if assigned
-    if (userRole === UserRole.EMPLOYEE || roleLower === "employee" || roleLower === "team") {
+    // Operator: can access if assigned
+    if (
+        userRole === UserRole.OPERATOR ||
+        roleLower === "operator" ||
+        roleLower === "operator" ||
+        roleLower === "team"
+    ) {
         return (
-            getAttrId(inquiry.assignedEmployeeId) === userId.toString() ||
+            getAttrId(inquiry.assignedOperatorId) === userId.toString() ||
             getAttrId((inquiry as any).createdBy) === userId.toString()
         );
     }
@@ -128,12 +133,12 @@ export function filterInquiryFields(
     const { userRole, associateId, associateCompanyId } = context;
     const roleLower = String(userRole || "").toLowerCase();
 
-    // Admin and assigned employee: full access
+    // Admin and assigned operator: full access
     if (
         userRole === UserRole.ADMIN ||
         roleLower === "admin" ||
-        ((userRole === UserRole.EMPLOYEE || roleLower === "employee" || roleLower === "team") &&
-            (getAttrId(inquiry.assignedEmployeeId) === context.userId.toString() ||
+        ((userRole === UserRole.OPERATOR || roleLower === "operator" || roleLower === "team") &&
+            (getAttrId(inquiry.assignedOperatorId) === context.userId.toString() ||
                 getAttrId((inquiry as any).createdBy) === context.userId.toString()))
     ) {
         return inquiry;
@@ -145,12 +150,12 @@ export function filterInquiryFields(
 
         if (associateRole === "buyer") {
             // Buyer can see: product, quantity, specifications, status
-            const { notes, assignedEmployeeId, sellerAssociateId, mediatorAssociateId, ...safeFields } = inquiry;
+            const { notes, assignedOperatorId, sellerAssociateId, mediatorAssociateId, ...safeFields } = inquiry;
             return {
                 ...safeFields,
                 // Explicitly exclude sensitive fields and counterparties
                 notes: undefined,
-                assignedEmployeeId: undefined,
+                assignedOperatorId: undefined,
                 sellerAssociateId: undefined,
                 mediatorAssociateId: undefined
             };
@@ -160,7 +165,7 @@ export function filterInquiryFields(
             // Seller can see: product, quantity, status (no specifications, no buyer)
             const {
                 notes,
-                assignedEmployeeId,
+                assignedOperatorId,
                 specifications,
                 buyerAssociateId,
                 mediatorAssociateId,
@@ -169,7 +174,7 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 notes: undefined,
-                assignedEmployeeId: undefined,
+                assignedOperatorId: undefined,
                 specifications: undefined,
                 buyerAssociateId: undefined,
                 mediatorAssociateId: undefined
@@ -180,7 +185,7 @@ export function filterInquiryFields(
             // Mediator can see: product, quantity, status (no specifications, no buyer/seller names)
             const {
                 notes,
-                assignedEmployeeId,
+                assignedOperatorId,
                 specifications,
                 buyerAssociateId,
                 sellerAssociateId,
@@ -189,7 +194,7 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 notes: undefined,
-                assignedEmployeeId: undefined,
+                assignedOperatorId: undefined,
                 specifications: undefined,
                 buyerAssociateId: undefined,
                 sellerAssociateId: undefined
@@ -200,7 +205,7 @@ export function filterInquiryFields(
         if (isExecutionProviderForCompany(inquiry, associateCompanyId)) {
             const {
                 notes,
-                assignedEmployeeId,
+                assignedOperatorId,
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
@@ -211,7 +216,7 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 notes: undefined,
-                assignedEmployeeId: undefined,
+                assignedOperatorId: undefined,
                 buyerAssociateId: undefined,
                 sellerAssociateId: undefined,
                 mediatorAssociateId: undefined,
@@ -246,10 +251,14 @@ export function buildInquiryAccessFilter(
         return {};
     }
 
-    // Employee: only assigned inquiries
-    if (userRole === UserRole.EMPLOYEE || roleLower === "employee" || roleLower === "team") {
+    // Operator: only assigned inquiries
+    if (
+        userRole === UserRole.OPERATOR ||
+        roleLower === "operator" ||
+        roleLower === "team"
+    ) {
         return {
-            $or: [{ assignedEmployeeId: userId }, { createdBy: userId }]
+            $or: [{ assignedOperatorId: userId }, { createdBy: userId }]
         };
     }
 

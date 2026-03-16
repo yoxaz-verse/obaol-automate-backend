@@ -9,6 +9,15 @@ const mergeWithScope = (baseQuery: any, scopeQuery: any) => {
     return { $and: [base, scopeQuery] };
 };
 
+const stripControlQueryKeys = (input: any) => {
+    const cleaned = { ...(input || {}) };
+    delete cleaned.page;
+    delete cleaned.limit;
+    delete cleaned.sort;
+    delete cleaned.search;
+    return cleaned;
+};
+
 /**
  * Hook to inject filters for associates.
  * Ensures associates only see their own catalog items and personalized rates.
@@ -65,12 +74,13 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
                 .select("_id associateCompany")
                 .lean();
             const ownCompanyId = String((associate as any)?.associateCompany || "");
+            const baseQuery = stripControlQueryKeys(query);
 
             if (!ownCompanyId) {
-                return mergeWithScope(query, { _id: associateId });
+                return mergeWithScope(baseQuery, { _id: associateId });
             }
 
-            return mergeWithScope(query, {
+            return mergeWithScope(baseQuery, {
                 $or: [
                     { _id: associateId },
                     { associateCompany: ownCompanyId },

@@ -4,7 +4,7 @@ import { JWT_SECRET } from "../config";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { AssociateModel } from "../database/models/associate";
-import { EmployeeModel } from "../database/models/employee";
+import { OperatorModel } from "../database/models/operator";
 
 export interface DecodedToken {
   id: string;
@@ -65,13 +65,13 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
         // eslint-disable-next-line no-console
         console.debug("Presence update skipped (associate):", error?.message || error);
       });
-    } else if (roleLower === "employee" || roleLower === "team") {
-      EmployeeModel.updateOne(
+    } else if (roleLower === "operator" || roleLower === "team") {
+      OperatorModel.updateOne(
         { _id: decoded.id, $or: [{ lastSeenAt: { $lt: throttleCutoff } }, { lastSeenAt: null }, { lastSeenAt: { $exists: false } }] },
         updateDoc
       ).catch((error: any) => {
         // eslint-disable-next-line no-console
-        console.debug("Presence update skipped (employee):", error?.message || error);
+        console.debug("Presence update skipped (operator):", error?.message || error);
       });
     }
 

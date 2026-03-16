@@ -29,20 +29,30 @@ app.use(express.json());
 app.use(responseFormatter);
 
 // CORS middleware
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "https://obaol.com",
-      "https://www.obaol.com",
-      // Add any other allowed origins
-    ],
-    credentials: true, // <--- Needed for cross-site cookie usage
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Language", "Identifier", "IDENTIFIER", "ngrok-skip-browser-warning", "Accept"],
-  })
-);
+const allowOrigin = (origin?: string) => {
+  if (!origin) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+  if (/^https?:\/\/([a-z0-9-]+\.)*obaol\.com$/i.test(origin)) return true;
+  return false;
+};
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (allowOrigin(origin)) return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true, // <--- Needed for cross-site cookie usage
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  return next();
+});
 
 // Logger
 app.use(apiLogger);

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { AssociateModel } from "../../database/models/associate";
+import { InquiryModel } from "../../database/models/enquiry";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import {
   ORGANIZATION_REPORT_REASONS,
@@ -128,8 +129,8 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
     throw buildError("Invalid reasonCode for organization report.");
   }
 
-  const description = String(nextPayload.description || "").trim();
-  if (!description) {
+  let description = String(nextPayload.description || "").trim();
+  if (!description && reasonCode !== "REOPEN_INQUIRY_REQUEST") {
     throw buildError("description is required.");
   }
 
@@ -171,6 +172,44 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
     nextPayload.targetAssociateId = actorId;
     nextPayload.targetCompanyId = reporterCompanyId;
     nextPayload.payload = { requestedInterests };
+    nextPayload.status = "PENDING_REVIEW";
+    nextPayload.actionType = "NONE";
+    nextPayload.adminNotes = "";
+    nextPayload.reviewedBy = null;
+    nextPayload.reviewedAt = null;
+    nextPayload.isDeleted = false;
+    return nextPayload;
+  }
+
+  if (reasonCode === "REOPEN_INQUIRY_REQUEST") {
+    const inquiryId = String(nextPayload?.payload?.inquiryId || nextPayload?.inquiryId || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(inquiryId)) {
+      throw buildError("Valid inquiryId is required for reopen request.");
+    }
+
+    const inquiry = await InquiryModel.findById(inquiryId).select("_id status").lean();
+    if (!inquiry) {
+      throw buildError("Inquiry not found.");
+    }
+    if (String((inquiry as any)?.status || "").toUpperCase() !== "CANCELLED") {
+      throw buildError("Only cancelled enquiries can be reopened.");
+    }
+
+    if (!description) {
+      description = "Reopen enquiry request";
+    }
+
+    nextPayload.reasonCode = reasonCode;
+    nextPayload.description = description;
+    nextPayload.reporterAssociateId = actorId;
+    nextPayload.reporterCompanyId = reporterCompanyId;
+    nextPayload.targetAssociateId = actorId;
+    nextPayload.targetCompanyId = reporterCompanyId;
+    nextPayload.payload = {
+      inquiryId,
+      requestedBy: actorId,
+      note: description,
+    };
     nextPayload.status = "PENDING_REVIEW";
     nextPayload.actionType = "NONE";
     nextPayload.adminNotes = "";

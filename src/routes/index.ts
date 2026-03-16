@@ -33,6 +33,28 @@ import serviceRequestRoutes from "./v1/serviceRequestRoutes";
 router.use(`${prefix}/service-requests`, serviceRequestRoutes);
 console.info(`[routes] mounted ${prefix}/service-requests`);
 
+// Sample requests
+import sampleRequestRoutes from "./v1/sampleRequestRoutes";
+router.use(`${prefix}/sample-requests`, sampleRequestRoutes);
+console.info(`[routes] mounted ${prefix}/sample-requests`);
+
+// Trade documents
+import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";
+router.use(`${prefix}/trade-documents`, tradeDocumentRoutes);
+console.info(`[routes] mounted ${prefix}/trade-documents`);
+// Document rules
+import documentRuleRoutes from "./v1/documentRuleRoutes";
+router.use(`${prefix}/document-rules`, documentRuleRoutes);
+console.info(`[routes] mounted ${prefix}/document-rules`);
+
+// Enquiry rules
+import enquiryRuleRoutes from "./v1/enquiryRuleRoutes";
+import orderRuleRoutes from "./v1/orderRuleRoutes";
+router.use(`${prefix}/enquiry-rules`, enquiryRuleRoutes);
+console.info(`[routes] mounted ${prefix}/enquiry-rules`);
+router.use(`${prefix}/order-rules`, orderRuleRoutes);
+console.info(`[routes] mounted ${prefix}/order-rules`);
+
 // Analytics
 import analyticsRoutes from "./analyticsRoutes";
 router.use(`${prefix}/analytics`, analyticsRoutes);
@@ -57,12 +79,12 @@ router.use(`${prefix}/presence`, presenceRoutes);
 import organizationReportRoutes from "./v1/organizationReportRoutes";
 router.use(`${prefix}/organization-reports`, organizationReportRoutes);
 
-// Employee hierarchy + commissions (exact + aliased paths)
-import employeeHierarchyRoutes from "./v1/employeeHierarchyRoutes";
+// Operator hierarchy + commissions
+import operatorHierarchyRoutes from "./v1/operatorHierarchyRoutes";
 import commissionRoutes from "./v1/commissionRoutes";
-router.use("/employees", employeeHierarchyRoutes);
 router.use("/commissions", commissionRoutes);
-router.use(`${prefix}/employees`, employeeHierarchyRoutes);
+router.use("/operators", operatorHierarchyRoutes);
+router.use(`${prefix}/operators`, operatorHierarchyRoutes);
 router.use(`${prefix}/commissions`, commissionRoutes);
 
 
@@ -82,6 +104,7 @@ router.use(`${prefix}/diagnostic`, diagnosticRoutes);
 import { GenericCrudController } from "../controllers/genericCrudController";
 import brandRoutes from "./v1/brandRoutes";
 import { ProductModel } from "../database/models/product";
+import demoRoutes from "./v1/demoRoutes";
 const publicCrud = new GenericCrudController();
 router.get(`${prefix}/products`, (req, res, next) => { (req.params as any).entity = "products"; next(); }, publicCrud.handleRequest.bind(publicCrud));
 router.get(`${prefix}/products/slug/:slug`, async (req, res) => {
@@ -126,6 +149,7 @@ router.get(`${prefix}/products/slug/:slug`, async (req, res) => {
   }
 });
 router.use(`${prefix}/brand`, brandRoutes);
+router.use(`${prefix}/demo`, demoRoutes);
 
 
 // --- Generic CRUD Route (Low Priority / Catch-All) ---

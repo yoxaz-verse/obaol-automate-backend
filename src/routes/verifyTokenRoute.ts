@@ -26,8 +26,8 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   if (roleLower === "associate") {
     const associate = await AssociateModel.findById(req.user.id).select("associateCompany").lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
-  } else if (roleLower === "employee" || roleLower === "team") {
-    const companies = await AssociateCompanyModel.find({ assignedEmployee: req.user.id }).select("_id").limit(2).lean();
+  } else if (roleLower === "operator" || roleLower === "team") {
+    const companies = await AssociateCompanyModel.find({ assignedOperator: req.user.id }).select("_id").limit(2).lean();
     if (companies.length === 1) {
       associateCompanyId = String(companies[0]._id);
       companyInterestsConfigured = false;

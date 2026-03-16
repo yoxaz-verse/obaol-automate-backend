@@ -12,6 +12,10 @@ export interface IInventory extends Document {
     district?: Schema.Types.ObjectId;
     division?: Schema.Types.ObjectId;
     pincodeEntry?: Schema.Types.ObjectId;
+    linkedVariantRate?: Schema.Types.ObjectId | null;
+    isDemo?: boolean;
+    demoTag?: string;
+    demoCreatedBy?: Schema.Types.ObjectId | null;
     isDeleted: boolean;
     createdAt: Date;
     updatedAt: Date;

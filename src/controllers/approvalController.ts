@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { OperatorModel } from "../database/models/operator";
 
 const ALLOWED_STATUSES = new Set(["PENDING_REVIEW", "APPROVED", "REJECTED"]);
 
@@ -121,6 +122,38 @@ export class ApprovalController {
     }
   }
 
+  async listOperators(req: Request, res: Response) {
+    try {
+      const page = Math.max(1, Number(req.query.page || 1));
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+      const status = normalizeStatus(req.query.status) || "PENDING_REVIEW";
+      const query: any = { isDeleted: { $ne: true } };
+      if (status) query.registrationStatus = status;
+      const searchQuery = buildSearch(req.query.search, ["name", "email", "phone"]);
+      if (searchQuery) Object.assign(query, searchQuery);
+
+      const [total, rows] = await Promise.all([
+        OperatorModel.countDocuments(query),
+        OperatorModel.find(query)
+          .select("name email phone registrationStatus isActive jobRole jobType createdAt")
+          .populate("jobRole", "name")
+          .populate("jobType", "name")
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+      ]);
+
+      return res.json({
+        success: true,
+        data: rows,
+        meta: { page, limit, total, pages: Math.ceil(total / limit) || 1 },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error?.message || "Failed to load operators." });
+    }
+  }
+
   async actionAssociate(req: Request, res: Response) {
     try {
       const id = String(req.params.id || "");
@@ -161,6 +194,37 @@ export class ApprovalController {
       return res.json({ success: true, data: updated });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error?.message || "Failed to update associate status." });
+    }
+  }
+
+  async actionOperator(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const action = String(req.body?.action || "").toUpperCase();
+      const notes = String(req.body?.notes || "").trim();
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: "Invalid operator id." });
+      }
+      if (action !== "APPROVE" && action !== "REJECT") {
+        return res.status(400).json({ success: false, message: "Invalid action." });
+      }
+
+      const now = new Date();
+      const update: any = action === "APPROVE"
+        ? { registrationStatus: "APPROVED", isActive: true, approvedAt: now, approvedBy: req.user?.id, reviewNotes: notes }
+        : { registrationStatus: "REJECTED", isActive: false, reviewNotes: notes };
+
+      const operator = await OperatorModel.findByIdAndUpdate(id, { $set: update }, { new: true })
+        .select("name email registrationStatus isActive")
+        .lean();
+
+      if (!operator) {
+        return res.status(404).json({ success: false, message: "Operator not found." });
+      }
+
+      return res.json({ success: true, data: operator });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error?.message || "Failed to update operator status." });
     }
   }
 

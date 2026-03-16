@@ -5,6 +5,12 @@ import { CrudEngine } from "../core/engine/crud.engine";
 import { logError } from "../utils/errorLogger";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
+import { InventoryReservationModel } from "../database/models/inventoryReservation";
+import { TradeDocumentModel } from "../database/models/tradeDocument";
+import { DocumentRuleModel } from "../database/models/documentRule";
+import { OrderRuleModel } from "../database/models/orderRule";
+import { ensureDefaultDocumentRules } from "../utils/documentRules";
+import { ensureDefaultOrderRules } from "../utils/orderRules";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -53,6 +59,18 @@ export class OrderController {
             if (!req.body.responsibilities) {
                 req.body.responsibilities = responsibilityPlan;
             }
+            // Initialize milestone dates on conversion (scheduling + procurement + source inspection).
+            const now = new Date();
+            req.body.milestones = req.body.milestones || {};
+            if (!req.body.milestones.schedulingFinalizedDate) {
+                req.body.milestones.schedulingFinalizedDate = now;
+            }
+            if (!req.body.milestones.procurementInspectionDate) {
+                req.body.milestones.procurementInspectionDate = now;
+            }
+            if (!req.body.milestones.procurementDate) {
+                req.body.milestones.procurementDate = now;
+            }
 
             const order = await this.engine.create(req, req.body);
 
@@ -61,6 +79,20 @@ export class OrderController {
                     status: "Converted",
                     order: order._id
                 });
+            }
+
+            if (req.body.enquiry) {
+                await InventoryReservationModel.updateMany(
+                    { enquiryId: req.body.enquiry, status: "RESERVED", isDeleted: { $ne: true } },
+                    { $set: { orderId: order._id } }
+                );
+            }
+
+            if (req.body.enquiry) {
+                await TradeDocumentModel.updateMany(
+                    { enquiryId: req.body.enquiry, isDeleted: { $ne: true } },
+                    { $set: { orderId: order._id } }
+                );
             }
 
             const recipients = await notificationService.buildInquiryRecipients(enquiry as any);
@@ -111,6 +143,78 @@ export class OrderController {
 
     public update = async (req: Request, res: Response) => {
         try {
+            const workflowStage = String(req.body?.workflowStage || "").trim().toUpperCase();
+            const milestonePatch = req.body?.milestones || {};
+            const hasProcurementDates = milestonePatch.procurementDate || milestonePatch.procurementInspectionDate;
+            if (hasProcurementDates) {
+                const existing = await OrderModel.findById(req.params.id).select("milestones").lean();
+                if (!existing) return res.status(404).json({ success: false, message: "Order not found" });
+
+                const nextInspection = milestonePatch.procurementInspectionDate ?? (existing as any)?.milestones?.procurementInspectionDate ?? null;
+                const nextProcurement = milestonePatch.procurementDate ?? (existing as any)?.milestones?.procurementDate ?? null;
+
+                if (nextInspection && nextProcurement) {
+                    const inspectionDate = new Date(nextInspection);
+                    const procurementDate = new Date(nextProcurement);
+                    if (inspectionDate.getTime() > procurementDate.getTime()) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Source inspection date cannot be after procurement date. It can be the same day or earlier."
+                        });
+                    }
+                }
+            }
+            if (workflowStage) {
+                await ensureDefaultDocumentRules();
+                await ensureDefaultOrderRules();
+                const order = await OrderModel.findById(req.params.id).populate("enquiry").lean();
+                if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+
+                const tradeType = String((order as any)?.enquiry?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
+                const orderId = order?._id;
+                const stageRule = await OrderRuleModel.findOne({
+                    stageKey: workflowStage,
+                    isDeleted: { $ne: true },
+                    isActive: true,
+                    tradeType: { $in: [tradeType, "BOTH"] },
+                }).lean();
+                if (!stageRule) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid or inactive workflow stage for this trade type"
+                    });
+                }
+
+                const rules = await DocumentRuleModel.find({
+                    isDeleted: { $ne: true },
+                    isActive: true,
+                    stageType: "ORDER",
+                    stageKey: workflowStage,
+                    isRequired: true,
+                    tradeType: { $in: [tradeType, "BOTH"] },
+                }).lean();
+
+                if (rules.length > 0) {
+                    const requiredTypes: string[] = Array.from(
+                        new Set(rules.map((r: any) => String(r.docType || "")))
+                    ).filter(Boolean);
+                    const missing: string[] = [];
+                    for (const type of requiredTypes) {
+                        const count = await TradeDocumentModel.countDocuments({
+                            orderId,
+                            type,
+                            isDeleted: { $ne: true }
+                        });
+                        if (count <= 0) missing.push(String(type));
+                    }
+                    if (missing.length > 0) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Required documents missing for ${workflowStage}: ${missing.join(", ")}.`
+                        });
+                    }
+                }
+            }
             const result = await this.engine.update(req, req.params.id, req.body);
             if (!result) return res.status(404).json({ success: false, message: "Order not found" });
             res.json({ success: true, data: result });

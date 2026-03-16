@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { AdminModel } from "../database/models/admin";
 import { ProjectManagerModel } from "../database/models/projectManager";
-import { EmployeeModel } from "../database/models/employee";
+import { OperatorModel } from "../database/models/operator";
 import { AssociateModel as AgentModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
@@ -16,6 +16,9 @@ import { PincodeEntryModel } from "../database/models/pincodeEntry";
 import { CountryModel } from "../database/models/country";
 import { CompanyFunctionModel } from "../database/models/companyFunction";
 import { CompanySubFunctionModel } from "../database/models/companySubFunction";
+import { JobRoleModel } from "../database/models/jobRole";
+import { JobTypeModel } from "../database/models/jobType";
+import { LanguageModel } from "../database/models/language";
 import { CompanyFunctionMappingModel } from "../database/models/companyFunctionMapping";
 import { comparePasswords, hashPassword } from "../utils/passwordUtils";
 import { generateJWTToken } from "../utils/tokenUtils";
@@ -28,6 +31,8 @@ import {
     normalizeAssociateInterests,
     normalizeCompanyInterests,
 } from "../constants/companyInterests";
+import { notificationService } from "./notificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 const COUNTRY_ALIAS_TO_CODE: Record<string, string> = {
@@ -174,11 +179,17 @@ export const authenticateUser = async (req: Request, res: Response) => {
 
         const models: Record<string, any> = {
             "Admin": AdminModel,
+            "admin": AdminModel,
             "ProjectManager": ProjectManagerModel,
-            "Employee": EmployeeModel,
+            "projectmanager": ProjectManagerModel,
+            "Operator": OperatorModel,
+            "operator": OperatorModel,
             "Associate": AgentModel,
+            "associate": AgentModel,
             "ActivityManager": InventoryManagerModel,
-            "Worker": EmployeeModel
+            "activitymanager": InventoryManagerModel,
+            "Worker": OperatorModel,
+            "worker": OperatorModel,
         };
 
         if (role && models[role]) {
@@ -215,6 +226,11 @@ export const authenticateUser = async (req: Request, res: Response) => {
                     return res.status(401).json({ message: "Account pending admin approval." });
                 }
             }
+        } else if (roleLower === "operator" || roleLower === "team") {
+            const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
+            if (registrationStatus !== "APPROVED" || user.isActive === false) {
+                return res.status(401).json({ message: "Account pending admin approval." });
+            }
         } else if (user.isActive === false) {
             return res.status(401).json({ message: "Account is inactive. Please contact support." });
         }
@@ -224,9 +240,10 @@ export const authenticateUser = async (req: Request, res: Response) => {
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
+        const normalizedRole = (roleLower === "operator") ? "Operator" : finalRole;
         const userForToken = {
             ...user.toObject(),
-            role: finalRole,
+            role: normalizedRole,
             // Ensure associateCompany is included if present (for AssociateCompany scope)
             associateCompany: user.associateCompany
         };
@@ -252,7 +269,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
                 id: user._id,
                 email: user.email,
                 name: user.name,
-                role: finalRole
+                role: normalizedRole
             }
         });
 
@@ -269,10 +286,15 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
         const models: Record<string, any> = {
             "Admin": AdminModel,
+            "admin": AdminModel,
             "ProjectManager": ProjectManagerModel,
-            "Employee": EmployeeModel,
+            "projectmanager": ProjectManagerModel,
+            "Operator": OperatorModel,
+            "operator": OperatorModel,
             "Associate": AgentModel,
-            "ActivityManager": InventoryManagerModel
+            "associate": AgentModel,
+            "ActivityManager": InventoryManagerModel,
+            "activitymanager": InventoryManagerModel
         };
 
         const model = models[role];
@@ -312,10 +334,15 @@ export const completePasswordReset = async (req: Request, res: Response) => {
 
         const models: Record<string, any> = {
             "Admin": AdminModel,
+            "admin": AdminModel,
             "ProjectManager": ProjectManagerModel,
-            "Employee": EmployeeModel,
+            "projectmanager": ProjectManagerModel,
+            "Operator": OperatorModel,
+            "operator": OperatorModel,
             "Associate": AgentModel,
-            "ActivityManager": InventoryManagerModel
+            "associate": AgentModel,
+            "ActivityManager": InventoryManagerModel,
+            "activitymanager": InventoryManagerModel
         };
 
         const model = models[role];
@@ -446,9 +473,9 @@ export const registerAssociate = async (req: Request, res: Response) => {
 
         const existingAssociate = await AgentModel.findOne({ email: trimmedEmail });
         const existingAdmin = await AdminModel.findOne({ email: trimmedEmail });
-        const existingEmployee = await EmployeeModel.findOne({ email: trimmedEmail });
+        const existingOperator = await OperatorModel.findOne({ email: trimmedEmail });
 
-        if (existingAssociate || existingAdmin || existingEmployee) {
+        if (existingAssociate || existingAdmin || existingOperator) {
             return res.status(400).json({
                 success: false,
                 message: "Registration failed. This email is already registered."
@@ -474,6 +501,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
         }
 
         let linkedCompanyId: any = null;
+        let createdCompanyId: any = null;
 
         if (shouldLinkCompany) {
             if (companyMode !== "existing" && companyMode !== "new") {
@@ -669,6 +697,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         isApproved: false,
                     });
                     linkedCompanyId = createdCompany._id;
+                    createdCompanyId = createdCompany._id;
                     await syncCompanyFunctionMappings({
                         companyId: linkedCompanyId,
                         selectedSubFunctionIds,
@@ -757,6 +786,42 @@ export const registerAssociate = async (req: Request, res: Response) => {
             onboardingContactNotes: String(contactNotes || "").trim(),
             registrationSource: "SELF_REGISTERED",
         });
+
+        // Notify admins about new pending approvals
+        try {
+            const recipients = new Map<string, "Admin" | "Operator" | "Associate">();
+            await notificationService.addAdmins(recipients);
+
+            if (createdCompanyId) {
+                await notificationService.createNotifications({
+                    recipientMap: recipients,
+                    createdByUserId: null,
+                    type: NotificationTypes.APPROVAL_REQUESTED,
+                    title: "New company approval request",
+                    message: "A company registration is pending approval.",
+                    entityType: NotificationEntityTypes.APPROVAL,
+                    entityId: createdCompanyId,
+                    route: "/dashboard/approvals",
+                    payload: { companyId: createdCompanyId },
+                    priority: "high",
+                });
+            }
+
+            await notificationService.createNotifications({
+                recipientMap: recipients,
+                createdByUserId: null,
+                type: NotificationTypes.APPROVAL_REQUESTED,
+                title: "New associate approval request",
+                message: "An associate registration is pending approval.",
+                entityType: NotificationEntityTypes.APPROVAL,
+                entityId: newAssociate._id,
+                route: "/dashboard/approvals",
+                payload: { associateId: newAssociate._id },
+                priority: "high",
+            });
+        } catch (err) {
+            logger.warn("Approval notification failed", { error: (err as any)?.message || String(err) });
+        }
 
         // Return success (no auto-login for security)
         res.status(201).json({
@@ -892,6 +957,156 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
 };
 
 /**
+ * Operator Registration Options
+ * GET /auth/operator/register/options
+ */
+export const getOperatorRegisterOptions = async (_req: Request, res: Response) => {
+    try {
+        const [jobRolesRes, jobTypesRes, languagesRes, statesRes, districtsRes] = await Promise.allSettled([
+            JobRoleModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
+            JobTypeModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
+            LanguageModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
+            StateModel.find({ isDeleted: { $ne: true } }).select("_id name code").sort({ name: 1 }).lean(),
+            DistrictModel.find({ isDeleted: { $ne: true } }).select("_id name state").sort({ name: 1 }).lean(),
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                jobRoles: jobRolesRes.status === "fulfilled" ? jobRolesRes.value : [],
+                jobTypes: jobTypesRes.status === "fulfilled" ? jobTypesRes.value : [],
+                languages: languagesRes.status === "fulfilled" ? languagesRes.value : [],
+                states: statesRes.status === "fulfilled" ? statesRes.value : [],
+                districts: districtsRes.status === "fulfilled" ? districtsRes.value : [],
+            },
+        });
+    } catch (error: any) {
+        res.status(200).json({
+            success: true,
+            data: { jobRoles: [], jobTypes: [], languages: [], states: [], districts: [] },
+            meta: { partial: true, error: error?.message || "Failed to load operator registration options." },
+        });
+    }
+};
+
+/**
+ * Register Operator
+ * POST /auth/operator/register
+ */
+export const registerOperator = async (req: Request, res: Response) => {
+    try {
+        const {
+            name,
+            email,
+            phone,
+            phoneCountryCode,
+            phoneNational,
+            password,
+            address,
+            state,
+            district,
+            jobRole,
+            jobType,
+            languageKnown,
+            joiningDate,
+            workingHours,
+        } = req.body;
+
+        if (!name || !email || !phone || !password || !address) {
+            return res.status(400).json({ success: false, message: "Name, email, phone, password, and address are required." });
+        }
+        if (!state || !district || !jobRole || !jobType || !joiningDate) {
+            return res.status(400).json({ success: false, message: "State, district, job role, job type, and joining date are required." });
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ success: false, message: "Invalid email format." });
+        }
+        if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 8 characters, include one uppercase letter and one number.",
+            });
+        }
+
+        const trimmedEmail = String(email || "").trim().toLowerCase();
+        const normalizedPrimary = normalizePhoneInput({
+            rawPhone: typeof phone === "object" ? phone?.value || phone?.e164 || "" : phone,
+            rawCountryCode: typeof phone === "object" ? phone?.countryCode : phoneCountryCode,
+            rawNational: typeof phone === "object" ? phone?.national : phoneNational,
+        });
+
+        if (!normalizedPrimary.e164) {
+            return res.status(400).json({ success: false, message: "Valid phone number is required." });
+        }
+
+        const [existingAssociate, existingAdmin, existingOperator] = await Promise.all([
+            AgentModel.findOne({ email: trimmedEmail }).select("_id"),
+            AdminModel.findOne({ email: trimmedEmail }).select("_id"),
+            OperatorModel.findOne({ email: trimmedEmail }).select("_id"),
+        ]);
+        if (existingAssociate || existingAdmin || existingOperator) {
+            return res.status(400).json({ success: false, message: "Registration failed. This email is already registered." });
+        }
+
+        const parsedWorkingHours = Array.isArray(workingHours) && workingHours.length
+            ? workingHours
+            : null;
+        if (!parsedWorkingHours) {
+            return res.status(400).json({ success: false, message: "Working hours are required." });
+        }
+
+        const operator = await OperatorModel.create({
+            name: String(name || "").trim(),
+            email: trimmedEmail,
+            phone: normalizedPrimary.e164,
+            phoneCountryCode: normalizedPrimary.countryCode,
+            phoneNational: normalizedPrimary.national,
+            password,
+            address: String(address || "").trim(),
+            state,
+            district,
+            jobRole,
+            jobType,
+            languageKnown: Array.isArray(languageKnown) ? languageKnown : [],
+            joiningDate: new Date(joiningDate),
+            workingHours: parsedWorkingHours,
+            isActive: false,
+            registrationStatus: "PENDING_REVIEW",
+            registrationSource: "SELF_REGISTERED",
+            role: "operator",
+        });
+
+        const adminRecipientMap = new Map<string, "Admin">();
+        await notificationService.addAdmins(adminRecipientMap);
+        await notificationService.createNotifications({
+            recipientMap: adminRecipientMap,
+            createdByUserId: String(operator._id),
+            type: NotificationTypes.APPROVAL_REQUESTED,
+            title: "New operator registration",
+            message: `${operator.name} submitted an operator registration for approval.`,
+            entityType: NotificationEntityTypes.APPROVAL,
+            entityId: operator._id,
+            route: "/dashboard/approvals",
+            priority: "medium",
+            payload: { approvalType: "operator" },
+        });
+
+        return res.json({
+            success: true,
+            message: "Registration submitted for approval.",
+            data: { id: operator._id },
+        });
+    } catch (error: any) {
+        if (error.code === 11000) {
+            return res.status(400).json({ success: false, message: "Registration failed. This email is already registered." });
+        }
+        return res.status(500).json({ success: false, message: error?.message || "Registration failed. Please try again later." });
+    }
+};
+
+/**
  * Public Registration Companies
  * GET /auth/register/companies
  */
@@ -980,8 +1195,8 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
         } else if (roleLower === "associate") {
             const associate = await AgentModel.findById(userId).select("associateCompany").lean();
             associateCompanyId = String((associate as any)?.associateCompany || "");
-        } else if (roleLower === "employee" || roleLower === "team") {
-            const companies = await AssociateCompanyModel.find({ assignedEmployee: userId }).select("_id").limit(2).lean();
+        } else if (roleLower === "operator" || roleLower === "team") {
+            const companies = await AssociateCompanyModel.find({ assignedOperator: userId }).select("_id").limit(2).lean();
             if (companies.length === 1) associateCompanyId = String(companies[0]._id);
         }
 
@@ -1031,12 +1246,12 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
         } else if (roleLower === "associate") {
             const associate = await AgentModel.findById(userId).select("associateCompany").lean();
             associateCompanyId = String((associate as any)?.associateCompany || "");
-        } else if (roleLower === "employee" || roleLower === "team") {
-            const companies = await AssociateCompanyModel.find({ assignedEmployee: userId }).select("_id").limit(2).lean();
+        } else if (roleLower === "operator" || roleLower === "team") {
+            const companies = await AssociateCompanyModel.find({ assignedOperator: userId }).select("_id").limit(2).lean();
             if (companies.length !== 1) {
                 return res.status(400).json({
                     success: false,
-                    message: "Employee interests setup requires exactly one assigned company context.",
+                    message: "Operator interests setup requires exactly one assigned company context.",
                 });
             }
             associateCompanyId = String(companies[0]._id);

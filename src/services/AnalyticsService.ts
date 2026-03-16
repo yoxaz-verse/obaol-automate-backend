@@ -134,19 +134,19 @@ export class AnalyticsService {
     }
 
     /**
-     * Get scoped metrics for an employee based on assigned associate companies.
+     * Get scoped metrics for an operator based on assigned associate companies.
      */
-    static async getEmployeeMetrics(employeeId: string) {
-        const id = new mongoose.Types.ObjectId(employeeId);
+    static async getOperatorMetrics(operatorId: string) {
+        const id = new mongoose.Types.ObjectId(operatorId);
         const companyRows = await AssociateCompanyModel.find({
-            assignedEmployee: id,
+            assignedOperator: id,
             isDeleted: { $ne: true },
         }).select("_id").lean();
 
         const companyIds = companyRows.map((row: any) => row._id);
         const companyCount = companyIds.length;
 
-        const inquiryFilter = { $or: [{ assignedEmployeeId: id }, { createdBy: id }] };
+        const inquiryFilter = { $or: [{ assignedOperatorId: id }, { createdBy: id }] };
         const incompleteStatuses = ["COMPLETED", "CLOSED", "CANCELLED", "CONVERTED"];
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);

@@ -46,7 +46,7 @@ export const companySubFunctionMasterWriteHook: HookFunction = async (payload, m
 
 export const companyFunctionMappingWriteHook: HookFunction = async (payload, mode, id, req) => {
   const role = String(req?.user?.role || "").toLowerCase();
-  const allowed = new Set(["admin", "associate", "employee", "team"]);
+  const allowed = new Set(["admin", "associate", "operator", "team"]);
   if (!allowed.has(role)) {
     throw new Error("Not allowed to manage company capability mappings.");
   }

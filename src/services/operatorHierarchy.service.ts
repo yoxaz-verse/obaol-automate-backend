@@ -1,38 +1,38 @@
 import mongoose from "mongoose";
-import { EmployeeModel } from "../database/models/employee";
+import { OperatorModel } from "../database/models/operator";
 
 type HierarchyNode = {
   _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
-  mentorEmployee?: mongoose.Types.ObjectId | null;
+  mentorOperator?: mongoose.Types.ObjectId | null;
   depth?: number;
   level?: number;
 };
 
-export class EmployeeHierarchyService {
-  static isValidEmployeeId(employeeId: string) {
-    return mongoose.Types.ObjectId.isValid(employeeId);
+export class OperatorHierarchyService {
+  static isValidOperatorId(operatorId: string) {
+    return mongoose.Types.ObjectId.isValid(operatorId);
   }
 
-  static async getEmployeeBasic(employeeId: string) {
-    if (!this.isValidEmployeeId(employeeId)) return null;
-    return EmployeeModel.findById(employeeId)
-      .select("_id name email mentorEmployee isDeleted")
+  static async getOperatorBasic(operatorId: string) {
+    if (!this.isValidOperatorId(operatorId)) return null;
+    return OperatorModel.findById(operatorId)
+      .select("_id name email mentorOperator isDeleted")
       .lean();
   }
 
-  static async getLeadershipChain(employeeId: string): Promise<HierarchyNode[]> {
-    if (!this.isValidEmployeeId(employeeId)) return [];
-    const rootId = new mongoose.Types.ObjectId(employeeId);
+  static async getLeadershipChain(operatorId: string): Promise<HierarchyNode[]> {
+    if (!this.isValidOperatorId(operatorId)) return [];
+    const rootId = new mongoose.Types.ObjectId(operatorId);
 
-    const rows = await EmployeeModel.aggregate([
+    const rows = await OperatorModel.aggregate([
       { $match: { _id: rootId } },
       {
         $graphLookup: {
-          from: "employees",
-          startWith: "$mentorEmployee",
-          connectFromField: "mentorEmployee",
+          from: "operators",
+          startWith: "$mentorOperator",
+          connectFromField: "mentorOperator",
           connectToField: "_id",
           as: "leadershipChain",
           depthField: "depth",
@@ -49,7 +49,7 @@ export class EmployeeHierarchyService {
                 _id: "$$node._id",
                 name: "$$node.name",
                 email: "$$node.email",
-                mentorEmployee: "$$node.mentorEmployee",
+                mentorOperator: "$$node.mentorOperator",
                 depth: "$$node.depth",
               },
             },
@@ -67,18 +67,18 @@ export class EmployeeHierarchyService {
       }));
   }
 
-  static async getDownline(employeeId: string): Promise<HierarchyNode[]> {
-    if (!this.isValidEmployeeId(employeeId)) return [];
-    const rootId = new mongoose.Types.ObjectId(employeeId);
+  static async getDownline(operatorId: string): Promise<HierarchyNode[]> {
+    if (!this.isValidOperatorId(operatorId)) return [];
+    const rootId = new mongoose.Types.ObjectId(operatorId);
 
-    const rows = await EmployeeModel.aggregate([
+    const rows = await OperatorModel.aggregate([
       { $match: { _id: rootId } },
       {
         $graphLookup: {
-          from: "employees",
+          from: "operators",
           startWith: "$_id",
           connectFromField: "_id",
-          connectToField: "mentorEmployee",
+          connectToField: "mentorOperator",
           as: "downline",
           depthField: "depth",
           restrictSearchWithMatch: { isDeleted: { $ne: true } },
@@ -94,7 +94,7 @@ export class EmployeeHierarchyService {
                 _id: "$$node._id",
                 name: "$$node.name",
                 email: "$$node.email",
-                mentorEmployee: "$$node.mentorEmployee",
+                mentorOperator: "$$node.mentorOperator",
                 depth: "$$node.depth",
               },
             },
@@ -112,17 +112,16 @@ export class EmployeeHierarchyService {
       }));
   }
 
-  static async getDownlineIds(employeeId: string): Promise<string[]> {
-    const nodes = await this.getDownline(employeeId);
+  static async getDownlineIds(operatorId: string): Promise<string[]> {
+    const nodes = await this.getDownline(operatorId);
     return nodes.map((node) => String(node._id));
   }
 
-  static async isInDownline(managerId: string, candidateEmployeeId: string): Promise<boolean> {
-    if (!this.isValidEmployeeId(managerId) || !this.isValidEmployeeId(candidateEmployeeId)) {
+  static async isInDownline(managerId: string, candidateOperatorId: string): Promise<boolean> {
+    if (!this.isValidOperatorId(managerId) || !this.isValidOperatorId(candidateOperatorId)) {
       return false;
     }
     const downlineIds = await this.getDownlineIds(managerId);
-    return downlineIds.includes(String(candidateEmployeeId));
+    return downlineIds.includes(String(candidateOperatorId));
   }
 }
-

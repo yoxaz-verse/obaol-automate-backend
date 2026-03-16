@@ -4,6 +4,12 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
 import { normalizeCompanyInterests } from "../constants/companyInterests";
+import { InquiryModel } from "../database/models/enquiry";
+import { VariantRateModel } from "../database/models/variantRate";
+import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
+import { createInquiryEvent, InquiryEventType } from "../database/models/InquiryEvent";
+import { notificationService } from "../services/notificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import {
   ORGANIZATION_REPORT_ACTIONS,
   ORGANIZATION_REPORT_STATUSES,
@@ -119,6 +125,66 @@ export class OrganizationReportController {
         });
       }
 
+      let reopenedInquiryId: string | null = null;
+      if (actionType === "REOPEN_INQUIRY_CREATE") {
+        if (String((report as any)?.reasonCode || "").toUpperCase() !== "REOPEN_INQUIRY_REQUEST") {
+          return res.status(400).json({ success: false, message: "Reopen action is only valid for reopen requests." });
+        }
+
+        const inquiryId = String((report as any)?.payload?.inquiryId || "");
+        if (!mongoose.Types.ObjectId.isValid(inquiryId)) {
+          return res.status(400).json({ success: false, message: "Invalid inquiryId in report payload." });
+        }
+
+        const existingInquiry = await InquiryModel.findById(inquiryId).lean();
+        if (!existingInquiry) {
+          return res.status(404).json({ success: false, message: "Original enquiry not found." });
+        }
+        if (String((existingInquiry as any)?.status || "").toUpperCase() !== "CANCELLED") {
+          return res.status(400).json({ success: false, message: "Only cancelled enquiries can be reopened." });
+        }
+
+        const variantRateId = String((existingInquiry as any)?.variantRateId || "");
+        if (!mongoose.Types.ObjectId.isValid(variantRateId)) {
+          return res.status(400).json({ success: false, message: "Variant rate not found for this enquiry." });
+        }
+        const variantRate = await VariantRateModel.findById(variantRateId).select("_id").lean();
+        if (!variantRate) {
+          return res.status(400).json({ success: false, message: "Variant rate no longer available. Cannot reopen this enquiry." });
+        }
+
+        const created = await InquiryModel.create({
+          productId: (existingInquiry as any).productId,
+          quantity: (existingInquiry as any).quantity,
+          specifications: (existingInquiry as any).specifications,
+          packagingSpecifications: (existingInquiry as any).packagingSpecifications,
+          buyerAssociateId: (existingInquiry as any).buyerAssociateId,
+          sellerAssociateId: (existingInquiry as any).sellerAssociateId,
+          mediatorAssociateId: (existingInquiry as any).mediatorAssociateId,
+          assignedOperatorId: (existingInquiry as any).assignedOperatorId || null,
+          variantRateId: (existingInquiry as any).variantRateId,
+          catalogItemId: (existingInquiry as any).catalogItemId,
+          preferredIncoterm: (existingInquiry as any).preferredIncoterm || null,
+          supplierCommitUntil: null,
+          rate: (existingInquiry as any).rate || 0,
+          adminCommission: (existingInquiry as any).adminCommission || 0,
+          mediatorCommission: (existingInquiry as any).mediatorCommission || 0,
+          executionContext: (existingInquiry as any).executionContext || {},
+          responsibilityPlan: (existingInquiry as any).responsibilityPlan || {},
+          status: InquiryStatus.NEW,
+          workflowStage: "INQUIRY_CREATED",
+          createdBy: req.user?.id,
+        });
+
+        reopenedInquiryId = String(created?._id || "");
+        const actorId = req.user?.id || created.createdBy;
+        if (reopenedInquiryId && actorId) {
+          await createInquiryEvent(created._id, InquiryEventType.CREATED, actorId, {
+            metadata: { action: "REOPENED_FROM_CANCELLED", sourceInquiryId: inquiryId },
+          });
+        }
+      }
+
       const updateDoc: any = {
         actionType,
         reviewedAt: new Date(),
@@ -135,6 +201,12 @@ export class OrganizationReportController {
       } else if (actionType !== "NONE") {
         updateDoc.status = "ACTION_TAKEN";
       }
+      if (reopenedInquiryId) {
+        updateDoc.payload = {
+          ...(report as any)?.payload,
+          reopenedInquiryId,
+        };
+      }
 
       const updated = await OrganizationReportModel.findOneAndUpdate(
         { _id: reportId, isDeleted: { $ne: true } },
@@ -145,6 +217,42 @@ export class OrganizationReportController {
         .populate("targetAssociateId", "name email")
         .populate("reporterCompanyId", "name")
         .lean();
+
+      if (String((report as any)?.reasonCode || "").toUpperCase() === "REOPEN_INQUIRY_REQUEST") {
+        const recipientId = String((report as any)?.reporterAssociateId || "");
+        const recipientMap = new Map<string, any>();
+        if (mongoose.Types.ObjectId.isValid(recipientId)) {
+          recipientMap.set(recipientId, "Associate");
+        }
+
+        if (actionType === "REOPEN_INQUIRY_CREATE" && reopenedInquiryId) {
+          await notificationService.createNotifications({
+            recipientMap,
+            createdByUserId: req.user?.id,
+            type: NotificationTypes.INQUIRY_STATUS_CHANGED,
+            title: "Enquiry reopened",
+            message: "Your enquiry reopen request was approved. A new enquiry has been created.",
+            entityType: NotificationEntityTypes.INQUIRY,
+            entityId: reopenedInquiryId,
+            route: `/dashboard/enquiries/${reopenedInquiryId}`,
+            payload: { sourceReportId: reportId },
+            priority: "high",
+          });
+        } else if (nextStatus === "REJECTED") {
+          await notificationService.createNotifications({
+            recipientMap,
+            createdByUserId: req.user?.id,
+            type: NotificationTypes.INQUIRY_STATUS_CHANGED,
+            title: "Reopen request rejected",
+            message: "Your enquiry reopen request was rejected by admin.",
+            entityType: NotificationEntityTypes.APPROVAL,
+            entityId: reportId,
+            route: `/dashboard/notifications`,
+            payload: { sourceReportId: reportId },
+            priority: "medium",
+          });
+        }
+      }
 
       return res.json({ success: true, data: updated });
     } catch (error: any) {

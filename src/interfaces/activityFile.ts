@@ -6,7 +6,7 @@ export interface IActivityFile extends Document {
   files: Array<{
     file: IFile; // Reference to the file
     status: "Submitted" | "Approved" | "Rejected"; // File status
-    submittedBy?: string; // Optional: Identifier of the user who submitted the file
+    submittedByOperator?: string; // Optional: Identifier of the user who submitted the file
     comments?: string; // Optional: Comments or feedback on the file
   }>;
 }

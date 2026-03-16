@@ -42,11 +42,18 @@ router.get("/:id", inquiryController.getById.bind(inquiryController));
 router.patch("/:id/status", inquiryController.updateStatus.bind(inquiryController));
 
 /**
- * Assign employee to inquiry (admin only)
- * PATCH /api/v1/web/inquiries/:id/assign
- * Body: { employeeId: "..." }
+ * Update inquiry workflow stage (industry flow)
+ * PATCH /api/v1/web/inquiries/:id/workflow-stage
+ * Body: { workflowStage: "ORDER_CONFIRMED" }
  */
-router.patch("/:id/assign", inquiryController.assignEmployee.bind(inquiryController));
+router.patch("/:id/workflow-stage", inquiryController.updateWorkflowStage.bind(inquiryController));
+
+/**
+ * Assign operator to inquiry (admin only)
+ * PATCH /api/v1/web/inquiries/:id/assign
+ * Body: { operatorId: "..." }
+ */
+router.patch("/:id/assign", inquiryController.assignOperator.bind(inquiryController));
 
 /**
  * Seller commits inquiry until a date
@@ -79,7 +86,7 @@ router.patch("/:id/finalize-responsibilities", inquiryController.finalizeRespons
 router.patch("/:id/execution-inquiries/:type", inquiryController.updateExecutionInquiry.bind(inquiryController));
 
 /**
- * Get inquiry event history (admin/assigned employee only)
+ * Get inquiry event history (admin/assigned operator only)
  * GET /api/v1/web/inquiries/:id/events
  */
 router.get("/:id/events", inquiryController.getEvents.bind(inquiryController));

@@ -1,68 +1,68 @@
 import mongoose from "mongoose";
 import { Request, Response } from "express";
-import { EmployeeModel } from "../database/models/employee";
+import { OperatorModel } from "../database/models/operator";
 import { CommissionModel } from "../database/models/commission";
-import { EmployeeHierarchyService } from "../services/employeeHierarchy.service";
+import { OperatorHierarchyService } from "../services/operatorHierarchy.service";
 
 const forbidden = (res: Response) =>
-    res.status(403).json({ success: false, message: "You are not allowed to access this employee resource." });
+    res.status(403).json({ success: false, message: "You are not allowed to access this operator resource." });
 
 const isAdmin = (role: string) => role === "admin";
-const isEmployeeActor = (role: string) => role === "employee" || role === "team";
+const isOperatorActor = (role: string) => role === "operator" || role === "team";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 
-const canAccessEmployeeResource = async (req: Request, targetEmployeeId: string): Promise<boolean> => {
+const canAccessOperatorResource = async (req: Request, targetOperatorId: string): Promise<boolean> => {
     const actorId = String((req as any)?.user?.id || "");
     const roleLower = normalizeRole((req as any)?.user?.role);
 
     if (!actorId) return false;
     if (isAdmin(roleLower)) return true;
-    if (!isEmployeeActor(roleLower)) return false;
-    if (actorId === targetEmployeeId) return true;
+    if (!isOperatorActor(roleLower)) return false;
+    if (actorId === targetOperatorId) return true;
 
-    return EmployeeHierarchyService.isInDownline(actorId, targetEmployeeId);
+    return OperatorHierarchyService.isInDownline(actorId, targetOperatorId);
 };
 
-export class EmployeeHierarchyController {
+export class OperatorHierarchyController {
     static async getLeadershipChain(req: Request, res: Response) {
         try {
-            const employeeId = String(req.params.employeeId || "").trim();
-            if (!mongoose.Types.ObjectId.isValid(employeeId)) {
-                return res.status(400).json({ success: false, message: "Invalid employeeId." });
+            const operatorId = String(req.params.operatorId || "").trim();
+            if (!mongoose.Types.ObjectId.isValid(operatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid operatorId." });
             }
 
-            const hasAccess = await canAccessEmployeeResource(req, employeeId);
+            const hasAccess = await canAccessOperatorResource(req, operatorId);
             if (!hasAccess) return forbidden(res);
 
-            const employee = await EmployeeModel.findOne({ _id: employeeId, isDeleted: { $ne: true } })
-                .select("_id name email mentorEmployee")
-                .populate("mentorEmployee", "name email")
+            const operator = await OperatorModel.findOne({ _id: operatorId, isDeleted: { $ne: true } })
+                .select("_id name email mentorOperator")
+                .populate("mentorOperator", "name email")
                 .lean();
-            if (!employee) {
-                return res.status(404).json({ success: false, message: "Employee not found." });
+            if (!operator) {
+                return res.status(404).json({ success: false, message: "Operator not found." });
             }
 
-            const leadershipChain = await EmployeeHierarchyService.getLeadershipChain(employeeId);
-            const mentor: any = (employee as any).mentorEmployee;
+            const leadershipChain = await OperatorHierarchyService.getLeadershipChain(operatorId);
+            const mentor: any = (operator as any).mentorOperator;
 
             return res.json({
                 success: true,
                 data: {
-                    employee: {
-                        employeeId: String((employee as any)._id),
-                        name: (employee as any).name,
-                        email: (employee as any).email,
+                    operator: {
+                        operatorId: String((operator as any)._id),
+                        name: (operator as any).name,
+                        email: (operator as any).email,
                     },
                     mentor: mentor
                         ? {
-                            employeeId: String(mentor._id),
+                            operatorId: String(mentor._id),
                             name: mentor.name,
                             email: mentor.email,
                         }
                         : null,
                     leadershipChain: leadershipChain.map((row: any) => ({
-                        employeeId: String(row._id),
+                        operatorId: String(row._id),
                         name: row.name,
                         level: Number(row.level || 0),
                     })),
@@ -76,43 +76,43 @@ export class EmployeeHierarchyController {
 
     static async getTeam(req: Request, res: Response) {
         try {
-            const employeeId = String(req.params.employeeId || "").trim();
-            if (!mongoose.Types.ObjectId.isValid(employeeId)) {
-                return res.status(400).json({ success: false, message: "Invalid employeeId." });
+            const operatorId = String(req.params.operatorId || "").trim();
+            if (!mongoose.Types.ObjectId.isValid(operatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid operatorId." });
             }
 
-            const hasAccess = await canAccessEmployeeResource(req, employeeId);
+            const hasAccess = await canAccessOperatorResource(req, operatorId);
             if (!hasAccess) return forbidden(res);
 
-            const manager = await EmployeeModel.findOne({ _id: employeeId, isDeleted: { $ne: true } })
-                .select("_id name email mentorEmployee")
-                .populate("mentorEmployee", "name email")
+            const manager = await OperatorModel.findOne({ _id: operatorId, isDeleted: { $ne: true } })
+                .select("_id name email mentorOperator")
+                .populate("mentorOperator", "name email")
                 .lean();
             if (!manager) {
-                return res.status(404).json({ success: false, message: "Employee not found." });
+                return res.status(404).json({ success: false, message: "Operator not found." });
             }
 
-            const managerObjectId = new mongoose.Types.ObjectId(employeeId);
-            const directReports = await EmployeeModel.find({
-                mentorEmployee: managerObjectId,
+            const managerObjectId = new mongoose.Types.ObjectId(operatorId);
+            const directReports = await OperatorModel.find({
+                mentorOperator: managerObjectId,
                 isDeleted: { $ne: true },
             })
-                .select("_id name email mentorEmployee")
-                .populate("mentorEmployee", "name email")
+                .select("_id name email mentorOperator")
+                .populate("mentorOperator", "name email")
                 .lean();
 
             const directReportIds = directReports.map((row: any) => row._id).filter(Boolean);
 
-            let teamSizeByEmployee = new Map<string, number>();
+            let teamSizeByOperator = new Map<string, number>();
             if (directReportIds.length) {
-                const graphRows = await EmployeeModel.aggregate([
+                const graphRows = await OperatorModel.aggregate([
                     { $match: { _id: { $in: directReportIds } } },
                     {
                         $graphLookup: {
-                            from: "employees",
+                            from: "operators",
                             startWith: "$_id",
                             connectFromField: "_id",
-                            connectToField: "mentorEmployee",
+                            connectToField: "mentorOperator",
                             as: "downline",
                             restrictSearchWithMatch: { isDeleted: { $ne: true } },
                         },
@@ -125,23 +125,23 @@ export class EmployeeHierarchyController {
                     },
                 ]);
 
-                teamSizeByEmployee = new Map<string, number>(
+                teamSizeByOperator = new Map<string, number>(
                     graphRows.map((row: any) => [String(row._id), Number(row.teamSize || 0)])
                 );
             }
 
-            let commissionByEmployee = new Map<string, number>();
+            let commissionByOperator = new Map<string, number>();
             if (directReportIds.length) {
                 const commissionRows = await CommissionModel.aggregate([
-                    { $match: { employeeId: { $in: directReportIds } } },
+                    { $match: { operatorId: { $in: directReportIds } } },
                     {
                         $group: {
-                            _id: "$employeeId",
+                            _id: "$operatorId",
                             totalCommission: { $sum: "$amount" },
                         },
                     },
                 ]);
-                commissionByEmployee = new Map<string, number>(
+                commissionByOperator = new Map<string, number>(
                     commissionRows.map((row: any) => [String(row._id), Number(row.totalCommission || 0)])
                 );
             }
@@ -150,22 +150,22 @@ export class EmployeeHierarchyController {
                 success: true,
                 data: {
                     manager: {
-                        employeeId: String((manager as any)._id),
+                        operatorId: String((manager as any)._id),
                         name: (manager as any).name,
                     },
                     directTeam: directReports.map((row: any) => {
-                        const mentor = row.mentorEmployee as any;
+                        const mentor = row.mentorOperator as any;
                         return {
-                            employeeId: String(row._id),
+                            operatorId: String(row._id),
                             name: row.name,
-                            mentorEmployee: mentor
+                            mentorOperator: mentor
                                 ? {
-                                    employeeId: String(mentor._id),
+                                    operatorId: String(mentor._id),
                                     name: mentor.name,
                                 }
                                 : null,
-                            teamSize: Number(teamSizeByEmployee.get(String(row._id)) || 0),
-                            totalCommission: Math.round((Number(commissionByEmployee.get(String(row._id)) || 0) + Number.EPSILON) * 100) / 100,
+                            teamSize: Number(teamSizeByOperator.get(String(row._id)) || 0),
+                            totalCommission: Math.round((Number(commissionByOperator.get(String(row._id)) || 0) + Number.EPSILON) * 100) / 100,
                         };
                     }),
                 },
@@ -175,4 +175,3 @@ export class EmployeeHierarchyController {
         }
     }
 }
-

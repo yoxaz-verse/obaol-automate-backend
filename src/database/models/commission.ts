@@ -4,21 +4,24 @@ import { ICommission } from "../../interfaces/commission";
 const CommissionSchema: Schema = new Schema(
   {
     dealId: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
-    employeeId: { type: Schema.Types.ObjectId, ref: "Employee", required: true, index: true },
+    operatorId: { type: Schema.Types.ObjectId, ref: "Operator", required: true, index: true },
     type: { type: String, enum: ["closer", "portfolio", "leadership"], required: true },
     level: { type: Number, default: null },
     percent: { type: Number, required: true },
     amount: { type: Number, required: true },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-CommissionSchema.index({ employeeId: 1, createdAt: -1 });
+CommissionSchema.index({ operatorId: 1, createdAt: -1 });
 CommissionSchema.index({ dealId: 1 });
 CommissionSchema.index(
-  { dealId: 1, employeeId: 1, type: 1, level: 1 },
+  { dealId: 1, operatorId: 1, type: 1, level: 1 },
   { unique: true, sparse: true }
 );
 
 export const CommissionModel = mongoose.model<ICommission>("Commission", CommissionSchema);
-

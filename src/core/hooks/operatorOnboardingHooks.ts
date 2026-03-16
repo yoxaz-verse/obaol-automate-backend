@@ -1,33 +1,32 @@
 import { ExecutionMode, HookFunction } from "../types";
 
-const isEmployeeActor = (req: any) => {
+const isOperatorActor = (req: any) => {
   const role = String(req?.user?.role || "").toLowerCase();
-  return role === "employee" || role === "team";
+  return role === "operator" || role === "team";
 };
 
-export const employeeAssociateCreatePreWriteHook: HookFunction = async (payload, mode, _id, req) => {
+export const operatorAssociateCreatePreWriteHook: HookFunction = async (payload, mode, _id, req) => {
   if (mode !== ExecutionMode.CREATE) return payload;
-  if (!isEmployeeActor(req)) return payload;
+  if (!isOperatorActor(req)) return payload;
 
   return {
     ...(payload || {}),
     registrationStatus: "PENDING_REVIEW",
     isActive: false,
-    registrationSource: "EMPLOYEE_CREATED",
+    registrationSource: "OPERATOR_CREATED",
   };
 };
 
-export const employeeCompanyCreatePreWriteHook: HookFunction = async (payload, mode, _id, req) => {
+export const operatorCompanyCreatePreWriteHook: HookFunction = async (payload, mode, _id, req) => {
   if (mode !== ExecutionMode.CREATE) return payload;
-  if (!isEmployeeActor(req)) return payload;
+  if (!isOperatorActor(req)) return payload;
 
   return {
     ...(payload || {}),
-    assignedEmployee: req?.user?.id,
+    assignedOperator: req?.user?.id,
     registrationStatus: "PENDING_REVIEW",
     isApproved: false,
     approvedAt: null,
     approvedBy: null,
   };
 };
-

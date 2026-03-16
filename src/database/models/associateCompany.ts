@@ -31,7 +31,7 @@ const AssociateCompanySchema = new mongoose.Schema(
     phoneSecondaryCountryCode: { type: String, default: "+91" },
     phoneSecondaryNational: { type: String, default: "" },
     serviceCapabilities: [{ type: String, default: [] }],
-    assignedEmployee: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
+    assignedOperator: { type: mongoose.Schema.Types.ObjectId, ref: "Operator" },
     supervisor: { type: mongoose.Schema.Types.ObjectId, ref: "Associate" },
     slug: { type: String, unique: true, sparse: true, trim: true }, // For improved SEO & catalog URLs
     logo: { type: String },
@@ -60,7 +60,11 @@ const AssociateCompanySchema = new mongoose.Schema(
     approvedBy: { type: mongoose.Types.ObjectId, ref: "Admin" },
     reviewNotes: { type: String, default: "" },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;

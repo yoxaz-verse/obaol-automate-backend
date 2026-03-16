@@ -2,10 +2,10 @@ import mongoose from "mongoose";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CommissionModel } from "../database/models/commission";
 import { OrderModel } from "../database/models/order";
-import { EmployeeHierarchyService } from "./employeeHierarchy.service";
+import { OperatorHierarchyService } from "./operatorHierarchy.service";
 
 type PayoutRow = {
-  employeeId: mongoose.Types.ObjectId;
+  operatorId: mongoose.Types.ObjectId;
   type: "closer" | "portfolio" | "leadership";
   level: number | null;
   percent: number;
@@ -24,7 +24,7 @@ export class CommissionEngine {
     }
 
     const order = await OrderModel.findById(orderId)
-      .select("_id status profit closedByEmployee associateCompanyId commissionProcessedAt")
+      .select("_id status profit closedByOperator associateCompanyId commissionProcessedAt")
       .lean();
 
     if (!order) {
@@ -42,7 +42,7 @@ export class CommissionEngine {
     }
 
     const profit = Number((order as any).profit);
-    const closedByEmployee = (order as any).closedByEmployee;
+    const closedByOperator = (order as any).closedByOperator;
     const associateCompanyId = (order as any).associateCompanyId;
 
     if (!Number.isFinite(profit)) {
@@ -50,8 +50,8 @@ export class CommissionEngine {
       err.status = 400;
       throw err;
     }
-    if (!closedByEmployee) {
-      const err: any = new Error("Completed order requires closedByEmployee.");
+    if (!closedByOperator) {
+      const err: any = new Error("Completed order requires closedByOperator.");
       err.status = 400;
       throw err;
     }
@@ -62,12 +62,12 @@ export class CommissionEngine {
     }
 
     const supplierCompany = await AssociateCompanyModel.findById(associateCompanyId)
-      .select("_id assignedEmployee")
+      .select("_id assignedOperator")
       .lean();
-    const portfolioOwner = (supplierCompany as any)?.assignedEmployee;
+    const portfolioOwner = (supplierCompany as any)?.assignedOperator;
 
     if (!portfolioOwner) {
-      const err: any = new Error("Supplier company has no assigned employee.");
+      const err: any = new Error("Supplier company has no assigned operator.");
       err.status = 400;
       throw err;
     }
@@ -84,7 +84,7 @@ export class CommissionEngine {
     const payouts: PayoutRow[] = [];
 
     payouts.push({
-      employeeId: new mongoose.Types.ObjectId(String(closedByEmployee)),
+      operatorId: new mongoose.Types.ObjectId(String(closedByOperator)),
       type: "closer",
       level: null,
       percent: 40,
@@ -92,14 +92,14 @@ export class CommissionEngine {
     });
 
     payouts.push({
-      employeeId: new mongoose.Types.ObjectId(String(portfolioOwner)),
+      operatorId: new mongoose.Types.ObjectId(String(portfolioOwner)),
       type: "portfolio",
       level: null,
       percent: 30,
       amount: round2(commissionPool * 0.3),
     });
 
-    const leadershipChain = await EmployeeHierarchyService.getLeadershipChain(String(portfolioOwner));
+    const leadershipChain = await OperatorHierarchyService.getLeadershipChain(String(portfolioOwner));
     if (leadershipChain.length > 0) {
       const l1 = leadershipChain.find((node) => Number(node.level) === 1);
       const l2 = leadershipChain.find((node) => Number(node.level) === 2);
@@ -107,7 +107,7 @@ export class CommissionEngine {
 
       if (l1) {
         payouts.push({
-          employeeId: new mongoose.Types.ObjectId(String(l1._id)),
+          operatorId: new mongoose.Types.ObjectId(String(l1._id)),
           type: "leadership",
           level: 1,
           percent: 12,
@@ -117,7 +117,7 @@ export class CommissionEngine {
 
       if (l2) {
         payouts.push({
-          employeeId: new mongoose.Types.ObjectId(String(l2._id)),
+          operatorId: new mongoose.Types.ObjectId(String(l2._id)),
           type: "leadership",
           level: 2,
           percent: 8,
@@ -129,7 +129,7 @@ export class CommissionEngine {
         const eachPercent = Math.min(10 / l3Plus.length, 5);
         for (const node of l3Plus) {
           payouts.push({
-            employeeId: new mongoose.Types.ObjectId(String(node._id)),
+            operatorId: new mongoose.Types.ObjectId(String(node._id)),
             type: "leadership",
             level: Number(node.level || null),
             percent: round2(eachPercent),
@@ -146,14 +146,14 @@ export class CommissionEngine {
           updateOne: {
             filter: {
               dealId: new mongoose.Types.ObjectId(orderId),
-              employeeId: row.employeeId,
+              operatorId: row.operatorId,
               type: row.type,
               level: row.level,
             },
             update: {
               $setOnInsert: {
                 dealId: new mongoose.Types.ObjectId(orderId),
-                employeeId: row.employeeId,
+                operatorId: row.operatorId,
                 type: row.type,
                 level: row.level,
                 percent: row.percent,
@@ -180,4 +180,3 @@ export class CommissionEngine {
     };
   }
 }
-

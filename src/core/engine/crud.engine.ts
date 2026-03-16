@@ -65,11 +65,42 @@ export class CrudEngine extends BaseService {
         query = await HookDispatcher.runBeforeRead(this.entityName, query, req);
 
         // 1. Handling Search
-        let searchQuery = {};
+        let searchQuery: any = {};
         if (query.search && config) {
-            const searchTerms = config.searchableFields.map(field => ({
+            const searchTerms: any[] = config.searchableFields.map(field => ({
                 [field]: { $regex: query.search, $options: 'i' }
             }));
+
+            // Deep search in direct relations
+            if (config.relations) {
+                const relSearchPromises = Object.entries(config.relations).map(async ([path, targetEntityKey]) => {
+                    // Skip nested paths for search ID resolution to keep it performant/simple
+                    if (path.includes('.')) return null;
+
+                    const targetConfig = getEntityConfig(targetEntityKey);
+                    if (targetConfig && targetConfig.searchableFields && targetConfig.searchableFields.length > 0) {
+                        const targetSearchTerms = targetConfig.searchableFields.map(f => ({
+                            [f]: { $regex: query.search, $options: 'i' }
+                        }));
+
+                        const matchingDocs = await targetConfig.model.find({
+                            $or: targetSearchTerms,
+                            isDeleted: { $ne: true }
+                        }).select('_id').lean();
+
+                        if (matchingDocs && matchingDocs.length > 0) {
+                            return { [path]: { $in: matchingDocs.map(d => d._id) } };
+                        }
+                    }
+                    return null;
+                });
+
+                const resolvedRelTerms = await Promise.all(relSearchPromises);
+                resolvedRelTerms.forEach(term => {
+                    if (term) searchTerms.push(term);
+                });
+            }
+
             if (searchTerms.length > 0) {
                 searchQuery = { $or: searchTerms };
             }

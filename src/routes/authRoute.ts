@@ -7,7 +7,9 @@ import {
   completePasswordReset,
   logoutUser,
   registerAssociate,
+  registerOperator,
   getRegisterOptions,
+  getOperatorRegisterOptions,
   getRegisterCompanies,
   getRegisterDesignations,
   getRegisterCountries,
@@ -26,6 +28,8 @@ authRoute.get("/register/companies", getRegisterCompanies);
 authRoute.get("/register/designations", getRegisterDesignations);
 authRoute.get("/register/countries", getRegisterCountries);
 authRoute.get("/register/pincodes", getRegisterPincodes);
+authRoute.post("/operator/register", registerOperator);
+authRoute.get("/operator/register/options", getOperatorRegisterOptions);
 authRoute.get("/company-interests/status", authenticateToken, getCompanyInterestsStatus);
 authRoute.put("/company-interests", authenticateToken, upsertCompanyInterests);
 authRoute.post("/logout", logoutUser);

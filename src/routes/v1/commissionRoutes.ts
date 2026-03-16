@@ -4,6 +4,6 @@ import { CommissionController } from "../../controllers/commissionController";
 
 const router = Router();
 
-router.get("/employee/:employeeId", authenticateToken, CommissionController.getEmployeeHistory);
+router.get("/operator/:operatorId", authenticateToken, CommissionController.getOperatorHistory);
 
 export default router;

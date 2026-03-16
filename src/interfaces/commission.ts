@@ -4,7 +4,7 @@ export type CommissionType = "closer" | "portfolio" | "leadership";
 
 export interface ICommission extends Document {
   dealId: Types.ObjectId;
-  employeeId: Types.ObjectId;
+  operatorId: Types.ObjectId;
   type: CommissionType;
   level?: number | null;
   percent: number;
@@ -12,4 +12,3 @@ export interface ICommission extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
-

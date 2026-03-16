@@ -13,6 +13,7 @@ export const ORGANIZATION_REPORT_ACTIONS = [
   "DEACTIVATE_ASSOCIATE",
   "REMOVE_FROM_COMPANY",
   "APPLY_COMPANY_INTERESTS",
+  "REOPEN_INQUIRY_CREATE",
 ] as const;
 
 export const ORGANIZATION_REPORT_REASONS = [
@@ -22,6 +23,7 @@ export const ORGANIZATION_REPORT_REASONS = [
   "SPAM_BEHAVIOR",
   "PROFILE_ISSUE",
   "COMPANY_INTEREST_UPDATE",
+  "REOPEN_INQUIRY_REQUEST",
   "OTHER",
 ] as const;
 
@@ -66,6 +68,10 @@ const OrganizationReportSchema = new Schema(
     },
     payload: {
       requestedInterests: [{ type: String, trim: true }],
+      inquiryId: { type: Schema.Types.ObjectId, ref: "Inquiry", default: null },
+      requestedBy: { type: Schema.Types.ObjectId, ref: "Associate", default: null },
+      note: { type: String, trim: true, maxlength: 1000, default: "" },
+      reopenedInquiryId: { type: Schema.Types.ObjectId, ref: "Inquiry", default: null },
     },
     status: {
       type: String,

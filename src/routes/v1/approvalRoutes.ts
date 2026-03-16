@@ -16,4 +16,7 @@ router.patch("/associates/:id", approvalController.actionAssociate.bind(approval
 router.get("/companies", approvalController.listCompanies.bind(approvalController));
 router.patch("/companies/:id", approvalController.actionCompany.bind(approvalController));
 
+router.get("/operators", approvalController.listOperators.bind(approvalController));
+router.patch("/operators/:id", approvalController.actionOperator.bind(approvalController));
+
 export default router;

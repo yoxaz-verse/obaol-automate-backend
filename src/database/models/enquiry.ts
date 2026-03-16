@@ -162,9 +162,9 @@ const InquirySchema: Schema = new Schema(
         ],
 
         // Internal assignment
-        assignedEmployeeId: {
+        assignedOperatorId: {
             type: Schema.Types.ObjectId,
-            ref: "Employee",
+            ref: "Operator",
             default: null,
             index: true
         },
@@ -183,6 +183,15 @@ const InquirySchema: Schema = new Schema(
             required: true,
             index: true
         },
+        // Industry workflow stage (additive, does not replace status)
+        workflowStage: {
+            type: String,
+            default: "INQUIRY_CREATED",
+            index: true
+        },
+        isDemo: { type: Boolean, default: false, index: true },
+        demoTag: { type: String, default: null, index: true },
+        demoCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
 
         // Financials & Commissions
         rate: {
@@ -213,13 +222,15 @@ const InquirySchema: Schema = new Schema(
         }
     },
     {
-        timestamps: true
+        timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
     }
 );
 
 // Compound indexes for efficient querying
 InquirySchema.index({ status: 1, createdAt: -1 });
-InquirySchema.index({ assignedEmployeeId: 1, status: 1 });
+InquirySchema.index({ assignedOperatorId: 1, status: 1 });
 InquirySchema.index({ buyerAssociateId: 1, createdAt: -1 });
 InquirySchema.index({ sellerAssociateId: 1, createdAt: -1 });
 

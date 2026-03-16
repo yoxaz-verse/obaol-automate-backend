@@ -28,14 +28,24 @@ import { DistrictModel } from "../database/models/district";
 import { UnLoCodeModel } from "../database/models/unLoCode";
 import { UnLoCodeFunctionsModel } from "../database/models/unLoCodeFunction";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { AssociateModel } from "../database/models/associate";
+import { InventoryModel } from "../database/models/inventory";
+import { InventoryReservationModel } from "../database/models/inventoryReservation";
+import { OrderModel } from "../database/models/order";
+import { TradeDocumentModel } from "../database/models/tradeDocument";
+import { DocumentRuleModel } from "../database/models/documentRule";
+import { EnquiryRuleModel } from "../database/models/enquiryRule";
+import { ensureDefaultEnquiryRules } from "../utils/enquiryRules";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
+import { TradeDocumentController } from "./tradeDocumentController";
 
 /**
  * Inquiry Controller
  * Implements business logic with state machine and access control
  */
 export class InquiryController {
+    private tradeDocController = new TradeDocumentController();
     private async notifyInquiryParticipants(params: {
         inquiry: any;
         actorId?: string | null;
@@ -155,7 +165,7 @@ export class InquiryController {
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
-                assignedEmployeeId,
+                assignedOperatorId,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -164,10 +174,10 @@ export class InquiryController {
             } = req.body;
             let { rate, adminCommission, mediatorCommission } = req.body;
             const roleLower = String(req.user?.role || "").toLowerCase();
-            const isEmployeeCreator = roleLower === "employee" || roleLower === "team";
-            const normalizedAssignedEmployeeId = isEmployeeCreator
+            const isOperatorCreator = roleLower === "operator" || roleLower === "team";
+            const normalizedAssignedOperatorId = isOperatorCreator
                 ? req.user!.id
-                : (assignedEmployeeId || null);
+                : (assignedOperatorId || null);
 
             // Validation
             if (!productId || !buyerAssociateId || !sellerAssociateId) {
@@ -204,7 +214,7 @@ export class InquiryController {
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
-                assignedEmployeeId: normalizedAssignedEmployeeId,
+                assignedOperatorId: normalizedAssignedOperatorId,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -267,7 +277,7 @@ export class InquiryController {
                     select: "name email phone associateCompany",
                     populate: { path: "associateCompany", select: "name" }
                 },
-                { path: "assignedEmployeeId", select: "name email" }
+                { path: "assignedOperatorId", select: "name email" }
             ]);
 
             await this.notifyInquiryParticipants({
@@ -329,11 +339,11 @@ export class InquiryController {
                 });
             }
 
-            // Only seller associate, admin, or assigned employee can commit
+            // Only seller associate, admin, or assigned operator can commit
             const isAdmin = req.user!.role === UserRole.ADMIN;
-            const isAssignedEmployee =
-                (req.user!.role === UserRole.EMPLOYEE || req.user!.role === "team") &&
-                inquiry.assignedEmployeeId?.toString() === req.user!.id;
+            const isAssignedOperator =
+                (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
+                inquiry.assignedOperatorId?.toString() === req.user!.id;
 
             let isSeller = false;
             if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
@@ -341,10 +351,10 @@ export class InquiryController {
                 isSeller = role === "seller";
             }
 
-            if (!isAdmin && !isAssignedEmployee && !isSeller) {
+            if (!isAdmin && !isAssignedOperator && !isSeller) {
                 return res.status(403).json({
                     success: false,
-                    message: "Only the supplier, assigned employee, or admin can commit this inquiry"
+                    message: "Only the supplier, assigned operator, or admin can commit this inquiry"
                 });
             }
 
@@ -383,6 +393,7 @@ export class InquiryController {
     async sellerAccept(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
+            const { inventoryId } = req.body || {};
 
             if (!Types.ObjectId.isValid(id)) {
                 return res.status(400).json({
@@ -431,8 +442,93 @@ export class InquiryController {
                 });
             }
 
+            if (!inventoryId || !Types.ObjectId.isValid(String(inventoryId))) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Inventory selection is required for supplier acceptance."
+                });
+            }
+
+            const inventory = await InventoryModel.findById(inventoryId).lean();
+            if (!inventory || (inventory as any).isDeleted) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Selected inventory not found."
+                });
+            }
+
+            const sellerAssociate = await AssociateModel.findById(inquiry.sellerAssociateId)
+                .select("_id associateCompany")
+                .lean();
+            const sellerCompanyId = (sellerAssociate as any)?.associateCompany;
+            if (!sellerCompanyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Supplier company is missing for this inquiry."
+                });
+            }
+
+            if (String(sellerCompanyId) !== String((inventory as any).associateCompany || "")) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Selected inventory does not belong to the supplier company."
+                });
+            }
+
+            const variantRateId = inquiry.variantRateId;
+            const variantRate = variantRateId
+                ? await VariantRateModel.findById(variantRateId).select("productVariant").lean()
+                : null;
+            const productVariantId = variantRate?.productVariant;
+            if (!productVariantId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Product variant is required to reserve inventory."
+                });
+            }
+
+            const qty = Number((inquiry as any)?.quantity || 0);
+            if (!qty || Number.isNaN(qty) || qty <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Inquiry quantity must be greater than 0 to reserve inventory."
+                });
+            }
+
+            const reservedAgg = await InventoryReservationModel.aggregate([
+                { $match: { inventoryId: inventory._id, status: "RESERVED", isDeleted: { $ne: true } } },
+                { $group: { _id: "$inventoryId", qty: { $sum: "$quantity" } } }
+            ]);
+            const reservedQty = reservedAgg?.[0]?.qty || 0;
+            const availableQty = Math.max(0, Number((inventory as any).quantity || 0) - reservedQty);
+            if (qty > availableQty) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Only ${availableQty} MT is available in the selected inventory.`
+                });
+            }
+
             inquiry.sellerAcceptedAt = new Date();
             await inquiry.save();
+
+            const reservation = await InventoryReservationModel.create({
+                inventoryId: inventory._id,
+                enquiryId: inquiry._id,
+                productVariant: productVariantId,
+                associateCompany: sellerCompanyId,
+                quantity: qty,
+                status: "RESERVED",
+                reservedAt: new Date(),
+            });
+
+            try {
+                await this.tradeDocController.autoCreateQuotationForInquiry(
+                    inquiry._id,
+                    reservation?._id || null
+                );
+            } catch {
+                // Do not block seller acceptance if document creation fails.
+            }
 
             await createInquiryEvent(
                 inquiry._id,
@@ -829,6 +925,48 @@ export class InquiryController {
                 }
             );
 
+            try {
+                const recipients = await notificationService.buildInquiryRecipients(inquiry as any);
+                notificationService.removeActor(recipients, req.user?.id || null);
+
+                const candidateCompanyIds = Array.from(
+                    new Set(
+                        executionInquiries
+                            .flatMap((task: any) => task.candidateProviders || [])
+                            .map((id: any) => String(id || ""))
+                            .filter(Boolean)
+                    )
+                );
+                if (candidateCompanyIds.length) {
+                    const companies = await AssociateCompanyModel.find({ _id: { $in: candidateCompanyIds } })
+                        .select("supervisor assignedOperator")
+                        .lean();
+                    companies.forEach((row: any) => {
+                        if (row.supervisor) {
+                            notificationService.addRecipient(recipients, row.supervisor, "Associate");
+                        }
+                        if (row.assignedOperator) {
+                            notificationService.addRecipient(recipients, row.assignedOperator, "Operator");
+                        }
+                    });
+                }
+
+                await notificationService.createNotifications({
+                    recipientMap: recipients,
+                    createdByUserId: req.user?.id || null,
+                    type: NotificationTypes.EXECUTION_TASKS_CREATED,
+                    title: "New execution tasks",
+                    message: "Execution tasks have been generated for this inquiry.",
+                    entityType: NotificationEntityTypes.INQUIRY,
+                    entityId: inquiry._id,
+                    route: "/dashboard/execution-enquiries",
+                    payload: { inquiryId: inquiry._id },
+                    priority: "high",
+                });
+            } catch {
+                // non-blocking
+            }
+
             return res.json({
                 success: true,
                 data: inquiry,
@@ -864,7 +1002,7 @@ export class InquiryController {
             }
 
             const isAdmin = req.user!.role === UserRole.ADMIN;
-            const isEmployeeUser = req.user!.role === UserRole.EMPLOYEE || req.user!.role === "team";
+            const isOperatorUser = req.user!.role === UserRole.OPERATOR || req.user!.role === "team";
             let associateRole: "buyer" | "seller" | "mediator" | null = null;
             if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
                 associateRole = getAssociateRole(inquiry as any, context.associateId);
@@ -885,13 +1023,13 @@ export class InquiryController {
                 associateCompanyId &&
                 candidateProviders.some((provider: any) => String(provider?._id || provider || "") === associateCompanyId)
             );
-            const assignedEmployeeId = inquiry.assignedEmployeeId?.toString() || "";
-            const isAssignedEmployee = Boolean(isEmployeeUser && assignedEmployeeId && assignedEmployeeId === req.user!.id);
+            const assignedOperatorId = inquiry.assignedOperatorId?.toString() || "";
+            const isAssignedOperator = Boolean(isOperatorUser && assignedOperatorId && assignedOperatorId === req.user!.id);
             const canBid =
                 isProviderCandidate ||
                 (ownerBy === "buyer" && associateRole === "buyer") ||
                 (ownerBy === "seller" && associateRole === "seller");
-            const canCommit = isAdmin || isAssignedEmployee;
+            const canCommit = isAdmin || isAssignedOperator;
             const canUpdateStatus = isAdmin;
             const canAct = canBid || canCommit || canUpdateStatus;
 
@@ -1077,7 +1215,7 @@ export class InquiryController {
                         select: "name email phone associateCompany",
                         populate: { path: "associateCompany", select: "name" }
                     },
-                    { path: "assignedEmployeeId", select: "name email" },
+                    { path: "assignedOperatorId", select: "name email" },
                     { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -1179,7 +1317,7 @@ export class InquiryController {
                             select: "name email phone associateCompany",
                             populate: { path: "associateCompany", select: "name" }
                         },
-                        { path: "assignedEmployeeId", select: "name email" },
+                        { path: "assignedOperatorId", select: "name email" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -1291,23 +1429,160 @@ export class InquiryController {
     }
 
     /**
-     * Assign employee to inquiry (admin only)
-     * PATCH /api/v1/web/inquiries/:id/assign
+     * Update inquiry workflow stage (additive workflow, no status mutation)
+     * PATCH /api/v1/web/inquiries/:id/workflow-stage
      */
-    async assignEmployee(req: Request, res: Response, next: NextFunction) {
+    async updateWorkflowStage(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
-            const { employeeId } = req.body;
+            const workflowStage = String(req.body?.workflowStage || "").trim().toUpperCase();
+
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+
+            await ensureDefaultEnquiryRules();
+            const stageRule = await EnquiryRuleModel.findOne({
+                stageKey: workflowStage,
+                isDeleted: { $ne: true },
+                isActive: true,
+            }).lean();
+            if (!stageRule) {
+                return res.status(400).json({ success: false, message: "Invalid or inactive workflow stage" });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+
+            const requiredActions = Array.isArray((stageRule as any)?.requiredActions)
+                ? (stageRule as any).requiredActions
+                : [];
+            const missingActions: string[] = [];
+            if (requiredActions.includes("SUPPLIER_ACCEPTED") && !(inquiry as any).sellerAcceptedAt) {
+                missingActions.push("SUPPLIER_ACCEPTED");
+            }
+            if (requiredActions.includes("BUYER_CONFIRMED") && !(inquiry as any).buyerConfirmedAt) {
+                missingActions.push("BUYER_CONFIRMED");
+            }
+            if (requiredActions.includes("RESPONSIBILITIES_FINALIZED") && !(inquiry as any).responsibilitiesFinalizedAt) {
+                missingActions.push("RESPONSIBILITIES_FINALIZED");
+            }
+            if (missingActions.length) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Required actions missing: ${missingActions.join(", ")}`,
+                });
+            }
+
+            const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
+            const requiredRules = await DocumentRuleModel.find({
+                isDeleted: { $ne: true },
+                isActive: true,
+                stageType: "INQUIRY",
+                stageKey: workflowStage,
+                isRequired: true,
+                tradeType: { $in: [tradeType, "BOTH"] },
+            }).lean();
+
+            if (requiredRules.length > 0) {
+                const requiredTypes: string[] = Array.from(
+                    new Set(requiredRules.map((r: any) => String(r.docType || "")))
+                ).filter(Boolean);
+                const missingDocs: string[] = [];
+                for (const type of requiredTypes) {
+                    const count = await TradeDocumentModel.countDocuments({
+                        enquiryId: inquiry._id,
+                        type,
+                        isDeleted: { $ne: true },
+                    });
+                    if (count <= 0) missingDocs.push(String(type));
+                }
+                if (missingDocs.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Required documents missing for ${workflowStage}: ${missingDocs.join(", ")}.`,
+                    });
+                }
+            }
+
+            // Auto-create order when workflow reaches a stage that triggers it
+            if ((stageRule as any).triggersOrderCreation) {
+                if (!inquiry.sellerAcceptedAt || !inquiry.buyerConfirmedAt) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Supplier acceptance and buyer confirmation are required before order confirmation"
+                    });
+                }
+                if (!(inquiry as any).responsibilitiesFinalizedAt) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Responsibilities must be finalized before order confirmation"
+                    });
+                }
+                const responsibilityPlan: any = (inquiry as any).responsibilityPlan || {};
+                const requiredKeys = [
+                    "procurementBy",
+                    "certificateBy",
+                    "transportBy",
+                    "shippingBy",
+                    "packagingBy",
+                    "qualityTestingBy"
+                ];
+                const allowedOwners = new Set(["buyer", "seller", "obaol"]);
+                const isPlanComplete = requiredKeys.every((k) => allowedOwners.has(String(responsibilityPlan?.[k] || "")));
+                if (!isPlanComplete) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Responsibilities must be finalized before order confirmation"
+                    });
+                }
+
+                if (!(inquiry as any).order) {
+                    const createdOrder = await OrderModel.create({
+                        enquiry: inquiry._id,
+                        responsibilities: responsibilityPlan,
+                    });
+                    await InventoryReservationModel.updateMany(
+                        { enquiryId: inquiry._id, status: "RESERVED", isDeleted: { $ne: true } },
+                        { $set: { orderId: createdOrder._id } }
+                    );
+                    await TradeDocumentModel.updateMany(
+                        { enquiryId: inquiry._id, isDeleted: { $ne: true } },
+                        { $set: { orderId: createdOrder._id } }
+                    );
+                    (inquiry as any).order = createdOrder._id;
+                }
+            }
+
+            (inquiry as any).workflowStage = workflowStage;
+            await inquiry.save();
+
+            return res.json({ success: true, data: inquiry, message: "Workflow stage updated" });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Assign operator to inquiry (admin only)
+     * PATCH /api/v1/web/inquiries/:id/assign
+     */
+    async assignOperator(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const { operatorId } = req.body;
 
             // Admin-only check
             if (req.user!.role !== UserRole.ADMIN) {
                 return res.status(403).json({
                     success: false,
-                    message: "Only admins can assign employees"
+                    message: "Only admins can assign operators"
                 });
             }
 
-            if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(employeeId)) {
+            if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(operatorId)) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid ID"
@@ -1324,10 +1599,10 @@ export class InquiryController {
             }
 
             // Store previous assignment
-            const previousEmployee = inquiry.assignedEmployeeId?.toString() || null;
+            const previousOperator = inquiry.assignedOperatorId?.toString() || null;
 
             // Update assignment
-            inquiry.assignedEmployeeId = new Types.ObjectId(employeeId);
+            inquiry.assignedOperatorId = new Types.ObjectId(operatorId);
             await inquiry.save();
 
             // Log assignment event
@@ -1336,27 +1611,27 @@ export class InquiryController {
                 InquiryEventType.ASSIGNED,
                 req.user!.id,
                 {
-                    previousValue: previousEmployee,
-                    newValue: employeeId
+                    previousValue: previousOperator,
+                    newValue: operatorId
                 }
             );
 
-            await inquiry.populate("assignedEmployeeId", "name email");
+            await inquiry.populate("assignedOperatorId", "name email");
 
             await this.notifyInquiryParticipants({
                 inquiry,
                 actorId: req.user!.id,
                 type: NotificationTypes.INQUIRY_ASSIGNED,
                 title: "Inquiry assignment updated",
-                message: "A responsible employee has been assigned for this inquiry.",
-                payload: { previousEmployee, employeeId },
+                message: "A responsible operator has been assigned for this inquiry.",
+                payload: { previousOperator, operatorId },
                 priority: "high",
             });
 
             res.json({
                 success: true,
                 data: inquiry,
-                message: "Employee assigned successfully"
+                message: "Operator assigned successfully"
             });
         } catch (error: any) {
             next(error);
@@ -1364,7 +1639,7 @@ export class InquiryController {
     }
 
     /**
-     * Get inquiry event history (admin/assigned employee only)
+     * Get inquiry event history (admin/assigned operator only)
      * GET /api/v1/web/inquiries/:id/events
      */
     async getEvents(req: Request, res: Response, next: NextFunction) {
@@ -1387,13 +1662,13 @@ export class InquiryController {
                 });
             }
 
-            // Only admin or assigned employee can view events
+            // Only admin or assigned operator can view events
             const isAdmin = req.user!.role === UserRole.ADMIN;
-            const isAssignedEmployee =
-                (req.user!.role === UserRole.EMPLOYEE || req.user!.role === "team") &&
-                inquiry.assignedEmployeeId?.toString() === req.user!.id;
+            const isAssignedOperator =
+                (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
+                inquiry.assignedOperatorId?.toString() === req.user!.id;
 
-            if (!isAdmin && !isAssignedEmployee) {
+            if (!isAdmin && !isAssignedOperator) {
                 return res.status(403).json({
                     success: false,
                     message: "Access denied"

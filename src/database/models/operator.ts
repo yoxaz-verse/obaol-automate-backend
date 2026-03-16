@@ -14,7 +14,7 @@ interface IWorkingHour {
     end: ITime;
 }
 
-interface IEmployee extends mongoose.Document {
+export interface IOperator extends mongoose.Document {
     name: string;
     email: string;
     phone: string;
@@ -31,8 +31,13 @@ interface IEmployee extends mongoose.Document {
     languageKnown: mongoose.Types.ObjectId[];
     isActive: boolean;
     isDeleted: boolean;
+    registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    registrationSource?: "SELF_REGISTERED" | "ADMIN_CREATED";
+    approvedAt?: Date | null;
+    approvedBy?: mongoose.Types.ObjectId | null;
+    reviewNotes?: string;
     role: string;
-    mentorEmployee?: mongoose.Types.ObjectId | null;
+    mentorOperator?: mongoose.Types.ObjectId | null;
     lastSeenAt?: Date | null;
     presenceUpdatedAt?: Date | null;
     presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
@@ -49,7 +54,6 @@ const timeSchema = new mongoose.Schema(
     { _id: false }
 );
 
-
 const workingHourSchema = new mongoose.Schema(
     {
         start: { type: timeSchema, required: true },
@@ -58,8 +62,7 @@ const workingHourSchema = new mongoose.Schema(
     { _id: false }
 );
 
-
-const employeeSchema = new mongoose.Schema(
+const operatorSchema = new mongoose.Schema(
     {
         name: { type: String, required: true },
         email: { type: String, required: true, unique: true },
@@ -73,27 +76,33 @@ const employeeSchema = new mongoose.Schema(
         joiningDate: { type: Date, required: true },
         jobRole: { type: mongoose.Types.ObjectId, ref: "JobRole" },
         jobType: { type: mongoose.Types.ObjectId, ref: "JobType" },
-
-        // ✅ Array of start/end time objects
         workingHours: { type: [workingHourSchema], required: true },
-
-        // ✅ Array of ObjectIds
         languageKnown: [{ type: mongoose.Types.ObjectId, ref: "Language" }],
-
         isActive: { type: Boolean, default: true },
         isDeleted: { type: Boolean, default: false },
+        registrationStatus: {
+            type: String,
+            enum: ["PENDING_REVIEW", "APPROVED", "REJECTED"],
+            default: "APPROVED",
+        },
+        registrationSource: { type: String, default: "ADMIN_CREATED" },
+        approvedAt: { type: Date, default: null },
+        approvedBy: { type: mongoose.Types.ObjectId, ref: "Admin", default: null },
+        reviewNotes: { type: String, default: "" },
         role: { type: String, default: "team" },
-        mentorEmployee: { type: mongoose.Types.ObjectId, ref: "Employee", default: null, index: true },
+        mentorOperator: { type: mongoose.Types.ObjectId, ref: "Operator", default: null, index: true },
         lastSeenAt: { type: Date, default: null, index: true },
         presenceUpdatedAt: { type: Date, default: null },
         presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
     },
     {
         timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
     }
 );
 
-employeeSchema.pre("save", function (next) {
+operatorSchema.pre("save", function (next) {
     const normalized = normalizePhoneInput({
         rawPhone: (this as any).phone,
         rawCountryCode: (this as any).phoneCountryCode,
@@ -105,7 +114,7 @@ employeeSchema.pre("save", function (next) {
     next();
 });
 
-employeeSchema.pre("findOneAndUpdate", function (next) {
+operatorSchema.pre("findOneAndUpdate", function (next) {
     const update: any = this.getUpdate() || {};
     const payload = update.$set ? update.$set : update;
     const hasPhone =
@@ -131,9 +140,6 @@ employeeSchema.pre("findOneAndUpdate", function (next) {
     next();
 });
 
-employeeSchema.plugin(passwordPlugin);
+operatorSchema.plugin(passwordPlugin);
 
-export const EmployeeModel = mongoose.model<IEmployee>(
-    "Employee",
-    employeeSchema
-);
+export const OperatorModel = mongoose.model<IOperator>("Operator", operatorSchema, "operators");

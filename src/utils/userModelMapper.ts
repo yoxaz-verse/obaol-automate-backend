@@ -1,6 +1,6 @@
 // utils/userModelMapper.ts
 
-import { EmployeeModel } from "../database/models/employee";
+import { OperatorModel } from "../database/models/operator";
 import { AdminModel } from "../database/models/admin";
 import { AssociateModel } from "../database/models/associate";
 
@@ -10,8 +10,8 @@ export const getUserModel = (userType: string) => {
       return AssociateModel;
     case "Admin":
       return AdminModel;
-    case "Employee":
-      return EmployeeModel;
+    case "Operator":
+      return OperatorModel;
     default:
       throw new Error(`Unknown userType: ${userType}`);
   }

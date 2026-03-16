@@ -2,23 +2,37 @@ import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { AssociateModel } from "../../database/models/associate";
 
 /**
- * Hook to inject filters for employees (overseers).
- * Restricts access to data belonging to companies assigned to the employee.
+ * Hook to inject filters for operators (overseers).
+ * Restricts access to data belonging to companies assigned to the operator.
  */
-export const employeeFilterHook = async (query: any, mode: string, id: string | undefined, req: any): Promise<any> => {
+export const operatorFilterHook = async (query: any, mode: string, id: string | undefined, req: any): Promise<any> => {
     if (!req?.user) return query;
 
     const user = req.user;
     const roleLower = String(user.role || "").toLowerCase();
-    // Both 'employee' and 'team' refer to the overseer role
-    if (roleLower === "employee" || roleLower === "team") {
+    const stripControlQueryKeys = (input: any) => {
+        const cleaned = { ...(input || {}) };
+        delete cleaned.page;
+        delete cleaned.limit;
+        delete cleaned.sort;
+        delete cleaned.search;
+        return cleaned;
+    };
+    // Both 'operator' and 'team' refer to the overseer role
+    if (roleLower === "operator" || roleLower === "team") {
 
-        // 1. Find all companies assigned to this employee
-        const assignedCompanies = await AssociateCompanyModel.find({ assignedEmployee: user.id }).select("_id");
+        // 1. Find all companies assigned to this operator
+        const assignedCompanies = await AssociateCompanyModel.find({ assignedOperator: user.id }).select("_id");
         const assignedIds = assignedCompanies.map(c => c._id);
         const assignedIdSet = new Set(assignedIds.map((companyId: any) => String(companyId)));
 
         const emptyQuery = { _id: "000000000000000000000000" };
+
+        const mergeWithScope = (baseQuery: any, scopeQuery: any) => {
+            const base = { ...(baseQuery || {}) };
+            if (!Object.keys(base).length) return scopeQuery;
+            return { $and: [base, scopeQuery] };
+        };
 
         const mergeScopedCompanyQuery = (baseQuery: any, companyField: string) => {
             const scopedQuery = { ...(baseQuery || {}) };
@@ -60,14 +74,15 @@ export const employeeFilterHook = async (query: any, mode: string, id: string | 
             if (assignedIds.length === 0) {
                 return emptyQuery;
             }
-            return { ...query, _id: { $in: assignedIds } };
+            const baseQuery = stripControlQueryKeys(query);
+            return mergeWithScope(baseQuery, { _id: { $in: assignedIds } });
         }
 
         // If we are looking at enquiries
         if (req.params?.entity === "enquiries") {
             return {
                 ...query,
-                $or: [{ assignedEmployeeId: user.id }, { createdBy: user.id }]
+                $or: [{ assignedOperatorId: user.id }, { createdBy: user.id }]
             };
         }
 

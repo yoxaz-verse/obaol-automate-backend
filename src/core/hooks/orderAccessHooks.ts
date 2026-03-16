@@ -15,9 +15,9 @@ export const orderFilterHook = async (
     // Admin can see all orders
     if (role === "admin") return query;
 
-    // Employee: orders tied to inquiries assigned to this employee
-    if (role === "employee" || role === "team") {
-        const inquiryIds = await InquiryModel.find({ assignedEmployeeId: userId }).distinct("_id");
+    // Operator: orders tied to inquiries assigned to this operator
+    if (role === "operator" || role === "team") {
+        const inquiryIds = await InquiryModel.find({ assignedOperatorId: userId }).distinct("_id");
         return { ...query, enquiry: { $in: inquiryIds } };
     }
 
@@ -36,4 +36,3 @@ export const orderFilterHook = async (
     // Other roles: fallback to no restriction (existing behavior)
     return query;
 };
-

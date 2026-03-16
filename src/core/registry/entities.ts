@@ -10,7 +10,7 @@ import { ProjectManagerModel } from "../../database/models/projectManager";
 import { InventoryManagerModel } from "../../database/models/inventoryManager";
 import { AssociateModel as AgentModel } from "../../database/models/associate"; // Alias if needed
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
-import { EmployeeModel } from "../../database/models/employee";
+import { OperatorModel } from "../../database/models/operator";
 import { CountryModel } from "../../database/models/country";
 import { StateModel } from "../../database/models/state";
 import { CityModel } from "../../database/models/city";
@@ -50,6 +50,8 @@ import { CompanyFunctionMappingModel } from "../../database/models/companyFuncti
 import { OrganizationReportModel } from "../../database/models/organizationReport";
 import { InventoryModel } from "../../database/models/inventory";
 import { ServiceRequestModel } from "../../database/models/serviceRequest";
+import { InventoryReservationModel } from "../../database/models/inventoryReservation";
+import { DocumentRuleModel } from "../../database/models/documentRule";
 
 export interface EntityConfig {
     model: Model<any>;
@@ -96,13 +98,13 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             designation: "designations"
         },
     },
-    "employees": {
-        model: EmployeeModel,
+    "operators": {
+        model: OperatorModel,
         searchableFields: ["name", "email", "phone"],
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
-            mentorEmployee: "employees",
+            mentorOperator: "operators",
             district: "districts",
             state: "states",
             jobRole: "job-roles",
@@ -141,7 +143,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "variant-rates": {
         model: VariantRateModel,
-        searchableFields: ["customId"],
+        searchableFields: ["customId", "rate", "quantity"],
         sortableFields: ["createdAt", "rate"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
@@ -154,12 +156,13 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "associateCompany.state": "states",
             "associateCompany.district": "districts",
             "associateCompany.division": "divisions",
-            "associateCompany.assignedEmployee": "employees"
+            "associateCompany.assignedOperator": "operators",
+            sourceInventory: "inventories"
         },
     },
     "displayed-rates": {
         model: DisplayedRateModel,
-        searchableFields: [],
+        searchableFields: ["customId", "status"],
         sortableFields: ["createdAt"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
@@ -192,7 +195,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "inventories": {
         model: InventoryModel,
-        searchableFields: ["warehouseName", "quantity"],
+        searchableFields: ["warehouseName", "quantity", "unit", "remarks"],
         sortableFields: ["createdAt", "quantity"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
@@ -203,8 +206,28 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             state: "states",
             district: "districts",
             division: "divisions",
-            pincodeEntry: "pincode-entries"
+            pincodeEntry: "pincode-entries",
+            linkedVariantRate: "variant-rates"
         },
+    },
+    "inventory-reservations": {
+        model: InventoryReservationModel,
+        searchableFields: ["status", "remarks"],
+        sortableFields: ["createdAt", "reservedAt", "status"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            inventoryId: "inventories",
+            orderId: "orders",
+            enquiryId: "enquiries",
+            productVariant: "product-variants",
+            associateCompany: "associate-companies"
+        },
+    },
+    "document-rules": {
+        model: DocumentRuleModel,
+        searchableFields: ["docType", "stageType", "stageKey", "responsibleRole"],
+        sortableFields: ["createdAt", "sortOrder", "stageType", "stageKey"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
     },
 
     // --- Locations & Geography ---
@@ -293,7 +316,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     // --- Company Metadata & Research ---
     "associate-companies": {
         model: AssociateCompanyModel,
-        searchableFields: ["name"],
+        searchableFields: ["name", "email", "phone", "gstin", "description"],
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
@@ -302,7 +325,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             division: "divisions",
             pincodeEntry: "pincode-entries",
             companyType: "company-types",
-            assignedEmployee: "employees",
+            assignedOperator: "operators",
             supervisor: "associates"
         },
     },
@@ -340,7 +363,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
-            submittedBy: "employees",
+            submittedByOperator: "operators",
             product: "products",
             certification: "certifications",
             companyBusinessModel: "company-business-models",
@@ -419,7 +442,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     // --- Inquiries (Clean Engine) ---
     "enquiries": {
         model: InquiryModel,
-        searchableFields: ["specifications"],
+        searchableFields: ["specifications", "status", "customId"],
         sortableFields: ["createdAt", "status"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
@@ -430,7 +453,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "buyerAssociateId.associateCompany": "associate-companies",
             "sellerAssociateId.associateCompany": "associate-companies",
             "mediatorAssociateId.associateCompany": "associate-companies",
-            assignedEmployeeId: "employees"
+            assignedOperatorId: "operators"
         },
     },
     "orders": {
@@ -447,7 +470,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "enquiry.buyerAssociateId.associateCompany": "associate-companies",
             "enquiry.sellerAssociateId.associateCompany": "associate-companies",
             "enquiry.mediatorAssociateId.associateCompany": "associate-companies",
-            "enquiry.assignedEmployeeId": "employees"
+            "enquiry.assignedOperatorId": "operators"
         },
     },
     "enquiry-process-statuses": {

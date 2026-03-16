@@ -15,6 +15,7 @@ export interface IVariantRate extends Document {
   district: mongoose.Schema.Types.ObjectId;
   division?: mongoose.Schema.Types.ObjectId;
   pincodeEntry?: mongoose.Schema.Types.ObjectId;
+  sourceInventory?: Types.ObjectId | null;
   createdAt?: Date;
   updatedAt?: Date;
   lastLiveAt?: Date;
@@ -25,6 +26,9 @@ export interface IVariantRate extends Document {
   coolingStartTime?: Date; // Timestamp when cooldown started
   hiddenDraftOf?: Types.ObjectId; // If this is a draft, link to original live rate
   unit?: string; // KG, MT, Quintal
+  isDemo?: boolean;
+  demoTag?: string;
+  demoCreatedBy?: Types.ObjectId | null;
 }
 
 export interface ICreateVariantRate {
@@ -47,6 +51,10 @@ export interface ICreateVariantRate {
   lastLiveAt?: Date;
   lastLiveDate?: Date;
   unit?: string;
+  sourceInventory?: Types.ObjectId | null;
+  isDemo?: boolean;
+  demoTag?: string;
+  demoCreatedBy?: Types.ObjectId | null;
 }
 
 export interface IUpdateVariantRate {
@@ -69,4 +77,7 @@ export interface IUpdateVariantRate {
   lastLiveAt?: Date;
   lastLiveDate?: Date;
   unit?: string;
+  isDemo?: boolean;
+  demoTag?: string;
+  demoCreatedBy?: Types.ObjectId | null;
 }

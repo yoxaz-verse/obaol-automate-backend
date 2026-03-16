@@ -3,7 +3,7 @@ const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const normalizeRow = (row: any) =>
   typeof row?.toObject === "function" ? row.toObject() : { ...row };
 
-export const employeeReadNormalizationHook = async (rows: any[]): Promise<any[]> => {
+export const operatorReadNormalizationHook = async (rows: any[]): Promise<any[]> => {
   const now = Date.now();
 
   return (rows || []).map((row: any) => {
@@ -18,4 +18,3 @@ export const employeeReadNormalizationHook = async (rows: any[]): Promise<any[]>
     };
   });
 };
-

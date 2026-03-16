@@ -22,7 +22,7 @@ export const orderCommissionPreWriteHook: HookFunction = async (payload, mode, i
     let existingOrder: any = null;
     if (mode === ExecutionMode.UPDATE && id) {
         existingOrder = await OrderModel.findById(id)
-            .select("_id status enquiry associateCompanyId closedByEmployee")
+            .select("_id status enquiry associateCompanyId closedByOperator")
             .lean();
         if (!existingOrder) {
             return payload;
@@ -46,11 +46,11 @@ export const orderCommissionPreWriteHook: HookFunction = async (payload, mode, i
 
     const orderEnquiryId = String(nextPayload?.enquiry || existingOrder?.enquiry || "").trim();
     let derivedCompanyId = String(nextPayload?.associateCompanyId || existingOrder?.associateCompanyId || "").trim();
-    let derivedCloserId = String(nextPayload?.closedByEmployee || existingOrder?.closedByEmployee || "").trim();
+    let derivedCloserId = String(nextPayload?.closedByOperator || existingOrder?.closedByOperator || "").trim();
 
     if ((!derivedCompanyId || !mongoose.Types.ObjectId.isValid(derivedCompanyId)) && orderEnquiryId) {
         const inquiry = await InquiryModel.findById(orderEnquiryId)
-            .select("sellerAssociateId assignedEmployeeId")
+            .select("sellerAssociateId assignedOperatorId")
             .lean();
 
         if (inquiry) {
@@ -65,20 +65,20 @@ export const orderCommissionPreWriteHook: HookFunction = async (payload, mode, i
                 }
             }
 
-            const inquiryAssignedEmployee = String((inquiry as any).assignedEmployeeId || "").trim();
-            if (!derivedCloserId && inquiryAssignedEmployee && mongoose.Types.ObjectId.isValid(inquiryAssignedEmployee)) {
-                derivedCloserId = inquiryAssignedEmployee;
+            const inquiryAssignedOperator = String((inquiry as any).assignedOperatorId || "").trim();
+            if (!derivedCloserId && inquiryAssignedOperator && mongoose.Types.ObjectId.isValid(inquiryAssignedOperator)) {
+                derivedCloserId = inquiryAssignedOperator;
             }
         }
     }
 
     if (derivedCompanyId && !derivedCloserId) {
         const supplierCompany = await AssociateCompanyModel.findById(derivedCompanyId)
-            .select("assignedEmployee")
+            .select("assignedOperator")
             .lean();
-        const assignedEmployeeId = String((supplierCompany as any)?.assignedEmployee || "").trim();
-        if (assignedEmployeeId && mongoose.Types.ObjectId.isValid(assignedEmployeeId)) {
-            derivedCloserId = assignedEmployeeId;
+        const assignedOperatorId = String((supplierCompany as any)?.assignedOperator || "").trim();
+        if (assignedOperatorId && mongoose.Types.ObjectId.isValid(assignedOperatorId)) {
+            derivedCloserId = assignedOperatorId;
         }
     }
 
@@ -95,12 +95,12 @@ export const orderCommissionPreWriteHook: HookFunction = async (payload, mode, i
     }
 
     if (!derivedCloserId || !mongoose.Types.ObjectId.isValid(derivedCloserId)) {
-        throw badRequest("Completed order requires closedByEmployee for commission processing.");
+        throw badRequest("Completed order requires closedByOperator for commission processing.");
     }
 
     nextPayload.profit = numericProfit;
     nextPayload.associateCompanyId = derivedCompanyId;
-    nextPayload.closedByEmployee = derivedCloserId;
+    nextPayload.closedByOperator = derivedCloserId;
 
     return nextPayload;
 };

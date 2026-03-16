@@ -1,56 +1,56 @@
 import mongoose from "mongoose";
 import { Request, Response } from "express";
 import { CommissionModel } from "../database/models/commission";
-import { EmployeeHierarchyService } from "../services/employeeHierarchy.service";
+import { OperatorHierarchyService } from "../services/operatorHierarchy.service";
 import { OrderModel } from "../database/models/order";
 
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const completedOrderStatusRegex = /^completed$/i;
 
 const forbidden = (res: Response) =>
-    res.status(403).json({ success: false, message: "You are not allowed to access this employee resource." });
+    res.status(403).json({ success: false, message: "You are not allowed to access this operator resource." });
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdmin = (role: string) => role === "admin";
-const isEmployeeActor = (role: string) => role === "employee" || role === "team";
+const isOperatorActor = (role: string) => role === "operator" || role === "team";
 
-const canAccessEmployeeResource = async (req: Request, targetEmployeeId: string): Promise<boolean> => {
+const canAccessOperatorResource = async (req: Request, targetOperatorId: string): Promise<boolean> => {
     const actorId = String((req as any)?.user?.id || "");
     const roleLower = normalizeRole((req as any)?.user?.role);
 
     if (!actorId) return false;
     if (isAdmin(roleLower)) return true;
-    if (!isEmployeeActor(roleLower)) return false;
-    if (actorId === targetEmployeeId) return true;
+    if (!isOperatorActor(roleLower)) return false;
+    if (actorId === targetOperatorId) return true;
 
-    return EmployeeHierarchyService.isInDownline(actorId, targetEmployeeId);
+    return OperatorHierarchyService.isInDownline(actorId, targetOperatorId);
 };
 
 export class CommissionController {
-    static async getEmployeeHistory(req: Request, res: Response) {
+    static async getOperatorHistory(req: Request, res: Response) {
         try {
-            const employeeId = String(req.params.employeeId || "").trim();
-            if (!mongoose.Types.ObjectId.isValid(employeeId)) {
-                return res.status(400).json({ success: false, message: "Invalid employeeId." });
+            const operatorId = String(req.params.operatorId || "").trim();
+            if (!mongoose.Types.ObjectId.isValid(operatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid operatorId." });
             }
 
-            const hasAccess = await canAccessEmployeeResource(req, employeeId);
+            const hasAccess = await canAccessOperatorResource(req, operatorId);
             if (!hasAccess) return forbidden(res);
 
             const page = Math.max(1, Number(req.query.page || 1));
             const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50)));
             const skip = (page - 1) * limit;
 
-            const employeeObjectId = new mongoose.Types.ObjectId(employeeId);
+            const operatorObjectId = new mongoose.Types.ObjectId(operatorId);
 
             const [rows, totalCount] = await Promise.all([
-                CommissionModel.find({ employeeId: employeeObjectId })
+                CommissionModel.find({ operatorId: operatorObjectId })
                     .sort({ createdAt: -1 })
                     .skip(skip)
                     .limit(limit)
                     .select("dealId type level percent amount createdAt")
                     .lean(),
-                CommissionModel.countDocuments({ employeeId: employeeObjectId }),
+                CommissionModel.countDocuments({ operatorId: operatorObjectId }),
             ]);
 
             const startOfMonth = new Date();
@@ -61,23 +61,23 @@ export class CommissionController {
 
             const [totalAgg, monthlyAgg, dealsClosed, teamSize] = await Promise.all([
                 CommissionModel.aggregate([
-                    { $match: { employeeId: employeeObjectId } },
+                    { $match: { operatorId: operatorObjectId } },
                     { $group: { _id: null, total: { $sum: "$amount" } } },
                 ]),
                 CommissionModel.aggregate([
                     {
                         $match: {
-                            employeeId: employeeObjectId,
+                            operatorId: operatorObjectId,
                             createdAt: { $gte: startOfMonth, $lt: endOfMonth },
                         },
                     },
                     { $group: { _id: null, total: { $sum: "$amount" } } },
                 ]),
                 OrderModel.countDocuments({
-                    closedByEmployee: employeeObjectId,
+                    closedByOperator: operatorObjectId,
                     status: completedOrderStatusRegex,
                 }),
-                EmployeeHierarchyService.getDownlineIds(employeeId).then((ids) => ids.length),
+                OperatorHierarchyService.getDownlineIds(operatorId).then((ids) => ids.length),
             ]);
 
             const totalEarnings = round2(Number(totalAgg?.[0]?.total || 0));
@@ -114,4 +114,3 @@ export class CommissionController {
         }
     }
 }
-

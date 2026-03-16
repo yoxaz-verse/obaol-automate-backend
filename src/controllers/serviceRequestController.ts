@@ -3,6 +3,8 @@ import { Types } from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { ServiceRequestModel, SERVICE_REQUEST_STATUSES, SERVICE_REQUEST_TYPES } from "../database/models/serviceRequest";
+import { notificationService } from "../services/notificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import {
   matchesRequestTypeByCapabilities,
   normalizeCapabilities,
@@ -12,7 +14,7 @@ import {
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
-const isEmployeeRole = (role: string) => role === "employee" || role === "team";
+const isOperatorRole = (role: string) => role === "operator" || role === "team";
 const isAssociateRole = (role: string) => role === "associate";
 
 const toObjectId = (value: any) => {
@@ -68,7 +70,7 @@ export class ServiceRequestController {
       const userId = String(req.user?.id || "").trim();
       if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
 
-      if (!(isAdminRole(role) || isEmployeeRole(role) || isAssociateRole(role))) {
+      if (!(isAdminRole(role) || isOperatorRole(role) || isAssociateRole(role))) {
         return res.status(403).json({ success: false, message: "Not allowed to create service requests." });
       }
 
@@ -110,7 +112,7 @@ export class ServiceRequestController {
         }
         createdByAssociateId = context.associateId;
         createdByCompanyId = context.associateCompanyId;
-      } else if (isAdminRole(role) || isEmployeeRole(role)) {
+      } else if (isAdminRole(role) || isOperatorRole(role)) {
         const suppliedCompanyId = toObjectId(req.body?.createdByCompanyId);
         if (req.body?.createdByCompanyId && !suppliedCompanyId) {
           return res.status(400).json({ success: false, message: "createdByCompanyId must be a valid company id." });
@@ -163,6 +165,42 @@ export class ServiceRequestController {
         .populate("candidateProviders", "name email phone serviceCapabilities")
         .lean();
 
+      try {
+        const recipients = new Map<string, "Admin" | "Operator" | "Associate">();
+        await notificationService.addAdmins(recipients);
+
+        const candidateRows = (populated as any)?.candidateProviders || [];
+        const companyIds = candidateRows.map((row: any) => String(row?._id || row || "")).filter(Boolean);
+        if (companyIds.length) {
+          const companies = await AssociateCompanyModel.find({ _id: { $in: companyIds } })
+            .select("supervisor assignedOperator")
+            .lean();
+          companies.forEach((row: any) => {
+            if (row.supervisor) {
+              notificationService.addRecipient(recipients, row.supervisor, "Associate");
+            }
+            if (row.assignedOperator) {
+              notificationService.addRecipient(recipients, row.assignedOperator, "Operator");
+            }
+          });
+        }
+
+        await notificationService.createNotifications({
+          recipientMap: recipients,
+          createdByUserId: userId,
+          type: NotificationTypes.SERVICE_REQUEST_CREATED,
+          title: "New service request",
+          message: "A service request is available for execution.",
+          entityType: NotificationEntityTypes.SERVICE_REQUEST,
+          entityId: created._id,
+          route: "/dashboard/execution-enquiries?tab=service-requests",
+          payload: { serviceRequestId: created._id },
+          priority: "high",
+        });
+      } catch {
+        // non-blocking
+      }
+
       return res.status(201).json({ success: true, data: populated });
     } catch (error) {
       next(error);
@@ -203,7 +241,7 @@ export class ServiceRequestController {
             query.$or.push({ requestType: { $in: requestTypesByCapability } });
           }
         }
-      } else if (!(isAdminRole(role) || isEmployeeRole(role))) {
+      } else if (!(isAdminRole(role) || isOperatorRole(role))) {
         return res.status(403).json({ success: false, message: "Access denied." });
       }
 
@@ -289,7 +327,7 @@ export class ServiceRequestController {
           canRead = matchesRequestTypeByCapabilities((row as any)?.requestType, companyCapabilities);
         }
         if (!canRead) return res.status(403).json({ success: false, message: "Access denied." });
-      } else if (!(isAdminRole(role) || isEmployeeRole(role))) {
+      } else if (!(isAdminRole(role) || isOperatorRole(role))) {
         return res.status(403).json({ success: false, message: "Access denied." });
       }
 
@@ -338,10 +376,10 @@ export class ServiceRequestController {
         if (!allowed) {
           return res.status(403).json({ success: false, message: "Your company is not a candidate for this request." });
         }
-      } else if (isAdminRole(role) || isEmployeeRole(role)) {
+      } else if (isAdminRole(role) || isOperatorRole(role)) {
         bidCompanyId = String(req.body?.companyId || "");
         if (!Types.ObjectId.isValid(bidCompanyId)) {
-          return res.status(400).json({ success: false, message: "companyId is required for admin/employee bidding." });
+          return res.status(400).json({ success: false, message: "companyId is required for admin/operator bidding." });
         }
       } else {
         return res.status(403).json({ success: false, message: "Access denied." });

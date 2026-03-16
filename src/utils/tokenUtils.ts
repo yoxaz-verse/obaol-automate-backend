@@ -18,7 +18,8 @@ interface TokenPayload {
  * @returns The signed JWT token.
  */
 export const generateJWTToken = (
-  user: IAdmin | IWorker
+  user: IAdmin | IWorker,
+  expiresIn: string = "1h"
 ): string => {
   const payload: TokenPayload = {
     id: user._id.toString(),
@@ -27,8 +28,8 @@ export const generateJWTToken = (
     associateCompany: (user as any).associateCompany ? String((user as any).associateCompany) : null,
   };
 
-  const token = jwt.sign(payload, process.env.JWT_SECRET as string, {
-    expiresIn: "1h", // Token validity duration
+  const token = jwt.sign(payload, (process.env.JWT_SECRET as string) || "secret", {
+    expiresIn: expiresIn as any, // Use the provided duration or default to 1h
   });
 
   return token;

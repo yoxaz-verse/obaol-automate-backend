@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { Request, Response } from "express";
-import { OperatorModel } from "../database/models/operator";
+import { OperatorModel, generateOperatorReferralCode } from "../database/models/operator";
 import { CommissionModel } from "../database/models/commission";
 import { OperatorHierarchyService } from "../services/operatorHierarchy.service";
 
@@ -85,11 +85,18 @@ export class OperatorHierarchyController {
             if (!hasAccess) return forbidden(res);
 
             const manager = await OperatorModel.findOne({ _id: operatorId, isDeleted: { $ne: true } })
-                .select("_id name email mentorOperator")
+                .select("_id name email mentorOperator referralCode")
                 .populate("mentorOperator", "name email")
                 .lean();
             if (!manager) {
                 return res.status(404).json({ success: false, message: "Operator not found." });
+            }
+
+            let referralCode = String((manager as any).referralCode || "").trim();
+            if (!referralCode) {
+                const newCode = await generateOperatorReferralCode();
+                await OperatorModel.updateOne({ _id: operatorId }, { $set: { referralCode: newCode } });
+                referralCode = newCode;
             }
 
             const managerObjectId = new mongoose.Types.ObjectId(operatorId);
@@ -152,6 +159,7 @@ export class OperatorHierarchyController {
                     manager: {
                         operatorId: String((manager as any)._id),
                         name: (manager as any).name,
+                        referralCode,
                     },
                     directTeam: directReports.map((row: any) => {
                         const mentor = row.mentorOperator as any;
@@ -172,6 +180,38 @@ export class OperatorHierarchyController {
             });
         } catch (error: any) {
             return res.status(500).json({ success: false, message: error?.message || "Failed to fetch team hierarchy." });
+        }
+    }
+
+    static async regenerateReferral(req: Request, res: Response) {
+        try {
+            const operatorId = String(req.params.operatorId || "").trim();
+            if (!mongoose.Types.ObjectId.isValid(operatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid operatorId." });
+            }
+
+            const actorId = String((req as any)?.user?.id || "");
+            const roleLower = normalizeRole((req as any)?.user?.role);
+            if (!isAdmin(roleLower) && actorId !== operatorId) {
+                return forbidden(res);
+            }
+
+            const operator = await OperatorModel.findOne({ _id: operatorId, isDeleted: { $ne: true } });
+            if (!operator) {
+                return res.status(404).json({ success: false, message: "Operator not found." });
+            }
+
+            const newCode = await generateOperatorReferralCode();
+            operator.referralCode = newCode;
+            await operator.save();
+
+            return res.json({
+                success: true,
+                data: { referralCode: newCode },
+                message: "Referral code regenerated.",
+            });
+        } catch (error: any) {
+            return res.status(500).json({ success: false, message: error?.message || "Failed to regenerate referral code." });
         }
     }
 }

@@ -14,8 +14,6 @@ const OrderRuleSchema: Schema = new Schema(
     },
     { timestamps: true }
 );
-
-OrderRuleSchema.index({ stageKey: 1 });
 OrderRuleSchema.index({ sortOrder: 1 });
 OrderRuleSchema.index({ isActive: 1 });
 

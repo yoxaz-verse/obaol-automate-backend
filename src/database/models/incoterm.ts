@@ -35,8 +35,5 @@ const IncotermSchema: Schema = new Schema(
         timestamps: true
     }
 );
-
-IncotermSchema.index({ code: 1 });
-
 export const IncotermModel = mongoose.model<IIncoterm>("Incoterm", IncotermSchema);
 

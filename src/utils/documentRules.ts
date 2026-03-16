@@ -24,5 +24,13 @@ export const ensureDefaultDocumentRules = async () => {
   await DocumentRuleModel.insertMany(DEFAULT_DOCUMENT_RULES.map((rule) => ({
     ...rule,
     isActive: true,
+    isDeleted: false,
   })));
+};
+
+export const seedDefaultDocumentRules = async (force = false) => {
+  if (force) {
+    await DocumentRuleModel.updateMany({ isDeleted: { $ne: true } }, { isDeleted: true });
+  }
+  await ensureDefaultDocumentRules();
 };

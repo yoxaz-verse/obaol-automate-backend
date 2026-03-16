@@ -18,8 +18,6 @@ const EnquiryRuleSchema: Schema = new Schema(
   },
   { timestamps: true }
 );
-
-EnquiryRuleSchema.index({ stageKey: 1 });
 EnquiryRuleSchema.index({ sortOrder: 1 });
 
 export const EnquiryRuleModel = mongoose.model<IEnquiryRule>(

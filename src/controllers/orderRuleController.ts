@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { OrderRuleModel } from "../database/models/orderRule";
-import { ensureDefaultOrderRules } from "../utils/orderRules";
+import { ensureDefaultOrderRules, seedDefaultOrderRules } from "../utils/orderRules";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdmin = (role: string) => role === "admin";
@@ -75,6 +75,19 @@ export class OrderRuleController {
             const updated = await OrderRuleModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
             if (!updated) return res.status(404).json({ success: false, message: "Rule not found." });
             return res.json({ success: true, data: updated });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async seed(req: Request, res: Response, next: NextFunction) {
+        try {
+            const role = normalizeRole(req.user?.role);
+            if (!isAdmin(role)) return res.status(403).json({ success: false, message: "Admin only." });
+            const force = String(req.query?.force || "").toLowerCase() === "true";
+            await seedDefaultOrderRules(force);
+            const rows = await OrderRuleModel.find({ isDeleted: { $ne: true } }).sort({ sortOrder: 1 }).lean();
+            return res.json({ success: true, data: rows, seeded: true, forced: force });
         } catch (error) {
             next(error);
         }

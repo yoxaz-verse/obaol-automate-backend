@@ -38,14 +38,23 @@ export class OrderController {
             }
 
             const responsibilityPlan: any = (enquiry as any).responsibilityPlan || {};
-            const requiredKeys = [
+            const tradeType = String(enquiry.executionContext?.tradeType || "DOMESTIC").toUpperCase();
+
+            const domesticRequiredKeys = [
                 "procurementBy",
-                "certificateBy",
-                "transportBy",
-                "shippingBy",
+                "qualityTestingBy",
                 "packagingBy",
-                "qualityTestingBy"
+                "transportBy"
             ];
+            const internationalRequiredKeys = [
+                "shippingBy",
+                "certificateBy"
+            ];
+
+            const requiredKeys = tradeType === "INTERNATIONAL"
+                ? [...domesticRequiredKeys, ...internationalRequiredKeys]
+                : domesticRequiredKeys;
+
             const allowedOwners = new Set(["buyer", "seller", "obaol"]);
             const isPlanComplete = requiredKeys.every((k) => allowedOwners.has(String(responsibilityPlan?.[k] || "")));
             if (!isPlanComplete || !(enquiry as any).responsibilitiesFinalizedAt) {

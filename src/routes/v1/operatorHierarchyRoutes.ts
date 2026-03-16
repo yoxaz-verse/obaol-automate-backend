@@ -6,5 +6,6 @@ const router = Router();
 
 router.get("/leadership/:operatorId", authenticateToken, OperatorHierarchyController.getLeadershipChain);
 router.get("/team/:operatorId", authenticateToken, OperatorHierarchyController.getTeam);
+router.post("/referral/regenerate/:operatorId", authenticateToken, OperatorHierarchyController.regenerateReferral);
 
 export default router;

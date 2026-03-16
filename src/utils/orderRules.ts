@@ -26,3 +26,10 @@ export const ensureDefaultOrderRules = async () => {
         }))
     );
 };
+
+export const seedDefaultOrderRules = async (force = false) => {
+    if (force) {
+        await OrderRuleModel.updateMany({ isDeleted: { $ne: true } }, { isDeleted: true });
+    }
+    await ensureDefaultOrderRules();
+};

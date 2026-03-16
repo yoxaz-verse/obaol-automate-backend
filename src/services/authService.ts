@@ -240,6 +240,10 @@ export const authenticateUser = async (req: Request, res: Response) => {
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
+        const rememberMe = Boolean(req.body.rememberMe);
+        const jwtExpiresIn = rememberMe ? "24h" : "2h";
+        const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
+
         const normalizedRole = (roleLower === "operator") ? "Operator" : finalRole;
         const userForToken = {
             ...user.toObject(),
@@ -247,9 +251,9 @@ export const authenticateUser = async (req: Request, res: Response) => {
             // Ensure associateCompany is included if present (for AssociateCompany scope)
             associateCompany: user.associateCompany
         };
-        const token = generateJWTToken(userForToken);
+        const token = generateJWTToken(userForToken, jwtExpiresIn);
         const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
-        const cookieOptions = getAuthCookieOptions(host);
+        const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
 
         res.setHeader("Cache-Control", "no-store");
         res.cookie("auth_token", token, cookieOptions);
@@ -1009,14 +1013,14 @@ export const registerOperator = async (req: Request, res: Response) => {
             jobType,
             languageKnown,
             joiningDate,
-            workingHours,
+            referralCode,
         } = req.body;
 
         if (!name || !email || !phone || !password || !address) {
             return res.status(400).json({ success: false, message: "Name, email, phone, password, and address are required." });
         }
-        if (!state || !district || !jobRole || !jobType || !joiningDate) {
-            return res.status(400).json({ success: false, message: "State, district, job role, job type, and joining date are required." });
+        if (!state || !district || !joiningDate) {
+            return res.status(400).json({ success: false, message: "State, district, and joining date are required." });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1050,11 +1054,19 @@ export const registerOperator = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "Registration failed. This email is already registered." });
         }
 
-        const parsedWorkingHours = Array.isArray(workingHours) && workingHours.length
-            ? workingHours
-            : null;
-        if (!parsedWorkingHours) {
-            return res.status(400).json({ success: false, message: "Working hours are required." });
+        const parsedWorkingHours = Array.isArray(req.body?.workingHours) ? req.body.workingHours : [];
+
+        const normalizedReferral = String(referralCode || "").trim().toUpperCase();
+        let mentorOperatorId: mongoose.Types.ObjectId | null = null;
+        if (normalizedReferral) {
+            const refOperator = await OperatorModel.findOne({
+                referralCode: normalizedReferral,
+                isDeleted: { $ne: true },
+            }).select("_id");
+            if (!refOperator) {
+                return res.status(400).json({ success: false, message: "Invalid referral code." });
+            }
+            mentorOperatorId = refOperator._id as mongoose.Types.ObjectId;
         }
 
         const operator = await OperatorModel.create({
@@ -1067,15 +1079,16 @@ export const registerOperator = async (req: Request, res: Response) => {
             address: String(address || "").trim(),
             state,
             district,
-            jobRole,
-            jobType,
+            ...(jobRole ? { jobRole } : {}),
+            ...(jobType ? { jobType } : {}),
             languageKnown: Array.isArray(languageKnown) ? languageKnown : [],
             joiningDate: new Date(joiningDate),
             workingHours: parsedWorkingHours,
             isActive: false,
             registrationStatus: "PENDING_REVIEW",
             registrationSource: "SELF_REGISTERED",
-            role: "operator",
+            role: mentorOperatorId ? "team" : "operator",
+            mentorOperator: mentorOperatorId,
         });
 
         const adminRecipientMap = new Map<string, "Admin">();

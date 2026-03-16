@@ -67,6 +67,14 @@ export const ensureDefaultEnquiryRules = async () => {
       stageKey: String(rule.stageKey).toUpperCase(),
       label: String(rule.label),
       description: rule.description || "",
+      isDeleted: false,
     }))
   );
+};
+
+export const seedDefaultEnquiryRules = async (force = false) => {
+  if (force) {
+    await EnquiryRuleModel.updateMany({ isDeleted: { $ne: true } }, { isDeleted: true });
+  }
+  await ensureDefaultEnquiryRules();
 };

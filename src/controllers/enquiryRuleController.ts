@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { EnquiryRuleModel } from "../database/models/enquiryRule";
-import { ensureDefaultEnquiryRules } from "../utils/enquiryRules";
+import { ensureDefaultEnquiryRules, seedDefaultEnquiryRules } from "../utils/enquiryRules";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdmin = (role: string) => role === "admin";
@@ -81,6 +81,19 @@ export class EnquiryRuleController {
       const updated = await EnquiryRuleModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
       if (!updated) return res.status(404).json({ success: false, message: "Rule not found." });
       return res.json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async seed(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      if (!isAdmin(role)) return res.status(403).json({ success: false, message: "Admin only." });
+      const force = String(req.query?.force || "").toLowerCase() === "true";
+      await seedDefaultEnquiryRules(force);
+      const rows = await EnquiryRuleModel.find({ isDeleted: { $ne: true } }).sort({ sortOrder: 1 }).lean();
+      return res.json({ success: true, data: rows, seeded: true, forced: force });
     } catch (error) {
       next(error);
     }

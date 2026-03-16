@@ -5,7 +5,7 @@ const isLocalHost = (host: string) => {
   return normalized.includes("localhost") || normalized.startsWith("127.0.0.1");
 };
 
-export const getAuthCookieOptions = (host: string): CookieOptions => {
+export const getAuthCookieOptions = (host: string, maxAge?: number): CookieOptions => {
   const isProd = process.env.NODE_ENV === "production";
   const local = isLocalHost(host);
 
@@ -15,7 +15,7 @@ export const getAuthCookieOptions = (host: string): CookieOptions => {
     sameSite: isProd ? "none" : "lax",
     path: "/",
     domain: isProd && !local ? ".obaol.com" : undefined,
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: maxAge !== undefined ? maxAge : 24 * 60 * 60 * 1000,
   };
 };
 

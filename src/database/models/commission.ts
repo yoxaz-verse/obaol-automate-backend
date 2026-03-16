@@ -16,9 +16,7 @@ const CommissionSchema: Schema = new Schema(
     toObject: { virtuals: true },
   }
 );
-
 CommissionSchema.index({ operatorId: 1, createdAt: -1 });
-CommissionSchema.index({ dealId: 1 });
 CommissionSchema.index(
   { dealId: 1, operatorId: 1, type: 1, level: 1 },
   { unique: true, sparse: true }

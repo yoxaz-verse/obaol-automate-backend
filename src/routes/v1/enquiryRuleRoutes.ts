@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.get("/", authenticateToken, enquiryRuleController.list);
 router.post("/", authenticateToken, enquiryRuleController.create);
+router.post("/seed", authenticateToken, enquiryRuleController.seed);
 router.patch("/:id", authenticateToken, enquiryRuleController.update);
 router.delete("/:id", authenticateToken, enquiryRuleController.remove);
 

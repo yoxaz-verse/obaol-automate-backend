@@ -27,7 +27,7 @@ export interface IOperator extends mongoose.Document {
     joiningDate: Date;
     jobType: mongoose.Types.ObjectId;
     jobRole: mongoose.Types.ObjectId;
-    workingHours: IWorkingHour[];
+    workingHours?: IWorkingHour[];
     languageKnown: mongoose.Types.ObjectId[];
     isActive: boolean;
     isDeleted: boolean;
@@ -41,6 +41,7 @@ export interface IOperator extends mongoose.Document {
     lastSeenAt?: Date | null;
     presenceUpdatedAt?: Date | null;
     presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
+    referralCode?: string;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -76,7 +77,7 @@ const operatorSchema = new mongoose.Schema(
         joiningDate: { type: Date, required: true },
         jobRole: { type: mongoose.Types.ObjectId, ref: "JobRole" },
         jobType: { type: mongoose.Types.ObjectId, ref: "JobType" },
-        workingHours: { type: [workingHourSchema], required: true },
+        workingHours: { type: [workingHourSchema], default: [] },
         languageKnown: [{ type: mongoose.Types.ObjectId, ref: "Language" }],
         isActive: { type: Boolean, default: true },
         isDeleted: { type: Boolean, default: false },
@@ -89,11 +90,18 @@ const operatorSchema = new mongoose.Schema(
         approvedAt: { type: Date, default: null },
         approvedBy: { type: mongoose.Types.ObjectId, ref: "Admin", default: null },
         reviewNotes: { type: String, default: "" },
-        role: { type: String, default: "team" },
+        role: { type: String, default: "operator" },
         mentorOperator: { type: mongoose.Types.ObjectId, ref: "Operator", default: null, index: true },
         lastSeenAt: { type: Date, default: null, index: true },
         presenceUpdatedAt: { type: Date, default: null },
         presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
+        referralCode: {
+            type: String,
+            unique: true,
+            index: true,
+            uppercase: true,
+            trim: true,
+        },
     },
     {
         timestamps: true,
@@ -101,6 +109,27 @@ const operatorSchema = new mongoose.Schema(
         toObject: { virtuals: true },
     }
 );
+
+const REFERRAL_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const DEFAULT_REFERRAL_LENGTH = 8;
+
+const generateReferralCode = (length = DEFAULT_REFERRAL_LENGTH) => {
+    let code = "";
+    for (let i = 0; i < length; i += 1) {
+        const idx = Math.floor(Math.random() * REFERRAL_CODE_CHARS.length);
+        code += REFERRAL_CODE_CHARS[idx];
+    }
+    return code;
+};
+
+export const generateOperatorReferralCode = async (length = DEFAULT_REFERRAL_LENGTH) => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        const code = generateReferralCode(length);
+        const exists = await OperatorModel.exists({ referralCode: code });
+        if (!exists) return code;
+    }
+    throw new Error("Unable to generate a unique referral code.");
+};
 
 operatorSchema.pre("save", function (next) {
     const normalized = normalizePhoneInput({
@@ -112,6 +141,18 @@ operatorSchema.pre("save", function (next) {
     (this as any).phoneCountryCode = normalized.countryCode;
     (this as any).phoneNational = normalized.national;
     next();
+});
+
+operatorSchema.pre("save", async function (next) {
+    try {
+        if ((this as any).referralCode) {
+            return next();
+        }
+        (this as any).referralCode = await generateOperatorReferralCode();
+        return next();
+    } catch (error) {
+        return next(error as any);
+    }
 });
 
 operatorSchema.pre("findOneAndUpdate", function (next) {

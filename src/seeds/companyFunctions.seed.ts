@@ -82,6 +82,16 @@ const COMPANY_FUNCTION_SEED = [
       "Trade Compliance Advisory",
     ],
   },
+  {
+    name: "Importing & Distribution",
+    slug: "importer",
+    subFunctions: [
+      "Commodity Importing",
+      "Port-Based Distribution",
+      "Domestic Release & Clearance",
+      "Inventory Liquidation",
+    ],
+  },
 ];
 
 export const seedCompanyFunctions = async () => {

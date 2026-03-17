@@ -18,6 +18,14 @@ export interface IInquiry extends Document {
   sellerAssociateId: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
 
+  // Import source context (optional)
+  sourceType?: "STANDARD" | "IMPORT";
+  importListingId?: Types.ObjectId | null;
+  importReservationId?: Types.ObjectId | null;
+  arrivalPortId?: Types.ObjectId | null;
+  arrivalPortName?: string | null;
+  expectedArrivalDate?: Date | null;
+
   // Commercial terms
   preferredIncoterm?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
@@ -129,6 +137,12 @@ export interface ICreateInquiry {
   adminCommission?: number;
   mediatorCommission?: number;
   notes?: string;
+  sourceType?: "STANDARD" | "IMPORT";
+  importListingId?: Types.ObjectId | null;
+  importReservationId?: Types.ObjectId | null;
+  arrivalPortId?: Types.ObjectId | null;
+  arrivalPortName?: string | null;
+  expectedArrivalDate?: Date | null;
   workflowStage?: string;
   isDemo?: boolean;
   demoTag?: string;
@@ -149,6 +163,12 @@ export interface IUpdateInquiry {
   preferredIncoterm?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
   notes?: string;
+  sourceType?: "STANDARD" | "IMPORT";
+  importListingId?: Types.ObjectId | null;
+  importReservationId?: Types.ObjectId | null;
+  arrivalPortId?: Types.ObjectId | null;
+  arrivalPortName?: string | null;
+  expectedArrivalDate?: Date | null;
   workflowStage?: string;
   isDemo?: boolean;
   demoTag?: string;

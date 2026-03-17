@@ -1,6 +1,7 @@
 import mongoose, { Types } from "mongoose";
 
 interface IUnLoCode extends mongoose.Document {
+  name: string;
   country: Types.ObjectId; // e.g., "AE"
   loCode: string; // e.g., "DXB"
   city: string; // e.g., "Dubai"

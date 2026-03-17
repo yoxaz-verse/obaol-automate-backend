@@ -38,6 +38,14 @@ import sampleRequestRoutes from "./v1/sampleRequestRoutes";
 router.use(`${prefix}/sample-requests`, sampleRequestRoutes);
 console.info(`[routes] mounted ${prefix}/sample-requests`);
 
+// Imports (incoming loads)
+import importRoutes from "./v1/importRoutes";
+router.use(`${prefix}/imports`, importRoutes);
+console.info(`[routes] mounted ${prefix}/imports`);
+import importReservationRoutes from "./v1/importReservationRoutes";
+router.use(`${prefix}/import-reservations`, importReservationRoutes);
+console.info(`[routes] mounted ${prefix}/import-reservations`);
+
 // Trade documents
 import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";
 router.use(`${prefix}/trade-documents`, tradeDocumentRoutes);

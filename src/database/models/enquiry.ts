@@ -58,6 +58,39 @@ const InquirySchema: Schema = new Schema(
             index: true
         },
 
+        // Source context (optional)
+        sourceType: {
+            type: String,
+            enum: ["STANDARD", "IMPORT"],
+            default: "STANDARD",
+            index: true
+        },
+        importListingId: {
+            type: Schema.Types.ObjectId,
+            ref: "ImportListing",
+            default: null,
+            index: true
+        },
+        importReservationId: {
+            type: Schema.Types.ObjectId,
+            ref: "ImportReservation",
+            default: null,
+            index: true
+        },
+        arrivalPortId: {
+            type: Schema.Types.ObjectId,
+            ref: "UnLoCode",
+            default: null
+        },
+        arrivalPortName: {
+            type: String,
+            default: null
+        },
+        expectedArrivalDate: {
+            type: Date,
+            default: null
+        },
+
         // Commercial terms
         preferredIncoterm: {
             type: Schema.Types.ObjectId,

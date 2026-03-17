@@ -24,7 +24,7 @@ export interface IOperator extends mongoose.Document {
     address: string;
     district?: mongoose.Types.ObjectId;
     state?: mongoose.Types.ObjectId;
-    joiningDate: Date;
+    joiningDate?: Date;
     jobType: mongoose.Types.ObjectId;
     jobRole: mongoose.Types.ObjectId;
     workingHours?: IWorkingHour[];
@@ -74,7 +74,7 @@ const operatorSchema = new mongoose.Schema(
         address: { type: String, required: true },
         district: { type: mongoose.Types.ObjectId, ref: "District" },
         state: { type: mongoose.Types.ObjectId, ref: "State" },
-        joiningDate: { type: Date, required: true },
+        joiningDate: { type: Date, default: Date.now },
         jobRole: { type: mongoose.Types.ObjectId, ref: "JobRole" },
         jobType: { type: mongoose.Types.ObjectId, ref: "JobType" },
         workingHours: { type: [workingHourSchema], default: [] },
@@ -84,9 +84,9 @@ const operatorSchema = new mongoose.Schema(
         registrationStatus: {
             type: String,
             enum: ["PENDING_REVIEW", "APPROVED", "REJECTED"],
-            default: "APPROVED",
+            default: "PENDING_REVIEW",
         },
-        registrationSource: { type: String, default: "ADMIN_CREATED" },
+        registrationSource: { type: String, default: "SELF_REGISTERED" },
         approvedAt: { type: Date, default: null },
         approvedBy: { type: mongoose.Types.ObjectId, ref: "Admin", default: null },
         reviewNotes: { type: String, default: "" },

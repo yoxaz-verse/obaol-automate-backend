@@ -106,6 +106,16 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
         if (req.params?.entity === "associates") {
             return mergeScopedCompanyQuery(query, "associateCompany");
         }
+
+        // If we are looking at inventories
+        if (req.params?.entity === "inventories") {
+            return mergeScopedCompanyQuery(query, "associateCompany");
+        }
+
+        // If we are looking at inventory reservations
+        if (req.params?.entity === "inventory-reservations") {
+            return mergeScopedCompanyQuery(query, "associateCompany");
+        }
     }
 
     return query;

@@ -1012,15 +1012,14 @@ export const registerOperator = async (req: Request, res: Response) => {
             jobRole,
             jobType,
             languageKnown,
-            joiningDate,
             referralCode,
         } = req.body;
 
         if (!name || !email || !phone || !password || !address) {
             return res.status(400).json({ success: false, message: "Name, email, phone, password, and address are required." });
         }
-        if (!state || !district || !joiningDate) {
-            return res.status(400).json({ success: false, message: "State, district, and joining date are required." });
+        if (!state || !district) {
+            return res.status(400).json({ success: false, message: "State and district are required." });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1082,7 +1081,7 @@ export const registerOperator = async (req: Request, res: Response) => {
             ...(jobRole ? { jobRole } : {}),
             ...(jobType ? { jobType } : {}),
             languageKnown: Array.isArray(languageKnown) ? languageKnown : [],
-            joiningDate: new Date(joiningDate),
+            joiningDate: new Date(),
             workingHours: parsedWorkingHours,
             isActive: false,
             registrationStatus: "PENDING_REVIEW",

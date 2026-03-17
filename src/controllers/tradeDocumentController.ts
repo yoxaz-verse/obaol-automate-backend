@@ -302,8 +302,21 @@ export class TradeDocumentController {
       if (orderId) query.orderId = orderId;
       if (companyId) query["seller.companyId"] = companyId;
 
-      if (isAdminRole(role) || isOperatorRole(role)) {
+      if (isAdminRole(role)) {
         // full access
+      } else if (isOperatorRole(role)) {
+        const assignedCompanies = await AssociateCompanyModel.find({
+          assignedOperator: new Types.ObjectId(userId),
+          isDeleted: { $ne: true },
+        }).select("_id").lean();
+        const assignedIds = assignedCompanies.map((c: any) => c._id);
+        if (assignedIds.length === 0) {
+          return res.status(200).json({
+            success: true,
+            data: { data: [], total: 0, page, limit },
+          });
+        }
+        query["seller.companyId"] = { $in: assignedIds };
       } else if (isAssociateRole(role)) {
         query.$or = [
           { "buyer.associateId": new Types.ObjectId(userId) },
@@ -374,8 +387,18 @@ export class TradeDocumentController {
       const doc = await TradeDocumentModel.findById(id).lean();
       if (!doc || (doc as any).isDeleted) return res.status(404).json({ success: false, message: "Document not found." });
 
-      if (isAdminRole(role) || isOperatorRole(role)) {
+      if (isAdminRole(role)) {
         // ok
+      } else if (isOperatorRole(role)) {
+        const assignedCompanies = await AssociateCompanyModel.find({
+          assignedOperator: new Types.ObjectId(userId),
+          isDeleted: { $ne: true },
+        }).select("_id").lean();
+        const assignedIds = assignedCompanies.map((c: any) => c._id);
+        const sellerCompanyId = String((doc as any)?.seller?.companyId || "");
+        if (!assignedIds.some((id) => String(id) === sellerCompanyId)) {
+          return res.status(403).json({ success: false, message: "Access denied." });
+        }
       } else if (isAssociateRole(role)) {
         const buyerId = String((doc as any)?.buyer?.associateId || "");
         const sellerId = String((doc as any)?.seller?.associateId || "");

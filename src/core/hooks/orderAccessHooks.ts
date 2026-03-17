@@ -15,13 +15,19 @@ export const orderFilterHook = async (
     // Admin can see all orders
     if (role === "admin") return query;
 
-    // Operator: orders tied to inquiries assigned to this operator
+    // Operator: orders tied to inquiries assigned to this operator, plus external orders they created
     if (role === "operator" || role === "team") {
         const inquiryIds = await InquiryModel.find({ assignedOperatorId: userId }).distinct("_id");
-        return { ...query, enquiry: { $in: inquiryIds } };
+        return {
+            ...query,
+            $or: [
+                { enquiry: { $in: inquiryIds } },
+                { isExternal: true, externalCreatedBy: userId },
+            ],
+        };
     }
 
-    // Associate: orders tied to inquiries where associate is buyer/seller/mediator
+    // Associate: orders tied to inquiries where associate is buyer/seller/mediator, plus external orders they created
     if (role === "associate") {
         const inquiryIds = await InquiryModel.find({
             $or: [
@@ -30,7 +36,13 @@ export const orderFilterHook = async (
                 { mediatorAssociateId: userId },
             ],
         }).distinct("_id");
-        return { ...query, enquiry: { $in: inquiryIds } };
+        return {
+            ...query,
+            $or: [
+                { enquiry: { $in: inquiryIds } },
+                { isExternal: true, externalCreatedBy: userId },
+            ],
+        };
     }
 
     // Other roles: fallback to no restriction (existing behavior)

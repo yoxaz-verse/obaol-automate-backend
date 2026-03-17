@@ -41,9 +41,15 @@ export interface IOrderMilestones {
 }
 
 export interface IOrder extends Document {
-    enquiry: Types.ObjectId;
+    enquiry?: Types.ObjectId | null;
     status: string;
     workflowStage?: string;
+    isExternal?: boolean;
+    externalCreatedBy?: Types.ObjectId | null;
+    externalTradeType?: "DOMESTIC" | "INTERNATIONAL" | null;
+    externalBuyer?: { name: string; email?: string; phone?: string };
+    externalSeller?: { name: string; email?: string; phone?: string };
+    externalProduct?: { name: string; variant?: string; quantity?: number | null; unit?: string };
     profit?: number | null;
     closedByOperator?: Types.ObjectId | null;
     associateCompanyId?: Types.ObjectId | null;
@@ -60,9 +66,15 @@ export interface IOrder extends Document {
 }
 
 export interface ICreateOrder {
-    enquiry: Types.ObjectId;
+    enquiry?: Types.ObjectId | null;
     status?: string;
     workflowStage?: string;
+    isExternal?: boolean;
+    externalCreatedBy?: Types.ObjectId | null;
+    externalTradeType?: "DOMESTIC" | "INTERNATIONAL" | null;
+    externalBuyer?: { name: string; email?: string; phone?: string };
+    externalSeller?: { name: string; email?: string; phone?: string };
+    externalProduct?: { name: string; variant?: string; quantity?: number | null; unit?: string };
     profit?: number | null;
     closedByOperator?: Types.ObjectId | null;
     associateCompanyId?: Types.ObjectId | null;
@@ -78,6 +90,12 @@ export interface ICreateOrder {
 export interface IUpdateOrder {
     status?: string;
     workflowStage?: string;
+    isExternal?: boolean;
+    externalCreatedBy?: Types.ObjectId | null;
+    externalTradeType?: "DOMESTIC" | "INTERNATIONAL" | null;
+    externalBuyer?: { name: string; email?: string; phone?: string };
+    externalSeller?: { name: string; email?: string; phone?: string };
+    externalProduct?: { name: string; variant?: string; quantity?: number | null; unit?: string };
     profit?: number | null;
     closedByOperator?: Types.ObjectId | null;
     associateCompanyId?: Types.ObjectId | null;

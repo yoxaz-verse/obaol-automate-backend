@@ -8,6 +8,7 @@ const orderController = new OrderController(); // Assuming standard CRUD methods
 router.use(authenticateToken);
 
 router.post("/", orderController.create);
+router.post("/external", orderController.createExternal);
 router.get("/", orderController.getAll);
 router.get("/:id", orderController.getById);
 router.patch("/:id", orderController.update);

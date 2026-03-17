@@ -464,6 +464,9 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         relations: {
             enquiry: "enquiries",
             "enquiry.productId": "products",
+            "enquiry.variantRateId": "variant-rates",
+            "enquiry.variantRateId.productVariant": "product-variants",
+            "enquiry.variantRateId.productVariant.product": "products",
             "enquiry.buyerAssociateId": "associates",
             "enquiry.sellerAssociateId": "associates",
             "enquiry.mediatorAssociateId": "associates",

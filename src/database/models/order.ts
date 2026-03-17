@@ -52,9 +52,28 @@ const MilestonesSchema = new Schema(
 
 const OrderSchema: Schema = new Schema(
     {
-        enquiry: { type: Schema.Types.ObjectId, ref: "Inquiry", required: true },
+        enquiry: { type: Schema.Types.ObjectId, ref: "Inquiry", default: null },
         status: { type: String, default: "Procuring" },
         workflowStage: { type: String, default: "ORDER_CREATED", index: true },
+        isExternal: { type: Boolean, default: false, index: true },
+        externalCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
+        externalTradeType: { type: String, enum: ["DOMESTIC", "INTERNATIONAL", null], default: null },
+        externalBuyer: {
+            name: { type: String, default: "" },
+            email: { type: String, default: "" },
+            phone: { type: String, default: "" },
+        },
+        externalSeller: {
+            name: { type: String, default: "" },
+            email: { type: String, default: "" },
+            phone: { type: String, default: "" },
+        },
+        externalProduct: {
+            name: { type: String, default: "" },
+            variant: { type: String, default: "" },
+            quantity: { type: Number, default: null },
+            unit: { type: String, default: "" },
+        },
         isDemo: { type: Boolean, default: false, index: true },
         demoTag: { type: String, default: null, index: true },
         demoCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
@@ -75,6 +94,8 @@ const OrderSchema: Schema = new Schema(
 );
 
 OrderSchema.index({ status: 1 });
+OrderSchema.index({ isExternal: 1 });
+OrderSchema.index({ externalCreatedBy: 1 });
 OrderSchema.index({ commissionProcessedAt: 1 });
 OrderSchema.index({ closedByOperator: 1 });
 OrderSchema.index({ associateCompanyId: 1 });

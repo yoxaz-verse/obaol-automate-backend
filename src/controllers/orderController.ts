@@ -126,6 +126,68 @@ export class OrderController {
         }
     };
 
+    public createExternal = async (req: Request, res: Response) => {
+        try {
+            const role = String(req.user?.role || "").toLowerCase();
+            if (!(role === "admin" || role === "operator" || role === "team" || role === "associate")) {
+                return res.status(403).json({ success: false, message: "Not allowed." });
+            }
+
+            const externalBuyer = req.body?.externalBuyer || {};
+            const externalSeller = req.body?.externalSeller || {};
+            const externalProduct = req.body?.externalProduct || {};
+            const externalTradeType = String(req.body?.externalTradeType || "").toUpperCase();
+
+            if (!externalBuyer?.name || !externalSeller?.name || !externalProduct?.name || !externalTradeType) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Buyer name, seller name, product name, and trade type are required."
+                });
+            }
+            if (!["DOMESTIC", "INTERNATIONAL"].includes(externalTradeType)) {
+                return res.status(400).json({ success: false, message: "Invalid trade type." });
+            }
+
+            await ensureDefaultOrderRules();
+            const firstStage = await OrderRuleModel.findOne({
+                isDeleted: { $ne: true },
+                isActive: true,
+                tradeType: { $in: [externalTradeType, "BOTH"] },
+            }).sort({ sortOrder: 1 }).lean();
+
+            const payload = {
+                enquiry: null,
+                isExternal: true,
+                externalCreatedBy: req.user?.id || null,
+                externalTradeType,
+                externalBuyer: {
+                    name: String(externalBuyer.name || "").trim(),
+                    email: String(externalBuyer.email || "").trim(),
+                    phone: String(externalBuyer.phone || "").trim(),
+                },
+                externalSeller: {
+                    name: String(externalSeller.name || "").trim(),
+                    email: String(externalSeller.email || "").trim(),
+                    phone: String(externalSeller.phone || "").trim(),
+                },
+                externalProduct: {
+                    name: String(externalProduct.name || "").trim(),
+                    variant: String(externalProduct.variant || "").trim(),
+                    quantity: externalProduct.quantity ?? null,
+                    unit: String(externalProduct.unit || "").trim(),
+                },
+                workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"),
+                status: "Procuring",
+            };
+
+            const order = await this.engine.create(req, payload);
+            return res.status(201).json({ success: true, data: order });
+        } catch (error: any) {
+            logError(error, req, "OrderController.createExternal");
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    };
+
     public getAll = async (req: Request, res: Response) => {
         try {
             const page = parseInt(req.query.page as string) || 1;
@@ -179,7 +241,11 @@ export class OrderController {
                 const order = await OrderModel.findById(req.params.id).populate("enquiry").lean();
                 if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
-                const tradeType = String((order as any)?.enquiry?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
+                const tradeType = String(
+                    (order as any)?.externalTradeType ||
+                    (order as any)?.enquiry?.executionContext?.tradeType ||
+                    "DOMESTIC"
+                ).toUpperCase();
                 const orderId = order?._id;
                 const stageRule = await OrderRuleModel.findOne({
                     stageKey: workflowStage,

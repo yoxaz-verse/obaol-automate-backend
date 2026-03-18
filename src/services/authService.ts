@@ -1013,6 +1013,7 @@ export const registerOperator = async (req: Request, res: Response) => {
             jobType,
             languageKnown,
             referralCode,
+            joiningDate,
         } = req.body;
 
         if (!name || !email || !phone || !password || !address) {
@@ -1081,7 +1082,7 @@ export const registerOperator = async (req: Request, res: Response) => {
             ...(jobRole ? { jobRole } : {}),
             ...(jobType ? { jobType } : {}),
             languageKnown: Array.isArray(languageKnown) ? languageKnown : [],
-            joiningDate: new Date(),
+            joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
             workingHours: parsedWorkingHours,
             isActive: false,
             registrationStatus: "PENDING_REVIEW",

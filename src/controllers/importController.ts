@@ -72,7 +72,8 @@ export class ImportController {
       const commodityNameInput = String(req.body?.commodityName || "").trim();
       const totalQuantity = toNumber(req.body?.totalQuantity);
       const price = toNumber(req.body?.price);
-      const adminCommission = toNumber(req.body?.adminCommission) ?? 0;
+      const adminCommissionRaw = toNumber(req.body?.adminCommission);
+      const adminCommission = (isAdminRole(role) || isOperatorRole(role)) ? (adminCommissionRaw ?? 0) : 0;
       const quantityUnit = normalizeUnit(req.body?.quantityUnit, "MT");
       const priceUnit = normalizeUnit(req.body?.priceUnit, "KG");
 
@@ -160,7 +161,7 @@ export class ImportController {
       });
 
       const populated = await ImportListingModel.findById(created._id)
-        .populate("importerCompanyId", "name email phone")
+        .populate("importerCompanyId", "name email phone assignedOperator")
         .populate("importerAssociateId", "name email phone")
         .populate({
           path: "productVariant",
@@ -206,7 +207,7 @@ export class ImportController {
           .sort({ createdAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit)
-          .populate("importerCompanyId", "name email phone")
+          .populate("importerCompanyId", "name email phone assignedOperator")
           .populate("importerAssociateId", "name email phone")
           .populate({
             path: "productVariant",
@@ -218,9 +219,33 @@ export class ImportController {
         ImportListingModel.countDocuments(query),
       ]);
 
+      let viewerCompanyId: string | null = null;
+      if (isAssociateRole(role)) {
+        viewerCompanyId = await this.resolveAssociateCompany(userId);
+      }
+
+      const normalizedRows = rows.map((row: any) => {
+        if (isAdminRole(role)) return row;
+
+        const importerCompanyId = String(row?.importerCompanyId?._id || row?.importerCompanyId || "");
+        const assignedOperatorId = String(row?.importerCompanyId?.assignedOperator || "");
+        const canViewImporter = (isOperatorRole(role) && assignedOperatorId && assignedOperatorId === userId)
+          || (isAssociateRole(role) && viewerCompanyId && importerCompanyId === String(viewerCompanyId));
+
+        if (!canViewImporter) {
+          row.importerCompanyId = undefined;
+        }
+
+        if (!isAssociateRole(role) && !canViewImporter) {
+          row.adminCommission = undefined;
+        }
+
+        return row;
+      });
+
       return res.status(200).json({
         success: true,
-        data: { data: rows, total, page, limit },
+        data: { data: normalizedRows, total, page, limit },
       });
     } catch (error) {
       next(error);
@@ -276,7 +301,7 @@ export class ImportController {
         if (!price || price <= 0) return res.status(400).json({ success: false, message: "price must be greater than 0." });
         patch.price = price;
       }
-      if (req.body?.adminCommission !== undefined) {
+      if (req.body?.adminCommission !== undefined && (isAdminRole(role) || isOperatorRole(role))) {
         const adminCommission = toNumber(req.body?.adminCommission);
         if (adminCommission !== null && adminCommission < 0) {
           return res.status(400).json({ success: false, message: "adminCommission cannot be negative." });
@@ -311,7 +336,7 @@ export class ImportController {
       }
 
       const updated = await ImportListingModel.findByIdAndUpdate(id, { $set: patch }, { new: true })
-        .populate("importerCompanyId", "name email phone")
+        .populate("importerCompanyId", "name email phone assignedOperator")
         .populate("importerAssociateId", "name email phone")
         .populate({
           path: "productVariant",
@@ -455,7 +480,7 @@ export class ImportController {
           .populate({
             path: "listingId",
             populate: [
-              { path: "importerCompanyId", select: "name" },
+              { path: "importerCompanyId", select: "name assignedOperator" },
               { path: "portId", select: "name loCode" },
             ],
           })
@@ -465,9 +490,29 @@ export class ImportController {
         ImportReservationModel.countDocuments(query),
       ]);
 
+      let viewerCompanyId: string | null = null;
+      if (isAssociateRole(role)) {
+        viewerCompanyId = await this.resolveAssociateCompany(userId);
+      }
+
+      const normalizedRows = rows.map((row: any) => {
+        if (isAdminRole(role)) return row;
+        const importerCompanyId = String(row?.listingId?.importerCompanyId?._id || "");
+        const assignedOperatorId = String(row?.listingId?.importerCompanyId?.assignedOperator || "");
+        const canViewImporter = (isOperatorRole(role) && assignedOperatorId && assignedOperatorId === userId)
+          || (isAssociateRole(role) && viewerCompanyId && importerCompanyId === String(viewerCompanyId));
+        if (!canViewImporter && row?.listingId) {
+          row.listingId.importerCompanyId = undefined;
+        }
+        if (!isAssociateRole(role) && !canViewImporter && row?.listingId) {
+          row.listingId.adminCommission = undefined;
+        }
+        return row;
+      });
+
       return res.status(200).json({
         success: true,
-        data: { data: rows, total, page, limit },
+        data: { data: normalizedRows, total, page, limit },
       });
     } catch (error) {
       next(error);

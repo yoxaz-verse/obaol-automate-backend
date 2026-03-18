@@ -15,6 +15,8 @@ export interface ISampleRequest extends Document {
   requestState: Types.ObjectId;
   requestDistrict: Types.ObjectId;
   requestCity: Types.ObjectId;
+  requestAddress: string;
+  requestPincode: string;
   status: SampleRequestStatus;
   requestedAt: Date;
   quotedAt?: Date | null;

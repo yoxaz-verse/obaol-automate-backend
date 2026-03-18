@@ -38,10 +38,18 @@ export class SampleRequestController {
       const requestState = toObjectId(req.body?.requestState);
       const requestDistrict = toObjectId(req.body?.requestDistrict);
       const requestCity = toObjectId(req.body?.requestCity);
+      const requestAddress = String(req.body?.requestAddress || "").trim();
+      const requestPincode = String(req.body?.requestPincode || "").trim();
 
       if (!variantRateId) return res.status(400).json({ success: false, message: "variantRateId is required." });
       if (!requestState || !requestDistrict || !requestCity) {
         return res.status(400).json({ success: false, message: "state, district, and city are required." });
+      }
+      if (!requestAddress) {
+        return res.status(400).json({ success: false, message: "Full address is required." });
+      }
+      if (!requestPincode) {
+        return res.status(400).json({ success: false, message: "Pincode is required." });
       }
 
       const variantRate = await VariantRateModel.findById(variantRateId)
@@ -62,6 +70,8 @@ export class SampleRequestController {
         requestState,
         requestDistrict,
         requestCity,
+        requestAddress,
+        requestPincode,
         status: "REQUESTED",
         requestedAt: new Date(),
         markupPercent: 20,

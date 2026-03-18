@@ -271,7 +271,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "pincode-entries": {
         model: PincodeEntryModel,
-        searchableFields: ["pincode", "officeName"],
+        searchableFields: ["pincode", "officename"],
         sortableFields: ["pincode"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: { division: "divisions" },

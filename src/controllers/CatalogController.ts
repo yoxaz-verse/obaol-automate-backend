@@ -233,13 +233,9 @@ export class CatalogController {
                 return res.status(404).json({ success: false, message: "Company not found" });
             }
 
-            const startOfToday = new Date();
-            startOfToday.setHours(0, 0, 0, 0);
-
             const items = await CatalogItemModel.find({
                 associateCompanyId: associateCompany._id,
-                isLive: true,
-                updatedAt: { $gte: startOfToday }
+                isLive: true
             })
                 .populate("productVariantId")
                 .sort({ createdAt: -1 });
@@ -249,7 +245,8 @@ export class CatalogController {
                 data: items,
                 company: {
                     name: associateCompany.name,
-                    slug: associateCompany.slug
+                    slug: associateCompany.slug,
+                    isWebsiteLive: associateCompany.isWebsiteLive
                 }
             });
 

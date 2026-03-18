@@ -5,18 +5,19 @@ import { logError } from "../../utils/errorLogger";
 
 const router = Router();
 
-// Public route to get company details by subdomain or custom domain
+// Public route to get company details by subdomain, custom domain, or company slug
 router.get("/details/:slug", async (req, res) => {
     try {
         const { slug } = req.params;
+        const normalizedSlug = slug.toLowerCase();
 
-        // Search by subdomain or customDomain
+        // Search by subdomain, customDomain, or company slug
         const company = await AssociateCompanyModel.findOne({
             $or: [
-                { subdomain: slug.toLowerCase() },
-                { customDomain: slug.toLowerCase() }
+                { subdomain: normalizedSlug },
+                { customDomain: normalizedSlug },
+                { slug: normalizedSlug }
             ],
-            isWebsiteLive: true,
             isDeleted: { $ne: true }
         });
 

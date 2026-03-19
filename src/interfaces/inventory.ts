@@ -1,4 +1,4 @@
-import { Document, Schema } from "mongoose";
+import { Document, Schema, Types } from "mongoose";
 
 export interface IInventory extends Document {
     product: Schema.Types.ObjectId;
@@ -7,6 +7,10 @@ export interface IInventory extends Document {
     associateCompany?: Schema.Types.ObjectId;
     quantity: number;
     unit: string;
+    custodianType?: "WAREHOUSE" | null;
+    warehouseId?: Schema.Types.ObjectId | Types.ObjectId | null;
+    storedAt?: Date | null;
+    status?: "AVAILABLE" | "STORED" | "INBOUND_PENDING" | "OUTBOUND_PENDING";
     warehouseName?: string;
     state?: Schema.Types.ObjectId;
     district?: Schema.Types.ObjectId;

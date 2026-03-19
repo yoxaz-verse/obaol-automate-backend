@@ -9,9 +9,11 @@ const SampleRequestSchema: Schema = new Schema(
     buyerAssociateId: { type: Schema.Types.ObjectId, ref: "Associate", required: true, index: true },
     requestState: { type: Schema.Types.ObjectId, ref: "State", required: true },
     requestDistrict: { type: Schema.Types.ObjectId, ref: "District", required: true },
-    requestCity: { type: Schema.Types.ObjectId, ref: "City", required: true },
+    requestDivision: { type: Schema.Types.ObjectId, ref: "Division", required: true },
+    requestCity: { type: Schema.Types.ObjectId, ref: "City", required: false },
     requestAddress: { type: String, required: true, trim: true },
     requestPincode: { type: String, required: true, trim: true },
+    requestedSampleQtyKg: { type: Number, required: true },
     status: {
       type: String,
       enum: ["REQUESTED", "QUOTED", "ACCEPTED", "REJECTED", "CANCELLED"],

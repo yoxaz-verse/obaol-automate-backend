@@ -5,7 +5,8 @@ export type ServiceRequestType =
   | "QUALITY_TESTING"
   | "PACKAGING"
   | "TRANSPORTATION"
-  | "CUSTOMS_CLEARANCE";
+  | "CUSTOMS_CLEARANCE"
+  | "WAREHOUSING";
 
 export type ServiceRequestStatus = "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 

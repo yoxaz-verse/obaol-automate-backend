@@ -8,9 +8,9 @@ import { NotificationEntityTypes, NotificationTypes } from "../constants/notific
 import { InventoryReservationModel } from "../database/models/inventoryReservation";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
-import { OrderRuleModel } from "../database/models/orderRule";
+import { FlowRuleModel } from "../database/models/flowRule";
 import { ensureDefaultDocumentRules } from "../utils/documentRules";
-import { ensureDefaultOrderRules } from "../utils/orderRules";
+import { ensureDefaultFlowRules } from "../utils/flowRules";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -148,8 +148,9 @@ export class OrderController {
                 return res.status(400).json({ success: false, message: "Invalid trade type." });
             }
 
-            await ensureDefaultOrderRules();
-            const firstStage = await OrderRuleModel.findOne({
+            await ensureDefaultFlowRules();
+            const firstStage = await FlowRuleModel.findOne({
+                flowType: "TRADE_ORDER",
                 isDeleted: { $ne: true },
                 isActive: true,
                 tradeType: { $in: [externalTradeType, "BOTH"] },
@@ -237,7 +238,7 @@ export class OrderController {
             }
             if (workflowStage) {
                 await ensureDefaultDocumentRules();
-                await ensureDefaultOrderRules();
+                await ensureDefaultFlowRules();
                 const order = await OrderModel.findById(req.params.id).populate("enquiry").lean();
                 if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
@@ -247,7 +248,8 @@ export class OrderController {
                     "DOMESTIC"
                 ).toUpperCase();
                 const orderId = order?._id;
-                const stageRule = await OrderRuleModel.findOne({
+                const stageRule = await FlowRuleModel.findOne({
+                    flowType: "TRADE_ORDER",
                     stageKey: workflowStage,
                     isDeleted: { $ne: true },
                     isActive: true,

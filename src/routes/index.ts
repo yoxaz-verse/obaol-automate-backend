@@ -46,6 +46,11 @@ import importReservationRoutes from "./v1/importReservationRoutes";
 router.use(`${prefix}/import-reservations`, importReservationRoutes);
 console.info(`[routes] mounted ${prefix}/import-reservations`);
 
+// Warehouses (operators + storage)
+import warehouseRoutes from "./v1/warehouseRoutes";
+router.use(`${prefix}`, warehouseRoutes);
+console.info(`[routes] mounted ${prefix}/warehouse`);
+
 // Trade documents
 import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";
 router.use(`${prefix}/trade-documents`, tradeDocumentRoutes);
@@ -58,10 +63,13 @@ console.info(`[routes] mounted ${prefix}/document-rules`);
 // Enquiry rules
 import enquiryRuleRoutes from "./v1/enquiryRuleRoutes";
 import orderRuleRoutes from "./v1/orderRuleRoutes";
+import flowRuleRoutes from "./v1/flowRuleRoutes";
 router.use(`${prefix}/enquiry-rules`, enquiryRuleRoutes);
 console.info(`[routes] mounted ${prefix}/enquiry-rules`);
 router.use(`${prefix}/order-rules`, orderRuleRoutes);
 console.info(`[routes] mounted ${prefix}/order-rules`);
+router.use(`${prefix}/flow-rules`, flowRuleRoutes);
+console.info(`[routes] mounted ${prefix}/flow-rules`);
 
 // Analytics
 import analyticsRoutes from "./analyticsRoutes";

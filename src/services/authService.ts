@@ -184,6 +184,10 @@ export const authenticateUser = async (req: Request, res: Response) => {
             "projectmanager": ProjectManagerModel,
             "Operator": OperatorModel,
             "operator": OperatorModel,
+            "WarehouseOperator": OperatorModel,
+            "warehouse_operator": OperatorModel,
+            "warehouse-operator": OperatorModel,
+            "warehouseoperator": OperatorModel,
             "Associate": AgentModel,
             "associate": AgentModel,
             "ActivityManager": InventoryManagerModel,
@@ -226,7 +230,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
                     return res.status(401).json({ message: "Account pending admin approval." });
                 }
             }
-        } else if (roleLower === "operator" || roleLower === "team") {
+        } else if (roleLower === "operator" || roleLower === "team" || roleLower === "warehouse_operator" || roleLower === "warehouse-operator" || roleLower === "warehouseoperator") {
             const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
             if (registrationStatus !== "APPROVED" || user.isActive === false) {
                 return res.status(401).json({ message: "Account pending admin approval." });
@@ -244,7 +248,12 @@ export const authenticateUser = async (req: Request, res: Response) => {
         const jwtExpiresIn = rememberMe ? "24h" : "2h";
         const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
 
-        const normalizedRole = (roleLower === "operator") ? "Operator" : finalRole;
+        const normalizedRole =
+            roleLower === "operator"
+                ? "Operator"
+                : roleLower === "warehouse_operator" || roleLower === "warehouse-operator" || roleLower === "warehouseoperator"
+                    ? "warehouse_operator"
+                    : finalRole;
         const userForToken = {
             ...user.toObject(),
             role: normalizedRole,

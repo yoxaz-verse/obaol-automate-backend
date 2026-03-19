@@ -61,6 +61,16 @@ const COMPANY_FUNCTION_SEED = [
     ],
   },
   {
+    name: "Warehousing & Storage",
+    slug: "warehousing",
+    subFunctions: [
+      "General Warehouse",
+      "Cold Storage",
+      "Bonded Warehouse",
+      "Agro Warehouse",
+    ],
+  },
+  {
     name: "Finance & Risk Support",
     slug: "finance-risk",
     subFunctions: [

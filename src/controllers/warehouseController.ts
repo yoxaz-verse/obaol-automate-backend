@@ -1,0 +1,516 @@
+import { NextFunction, Request, Response } from "express";
+import { Types } from "mongoose";
+import { WarehouseModel } from "../database/models/warehouse";
+import { InventoryModel } from "../database/models/inventory";
+import { WarehouseMovementLogModel } from "../database/models/warehouseMovementLog";
+import { StorageChargeModel } from "../database/models/storageCharge";
+import { AssociateModel } from "../database/models/associate";
+
+const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
+const isAdminRole = (role: string) => role === "admin";
+const isAssociateRole = (role: string) => role === "associate";
+const isWarehouseOperatorRole = (role: string) =>
+  role === "warehouse_operator" || role === "warehouse-operator" || role === "warehouseoperator";
+
+const toObjectId = (value: any) => {
+  if (!Types.ObjectId.isValid(String(value || ""))) return null;
+  return new Types.ObjectId(String(value));
+};
+
+const toNumber = (value: any) => {
+  const num = Number(value);
+  if (Number.isNaN(num)) return null;
+  return num;
+};
+
+const normalizeUnit = (value: any, fallback: "KG" | "MT") => {
+  const unit = String(value || fallback).toUpperCase();
+  return unit === "KG" ? "KG" : "MT";
+};
+
+const diffDaysCeil = (fromDate: Date, toDate: Date) => {
+  const ms = toDate.getTime() - fromDate.getTime();
+  if (ms <= 0) return 0;
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+};
+
+export class WarehouseController {
+  private async resolveAssociateCompany(userId: string): Promise<string | null> {
+    const associate = await AssociateModel.findById(userId)
+      .select("_id associateCompany")
+      .lean();
+    return associate?.associateCompany ? String(associate.associateCompany) : null;
+  }
+
+  async createWarehouse(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
+      if (!isAdminRole(role) && !isAssociateRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const name = String(req.body?.name || "").trim();
+      const address = String(req.body?.address || "").trim();
+      const category = String(req.body?.category || "GENERAL").trim().toUpperCase();
+      const storageRatePerUnit = toNumber(req.body?.storageRatePerUnit);
+      const unit = normalizeUnit(req.body?.unit, "MT");
+
+      if (!name) {
+        return res.status(400).json({ success: false, message: "Warehouse name is required." });
+      }
+      if (storageRatePerUnit === null || storageRatePerUnit < 0) {
+        return res.status(400).json({ success: false, message: "Storage rate must be a valid number." });
+      }
+
+      const allowedCategories = ["GENERAL", "COLD_STORAGE", "BONDED", "AGRO"];
+      let ownerCompanyId: string | null = null;
+      let ownerAssociateId: string | null = null;
+      if (isAssociateRole(role)) {
+        ownerCompanyId = await this.resolveAssociateCompany(userId);
+        if (!ownerCompanyId) {
+          return res.status(400).json({ success: false, message: "Associate company not found." });
+        }
+        ownerAssociateId = userId;
+      }
+
+      const listingType = String(req.body?.listingType || "PRIVATE").trim().toUpperCase();
+      const isRentalActive = Boolean(req.body?.isRentalActive);
+
+      const warehouse = await WarehouseModel.create({
+        name,
+        address,
+        category: allowedCategories.includes(category) ? category : "GENERAL",
+        storageRatePerUnit,
+        unit,
+        isActive: req.body?.isActive !== undefined ? Boolean(req.body?.isActive) : true,
+        ownerCompanyId: ownerCompanyId || req.body?.ownerCompanyId || null,
+        ownerAssociateId: ownerAssociateId || req.body?.ownerAssociateId || null,
+        listingType: listingType === "RENTAL" ? "RENTAL" : "PRIVATE",
+        isRentalActive: listingType === "RENTAL" ? isRentalActive : false,
+      });
+
+      return res.status(201).json({ success: true, data: warehouse });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listWarehouses(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role) && !isAssociateRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const query: any = {};
+      const scope = String(req.query?.scope || "").toLowerCase();
+      if (req.query?.isActive !== undefined) {
+        query.isActive = String(req.query.isActive) === "true";
+      }
+
+      if (isAssociateRole(role)) {
+        const companyId = await this.resolveAssociateCompany(userId);
+        if (scope === "my") {
+          if (!companyId) {
+            return res.status(400).json({ success: false, message: "Associate company not found." });
+          }
+          query.ownerCompanyId = companyId;
+        } else {
+          // default to available
+          query.listingType = "RENTAL";
+          query.isRentalActive = true;
+          query.isActive = query.isActive ?? true;
+        }
+      } else if (scope === "available") {
+        query.listingType = "RENTAL";
+        query.isRentalActive = true;
+        query.isActive = query.isActive ?? true;
+      } else if (scope === "my") {
+        if (req.query?.ownerCompanyId) {
+          query.ownerCompanyId = String(req.query.ownerCompanyId);
+        }
+      }
+
+      const warehouses = await WarehouseModel.find(query).sort({ createdAt: -1 }).lean();
+      return res.status(200).json({ success: true, data: warehouses });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateWarehouse(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!isAdminRole(role) && !isAssociateRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const warehouseId = toObjectId(req.params?.id);
+      if (!warehouseId) {
+        return res.status(400).json({ success: false, message: "Invalid warehouse id." });
+      }
+
+      const payload: any = {};
+      if (req.body?.name !== undefined) payload.name = String(req.body?.name || "").trim();
+      if (req.body?.address !== undefined) payload.address = String(req.body?.address || "").trim();
+      if (req.body?.category !== undefined) {
+        const category = String(req.body?.category || "GENERAL").trim().toUpperCase();
+        payload.category = ["GENERAL", "COLD_STORAGE", "BONDED", "AGRO"].includes(category)
+          ? category
+          : "GENERAL";
+      }
+      if (req.body?.storageRatePerUnit !== undefined) {
+        const rate = toNumber(req.body?.storageRatePerUnit);
+        if (rate === null || rate < 0) {
+          return res.status(400).json({ success: false, message: "Storage rate must be a valid number." });
+        }
+        payload.storageRatePerUnit = rate;
+      }
+      if (req.body?.unit !== undefined) payload.unit = normalizeUnit(req.body?.unit, "MT");
+      if (req.body?.isActive !== undefined) payload.isActive = Boolean(req.body?.isActive);
+      if (req.body?.listingType !== undefined) {
+        const listingType = String(req.body?.listingType || "PRIVATE").trim().toUpperCase();
+        payload.listingType = listingType === "RENTAL" ? "RENTAL" : "PRIVATE";
+      }
+      if (req.body?.isRentalActive !== undefined) payload.isRentalActive = Boolean(req.body?.isRentalActive);
+
+      if (isAssociateRole(role)) {
+        const companyId = await this.resolveAssociateCompany(userId);
+        const warehouse = await WarehouseModel.findById(warehouseId).select("ownerCompanyId").lean();
+        if (!warehouse) {
+          return res.status(404).json({ success: false, message: "Warehouse not found." });
+        }
+        if (!companyId || String(warehouse.ownerCompanyId || "") !== String(companyId)) {
+          return res.status(403).json({ success: false, message: "You can only update your own warehouses." });
+        }
+      }
+
+      const updated = await WarehouseModel.findByIdAndUpdate(
+        warehouseId,
+        { $set: payload },
+        { new: true }
+      );
+      if (!updated) {
+        return res.status(404).json({ success: false, message: "Warehouse not found." });
+      }
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async recordInbound(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const inventoryId = toObjectId(req.body?.inventoryId);
+      const warehouseId = toObjectId(req.body?.warehouseId);
+      const quantity = toNumber(req.body?.quantity);
+      const linkedTradeId = toObjectId(req.body?.linkedTradeId);
+
+      if (!inventoryId || !warehouseId) {
+        return res.status(400).json({ success: false, message: "Inventory and warehouse are required." });
+      }
+      if (!quantity || quantity <= 0) {
+        return res.status(400).json({ success: false, message: "Quantity must be greater than zero." });
+      }
+
+      const [inventory, warehouse] = await Promise.all([
+        InventoryModel.findById(inventoryId),
+        WarehouseModel.findById(warehouseId),
+      ]);
+      if (!inventory) {
+        return res.status(404).json({ success: false, message: "Inventory not found." });
+      }
+      if (!warehouse) {
+        return res.status(404).json({ success: false, message: "Warehouse not found." });
+      }
+      if (!inventory.associateCompany) {
+        return res.status(400).json({ success: false, message: "Inventory owner company missing." });
+      }
+      if (!inventory.associateCompany) {
+        return res.status(400).json({ success: false, message: "Inventory owner company missing." });
+      }
+
+      inventory.quantity = Number(inventory.quantity || 0) + quantity;
+      inventory.custodianType = "WAREHOUSE";
+      inventory.warehouseId = warehouseId;
+      inventory.status = "STORED";
+      if (!inventory.storedAt) {
+        inventory.storedAt = new Date();
+      }
+      await inventory.save();
+
+      const movement = await WarehouseMovementLogModel.create({
+        inventoryId,
+        warehouseId,
+        companyId: inventory.associateCompany,
+        type: "INBOUND",
+        quantity,
+        timestamp: new Date(),
+        performedBy: userId,
+        linkedTradeId,
+        note: String(req.body?.note || "").trim(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: { inventory, movement },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async recordOutbound(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const inventoryId = toObjectId(req.body?.inventoryId);
+      const warehouseId = toObjectId(req.body?.warehouseId);
+      const quantity = toNumber(req.body?.quantity);
+      const linkedTradeId = toObjectId(req.body?.linkedTradeId);
+
+      if (!inventoryId || !warehouseId) {
+        return res.status(400).json({ success: false, message: "Inventory and warehouse are required." });
+      }
+      if (!quantity || quantity <= 0) {
+        return res.status(400).json({ success: false, message: "Quantity must be greater than zero." });
+      }
+
+      const [inventory, warehouse] = await Promise.all([
+        InventoryModel.findById(inventoryId),
+        WarehouseModel.findById(warehouseId),
+      ]);
+      if (!inventory) {
+        return res.status(404).json({ success: false, message: "Inventory not found." });
+      }
+      if (!warehouse) {
+        return res.status(404).json({ success: false, message: "Warehouse not found." });
+      }
+      if (!inventory.associateCompany) {
+        return res.status(400).json({ success: false, message: "Inventory owner company missing." });
+      }
+      if (String(inventory.warehouseId || "") !== String(warehouseId)) {
+        return res.status(400).json({ success: false, message: "Inventory is not stored at this warehouse." });
+      }
+      if (inventory.quantity < quantity) {
+        return res.status(400).json({ success: false, message: "Insufficient inventory quantity." });
+      }
+
+      const remaining = Number(inventory.quantity || 0) - quantity;
+      inventory.quantity = remaining;
+      if (remaining <= 0) {
+        inventory.status = "AVAILABLE";
+        inventory.custodianType = null;
+        inventory.warehouseId = null;
+        inventory.storedAt = null;
+      } else {
+        inventory.status = "STORED";
+      }
+      await inventory.save();
+
+      const movement = await WarehouseMovementLogModel.create({
+        inventoryId,
+        warehouseId,
+        companyId: inventory.associateCompany,
+        type: "OUTBOUND",
+        quantity,
+        timestamp: new Date(),
+        performedBy: userId,
+        linkedTradeId,
+        note: String(req.body?.note || "").trim(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: { inventory, movement },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async recordAdjustment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const inventoryId = toObjectId(req.body?.inventoryId);
+      const warehouseId = toObjectId(req.body?.warehouseId);
+      const adjustment = toNumber(req.body?.quantity);
+      const linkedTradeId = toObjectId(req.body?.linkedTradeId);
+
+      if (!inventoryId || !warehouseId) {
+        return res.status(400).json({ success: false, message: "Inventory and warehouse are required." });
+      }
+      if (adjustment === null || adjustment === 0) {
+        return res.status(400).json({ success: false, message: "Adjustment quantity is required." });
+      }
+
+      const [inventory, warehouse] = await Promise.all([
+        InventoryModel.findById(inventoryId),
+        WarehouseModel.findById(warehouseId),
+      ]);
+      if (!inventory) {
+        return res.status(404).json({ success: false, message: "Inventory not found." });
+      }
+      if (!warehouse) {
+        return res.status(404).json({ success: false, message: "Warehouse not found." });
+      }
+      if (!inventory.associateCompany) {
+        return res.status(400).json({ success: false, message: "Inventory owner company missing." });
+      }
+      if (String(inventory.warehouseId || "") !== String(warehouseId)) {
+        return res.status(400).json({ success: false, message: "Inventory is not stored at this warehouse." });
+      }
+
+      const newQty = Number(inventory.quantity || 0) + adjustment;
+      if (newQty < 0) {
+        return res.status(400).json({ success: false, message: "Adjustment would make quantity negative." });
+      }
+      inventory.quantity = newQty;
+      await inventory.save();
+
+      const movement = await WarehouseMovementLogModel.create({
+        inventoryId,
+        warehouseId,
+        companyId: inventory.associateCompany,
+        type: "ADJUSTMENT",
+        quantity: Math.abs(adjustment),
+        timestamp: new Date(),
+        performedBy: userId,
+        linkedTradeId,
+        note: String(req.body?.note || "").trim(),
+      });
+
+      return res.status(200).json({ success: true, data: { inventory, movement } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listMovements(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const query: any = {};
+      const warehouseId = toObjectId(req.query?.warehouseId);
+      const inventoryId = toObjectId(req.query?.inventoryId);
+      const companyId = toObjectId(req.query?.companyId);
+      const type = String(req.query?.type || "").toUpperCase();
+
+      if (warehouseId) query.warehouseId = warehouseId;
+      if (inventoryId) query.inventoryId = inventoryId;
+      if (companyId) query.companyId = companyId;
+      if (["INBOUND", "OUTBOUND", "ADJUSTMENT"].includes(type)) query.type = type;
+
+      const movements = await WarehouseMovementLogModel.find(query)
+        .sort({ timestamp: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: movements });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listStorageCharges(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const query: any = {};
+      const inventoryId = toObjectId(req.query?.inventoryId);
+      const warehouseId = toObjectId(req.query?.warehouseId);
+      const companyId = toObjectId(req.query?.companyId);
+      const status = String(req.query?.status || "").toUpperCase();
+
+      if (inventoryId) query.inventoryId = inventoryId;
+      if (warehouseId) query.warehouseId = warehouseId;
+      if (companyId) query.companyId = companyId;
+      if (["CALCULATED", "BILLED", "PAID"].includes(status)) query.status = status;
+
+      const charges = await StorageChargeModel.find(query).sort({ createdAt: -1 }).lean();
+      return res.status(200).json({ success: true, data: charges });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async calculateStorageCharge(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const inventoryId = toObjectId(req.body?.inventoryId);
+      const warehouseId = toObjectId(req.body?.warehouseId);
+      const linkedTradeId = toObjectId(req.body?.linkedTradeId);
+      if (!inventoryId || !warehouseId) {
+        return res.status(400).json({ success: false, message: "Inventory and warehouse are required." });
+      }
+
+      const [inventory, warehouse] = await Promise.all([
+        InventoryModel.findById(inventoryId),
+        WarehouseModel.findById(warehouseId),
+      ]);
+      if (!inventory) {
+        return res.status(404).json({ success: false, message: "Inventory not found." });
+      }
+      if (!warehouse) {
+        return res.status(404).json({ success: false, message: "Warehouse not found." });
+      }
+
+      const fromDateRaw = req.body?.fromDate ? new Date(req.body.fromDate) : (inventory.storedAt || new Date());
+      const toDateRaw = req.body?.toDate ? new Date(req.body.toDate) : new Date();
+      const durationDays = diffDaysCeil(fromDateRaw, toDateRaw);
+
+      const quantity = Number(req.body?.quantity ?? inventory.quantity ?? 0);
+      const ratePerUnit = Number(req.body?.ratePerUnit ?? warehouse.storageRatePerUnit ?? 0);
+      const totalCharge = Number((quantity * ratePerUnit * durationDays).toFixed(2));
+
+      const charge = await StorageChargeModel.create({
+        inventoryId,
+        warehouseId,
+        companyId: inventory.associateCompany,
+        fromDate: fromDateRaw,
+        toDate: toDateRaw,
+        durationDays,
+        ratePerUnit,
+        quantity,
+        totalCharge,
+        linkedTradeId,
+        status: "CALCULATED",
+      });
+
+      return res.status(200).json({ success: true, data: charge });
+    } catch (error) {
+      next(error);
+    }
+  }
+}

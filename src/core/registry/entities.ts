@@ -52,6 +52,10 @@ import { InventoryModel } from "../../database/models/inventory";
 import { ServiceRequestModel } from "../../database/models/serviceRequest";
 import { InventoryReservationModel } from "../../database/models/inventoryReservation";
 import { DocumentRuleModel } from "../../database/models/documentRule";
+import { WarehouseModel } from "../../database/models/warehouse";
+import { WarehouseAssignmentModel } from "../../database/models/warehouseAssignment";
+import { WarehouseMovementLogModel } from "../../database/models/warehouseMovementLog";
+import { StorageChargeModel } from "../../database/models/storageCharge";
 
 export interface EntityConfig {
     model: Model<any>;
@@ -203,11 +207,50 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             productVariant: "product-variants",
             associate: "associates",
             associateCompany: "associate-companies",
+            warehouseId: "warehouses",
             state: "states",
             district: "districts",
             division: "divisions",
             pincodeEntry: "pincode-entries",
             linkedVariantRate: "variant-rates"
+        },
+    },
+    "warehouses": {
+        model: WarehouseModel,
+        searchableFields: ["name", "address"],
+        sortableFields: ["createdAt", "name"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+    },
+    "warehouse-assignments": {
+        model: WarehouseAssignmentModel,
+        searchableFields: ["status"],
+        sortableFields: ["createdAt"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+        relations: {
+            warehouseId: "warehouses",
+            companyId: "associate-companies",
+        },
+    },
+    "warehouse-movements": {
+        model: WarehouseMovementLogModel,
+        searchableFields: ["type", "note"],
+        sortableFields: ["timestamp", "createdAt"],
+        allowedOperations: ["list", "read", "delete"],
+        relations: {
+            inventoryId: "inventories",
+            warehouseId: "warehouses",
+            companyId: "associate-companies",
+        },
+    },
+    "storage-charges": {
+        model: StorageChargeModel,
+        searchableFields: ["status"],
+        sortableFields: ["createdAt", "fromDate"],
+        allowedOperations: ["list", "read", "update", "delete"],
+        relations: {
+            inventoryId: "inventories",
+            warehouseId: "warehouses",
+            companyId: "associate-companies",
         },
     },
     "inventory-reservations": {

@@ -37,19 +37,24 @@ export class SampleRequestController {
       const variantRateId = toObjectId(req.body?.variantRateId);
       const requestState = toObjectId(req.body?.requestState);
       const requestDistrict = toObjectId(req.body?.requestDistrict);
+      const requestDivision = toObjectId(req.body?.requestDivision);
       const requestCity = toObjectId(req.body?.requestCity);
       const requestAddress = String(req.body?.requestAddress || "").trim();
       const requestPincode = String(req.body?.requestPincode || "").trim();
+      const requestedSampleQtyKg = Number(req.body?.requestedSampleQtyKg);
 
       if (!variantRateId) return res.status(400).json({ success: false, message: "variantRateId is required." });
-      if (!requestState || !requestDistrict || !requestCity) {
-        return res.status(400).json({ success: false, message: "state, district, and city are required." });
+      if (!requestState || !requestDistrict || !requestDivision) {
+        return res.status(400).json({ success: false, message: "state, district, and division are required." });
       }
       if (!requestAddress) {
         return res.status(400).json({ success: false, message: "Full address is required." });
       }
       if (!requestPincode) {
         return res.status(400).json({ success: false, message: "Pincode is required." });
+      }
+      if (!requestedSampleQtyKg || Number.isNaN(requestedSampleQtyKg) || requestedSampleQtyKg <= 0) {
+        return res.status(400).json({ success: false, message: "Sample quantity (kg) is required." });
       }
 
       const variantRate = await VariantRateModel.findById(variantRateId)
@@ -69,9 +74,11 @@ export class SampleRequestController {
         buyerAssociateId: userId,
         requestState,
         requestDistrict,
+        requestDivision,
         requestCity,
         requestAddress,
         requestPincode,
+        requestedSampleQtyKg,
         status: "REQUESTED",
         requestedAt: new Date(),
         markupPercent: 20,
@@ -88,6 +95,7 @@ export class SampleRequestController {
         .populate("buyerAssociateId", "name email phone")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
         .populate("requestCity", "name")
         .lean();
 
@@ -134,6 +142,7 @@ export class SampleRequestController {
           .populate("buyerAssociateId", "name email phone")
           .populate("requestState", "name")
           .populate("requestDistrict", "name")
+          .populate("requestDivision", "name")
           .populate("requestCity", "name")
           .lean(),
         SampleRequestModel.countDocuments(query),
@@ -212,6 +221,7 @@ export class SampleRequestController {
         .populate("buyerAssociateId", "name email phone")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
         .populate("requestCity", "name");
 
       return res.status(200).json({ success: true, data: updated });
@@ -264,6 +274,7 @@ export class SampleRequestController {
         .populate("buyerAssociateId", "name email phone")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
         .populate("requestCity", "name");
 
       return res.status(200).json({ success: true, data: updated });
@@ -309,6 +320,7 @@ export class SampleRequestController {
         .populate("buyerAssociateId", "name email phone")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
         .populate("requestCity", "name");
 
       return res.status(200).json({ success: true, data: updated });

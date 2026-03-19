@@ -9,7 +9,7 @@ import { InquiryModel } from "../database/models/enquiry";
 import { OrderModel } from "../database/models/order";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { InventoryReservationModel } from "../database/models/inventoryReservation";
-import { OrderRuleModel } from "../database/models/orderRule";
+import { FlowRuleModel } from "../database/models/flowRule";
 
 const DEMO_TAG = "admin-preview";
 
@@ -155,7 +155,8 @@ export class DemoController {
         demoCreatedBy,
       });
 
-      const firstStage = await OrderRuleModel.findOne({
+      const firstStage = await FlowRuleModel.findOne({
+        flowType: "TRADE_ORDER",
         isDeleted: { $ne: true },
         isActive: true,
         tradeType: { $in: ["DOMESTIC", "BOTH"] },

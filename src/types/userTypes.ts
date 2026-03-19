@@ -8,6 +8,9 @@ export interface IUser {
 
 export type UserRole =
   | "Admin"
+  | "Operator"
+  | "Associate"
+  | "warehouse_operator"
   | "ActivityManager"
   | "Worker"
   | "User"

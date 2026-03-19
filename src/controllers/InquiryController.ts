@@ -34,8 +34,8 @@ import { InventoryReservationModel } from "../database/models/inventoryReservati
 import { OrderModel } from "../database/models/order";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
-import { EnquiryRuleModel } from "../database/models/enquiryRule";
-import { ensureDefaultEnquiryRules } from "../utils/enquiryRules";
+import { FlowRuleModel } from "../database/models/flowRule";
+import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { TradeDocumentController } from "./tradeDocumentController";
@@ -1441,8 +1441,9 @@ export class InquiryController {
                 return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
             }
 
-            await ensureDefaultEnquiryRules();
-            const stageRule = await EnquiryRuleModel.findOne({
+            await ensureDefaultFlowRules();
+            const stageRule = await FlowRuleModel.findOne({
+                flowType: "TRADE_ENQUIRY",
                 stageKey: workflowStage,
                 isDeleted: { $ne: true },
                 isActive: true,

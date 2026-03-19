@@ -22,6 +22,7 @@ import { operatorMentorValidationHook } from "./operatorMentorValidationHook";
 import { organizationReportPreReadHook, organizationReportPreWriteHook } from "./organizationReportHooks";
 import { variantRateMarketplaceQueryHook } from "./variantRateMarketplaceQueryHook";
 import { inventoryVariantRateSyncHook } from "./inventoryVariantRateSyncHook";
+import { inventoryWarehouseSelectionHook } from "./inventoryWarehouseSelectionHook";
 import { variantRateInventoryLinkHook } from "./variantRateInventoryLinkHook";
 import { inventoryReservationPreReadHook, inventoryReservationPreWriteHook } from "./inventoryReservationHooks";
 import { orderInventoryReservationHook } from "./orderInventoryReservationHook";
@@ -91,6 +92,7 @@ export const registerAllHooks = () => {
         await orderInventoryReservationHook(entityName, result, mode);
     });
     HookDispatcher.registerPostRead("company-functions", companyFunctionReadHook);
+    HookDispatcher.registerPreWrite("inventories", inventoryWarehouseSelectionHook);
     HookDispatcher.registerPostWrite("inventories", inventoryVariantRateSyncHook);
     HookDispatcher.registerPreRead("inventory-reservations", inventoryReservationPreReadHook);
     HookDispatcher.registerPreWrite("inventory-reservations", inventoryReservationPreWriteHook);

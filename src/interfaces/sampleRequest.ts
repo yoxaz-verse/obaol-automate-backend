@@ -14,9 +14,11 @@ export interface ISampleRequest extends Document {
   buyerAssociateId: Types.ObjectId;
   requestState: Types.ObjectId;
   requestDistrict: Types.ObjectId;
-  requestCity: Types.ObjectId;
+  requestDivision: Types.ObjectId;
+  requestCity?: Types.ObjectId;
   requestAddress: string;
   requestPincode: string;
+  requestedSampleQtyKg: number;
   status: SampleRequestStatus;
   requestedAt: Date;
   quotedAt?: Date | null;

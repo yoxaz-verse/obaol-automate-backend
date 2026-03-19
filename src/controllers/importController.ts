@@ -225,19 +225,34 @@ export class ImportController {
       }
 
       const normalizedRows = rows.map((row: any) => {
-        if (isAdminRole(role)) return row;
+        if (isAdminRole(role)) {
+          row.displayPrice = Number(row.price || 0);
+          row.canViewCommission = true;
+          row.canViewImporter = true;
+          return row;
+        }
 
         const importerCompanyId = String(row?.importerCompanyId?._id || row?.importerCompanyId || "");
         const assignedOperatorId = String(row?.importerCompanyId?.assignedOperator || "");
-        const canViewImporter = (isOperatorRole(role) && assignedOperatorId && assignedOperatorId === userId)
-          || (isAssociateRole(role) && viewerCompanyId && importerCompanyId === String(viewerCompanyId));
+        const isOperatorViewer = isOperatorRole(role) && assignedOperatorId && assignedOperatorId === userId;
+        const isImporterViewer = isAssociateRole(role) && viewerCompanyId && importerCompanyId === String(viewerCompanyId);
+        const canViewSensitive = isOperatorViewer || isImporterViewer;
 
-        if (!canViewImporter) {
+        if (!canViewSensitive) {
           row.importerCompanyId = undefined;
         }
 
-        if (!isAssociateRole(role) && !canViewImporter) {
+        if (canViewSensitive) {
+          row.displayPrice = Number(row.price || 0);
+          row.canViewCommission = true;
+          row.canViewImporter = true;
+        } else {
+          const finalPrice = Number(row.price || 0) + Number(row.adminCommission || 0);
+          row.displayPrice = finalPrice;
+          row.price = finalPrice;
           row.adminCommission = undefined;
+          row.canViewCommission = false;
+          row.canViewImporter = false;
         }
 
         return row;
@@ -496,16 +511,34 @@ export class ImportController {
       }
 
       const normalizedRows = rows.map((row: any) => {
-        if (isAdminRole(role)) return row;
+        if (isAdminRole(role)) {
+          if (row?.listingId) {
+            row.listingId.displayPrice = Number(row.listingId.price || 0);
+            row.listingId.canViewCommission = true;
+            row.listingId.canViewImporter = true;
+          }
+          return row;
+        }
         const importerCompanyId = String(row?.listingId?.importerCompanyId?._id || "");
         const assignedOperatorId = String(row?.listingId?.importerCompanyId?.assignedOperator || "");
-        const canViewImporter = (isOperatorRole(role) && assignedOperatorId && assignedOperatorId === userId)
-          || (isAssociateRole(role) && viewerCompanyId && importerCompanyId === String(viewerCompanyId));
-        if (!canViewImporter && row?.listingId) {
-          row.listingId.importerCompanyId = undefined;
-        }
-        if (!isAssociateRole(role) && !canViewImporter && row?.listingId) {
-          row.listingId.adminCommission = undefined;
+        const isOperatorViewer = isOperatorRole(role) && assignedOperatorId && assignedOperatorId === userId;
+        const isImporterViewer = isAssociateRole(role) && viewerCompanyId && importerCompanyId === String(viewerCompanyId);
+        const canViewSensitive = isOperatorViewer || isImporterViewer;
+        if (row?.listingId) {
+          if (!canViewSensitive) {
+            const commission = Number(row.listingId.adminCommission || 0);
+            const finalPrice = Number(row.listingId.price || 0) + commission;
+            row.listingId.displayPrice = finalPrice;
+            row.listingId.price = finalPrice;
+            row.listingId.importerCompanyId = undefined;
+            row.listingId.adminCommission = undefined;
+            row.listingId.canViewCommission = false;
+            row.listingId.canViewImporter = false;
+          } else {
+            row.listingId.displayPrice = Number(row.listingId.price || 0);
+            row.listingId.canViewCommission = true;
+            row.listingId.canViewImporter = true;
+          }
         }
         return row;
       });

@@ -44,6 +44,7 @@ import { RateAttachmentModel } from "../../database/models/rateAttachmentModel";
 import { CatalogItemModel } from "../../database/models/catalogItem";
 import FileModel from "../../database/models/file";
 import { IncotermModel } from "../../database/models/incoterm";
+import { PaymentTermModel } from "../../database/models/paymentTerm";
 import { CompanyFunctionModel } from "../../database/models/companyFunction";
 import { CompanySubFunctionModel } from "../../database/models/companySubFunction";
 import { CompanyFunctionMappingModel } from "../../database/models/companyFunctionMapping";
@@ -530,6 +531,12 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         model: IncotermModel,
         searchableFields: ["code", "name"],
         sortableFields: ["code", "name"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+    },
+    "payment-terms": {
+        model: PaymentTermModel,
+        searchableFields: ["label", "milestone"],
+        sortableFields: ["label"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
     },
 

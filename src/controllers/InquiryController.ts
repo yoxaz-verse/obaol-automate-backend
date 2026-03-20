@@ -169,6 +169,7 @@ export class InquiryController {
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
+                paymentTermId,
                 supplierCommitUntil,
                 notes
             } = req.body;
@@ -218,6 +219,7 @@ export class InquiryController {
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
+                paymentTermId,
                 supplierCommitUntil,
                 rate,
                 adminCommission,

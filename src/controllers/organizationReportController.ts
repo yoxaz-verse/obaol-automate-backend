@@ -165,6 +165,7 @@ export class OrganizationReportController {
           variantRateId: (existingInquiry as any).variantRateId,
           catalogItemId: (existingInquiry as any).catalogItemId,
           preferredIncoterm: (existingInquiry as any).preferredIncoterm || null,
+          paymentTermId: (existingInquiry as any).paymentTermId || null,
           supplierCommitUntil: null,
           rate: (existingInquiry as any).rate || 0,
           adminCommission: (existingInquiry as any).adminCommission || 0,

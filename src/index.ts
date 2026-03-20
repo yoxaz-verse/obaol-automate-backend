@@ -6,12 +6,16 @@ import express from "express";
 import "./cron"; // ✅ Add this line to start cron jobs!
 import { prefix } from "./routes";
 import { seedCompanyFunctions } from "./seeds/companyFunctions.seed";
+import { seedIncoterms } from "./seeds/incoterms.seed";
+import { seedPaymentTerms } from "./seeds/paymentTerms.seed";
 const PORTD = Number(PORT) || 5001;
 
 async function startServer() {
   try {
     await connectDB();
     await seedCompanyFunctions();
+    await seedIncoterms();
+    await seedPaymentTerms();
     app.listen(PORTD, '0.0.0.0', () => {
       console.log(`OBAOL Server is running on port ${PORTD}`);
       console.log(`Environment: ${NODE_ENV}`);

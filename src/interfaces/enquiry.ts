@@ -28,6 +28,7 @@ export interface IInquiry extends Document {
 
   // Commercial terms
   preferredIncoterm?: Types.ObjectId | null;
+  paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
 
   // Acceptance markers
@@ -132,6 +133,7 @@ export interface ICreateInquiry {
   mediatorAssociateId?: Types.ObjectId | null;
   assignedOperatorId?: Types.ObjectId | null;
   preferredIncoterm?: Types.ObjectId | null;
+  paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
   rate?: number;
   adminCommission?: number;
@@ -161,6 +163,7 @@ export interface IUpdateInquiry {
   sellerAssociateId?: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
   preferredIncoterm?: Types.ObjectId | null;
+  paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
   notes?: string;
   sourceType?: "STANDARD" | "IMPORT";

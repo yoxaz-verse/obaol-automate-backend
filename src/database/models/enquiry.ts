@@ -98,6 +98,12 @@ const InquirySchema: Schema = new Schema(
             default: null,
             index: true
         },
+        paymentTermId: {
+            type: Schema.Types.ObjectId,
+            ref: "PaymentTerm",
+            default: null,
+            index: true
+        },
 
         // Supplier commitment window (e.g. price valid until)
         supplierCommitUntil: {

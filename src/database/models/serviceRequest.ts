@@ -62,6 +62,12 @@ const ServiceRequestSchema: Schema = new Schema(
       type: Date,
       default: null,
     },
+    warehouseId: {
+      type: Schema.Types.ObjectId,
+      ref: "Warehouse",
+      default: null,
+      index: true,
+    },
     createdByUserId: {
       type: Schema.Types.ObjectId,
       required: true,

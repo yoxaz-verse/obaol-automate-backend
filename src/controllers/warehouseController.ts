@@ -17,6 +17,13 @@ const toObjectId = (value: any) => {
   return new Types.ObjectId(String(value));
 };
 
+const toObjectIdArray = (value: any) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => toObjectId(item))
+    .filter((item): item is Types.ObjectId => Boolean(item));
+};
+
 const toNumber = (value: any) => {
   const num = Number(value);
   if (Number.isNaN(num)) return null;
@@ -56,6 +63,7 @@ export class WarehouseController {
       const category = String(req.body?.category || "GENERAL").trim().toUpperCase();
       const storageRatePerUnit = toNumber(req.body?.storageRatePerUnit);
       const unit = normalizeUnit(req.body?.unit, "MT");
+      const allowedCategoryIds = toObjectIdArray(req.body?.allowedCategoryIds);
 
       if (!name) {
         return res.status(400).json({ success: false, message: "Warehouse name is required." });
@@ -89,6 +97,7 @@ export class WarehouseController {
         ownerAssociateId: ownerAssociateId || req.body?.ownerAssociateId || null,
         listingType: listingType === "RENTAL" ? "RENTAL" : "PRIVATE",
         isRentalActive: listingType === "RENTAL" ? isRentalActive : false,
+        allowedCategoryIds,
       });
 
       return res.status(201).json({ success: true, data: warehouse });
@@ -171,6 +180,9 @@ export class WarehouseController {
         payload.storageRatePerUnit = rate;
       }
       if (req.body?.unit !== undefined) payload.unit = normalizeUnit(req.body?.unit, "MT");
+      if (req.body?.allowedCategoryIds !== undefined) {
+        payload.allowedCategoryIds = toObjectIdArray(req.body?.allowedCategoryIds);
+      }
       if (req.body?.isActive !== undefined) payload.isActive = Boolean(req.body?.isActive);
       if (req.body?.listingType !== undefined) {
         const listingType = String(req.body?.listingType || "PRIVATE").trim().toUpperCase();

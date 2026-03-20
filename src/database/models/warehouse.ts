@@ -15,6 +15,12 @@ const WarehouseSchema = new Schema(
             default: "GENERAL",
             index: true,
         },
+        allowedCategoryIds: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "Category",
+            },
+        ],
         storageRatePerUnit: { type: Number, required: true, default: 0, min: 0 },
         unit: { type: String, enum: ["KG", "MT"], default: "MT" },
         isActive: { type: Boolean, default: true, index: true },

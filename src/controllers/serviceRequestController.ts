@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { ServiceRequestModel, SERVICE_REQUEST_STATUSES, SERVICE_REQUEST_TYPES } from "../database/models/serviceRequest";
+import { WarehouseModel } from "../database/models/warehouse";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import {
@@ -74,10 +75,37 @@ export class ServiceRequestController {
         return res.status(403).json({ success: false, message: "Not allowed to create service requests." });
       }
 
-      const requestType = String(req.body?.requestType || "").toUpperCase();
-      if (!SERVICE_REQUEST_TYPES.includes(requestType as any)) {
-        return res.status(400).json({ success: false, message: "Invalid requestType." });
+    const requestType = String(req.body?.requestType || "").toUpperCase();
+    if (!SERVICE_REQUEST_TYPES.includes(requestType as any)) {
+      return res.status(400).json({ success: false, message: "Invalid requestType." });
+    }
+
+    const warehouseId = toObjectId(req.body?.warehouseId);
+    let candidateProviders: string[] = [];
+    if (requestType === "WAREHOUSING") {
+      if (!warehouseId) {
+        return res.status(400).json({ success: false, message: "Warehouse is required for warehousing requests." });
       }
+      const warehouse = await WarehouseModel.findById(warehouseId)
+        .select("ownerCompanyId listingType isRentalActive isActive")
+        .lean();
+      if (!warehouse) {
+        return res.status(404).json({ success: false, message: "Selected warehouse not found." });
+      }
+      if (
+        warehouse.listingType !== "RENTAL" ||
+        !warehouse.isRentalActive ||
+        !warehouse.isActive
+      ) {
+        return res.status(400).json({ success: false, message: "Selected warehouse is not available for rent." });
+      }
+      if (!warehouse.ownerCompanyId) {
+        return res.status(400).json({ success: false, message: "Selected warehouse has no owner company." });
+      }
+      candidateProviders = [String(warehouse.ownerCompanyId)];
+    } else {
+      candidateProviders = await this.getCandidateProviderIds(requestType);
+    }
 
       const title = String(req.body?.title || "").trim();
       const serviceSpecifications = String(req.body?.serviceSpecifications || "").trim();
@@ -131,8 +159,6 @@ export class ServiceRequestController {
         }
       }
 
-      const candidateProviders = await this.getCandidateProviderIds(requestType);
-
       const created = await ServiceRequestModel.create({
         requestType,
         title,
@@ -143,6 +169,7 @@ export class ServiceRequestController {
         toDistrict,
         requiredFromDate,
         requiredToDate,
+        warehouseId: warehouseId || null,
         createdByUserId: userId,
         createdByRole: req.user?.role || "",
         createdByAssociateId,
@@ -161,6 +188,7 @@ export class ServiceRequestController {
         .populate("fromDistrict", "name")
         .populate("toState", "name")
         .populate("toDistrict", "name")
+        .populate("warehouseId", "name address storageRatePerUnit unit category allowedCategoryIds ownerCompanyId")
         .populate("createdByCompanyId", "name email phone")
         .populate("candidateProviders", "name email phone serviceCapabilities")
         .lean();

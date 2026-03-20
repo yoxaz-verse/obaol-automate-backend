@@ -8,6 +8,7 @@ export interface IWarehouse extends Document {
     listingType: "PRIVATE" | "RENTAL";
     isRentalActive: boolean;
     category: "GENERAL" | "COLD_STORAGE" | "BONDED" | "AGRO";
+    allowedCategoryIds?: Schema.Types.ObjectId[];
     storageRatePerUnit: number;
     unit: "KG" | "MT";
     isActive: boolean;

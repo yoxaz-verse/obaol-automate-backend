@@ -30,6 +30,7 @@ export interface IServiceRequest extends Document {
   toDistrict?: Types.ObjectId | null;
   requiredFromDate?: Date | null;
   requiredToDate?: Date | null;
+  warehouseId?: Types.ObjectId | string | null;
   createdByUserId: Types.ObjectId;
   createdByRole: string;
   createdByAssociateId?: Types.ObjectId | null;

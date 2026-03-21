@@ -22,10 +22,14 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   let associateCompanyId: string | null = null;
   let companyInterests: string[] = [];
   let companyInterestsConfigured = true;
+  let dashboardTutorialStatus: string | null = null;
 
   if (roleLower === "associate") {
-    const associate = await AssociateModel.findById(req.user.id).select("associateCompany").lean();
+    const associate = await AssociateModel.findById(req.user.id)
+      .select("associateCompany dashboardTutorialStatus")
+      .lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
+    dashboardTutorialStatus = associate?.dashboardTutorialStatus || "PENDING";
   } else if (roleLower === "operator" || roleLower === "team") {
     const companies = await AssociateCompanyModel.find({ assignedOperator: req.user.id }).select("_id").limit(2).lean();
     if (companies.length === 1) {
@@ -55,6 +59,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       associateCompanyId,
       companyInterestsConfigured,
       companyInterests,
+      dashboardTutorialStatus,
       verified: {
         email: verificationRecord?.verified === true,
         phone: false, // phone/gst can be added later if needed

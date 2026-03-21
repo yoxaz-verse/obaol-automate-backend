@@ -26,6 +26,8 @@ export interface IAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
+  dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
   presenceUpdatedAt?: Date | null;
   presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
@@ -56,6 +58,8 @@ export interface ICreateAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
+  dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
   presenceUpdatedAt?: Date | null;
   presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
@@ -86,6 +90,8 @@ export interface IUpdateAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
+  dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
   presenceUpdatedAt?: Date | null;
   presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;

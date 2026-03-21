@@ -91,6 +91,10 @@ router.use(`${prefix}/notifications`, notificationRoutes);
 import presenceRoutes from "./v1/presenceRoutes";
 router.use(`${prefix}/presence`, presenceRoutes);
 
+// Associate onboarding (dashboard tutorial)
+import associateOnboardingRoutes from "./v1/associateOnboardingRoutes";
+router.use(`${prefix}`, associateOnboardingRoutes);
+
 // Organization reports (custom admin actions + generic CRUD via catch-all)
 import organizationReportRoutes from "./v1/organizationReportRoutes";
 router.use(`${prefix}/organization-reports`, organizationReportRoutes);

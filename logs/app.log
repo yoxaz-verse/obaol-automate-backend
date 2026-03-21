@@ -4610,3 +4610,6 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-01.oq0ij
 2026-03-21T14:27:20.888Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
 2026-03-21T15:45:27.423Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
 2026-03-21T17:03:11.069Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-21T17:56:06.795Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-21T18:30:00.505Z [INFO]: Running daily variant rate reset cron job... 
+2026-03-21T18:30:00.718Z [INFO]: Successfully offlined 0 variant rates. 

@@ -120,9 +120,62 @@ router.use(`${prefix}/diagnostic`, diagnosticRoutes);
 import { GenericCrudController } from "../controllers/genericCrudController";
 import brandRoutes from "./v1/brandRoutes";
 import { ProductModel } from "../database/models/product";
+import { ProductVariantModel } from "../database/models/productVariant";
+import { VariantRateModel } from "../database/models/variantRate";
 import demoRoutes from "./v1/demoRoutes";
 const publicCrud = new GenericCrudController();
 router.get(`${prefix}/products`, (req, res, next) => { (req.params as any).entity = "products"; next(); }, publicCrud.handleRequest.bind(publicCrud));
+router.get(`${prefix}/products/slug/:slug/summary`, async (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").toLowerCase().trim();
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        message: "Product slug is required.",
+      });
+    }
+
+    const product = await ProductModel.findOne({
+      slug,
+      isDeleted: { $ne: true },
+    }).select("_id name slug").lean();
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    const variants = await ProductVariantModel.find({
+      product: product._id,
+      isDeleted: { $ne: true },
+    }).select("_id").lean();
+
+    const variantIds = variants.map((variant) => variant._id);
+    const supplyLineCount = variantIds.length
+      ? await VariantRateModel.countDocuments({
+        productVariant: { $in: variantIds },
+        isDeleted: { $ne: true },
+      })
+      : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        productId: product._id,
+        productName: product.name,
+        supplyLineCount,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load product summary.",
+      error: error?.message || "Unknown error",
+    });
+  }
+});
 router.get(`${prefix}/products/slug/:slug`, async (req, res) => {
   try {
     const slug = String(req.params.slug || "").toLowerCase().trim();

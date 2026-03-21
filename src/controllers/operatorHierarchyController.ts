@@ -3,6 +3,10 @@ import { Request, Response } from "express";
 import { OperatorModel, generateOperatorReferralCode } from "../database/models/operator";
 import { CommissionModel } from "../database/models/commission";
 import { OperatorHierarchyService } from "../services/operatorHierarchy.service";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { VariantRateModel } from "../database/models/variantRate";
+import { InquiryModel } from "../database/models/enquiry";
+import { OrderModel } from "../database/models/order";
 
 const forbidden = (res: Response) =>
     res.status(403).json({ success: false, message: "You are not allowed to access this operator resource." });
@@ -25,6 +29,97 @@ const canAccessOperatorResource = async (req: Request, targetOperatorId: string)
 };
 
 export class OperatorHierarchyController {
+    static async getOverview(req: Request, res: Response) {
+        try {
+            const roleLower = normalizeRole((req as any)?.user?.role);
+            if (!isAdmin(roleLower)) {
+                return forbidden(res);
+            }
+
+            const operatorId = String(req.params.operatorId || "").trim();
+            if (!mongoose.Types.ObjectId.isValid(operatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid operatorId." });
+            }
+
+            const operator = await OperatorModel.findOne({ _id: operatorId, isDeleted: { $ne: true } })
+                .select("_id name email")
+                .lean();
+            if (!operator) {
+                return res.status(404).json({ success: false, message: "Operator not found." });
+            }
+
+            const companies = await AssociateCompanyModel.find({
+                assignedOperator: new mongoose.Types.ObjectId(operatorId),
+                isDeleted: { $ne: true },
+            })
+                .select("_id name slug assignedOperator")
+                .lean();
+
+            const companyIds = companies.map((row: any) => row._id).filter(Boolean);
+            const statsMap = new Map<string, { totalProducts: number; liveProducts: number }>();
+            if (companyIds.length) {
+                const stats = await VariantRateModel.aggregate([
+                    { $match: { associateCompany: { $in: companyIds } } },
+                    {
+                        $group: {
+                            _id: "$associateCompany",
+                            totalProducts: { $sum: 1 },
+                            liveProducts: { $sum: { $cond: ["$isLive", 1, 0] } },
+                        },
+                    },
+                ]);
+                stats.forEach((row: any) => {
+                    statsMap.set(String(row._id), {
+                        totalProducts: Number(row.totalProducts || 0),
+                        liveProducts: Number(row.liveProducts || 0),
+                    });
+                });
+            }
+
+            const enquiryIds = await InquiryModel.find({
+                assignedOperatorId: new mongoose.Types.ObjectId(operatorId),
+                isDeleted: { $ne: true },
+            }).distinct("_id");
+
+            const totalEnquiries = enquiryIds.length;
+            const totalOrders = enquiryIds.length
+                ? await OrderModel.countDocuments({ enquiry: { $in: enquiryIds } })
+                : 0;
+
+            const companiesWithStats = companies.map((row: any) => {
+                const stat = statsMap.get(String(row._id)) || { totalProducts: 0, liveProducts: 0 };
+                return {
+                    ...row,
+                    productCount: stat.totalProducts,
+                    liveProductCount: stat.liveProducts,
+                };
+            });
+
+            const totalProducts = companiesWithStats.reduce((sum, row: any) => sum + Number(row.productCount || 0), 0);
+            const totalLiveProducts = companiesWithStats.reduce((sum, row: any) => sum + Number(row.liveProductCount || 0), 0);
+
+            return res.json({
+                success: true,
+                data: {
+                    operator: {
+                        id: String((operator as any)._id),
+                        name: (operator as any).name,
+                        email: (operator as any).email,
+                    },
+                    companySummary: {
+                        totalAssignedCompanies: companies.length,
+                        totalProducts,
+                        totalLiveProducts,
+                        totalEnquiries,
+                        totalOrders,
+                    },
+                    companies: companiesWithStats,
+                },
+            });
+        } catch (error: any) {
+            return res.status(500).json({ success: false, message: error?.message || "Failed to fetch operator overview." });
+        }
+    }
     static async getLeadershipChain(req: Request, res: Response) {
         try {
             const operatorId = String(req.params.operatorId || "").trim();

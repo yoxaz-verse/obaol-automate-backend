@@ -31,6 +31,8 @@ export interface IServiceRequest extends Document {
   requiredFromDate?: Date | null;
   requiredToDate?: Date | null;
   warehouseId?: Types.ObjectId | string | null;
+  enquiryId?: Types.ObjectId | string | null;
+  orderId?: Types.ObjectId | string | null;
   createdByUserId: Types.ObjectId;
   createdByRole: string;
   createdByAssociateId?: Types.ObjectId | null;

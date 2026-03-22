@@ -5,7 +5,7 @@ export type DocumentRuleStageType =
   | "ORDER"
   | "PROCUREMENT"
   | "LOGISTICS"
-  | "INTERNAL_LOGISTICS"
+  | "INLAND_LOGISTICS"
   | "PACKAGING"
   | "FREIGHT_FORWARDING"
   | "INVENTORY";

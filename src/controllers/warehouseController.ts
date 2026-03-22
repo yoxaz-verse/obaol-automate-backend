@@ -117,7 +117,10 @@ export class WarehouseController {
       const query: any = {};
       const scope = String(req.query?.scope || "").toLowerCase();
       if (req.query?.isActive !== undefined) {
-        query.isActive = String(req.query.isActive) === "true";
+        const isActive = String(req.query.isActive) === "true";
+        query.isActive = isActive
+          ? { $in: [true, "true", 1] }
+          : { $in: [false, "false", 0] };
       }
 
       if (isAssociateRole(role)) {
@@ -129,14 +132,20 @@ export class WarehouseController {
           query.ownerCompanyId = companyId;
         } else {
           // default to available
-          query.listingType = "RENTAL";
-          query.isRentalActive = true;
-          query.isActive = query.isActive ?? true;
+          query.isActive = query.isActive ?? { $in: [true, "true", 1] };
+          query.$or = [
+            { listingType: { $in: ["RENTAL", "rental", "Rental"] }, isRentalActive: { $in: [true, "true", 1] } },
+            { listingType: { $in: ["RENTAL", "rental", "Rental"] }, isRentalActive: { $exists: false } },
+            { listingType: { $exists: false }, isRentalActive: { $in: [true, "true", 1] } },
+          ];
         }
       } else if (scope === "available") {
-        query.listingType = "RENTAL";
-        query.isRentalActive = true;
-        query.isActive = query.isActive ?? true;
+        query.isActive = query.isActive ?? { $in: [true, "true", 1] };
+        query.$or = [
+          { listingType: { $in: ["RENTAL", "rental", "Rental"] }, isRentalActive: { $in: [true, "true", 1] } },
+          { listingType: { $in: ["RENTAL", "rental", "Rental"] }, isRentalActive: { $exists: false } },
+          { listingType: { $exists: false }, isRentalActive: { $in: [true, "true", 1] } },
+        ];
       } else if (scope === "my") {
         if (req.query?.ownerCompanyId) {
           query.ownerCompanyId = String(req.query.ownerCompanyId);

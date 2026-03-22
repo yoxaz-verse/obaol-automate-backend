@@ -19,6 +19,10 @@ export const DEFAULT_DOCUMENT_RULES = [
 ];
 
 export const ensureDefaultDocumentRules = async () => {
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },
+    { stageType: "INLAND_LOGISTICS" }
+  );
   const count = await DocumentRuleModel.countDocuments({ isDeleted: { $ne: true } });
   if (count > 0) return;
   await DocumentRuleModel.insertMany(DEFAULT_DOCUMENT_RULES.map((rule) => ({
@@ -29,6 +33,10 @@ export const ensureDefaultDocumentRules = async () => {
 };
 
 export const seedDefaultDocumentRules = async (force = false) => {
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },
+    { stageType: "INLAND_LOGISTICS" }
+  );
   if (force) {
     await DocumentRuleModel.updateMany({ isDeleted: { $ne: true } }, { isDeleted: true });
   }

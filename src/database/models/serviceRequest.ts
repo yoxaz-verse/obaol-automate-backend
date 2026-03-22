@@ -68,6 +68,18 @@ const ServiceRequestSchema: Schema = new Schema(
       default: null,
       index: true,
     },
+    enquiryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Inquiry",
+      default: null,
+      index: true,
+    },
+    orderId: {
+      type: Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+      index: true,
+    },
     createdByUserId: {
       type: Schema.Types.ObjectId,
       required: true,

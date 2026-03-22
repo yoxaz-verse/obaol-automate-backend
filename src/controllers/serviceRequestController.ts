@@ -4,6 +4,9 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { ServiceRequestModel, SERVICE_REQUEST_STATUSES, SERVICE_REQUEST_TYPES } from "../database/models/serviceRequest";
 import { WarehouseModel } from "../database/models/warehouse";
+import { OrderModel } from "../database/models/order";
+import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
+import { FlowRuleModel } from "../database/models/flowRule";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import {
@@ -81,6 +84,8 @@ export class ServiceRequestController {
     }
 
     const warehouseId = toObjectId(req.body?.warehouseId);
+    const enquiryId = toObjectId(req.body?.enquiryId);
+    const orderId = toObjectId(req.body?.orderId);
     let candidateProviders: string[] = [];
     if (requestType === "WAREHOUSING") {
       if (!warehouseId) {
@@ -170,6 +175,8 @@ export class ServiceRequestController {
         requiredFromDate,
         requiredToDate,
         warehouseId: warehouseId || null,
+        enquiryId: enquiryId || null,
+        orderId: orderId || null,
         createdByUserId: userId,
         createdByRole: req.user?.role || "",
         createdByAssociateId,
@@ -376,6 +383,61 @@ export class ServiceRequestController {
 
       const row = await ServiceRequestModel.findOne({ _id: id, isDeleted: { $ne: true } });
       if (!row) return res.status(404).json({ success: false, message: "Service request not found." });
+
+      const requestTypeToSubflow: Record<string, string> = {
+        PROCUREMENT: "PROCUREMENT",
+        TRANSPORTATION: "LOGISTICS",
+        PACKAGING: "PACKAGING",
+        WAREHOUSING: "INVENTORY",
+      };
+      const subflowType = requestTypeToSubflow[String((row as any)?.requestType || "").toUpperCase()];
+      if (subflowType) {
+        const orderId = (row as any)?.orderId ? String((row as any).orderId) : "";
+        const enquiryId = (row as any)?.enquiryId ? String((row as any).enquiryId) : "";
+        const order = orderId
+          ? await OrderModel.findById(orderId).select("workflowStage").lean()
+          : enquiryId
+            ? await OrderModel.findOne({ enquiry: enquiryId }).select("workflowStage").lean()
+            : null;
+        const orderStage = String(order?.workflowStage || "").toUpperCase();
+        if (order && orderStage) {
+          const config = await OrderSubflowConfigModel.findOne({
+            subflowType,
+            isDeleted: { $ne: true },
+            isActive: true,
+          }).lean();
+          const startStage = String(config?.biddingStartAtOrderStage || "").toUpperCase();
+          const endStage = String(config?.biddingEndAtOrderStage || "").toUpperCase();
+          if (config && startStage && endStage) {
+            const orderStages = await FlowRuleModel.find({
+              flowType: "TRADE_ORDER",
+              isDeleted: { $ne: true },
+            })
+              .sort({ sortOrder: 1 })
+              .lean();
+            const orderStageMap = new Map<string, number>();
+            orderStages.forEach((stage: any, index: number) => {
+              const key = String(stage?.stageKey || "").toUpperCase();
+              if (!key) return;
+              orderStageMap.set(key, stage?.sortOrder ?? index);
+            });
+            const currentOrder = orderStageMap.get(orderStage);
+            const startOrder = orderStageMap.get(startStage);
+            const endOrder = orderStageMap.get(endStage);
+            if (
+              currentOrder !== undefined &&
+              startOrder !== undefined &&
+              endOrder !== undefined &&
+              (currentOrder < startOrder || currentOrder > endOrder)
+            ) {
+              return res.status(400).json({
+                success: false,
+                message: "Bidding is closed for this subflow at the current order stage.",
+              });
+            }
+          }
+        }
+      }
 
       const amount = Number(req.body?.amount);
       const note = String(req.body?.note || "").trim();

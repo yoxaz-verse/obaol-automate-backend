@@ -35,6 +35,7 @@ import { OrderModel } from "../database/models/order";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
 import { FlowRuleModel } from "../database/models/flowRule";
+import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
@@ -1040,6 +1041,61 @@ export class InquiryController {
                     success: false,
                     message: "You are not authorized to update this execution inquiry"
                 });
+            }
+
+            const isBidAttempt =
+                canBid &&
+                ((typeof bidAmount === "number" && !Number.isNaN(bidAmount)) || typeof commitNote === "string");
+
+            if (isBidAttempt) {
+                const subflowMap: Record<string, string> = {
+                    PROCUREMENT: "PROCUREMENT",
+                    TRANSPORTATION: "LOGISTICS",
+                    SHIPPING: "FREIGHT_FORWARDING",
+                    PACKAGING: "PACKAGING",
+                };
+                const subflowType = subflowMap[normalizedType];
+                if (subflowType) {
+                    const order = await OrderModel.findOne({ enquiry: inquiry._id }).select("workflowStage").lean();
+                    const orderStage = String(order?.workflowStage || "").toUpperCase();
+                    if (order && orderStage) {
+                        const config = await OrderSubflowConfigModel.findOne({
+                            subflowType,
+                            isDeleted: { $ne: true },
+                            isActive: true,
+                        }).lean();
+                        const startStage = String(config?.biddingStartAtOrderStage || "").toUpperCase();
+                        const endStage = String(config?.biddingEndAtOrderStage || "").toUpperCase();
+                        if (config && startStage && endStage) {
+                            const orderStages = await FlowRuleModel.find({
+                                flowType: "TRADE_ORDER",
+                                isDeleted: { $ne: true },
+                            })
+                                .sort({ sortOrder: 1 })
+                                .lean();
+                            const orderStageMap = new Map<string, number>();
+                            orderStages.forEach((stage: any, index: number) => {
+                                const key = String(stage?.stageKey || "").toUpperCase();
+                                if (!key) return;
+                                orderStageMap.set(key, stage?.sortOrder ?? index);
+                            });
+                            const currentOrder = orderStageMap.get(orderStage);
+                            const startOrder = orderStageMap.get(startStage);
+                            const endOrder = orderStageMap.get(endStage);
+                            if (
+                                currentOrder !== undefined &&
+                                startOrder !== undefined &&
+                                endOrder !== undefined &&
+                                (currentOrder < startOrder || currentOrder > endOrder)
+                            ) {
+                                return res.status(400).json({
+                                    success: false,
+                                    message: "Bidding is closed for this subflow at the current order stage.",
+                                });
+                            }
+                        }
+                    }
+                }
             }
 
             if ((canBid || canCommit) && typeof bidAmount === "number" && !Number.isNaN(bidAmount)) {

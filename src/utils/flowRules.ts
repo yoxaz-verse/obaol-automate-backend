@@ -97,43 +97,48 @@ const DEFAULT_WAREHOUSE = [
 ];
 
 const DEFAULT_PROCUREMENT = [
-  { flowType: "PROCUREMENT", stageKey: "REQUESTED", label: "Requested", sortOrder: 10 },
-  { flowType: "PROCUREMENT", stageKey: "SOURCING_STARTED", label: "Sourcing Started", sortOrder: 20 },
-  { flowType: "PROCUREMENT", stageKey: "QUOTED", label: "Quoted", sortOrder: 30 },
-  { flowType: "PROCUREMENT", stageKey: "BUYER_APPROVED", label: "Buyer Approved", sortOrder: 40 },
-  { flowType: "PROCUREMENT", stageKey: "SUPPLIER_CONFIRMED", label: "Supplier Confirmed", sortOrder: 50 },
-  { flowType: "PROCUREMENT", stageKey: "COMPLETED", label: "Completed", sortOrder: 60 },
+  { flowType: "PROCUREMENT", stageKey: "PROCUREMENT_SPECIALIST_ASSIGNED", label: "Procurement Specialist Assigned", sortOrder: 10 },
+  { flowType: "PROCUREMENT", stageKey: "ON_SITE_VISIT_PRESENCE", label: "On-Site Visit & Presence", sortOrder: 20 },
+  { flowType: "PROCUREMENT", stageKey: "STOCK_QUANTITY_VERIFIED", label: "Stock Quantity Verification", sortOrder: 30 },
+  { flowType: "PROCUREMENT", stageKey: "QUALITY_INSPECTION", label: "Quality Inspection", sortOrder: 40 },
+  { flowType: "PROCUREMENT", stageKey: "PHOTO_VIDEO_CONFIRMATION", label: "Photo & Video Confirmation", sortOrder: 50 },
+  { flowType: "PROCUREMENT", stageKey: "PACKAGING_VALIDATION", label: "Packaging Validation", sortOrder: 60 },
+  { flowType: "PROCUREMENT", stageKey: "TRANSPORT_READINESS_CHECK", label: "Transport Readiness Check", sortOrder: 70 },
+  { flowType: "PROCUREMENT", stageKey: "LOADING_SUPERVISED", label: "Loading Supervision", sortOrder: 80 },
+  { flowType: "PROCUREMENT", stageKey: "PAYMENT_CHECKPOINT", label: "Payment Checkpoint", sortOrder: 90 },
+  { flowType: "PROCUREMENT", stageKey: "HANDOVER_TO_LOGISTICS", label: "Handover to Logistics", sortOrder: 100 },
 ];
 
 const DEFAULT_LOGISTICS = [
   { flowType: "LOGISTICS", stageKey: "PICKUP_SCHEDULED", label: "Pickup Scheduled", sortOrder: 10 },
-  { flowType: "LOGISTICS", stageKey: "LOADING_CONFIRMED", label: "Loading Confirmed", sortOrder: 20 },
-  { flowType: "LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 30 },
-  { flowType: "LOGISTICS", stageKey: "ARRIVED", label: "Arrived", sortOrder: 40 },
-  { flowType: "LOGISTICS", stageKey: "DELIVERED", label: "Delivered", sortOrder: 50 },
+  { flowType: "LOGISTICS", stageKey: "VEHICLE_ARRIVED", label: "Vehicle Arrived", sortOrder: 20 },
+  { flowType: "LOGISTICS", stageKey: "LOADING_CONFIRMED", label: "Loading Confirmed", sortOrder: 30 },
+  { flowType: "LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 40 },
+  { flowType: "LOGISTICS", stageKey: "ARRIVED_AT_DESTINATION", label: "Arrived at Destination", sortOrder: 50 },
+  { flowType: "LOGISTICS", stageKey: "UNLOADED_HANDED_OVER", label: "Unloaded & Handed Over", sortOrder: 60 },
 ];
 
-const DEFAULT_INTERNAL_LOGISTICS = [
-  { flowType: "INTERNAL_LOGISTICS", stageKey: "VEHICLE_ASSIGNED", label: "Vehicle Assigned", sortOrder: 10 },
-  { flowType: "INTERNAL_LOGISTICS", stageKey: "PICKED_UP", label: "Picked Up", sortOrder: 20 },
-  { flowType: "INTERNAL_LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 30 },
-  { flowType: "INTERNAL_LOGISTICS", stageKey: "REACHED_HUB", label: "Reached Hub", sortOrder: 40 },
-  { flowType: "INTERNAL_LOGISTICS", stageKey: "COMPLETED", label: "Completed", sortOrder: 50 },
+const DEFAULT_INLAND_LOGISTICS = [
+  { flowType: "INLAND_LOGISTICS", stageKey: "VEHICLE_ASSIGNED", label: "Vehicle Assigned", sortOrder: 10 },
+  { flowType: "INLAND_LOGISTICS", stageKey: "PICKUP_CONFIRMED", label: "Pickup Confirmed", sortOrder: 20 },
+  { flowType: "INLAND_LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 30 },
+  { flowType: "INLAND_LOGISTICS", stageKey: "REACHED_HUB", label: "Reached Hub", sortOrder: 40 },
+  { flowType: "INLAND_LOGISTICS", stageKey: "HANDOVER_COMPLETED", label: "Handover Completed", sortOrder: 50 },
 ];
 
 const DEFAULT_PACKAGING = [
-  { flowType: "PACKAGING", stageKey: "SPEC_RECEIVED", label: "Spec Received", sortOrder: 10 },
+  { flowType: "PACKAGING", stageKey: "PACKAGING_REQUEST_RECEIVED", label: "Packaging Request Received", sortOrder: 10 },
   { flowType: "PACKAGING", stageKey: "PACKAGING_STARTED", label: "Packaging Started", sortOrder: 20 },
   { flowType: "PACKAGING", stageKey: "PACKAGING_COMPLETED", label: "Packaging Completed", sortOrder: 30 },
-  { flowType: "PACKAGING", stageKey: "QA_PASSED", label: "QA Passed", sortOrder: 40 },
-  { flowType: "PACKAGING", stageKey: "READY_FOR_SHIPMENT", label: "Ready For Shipment", sortOrder: 50 },
+  { flowType: "PACKAGING", stageKey: "QA_APPROVED", label: "QA Approved", sortOrder: 40 },
+  { flowType: "PACKAGING", stageKey: "READY_FOR_DISPATCH", label: "Ready for Dispatch", sortOrder: 50 },
 ];
 
 const DEFAULT_FREIGHT_FORWARDING = [
   { flowType: "FREIGHT_FORWARDING", stageKey: "BOOKING_REQUESTED", label: "Booking Requested", sortOrder: 10 },
   { flowType: "FREIGHT_FORWARDING", stageKey: "BOOKING_CONFIRMED", label: "Booking Confirmed", sortOrder: 20 },
-  { flowType: "FREIGHT_FORWARDING", stageKey: "DOCS_SUBMITTED", label: "Docs Submitted", sortOrder: 30 },
-  { flowType: "FREIGHT_FORWARDING", stageKey: "LOADED", label: "Loaded", sortOrder: 40 },
+  { flowType: "FREIGHT_FORWARDING", stageKey: "DOCS_SUBMITTED", label: "Documents Submitted", sortOrder: 30 },
+  { flowType: "FREIGHT_FORWARDING", stageKey: "CARGO_LOADED", label: "Cargo Loaded", sortOrder: 40 },
   { flowType: "FREIGHT_FORWARDING", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 50 },
   { flowType: "FREIGHT_FORWARDING", stageKey: "ARRIVED", label: "Arrived", sortOrder: 60 },
 ];
@@ -154,7 +159,7 @@ const buildDefaults = () => [
   ...DEFAULT_WAREHOUSE,
   ...DEFAULT_PROCUREMENT,
   ...DEFAULT_LOGISTICS,
-  ...DEFAULT_INTERNAL_LOGISTICS,
+  ...DEFAULT_INLAND_LOGISTICS,
   ...DEFAULT_PACKAGING,
   ...DEFAULT_FREIGHT_FORWARDING,
   ...DEFAULT_INVENTORY,
@@ -251,7 +256,7 @@ const migrateFromLegacy = async () => {
       requiredActions: [],
       isDeleted: false,
     })),
-    ...DEFAULT_INTERNAL_LOGISTICS.map((r) => ({
+    ...DEFAULT_INLAND_LOGISTICS.map((r) => ({
       ...r,
       stageKey: String(r.stageKey).toUpperCase(),
       label: String(r.label || ""),
@@ -291,6 +296,10 @@ const migrateFromLegacy = async () => {
 };
 
 export const ensureDefaultFlowRules = async () => {
+  await FlowRuleModel.updateMany(
+    { isDeleted: { $ne: true }, flowType: "INTERNAL_LOGISTICS" },
+    { flowType: "INLAND_LOGISTICS" }
+  );
   const count = await FlowRuleModel.countDocuments({ isDeleted: { $ne: true } });
   if (count > 0) return;
   const defaults = await migrateFromLegacy();
@@ -298,6 +307,10 @@ export const ensureDefaultFlowRules = async () => {
 };
 
 export const seedDefaultFlowRules = async (force = false, flowType?: string) => {
+  await FlowRuleModel.updateMany(
+    { isDeleted: { $ne: true }, flowType: "INTERNAL_LOGISTICS" },
+    { flowType: "INLAND_LOGISTICS" }
+  );
   if (force) {
     const filter: any = { isDeleted: { $ne: true } };
     if (flowType) filter.flowType = String(flowType).toUpperCase();

@@ -12,7 +12,7 @@ const FlowRuleSchema: Schema = new Schema(
         "WAREHOUSE",
         "PROCUREMENT",
         "LOGISTICS",
-        "INTERNAL_LOGISTICS",
+        "INLAND_LOGISTICS",
         "PACKAGING",
         "FREIGHT_FORWARDING",
         "INVENTORY",

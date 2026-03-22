@@ -9,6 +9,7 @@ import { InventoryReservationModel } from "../database/models/inventoryReservati
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
 import { FlowRuleModel } from "../database/models/flowRule";
+import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
 import { ensureDefaultDocumentRules } from "../utils/documentRules";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 
@@ -260,6 +261,72 @@ export class OrderController {
                         success: false,
                         message: "Invalid or inactive workflow stage for this trade type"
                     });
+                }
+
+                const subflowConfigs = await OrderSubflowConfigModel.find({
+                    isDeleted: { $ne: true },
+                    isActive: true,
+                }).lean();
+                if (subflowConfigs.length > 0) {
+                    const orderStages = await FlowRuleModel.find({
+                        flowType: "TRADE_ORDER",
+                        isDeleted: { $ne: true },
+                        isActive: true,
+                        tradeType: { $in: [tradeType, "BOTH"] },
+                    }).sort({ sortOrder: 1 }).lean();
+
+                    const stageRank = new Map<string, number>();
+                    orderStages.forEach((stage: any) => {
+                        stageRank.set(String(stage.stageKey), Number(stage.sortOrder || 0));
+                    });
+
+                    const nextRank = stageRank.get(workflowStage) ?? 0;
+                    const subflowRuleCache = new Map<string, any[]>();
+
+                    const getSubflowStages = async (flowType: string) => {
+                        if (subflowRuleCache.has(flowType)) return subflowRuleCache.get(flowType) as any[];
+                        const stages = await FlowRuleModel.find({
+                            flowType,
+                            isDeleted: { $ne: true },
+                            isActive: true,
+                        }).sort({ sortOrder: 1 }).lean();
+                        subflowRuleCache.set(flowType, stages);
+                        return stages;
+                    };
+
+                    const completedSubflows = new Set<string>();
+                    for (const config of subflowConfigs) {
+                        const stages = await getSubflowStages(String(config.subflowType));
+                        if (!stages.length) continue;
+                        const lastStage = stages[stages.length - 1];
+                        const currentStage = String((order as any)?.subflowStages?.[config.subflowType] || "").toUpperCase();
+                        if (currentStage && currentStage === String(lastStage.stageKey)) {
+                            completedSubflows.add(String(config.subflowType));
+                        }
+                    }
+
+                    const missingSubflows: string[] = [];
+                    for (const config of subflowConfigs) {
+                        const gateStage = String(config.mustCompleteBeforeOrderStage || "").toUpperCase();
+                        const gateRank = stageRank.get(gateStage) ?? 0;
+                        if (nextRank >= gateRank) {
+                            const type = String(config.subflowType);
+                            if (!completedSubflows.has(type)) missingSubflows.push(type);
+                            const deps = Array.isArray(config.dependsOnSubflows) ? config.dependsOnSubflows : [];
+                            deps.forEach((dep: string) => {
+                                if (!completedSubflows.has(String(dep))) missingSubflows.push(String(dep));
+                            });
+                        }
+                    }
+
+                    if (missingSubflows.length > 0) {
+                        const unique = Array.from(new Set(missingSubflows));
+                        return res.status(400).json({
+                            success: false,
+                            message: `Required subflows are incomplete for ${workflowStage}: ${unique.join(", ")}.`,
+                            missingSubflows: unique,
+                        });
+                    }
                 }
 
                 const rules = await DocumentRuleModel.find({

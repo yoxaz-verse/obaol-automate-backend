@@ -59,6 +59,10 @@ console.info(`[routes] mounted ${prefix}/trade-documents`);
 import documentRuleRoutes from "./v1/documentRuleRoutes";
 router.use(`${prefix}/document-rules`, documentRuleRoutes);
 console.info(`[routes] mounted ${prefix}/document-rules`);
+// Order subflow configs
+import orderSubflowConfigRoutes from "./v1/orderSubflowConfigRoutes";
+router.use(`${prefix}/flow-rules/subflows`, orderSubflowConfigRoutes);
+console.info(`[routes] mounted ${prefix}/flow-rules/subflows`);
 
 // Enquiry rules
 import enquiryRuleRoutes from "./v1/enquiryRuleRoutes";

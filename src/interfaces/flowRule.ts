@@ -1,6 +1,16 @@
 import { Document } from "mongoose";
 
-export type FlowType = "TRADE_ENQUIRY" | "TRADE_ORDER" | "SAMPLING" | "WAREHOUSE";
+export type FlowType =
+  | "TRADE_ENQUIRY"
+  | "TRADE_ORDER"
+  | "SAMPLING"
+  | "WAREHOUSE"
+  | "PROCUREMENT"
+  | "LOGISTICS"
+  | "INTERNAL_LOGISTICS"
+  | "PACKAGING"
+  | "FREIGHT_FORWARDING"
+  | "INVENTORY";
 
 export interface IFlowRule extends Document {
   flowType: FlowType;

@@ -10,7 +10,16 @@ const DocumentRuleSchema: Schema = new Schema(
     },
     stageType: {
       type: String,
-      enum: ["INQUIRY", "ORDER"],
+      enum: [
+        "INQUIRY",
+        "ORDER",
+        "PROCUREMENT",
+        "LOGISTICS",
+        "INTERNAL_LOGISTICS",
+        "PACKAGING",
+        "FREIGHT_FORWARDING",
+        "INVENTORY",
+      ],
       required: true,
       index: true,
     },

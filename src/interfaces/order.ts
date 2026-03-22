@@ -58,6 +58,7 @@ export interface IOrder extends Document {
     logistics: ILogistics[];
     responsibilities?: IOrderResponsibilities;
     milestones?: IOrderMilestones;
+    subflowStages?: Record<string, string>;
     isDemo?: boolean;
     demoTag?: string;
     demoCreatedBy?: Types.ObjectId | null;
@@ -82,6 +83,7 @@ export interface ICreateOrder {
     logistics?: ILogistics[];
     responsibilities?: IOrderResponsibilities;
     milestones?: IOrderMilestones;
+    subflowStages?: Record<string, string>;
     isDemo?: boolean;
     demoTag?: string;
     demoCreatedBy?: Types.ObjectId | null;
@@ -104,6 +106,7 @@ export interface IUpdateOrder {
     logistics?: ILogistics[];
     responsibilities?: IOrderResponsibilities;
     milestones?: IOrderMilestones;
+    subflowStages?: Record<string, string>;
     isDemo?: boolean;
     demoTag?: string;
     demoCreatedBy?: Types.ObjectId | null;

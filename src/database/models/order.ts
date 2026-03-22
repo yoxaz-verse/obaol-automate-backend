@@ -85,6 +85,7 @@ const OrderSchema: Schema = new Schema(
         logistics: [LogisticsSchema],
         responsibilities: { type: ResponsibilitiesSchema, default: {} },
         milestones: { type: MilestonesSchema, default: {} },
+        subflowStages: { type: Schema.Types.Mixed, default: {} },
     },
     {
         timestamps: true,

@@ -1,6 +1,14 @@
 import { Document } from "mongoose";
 
-export type DocumentRuleStageType = "INQUIRY" | "ORDER";
+export type DocumentRuleStageType =
+  | "INQUIRY"
+  | "ORDER"
+  | "PROCUREMENT"
+  | "LOGISTICS"
+  | "INTERNAL_LOGISTICS"
+  | "PACKAGING"
+  | "FREIGHT_FORWARDING"
+  | "INVENTORY";
 export type DocumentRuleRole = "BUYER" | "SELLER" | "OBAOL" | "PACKAGING" | "QUALITY" | "TRANSPORT" | "SHIPPING";
 export type DocumentRuleAction = "CREATE" | "UPLOAD";
 export type DocumentRuleVisibility = "BUYER" | "SELLER" | "BOTH" | "INTERNAL";

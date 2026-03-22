@@ -96,11 +96,68 @@ const DEFAULT_WAREHOUSE = [
   { flowType: "WAREHOUSE", stageKey: "RELEASED", label: "Released", sortOrder: 50 },
 ];
 
+const DEFAULT_PROCUREMENT = [
+  { flowType: "PROCUREMENT", stageKey: "REQUESTED", label: "Requested", sortOrder: 10 },
+  { flowType: "PROCUREMENT", stageKey: "SOURCING_STARTED", label: "Sourcing Started", sortOrder: 20 },
+  { flowType: "PROCUREMENT", stageKey: "QUOTED", label: "Quoted", sortOrder: 30 },
+  { flowType: "PROCUREMENT", stageKey: "BUYER_APPROVED", label: "Buyer Approved", sortOrder: 40 },
+  { flowType: "PROCUREMENT", stageKey: "SUPPLIER_CONFIRMED", label: "Supplier Confirmed", sortOrder: 50 },
+  { flowType: "PROCUREMENT", stageKey: "COMPLETED", label: "Completed", sortOrder: 60 },
+];
+
+const DEFAULT_LOGISTICS = [
+  { flowType: "LOGISTICS", stageKey: "PICKUP_SCHEDULED", label: "Pickup Scheduled", sortOrder: 10 },
+  { flowType: "LOGISTICS", stageKey: "LOADING_CONFIRMED", label: "Loading Confirmed", sortOrder: 20 },
+  { flowType: "LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 30 },
+  { flowType: "LOGISTICS", stageKey: "ARRIVED", label: "Arrived", sortOrder: 40 },
+  { flowType: "LOGISTICS", stageKey: "DELIVERED", label: "Delivered", sortOrder: 50 },
+];
+
+const DEFAULT_INTERNAL_LOGISTICS = [
+  { flowType: "INTERNAL_LOGISTICS", stageKey: "VEHICLE_ASSIGNED", label: "Vehicle Assigned", sortOrder: 10 },
+  { flowType: "INTERNAL_LOGISTICS", stageKey: "PICKED_UP", label: "Picked Up", sortOrder: 20 },
+  { flowType: "INTERNAL_LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 30 },
+  { flowType: "INTERNAL_LOGISTICS", stageKey: "REACHED_HUB", label: "Reached Hub", sortOrder: 40 },
+  { flowType: "INTERNAL_LOGISTICS", stageKey: "COMPLETED", label: "Completed", sortOrder: 50 },
+];
+
+const DEFAULT_PACKAGING = [
+  { flowType: "PACKAGING", stageKey: "SPEC_RECEIVED", label: "Spec Received", sortOrder: 10 },
+  { flowType: "PACKAGING", stageKey: "PACKAGING_STARTED", label: "Packaging Started", sortOrder: 20 },
+  { flowType: "PACKAGING", stageKey: "PACKAGING_COMPLETED", label: "Packaging Completed", sortOrder: 30 },
+  { flowType: "PACKAGING", stageKey: "QA_PASSED", label: "QA Passed", sortOrder: 40 },
+  { flowType: "PACKAGING", stageKey: "READY_FOR_SHIPMENT", label: "Ready For Shipment", sortOrder: 50 },
+];
+
+const DEFAULT_FREIGHT_FORWARDING = [
+  { flowType: "FREIGHT_FORWARDING", stageKey: "BOOKING_REQUESTED", label: "Booking Requested", sortOrder: 10 },
+  { flowType: "FREIGHT_FORWARDING", stageKey: "BOOKING_CONFIRMED", label: "Booking Confirmed", sortOrder: 20 },
+  { flowType: "FREIGHT_FORWARDING", stageKey: "DOCS_SUBMITTED", label: "Docs Submitted", sortOrder: 30 },
+  { flowType: "FREIGHT_FORWARDING", stageKey: "LOADED", label: "Loaded", sortOrder: 40 },
+  { flowType: "FREIGHT_FORWARDING", stageKey: "IN_TRANSIT", label: "In Transit", sortOrder: 50 },
+  { flowType: "FREIGHT_FORWARDING", stageKey: "ARRIVED", label: "Arrived", sortOrder: 60 },
+];
+
+const DEFAULT_INVENTORY = [
+  { flowType: "INVENTORY", stageKey: "STOCK_IN", label: "Stock In", sortOrder: 10 },
+  { flowType: "INVENTORY", stageKey: "QUALITY_CHECKED", label: "Quality Checked", sortOrder: 20 },
+  { flowType: "INVENTORY", stageKey: "AVAILABLE", label: "Available", sortOrder: 30 },
+  { flowType: "INVENTORY", stageKey: "RESERVED", label: "Reserved", sortOrder: 40 },
+  { flowType: "INVENTORY", stageKey: "OUTBOUND_REQUESTED", label: "Outbound Requested", sortOrder: 50 },
+  { flowType: "INVENTORY", stageKey: "DISPATCHED", label: "Dispatched", sortOrder: 60 },
+];
+
 const buildDefaults = () => [
   ...DEFAULT_TRADE_ENQUIRY,
   ...DEFAULT_TRADE_ORDER,
   ...DEFAULT_SAMPLING,
   ...DEFAULT_WAREHOUSE,
+  ...DEFAULT_PROCUREMENT,
+  ...DEFAULT_LOGISTICS,
+  ...DEFAULT_INTERNAL_LOGISTICS,
+  ...DEFAULT_PACKAGING,
+  ...DEFAULT_FREIGHT_FORWARDING,
+  ...DEFAULT_INVENTORY,
 ].map((rule) => ({
   ...rule,
   stageKey: String(rule.stageKey).toUpperCase(),
@@ -168,6 +225,60 @@ const migrateFromLegacy = async () => {
       isDeleted: false,
     })),
     ...DEFAULT_WAREHOUSE.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
+    ...DEFAULT_PROCUREMENT.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
+    ...DEFAULT_LOGISTICS.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
+    ...DEFAULT_INTERNAL_LOGISTICS.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
+    ...DEFAULT_PACKAGING.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
+    ...DEFAULT_FREIGHT_FORWARDING.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
+    ...DEFAULT_INVENTORY.map((r) => ({
       ...r,
       stageKey: String(r.stageKey).toUpperCase(),
       label: String(r.label || ""),

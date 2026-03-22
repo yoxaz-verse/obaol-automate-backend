@@ -5,7 +5,18 @@ const FlowRuleSchema: Schema = new Schema(
   {
     flowType: {
       type: String,
-      enum: ["TRADE_ENQUIRY", "TRADE_ORDER", "SAMPLING", "WAREHOUSE"],
+      enum: [
+        "TRADE_ENQUIRY",
+        "TRADE_ORDER",
+        "SAMPLING",
+        "WAREHOUSE",
+        "PROCUREMENT",
+        "LOGISTICS",
+        "INTERNAL_LOGISTICS",
+        "PACKAGING",
+        "FREIGHT_FORWARDING",
+        "INVENTORY",
+      ],
       required: true,
       index: true,
     },

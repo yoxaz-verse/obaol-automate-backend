@@ -3,6 +3,11 @@ import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
 import { FlowRuleModel } from "../database/models/flowRule";
 
 const normalizeStage = (value: unknown) => String(value || "").trim().toUpperCase();
+const normalizeStageOrNull = (value: unknown) => {
+  const normalized = normalizeStage(value);
+  if (!normalized || normalized === "NONE" || normalized === "NULL") return null;
+  return normalized;
+};
 
 const getOrderStageMap = async () => {
   const stages = await FlowRuleModel.find({
@@ -48,6 +53,18 @@ class OrderSubflowConfigController {
         { isDeleted: { $ne: true }, subflowType: "INTERNAL_LOGISTICS" },
         { subflowType: "INLAND_LOGISTICS" }
       );
+      await OrderSubflowConfigModel.updateMany(
+        {
+          isDeleted: { $ne: true },
+          $or: [
+            { biddingStartAtOrderStage: { $in: ["NONE", "NULL", ""] } },
+            { biddingEndAtOrderStage: { $in: ["NONE", "NULL", ""] } },
+          ],
+        },
+        {
+          $set: { biddingStartAtOrderStage: null, biddingEndAtOrderStage: null },
+        }
+      );
       const configs = await OrderSubflowConfigModel.find({ isDeleted: { $ne: true } })
         .sort({ subflowType: 1 })
         .lean();
@@ -64,12 +81,8 @@ class OrderSubflowConfigController {
         subflowType: String(req.body?.subflowType || "").toUpperCase(),
         startAtOrderStage: normalizeStage(req.body?.startAtOrderStage),
         mustCompleteBeforeOrderStage: normalizeStage(req.body?.mustCompleteBeforeOrderStage),
-        biddingStartAtOrderStage: req.body?.biddingStartAtOrderStage
-          ? normalizeStage(req.body?.biddingStartAtOrderStage)
-          : null,
-        biddingEndAtOrderStage: req.body?.biddingEndAtOrderStage
-          ? normalizeStage(req.body?.biddingEndAtOrderStage)
-          : null,
+        biddingStartAtOrderStage: normalizeStageOrNull(req.body?.biddingStartAtOrderStage),
+        biddingEndAtOrderStage: normalizeStageOrNull(req.body?.biddingEndAtOrderStage),
         dependsOnSubflows: Array.isArray(req.body?.dependsOnSubflows)
           ? req.body.dependsOnSubflows.map((v: string) => String(v).toUpperCase())
           : [],
@@ -100,14 +113,10 @@ class OrderSubflowConfigController {
       if (req.body?.startAtOrderStage !== undefined) update.startAtOrderStage = normalizeStage(req.body.startAtOrderStage);
       if (req.body?.mustCompleteBeforeOrderStage !== undefined) update.mustCompleteBeforeOrderStage = normalizeStage(req.body.mustCompleteBeforeOrderStage);
       if (req.body?.biddingStartAtOrderStage !== undefined) {
-        update.biddingStartAtOrderStage = req.body.biddingStartAtOrderStage
-          ? normalizeStage(req.body.biddingStartAtOrderStage)
-          : null;
+        update.biddingStartAtOrderStage = normalizeStageOrNull(req.body.biddingStartAtOrderStage);
       }
       if (req.body?.biddingEndAtOrderStage !== undefined) {
-        update.biddingEndAtOrderStage = req.body.biddingEndAtOrderStage
-          ? normalizeStage(req.body.biddingEndAtOrderStage)
-          : null;
+        update.biddingEndAtOrderStage = normalizeStageOrNull(req.body.biddingEndAtOrderStage);
       }
       if (req.body?.dependsOnSubflows !== undefined) {
         update.dependsOnSubflows = Array.isArray(req.body.dependsOnSubflows)

@@ -12,7 +12,11 @@ export class FlowRuleController {
       const query: any = { isDeleted: { $ne: true } };
       if (req.query?.isActive !== undefined) query.isActive = String(req.query.isActive) === "true";
       if (req.query?.flowType) query.flowType = String(req.query.flowType).toUpperCase();
-      const rows = await FlowRuleModel.find(query).sort({ sortOrder: 1 }).lean();
+      let rows = await FlowRuleModel.find(query).sort({ sortOrder: 1 }).lean();
+      if (query.flowType && rows.length === 0) {
+        await seedDefaultFlowRules(false, query.flowType);
+        rows = await FlowRuleModel.find(query).sort({ sortOrder: 1 }).lean();
+      }
       return res.json({ success: true, data: rows });
     } catch (error) {
       next(error);

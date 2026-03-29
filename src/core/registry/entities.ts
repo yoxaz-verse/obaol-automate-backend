@@ -497,7 +497,9 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "buyerAssociateId.associateCompany": "associate-companies",
             "sellerAssociateId.associateCompany": "associate-companies",
             "mediatorAssociateId.associateCompany": "associate-companies",
-            assignedOperatorId: "operators"
+            assignedOperatorId: "operators",
+            supplierOperatorId: "operators",
+            dealCloserOperatorId: "operators"
         },
     },
     "orders": {
@@ -517,7 +519,9 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "enquiry.buyerAssociateId.associateCompany": "associate-companies",
             "enquiry.sellerAssociateId.associateCompany": "associate-companies",
             "enquiry.mediatorAssociateId.associateCompany": "associate-companies",
-            "enquiry.assignedOperatorId": "operators"
+            "enquiry.assignedOperatorId": "operators",
+            "enquiry.supplierOperatorId": "operators",
+            "enquiry.dealCloserOperatorId": "operators"
         },
     },
     "enquiry-process-statuses": {

@@ -33,6 +33,20 @@ import {
 } from "../constants/companyInterests";
 import { notificationService } from "./notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
+import { verifyGoogleIdToken } from "../utils/googleAuth";
+import { VerificationModel } from "../database/models/verification";
+
+const generateRandomPassword = (length = 12) => {
+    const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const lower = "abcdefghijklmnopqrstuvwxyz";
+    const numbers = "0123456789";
+    const all = `${upper}${lower}${numbers}`;
+    let password = `${upper[Math.floor(Math.random() * upper.length)]}${numbers[Math.floor(Math.random() * numbers.length)]}`;
+    while (password.length < length) {
+        password += all[Math.floor(Math.random() * all.length)];
+    }
+    return password;
+};
 
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 const COUNTRY_ALIAS_TO_CODE: Record<string, string> = {
@@ -382,6 +396,172 @@ export const logoutUser = async (req: Request, res: Response) => {
     res.setHeader("Cache-Control", "no-store");
     res.clearCookie("auth_token", clearCookieOptions);
     res.json({ success: true, message: "Logged out successfully" });
+};
+
+export const getEmailStatus = async (req: Request, res: Response) => {
+    try {
+        const email = String(req.query?.email || "").trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, message: "Email is required" });
+        }
+        const [admin, projectManager, inventoryManager, operator, associate] = await Promise.all([
+            AdminModel.findOne({ email }).select("_id").lean(),
+            ProjectManagerModel.findOne({ email }).select("_id").lean(),
+            InventoryManagerModel.findOne({ email }).select("_id").lean(),
+            OperatorModel.findOne({ email }).select("_id").lean(),
+            AgentModel.findOne({ email }).select("_id").lean(),
+        ]);
+        const role =
+            admin ? "Admin" :
+                projectManager ? "ProjectManager" :
+                    inventoryManager ? "InventoryManager" :
+                        operator ? "Operator" :
+                            associate ? "Associate" : undefined;
+        return res.json({ success: true, exists: Boolean(role), role });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: error?.message || "Unable to verify email." });
+    }
+};
+
+export const authenticateGoogle = async (req: Request, res: Response) => {
+    try {
+        const idToken = String(req.body?.idToken || "").trim();
+        const role = String(req.body?.role || "").trim();
+        const intent = String(req.body?.intent || "login").trim().toLowerCase();
+        const rememberMe = Boolean(req.body?.rememberMe);
+
+        if (!idToken || !role) {
+            return res.status(400).json({ success: false, message: "idToken and role are required" });
+        }
+        if (role !== "Associate" && role !== "Operator") {
+            return res.status(400).json({ success: false, message: "Google login is only enabled for Associate and Operator." });
+        }
+
+        const googlePayload = await verifyGoogleIdToken(idToken);
+        const email = String(googlePayload.email || "").trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, message: "Google email is required." });
+        }
+
+        const [admin, projectManager, inventoryManager, operator, associate] = await Promise.all([
+            AdminModel.findOne({ email }).select("_id").lean(),
+            ProjectManagerModel.findOne({ email }).select("_id").lean(),
+            InventoryManagerModel.findOne({ email }).select("_id").lean(),
+            OperatorModel.findOne({ email }).select("_id").lean(),
+            AgentModel.findOne({ email }).select("_id").lean(),
+        ]);
+        const existingRole =
+            admin ? "Admin" :
+                projectManager ? "ProjectManager" :
+                    inventoryManager ? "InventoryManager" :
+                        operator ? "Operator" :
+                            associate ? "Associate" : null;
+
+        if (existingRole && existingRole !== role) {
+            return res.status(409).json({
+                success: false,
+                message: "Account exists under a different role.",
+                role: existingRole,
+            });
+        }
+
+        if (intent === "login") {
+            const model: any = role === "Operator" ? OperatorModel : AgentModel;
+            const user: any = await model.findOne({ email });
+            if (!user) {
+                return res.status(404).json({ success: false, message: "Account not found. Please sign up." });
+            }
+
+            const roleLower = String(role || "").toLowerCase();
+            if (roleLower === "associate") {
+                const registrationStatus = String((user as any).registrationStatus || "PENDING_REVIEW").toUpperCase();
+                if (registrationStatus !== "APPROVED" || user.isActive === false) {
+                    return res.status(401).json({ message: "Account pending admin approval." });
+                }
+                const linkedCompanyId = (user as any).associateCompany;
+                if (linkedCompanyId) {
+                    const company = await AssociateCompanyModel.findById(linkedCompanyId)
+                        .select("registrationStatus isApproved")
+                        .lean();
+                    if (
+                        !company ||
+                        String((company as any).registrationStatus || "").toUpperCase() !== "APPROVED" ||
+                        (company as any).isApproved !== true
+                    ) {
+                        return res.status(401).json({ message: "Account pending admin approval." });
+                    }
+                }
+            } else {
+                const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
+                if (registrationStatus !== "APPROVED" || user.isActive === false) {
+                    return res.status(401).json({ message: "Account pending admin approval." });
+                }
+            }
+
+            const jwtExpiresIn = rememberMe ? "24h" : "2h";
+            const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
+            const normalizedRole = roleLower === "operator" ? "Operator" : role;
+            const userForToken = {
+                ...user.toObject(),
+                role: normalizedRole,
+                associateCompany: (user as any).associateCompany,
+            };
+            const token = generateJWTToken(userForToken, jwtExpiresIn);
+            const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+            const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
+
+            res.setHeader("Cache-Control", "no-store");
+            res.cookie("auth_token", token, cookieOptions);
+            return res.json({
+                success: true,
+                user: { id: user._id, email: user.email, name: user.name, role: normalizedRole },
+            });
+        }
+
+        if (intent === "register") {
+            if (existingRole) {
+                return res.status(409).json({ success: false, message: "Account already exists — sign in." });
+            }
+            const registerPayload = req.body?.registerPayload || {};
+            const generatedPassword = generateRandomPassword();
+            req.body = {
+                ...registerPayload,
+                name: registerPayload?.name || googlePayload.name || "",
+                email,
+                password: generatedPassword,
+                confirmPassword: generatedPassword,
+                authProvider: "GOOGLE",
+                googleSub: googlePayload.sub,
+                googleEmailVerified: Boolean(googlePayload.email_verified),
+                isEmailVerified: true,
+            };
+
+            if (role === "Operator") {
+                await registerOperator(req, res);
+            } else {
+                await registerAssociate(req, res);
+            }
+
+            const createdUserId = (res as any)?.locals?.createdUserId;
+            if (createdUserId) {
+                await VerificationModel.create({
+                    userId: String(createdUserId),
+                    userType: role,
+                    method: "email",
+                    code: "GOOGLE_VERIFIED",
+                    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
+                    ipAddress: String(req.ip || ""),
+                    userAgent: String(req.headers["user-agent"] || ""),
+                    verified: true,
+                });
+            }
+            return;
+        }
+
+        return res.status(400).json({ success: false, message: "Invalid intent." });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: error?.message || "Google auth failed." });
+    }
 };
 
 /**
@@ -788,9 +968,12 @@ export const registerAssociate = async (req: Request, res: Response) => {
             division: !shouldLinkCompany && finalAssociateGeoType === "INDIAN" ? finalAssociateDivision : undefined,
             pincodeEntry: !shouldLinkCompany && finalAssociateGeoType === "INDIAN" ? finalAssociatePincode : undefined,
             password: password, // Plugin will hash this on save/create
+            authProvider: String(req.body?.authProvider || "LOCAL").toUpperCase() === "GOOGLE" ? "GOOGLE" : "LOCAL",
+            googleSub: req.body?.googleSub || null,
+            googleEmailVerified: Boolean(req.body?.googleEmailVerified),
             role: "Associate",
             isActive: false,
-            isEmailVerified: false,
+            isEmailVerified: Boolean(req.body?.isEmailVerified) || false,
             isPhoneVerified: false,
             isOneToOneVerified: false,
             isCompanyVerified: false,
@@ -837,6 +1020,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
         }
 
         // Return success (no auto-login for security)
+        res.locals.createdUserId = newAssociate._id;
         res.status(201).json({
             success: true,
             message: "Registration submitted. Our team will contact you after verification review.",
@@ -1093,6 +1277,9 @@ export const registerOperator = async (req: Request, res: Response) => {
             languageKnown: Array.isArray(languageKnown) ? languageKnown : [],
             joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
             workingHours: parsedWorkingHours,
+            authProvider: String(req.body?.authProvider || "LOCAL").toUpperCase() === "GOOGLE" ? "GOOGLE" : "LOCAL",
+            googleSub: req.body?.googleSub || null,
+            googleEmailVerified: Boolean(req.body?.googleEmailVerified),
             isActive: false,
             registrationStatus: "PENDING_REVIEW",
             registrationSource: "SELF_REGISTERED",
@@ -1115,6 +1302,7 @@ export const registerOperator = async (req: Request, res: Response) => {
             payload: { approvalType: "operator" },
         });
 
+        res.locals.createdUserId = operator._id;
         return res.json({
             success: true,
             message: "Registration submitted for approval.",

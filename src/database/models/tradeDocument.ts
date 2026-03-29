@@ -57,6 +57,7 @@ const TradeDocumentSchema: Schema = new Schema(
     type: {
       type: String,
       enum: [
+        "LOI",
         "QUOTATION",
         "PROFORMA_INVOICE",
         "INVOICE",
@@ -70,7 +71,9 @@ const TradeDocumentSchema: Schema = new Schema(
         "BILL_OF_LADING",
         "AIR_WAYBILL",
         "INSURANCE_CERTIFICATE",
-        "PAYMENT_ADVICE"
+        "PAYMENT_ADVICE",
+        "LORRY_RECEIPT",
+        "LCL_DRAFT"
       ],
       required: true,
       index: true,

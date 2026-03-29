@@ -25,6 +25,7 @@ export interface IInquiry extends Document {
   arrivalPortId?: Types.ObjectId | null;
   arrivalPortName?: string | null;
   expectedArrivalDate?: Date | null;
+  importDeliveryMode?: "PORT_PICKUP" | "OBAOL_SERVICE" | null;
 
   // Commercial terms
   preferredIncoterm?: Types.ObjectId | null;
@@ -34,9 +35,43 @@ export interface IInquiry extends Document {
   // Acceptance markers
   sellerAcceptedAt?: Date | null;
   buyerConfirmedAt?: Date | null;
+  buyerClarificationRequestedAt?: Date | null;
+  clarificationReasons?: Array<"RATE" | "PAYMENT_TERMS" | "DELIVERY_TIMELINE">;
+  clarificationRate?: number | null;
+  clarificationPaymentTerms?: boolean;
+  clarificationDeliveryTimeline?: boolean;
+  clarificationCommunicatedAt?: Date | null;
+  loiSubmittedAt?: Date | null;
+  supplierQtyConfirmedAt?: Date | null;
+  revisionRequestedAt?: Date | null;
+  revisionReasons?: Array<"RATE" | "PAYMENT_TERMS" | "DELIVERY_TIMELINE">;
+  revisionRate?: number | null;
+  revisionPaymentTerms?: boolean;
+  revisionDeliveryTimeline?: boolean;
+  revisionCommunicatedAt?: Date | null;
+  revisionThread?: {
+    items: Array<{
+      key: "RATE" | "PAYMENT_TERMS" | "DELIVERY_TIMELINE";
+      buyerRequested: boolean;
+      buyerRate?: number | null;
+      buyerDeliveryMode?: "DELIVER_TO_LOCATION" | "PRODUCT_READY" | null;
+      buyerDeliveryDate?: Date | null;
+      supplierAcknowledged?: boolean;
+      supplierCounterRate?: number | null;
+      repliedAt?: Date | null;
+    }>;
+    buyerRequestedAt?: Date | null;
+    buyerConfirmedAt?: Date | null;
+  };
+  quotationCreatedAt?: Date | null;
+  proformaCreatedAt?: Date | null;
+  otherDocsCompletedAt?: Date | null;
+  poSubmittedAt?: Date | null;
 
   // Internal assignment
   assignedOperatorId?: Types.ObjectId | null;
+  supplierOperatorId?: Types.ObjectId | null;
+  dealCloserOperatorId?: Types.ObjectId | null;
   order?: Types.ObjectId | null;
   responsibilityPlan?: {
     procurementBy?: "buyer" | "seller" | "obaol";
@@ -68,7 +103,7 @@ export interface IInquiry extends Document {
   };
   responsibilitiesFinalizedAt?: Date | null;
   executionInquiries?: Array<{
-    type: "PROCUREMENT" | "CERTIFICATION" | "TRANSPORTATION" | "SHIPPING" | "PACKAGING" | "QUALITY_TESTING";
+    type: "PROCUREMENT" | "CERTIFICATION" | "TRANSPORTATION" | "SHIPPING" | "PACKAGING" | "QUALITY_TESTING" | "WAREHOUSE";
     ownerBy: "buyer" | "seller" | "obaol";
     status: "OPEN" | "IN_PROGRESS" | "COMPLETED";
     title: string;
@@ -81,6 +116,8 @@ export interface IInquiry extends Document {
       fromState?: string | null;
       fromDistrict?: string | null;
       packagingSpecifications?: string | null;
+      segmentLabel?: string | null;
+      segmentKey?: string | null;
     };
     candidateProviders?: Array<Types.ObjectId | string>;
     bids?: Array<{
@@ -132,6 +169,8 @@ export interface ICreateInquiry {
   sellerAssociateId: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
   assignedOperatorId?: Types.ObjectId | null;
+  supplierOperatorId?: Types.ObjectId | null;
+  dealCloserOperatorId?: Types.ObjectId | null;
   preferredIncoterm?: Types.ObjectId | null;
   paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
@@ -145,6 +184,7 @@ export interface ICreateInquiry {
   arrivalPortId?: Types.ObjectId | null;
   arrivalPortName?: string | null;
   expectedArrivalDate?: Date | null;
+  importDeliveryMode?: "PORT_PICKUP" | "OBAOL_SERVICE" | null;
   workflowStage?: string;
   isDemo?: boolean;
   demoTag?: string;
@@ -162,6 +202,9 @@ export interface IUpdateInquiry {
   buyerAssociateId?: Types.ObjectId;
   sellerAssociateId?: Types.ObjectId;
   mediatorAssociateId?: Types.ObjectId | null;
+  assignedOperatorId?: Types.ObjectId | null;
+  supplierOperatorId?: Types.ObjectId | null;
+  dealCloserOperatorId?: Types.ObjectId | null;
   preferredIncoterm?: Types.ObjectId | null;
   paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
@@ -172,6 +215,7 @@ export interface IUpdateInquiry {
   arrivalPortId?: Types.ObjectId | null;
   arrivalPortName?: string | null;
   expectedArrivalDate?: Date | null;
+  importDeliveryMode?: "PORT_PICKUP" | "OBAOL_SERVICE" | null;
   workflowStage?: string;
   isDemo?: boolean;
   demoTag?: string;

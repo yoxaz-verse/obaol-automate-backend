@@ -16,6 +16,8 @@ import {
   getRegisterPincodes,
   getCompanyInterestsStatus,
   upsertCompanyInterests,
+  authenticateGoogle,
+  getEmailStatus,
 } from "../services/authService";
 import authenticateToken from "../middlewares/auth";
 
@@ -23,6 +25,8 @@ const authRoute = Router();
 
 authRoute.post("/", authenticateUser);
 authRoute.post("/register", registerAssociate);
+authRoute.post("/google", authenticateGoogle);
+authRoute.get("/email-status", getEmailStatus);
 authRoute.get("/register/options", getRegisterOptions);
 authRoute.get("/register/companies", getRegisterCompanies);
 authRoute.get("/register/designations", getRegisterDesignations);

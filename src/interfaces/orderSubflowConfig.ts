@@ -2,11 +2,13 @@ import { Document } from "mongoose";
 
 export type OrderSubflowType =
   | "PROCUREMENT"
-  | "LOGISTICS"
-  | "INLAND_LOGISTICS"
+  | "INLAND_TRANSPORTATION"
   | "PACKAGING"
   | "FREIGHT_FORWARDING"
-  | "INVENTORY";
+  | "INVENTORY"
+  | "CERTIFICATION"
+  | "QUALITY_QA"
+  | "WAREHOUSE";
 
 export interface IOrderSubflowConfig extends Document {
   orderFlowType: "TRADE_ORDER";

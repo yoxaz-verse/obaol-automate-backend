@@ -35,6 +35,12 @@ router.get("/sea-ports", inquiryController.listSeaPorts.bind(inquiryController))
 router.get("/:id", inquiryController.getById.bind(inquiryController));
 
 /**
+ * Update inquiry (responsibility/specifications/context)
+ * PATCH /api/v1/web/inquiries/:id
+ */
+router.patch("/:id", inquiryController.update.bind(inquiryController));
+
+/**
  * Update inquiry status (validates state transitions)
  * PATCH /api/v1/web/inquiries/:id/status
  * Body: { status: "CONTACTED" }
@@ -72,6 +78,19 @@ router.patch("/:id/seller-accept", inquiryController.sellerAccept.bind(inquiryCo
  * PATCH /api/v1/web/inquiries/:id/buyer-confirm
  */
 router.patch("/:id/buyer-confirm", inquiryController.buyerConfirm.bind(inquiryController));
+
+/**
+ * Buyer requests clarification on quotation
+ * PATCH /api/v1/web/inquiries/:id/request-clarification
+ */
+router.patch("/:id/request-clarification", inquiryController.requestClarification.bind(inquiryController));
+router.patch("/:id/revision-reply", inquiryController.replyToRevision.bind(inquiryController));
+
+/**
+ * Apply workflow action
+ * PATCH /api/v1/web/inquiries/:id/actions
+ */
+router.patch("/:id/actions", inquiryController.applyAction.bind(inquiryController));
 
 /**
  * Finalize responsibility plan and generate execution inquiries

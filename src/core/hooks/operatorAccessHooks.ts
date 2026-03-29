@@ -82,7 +82,12 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
         if (req.params?.entity === "enquiries") {
             return {
                 ...query,
-                $or: [{ assignedOperatorId: user.id }, { createdBy: user.id }]
+                $or: [
+                    { assignedOperatorId: user.id },
+                    { supplierOperatorId: user.id },
+                    { dealCloserOperatorId: user.id },
+                    { createdBy: user.id }
+                ]
             };
         }
 

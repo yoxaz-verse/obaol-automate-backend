@@ -1,6 +1,7 @@
 import { Document, Types } from "mongoose";
 
 export type TradeDocumentType =
+  | "LOI"
   | "QUOTATION"
   | "PROFORMA_INVOICE"
   | "INVOICE"
@@ -14,7 +15,9 @@ export type TradeDocumentType =
   | "BILL_OF_LADING"
   | "AIR_WAYBILL"
   | "INSURANCE_CERTIFICATE"
-  | "PAYMENT_ADVICE";
+  | "PAYMENT_ADVICE"
+  | "LORRY_RECEIPT"
+  | "LCL_DRAFT";
 export type TradeDocumentStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLED";
 export type TradeDocumentVerifiedStatus = "PENDING" | "VERIFIED" | "REJECTED";
 

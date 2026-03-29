@@ -9,7 +9,13 @@ const ImportReservationSchema: Schema = new Schema(
     quantityRequested: { type: Number, required: true, min: 0 },
     status: {
       type: String,
-      enum: ["PENDING", "ACCEPTED", "REJECTED", "CANCELLED"],
+      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "LOCKED", "ACCEPTED"],
+      default: "PENDING",
+      index: true,
+    },
+    reservationStatus: {
+      type: String,
+      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "LOCKED", "ACCEPTED"],
       default: "PENDING",
       index: true,
     },
@@ -30,4 +36,3 @@ export const ImportReservationModel = mongoose.model<IImportReservation>(
   "ImportReservation",
   ImportReservationSchema
 );
-

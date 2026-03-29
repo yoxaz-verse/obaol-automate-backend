@@ -7,6 +7,9 @@ import { OrderModel } from "../database/models/order";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { IInquiry } from "../interfaces/enquiry";
 import { DocumentRuleModel } from "../database/models/documentRule";
+import { applyPaymentPlanDocUpdate } from "../utils/paymentPlan";
+import { FlowRuleModel } from "../database/models/flowRule";
+import { ensureDefaultFlowRules } from "../utils/flowRules";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -14,6 +17,7 @@ const isOperatorRole = (role: string) => role === "operator" || role === "team";
 const isAssociateRole = (role: string) => role === "associate";
 
 const typeShort: Record<string, string> = {
+  LOI: "LOI",
   QUOTATION: "QUO",
   PROFORMA_INVOICE: "PI",
   INVOICE: "INV",
@@ -28,14 +32,23 @@ const typeShort: Record<string, string> = {
   AIR_WAYBILL: "AWB",
   INSURANCE_CERTIFICATE: "INS",
   PAYMENT_ADVICE: "PAY",
+  LORRY_RECEIPT: "LR",
+  LCL_DRAFT: "LCL",
 };
 
 const resolveInquiryWorkflowStage = (enquiry: any) => {
   if (enquiry?.workflowStage) return String(enquiry.workflowStage).toUpperCase();
   if (enquiry?.order) return "ORDER_CONFIRMED";
-  if (enquiry?.buyerConfirmedAt) return "PURCHASE_ORDER_RECEIVED";
-  if (enquiry?.sellerAcceptedAt) return "QUOTATION_SUBMITTED";
-  return "INQUIRY_CREATED";
+  if (enquiry?.poSubmittedAt) return "PURCHASE_ORDER_CREATED";
+  if (enquiry?.otherDocsCompletedAt) return "PURCHASE_ORDER_CREATED";
+  if (enquiry?.proformaCreatedAt) return "OTHER_DOCUMENTS";
+  if (enquiry?.responsibilitiesFinalizedAt) return "PROFORMA_ISSUED";
+  if (enquiry?.buyerConfirmedAt) return "RESPONSIBILITIES_FINALIZED";
+  if (enquiry?.quotationCreatedAt) return "QUOTATION_DECISION";
+  if (enquiry?.revisionRequestedAt) return "QUOTATION_REVISION";
+  if (enquiry?.supplierQtyConfirmedAt) return "QUOTATION_REVISION";
+  if (enquiry?.loiSubmittedAt) return "LOI_ACCEPTED_QTY_CONFIRMED";
+  return "ENQUIRY_CREATED";
 };
 const resolveOrderWorkflowStage = (order: any) => {
   if (order?.workflowStage) return String(order.workflowStage).toUpperCase();
@@ -65,6 +78,25 @@ const computeTotals = (ratePerKg: number, commissionPerKg: number, quantityMT: n
   const taxes = Number(taxAmount || 0);
   const grandTotal = subtotal + commissionTotal + taxes;
   return { qtyKg, subtotal, commissionTotal, grandTotal };
+};
+
+const normalizeDocStatus = (value: unknown) => String(value || "").trim().toUpperCase();
+
+const resolveInquiryStageForDocument = (enquiry: any, docType: string, docStatus: string) => {
+  const status = normalizeDocStatus(docStatus);
+  if (docType === "QUOTATION" && status !== "DRAFT") {
+    return "QUOTATION_DECISION";
+  }
+  if (docType === "PROFORMA_INVOICE" && status !== "DRAFT") return "OTHER_DOCUMENTS";
+  if (docType === "PURCHASE_ORDER") return "PURCHASE_ORDER_CREATED";
+  return null;
+};
+
+const shouldAdvanceInquiryStage = (currentStage: string, nextStage: string, stageOrder: Map<string, number>) => {
+  const currentOrder = stageOrder.get(String(currentStage || "").toUpperCase());
+  const nextOrder = stageOrder.get(String(nextStage || "").toUpperCase());
+  if (currentOrder === undefined || nextOrder === undefined) return true;
+  return nextOrder >= currentOrder;
 };
 
 const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationId?: Types.ObjectId | null) => {
@@ -187,6 +219,7 @@ export class TradeDocumentController {
 
       const type = String(req.body?.type || "").toUpperCase();
       const allowedTypes = new Set([
+        "LOI",
         "QUOTATION",
         "PROFORMA_INVOICE",
         "INVOICE",
@@ -200,7 +233,9 @@ export class TradeDocumentController {
         "BILL_OF_LADING",
         "AIR_WAYBILL",
         "INSURANCE_CERTIFICATE",
-        "PAYMENT_ADVICE"
+        "PAYMENT_ADVICE",
+        "LORRY_RECEIPT",
+        "LCL_DRAFT"
       ]);
       if (!allowedTypes.has(type)) {
         return res.status(400).json({ success: false, message: "Invalid document type." });
@@ -225,17 +260,33 @@ export class TradeDocumentController {
 
       const stageType = enquiryId ? "INQUIRY" : "ORDER";
       const stageKey = stageType === "INQUIRY" ? resolveInquiryWorkflowStage(enquiry) : resolveOrderWorkflowStage(order);
-      const rule = await DocumentRuleModel.findOne({
+      const stageRules = await DocumentRuleModel.find({
         docType: type,
         stageType,
-        stageKey,
         isActive: true,
         isDeleted: { $ne: true },
       }).lean();
+      const rule = stageRules.find((r: any) => String(r.stageKey || "").toUpperCase() === stageKey) || stageRules[0] || null;
 
       if (!isPrivileged) {
         if (!rule) {
           return res.status(403).json({ success: false, message: "Only admin/operator can create documents." });
+        }
+        if (stageType === "INQUIRY") {
+          await ensureDefaultFlowRules();
+          const flowRules = await FlowRuleModel.find({
+            flowType: "TRADE_ENQUIRY",
+            isDeleted: { $ne: true },
+            isActive: true,
+          }).lean();
+          const stageOrder = new Map<string, number>(
+            flowRules.map((r: any) => [String(r.stageKey || "").toUpperCase(), Number(r.sortOrder || 0)])
+          );
+          const currentStage = String(stageKey || "").toUpperCase();
+          const targetStage = String(rule.stageKey || "").toUpperCase();
+          if (!shouldAdvanceInquiryStage(currentStage, targetStage, stageOrder)) {
+            return res.status(403).json({ success: false, message: "Document cannot be created for the current inquiry stage." });
+          }
         }
         const buyerId = String(enquiry?.buyerAssociateId || "");
         const sellerId = String(enquiry?.sellerAssociateId || "");
@@ -276,6 +327,34 @@ export class TradeDocumentController {
         terms: { ...snapshot.terms, ...(req.body?.terms || {}) },
         createdBy: req.user?.id || null,
       });
+
+      if (stageType === "INQUIRY") {
+        const nextStage = resolveInquiryStageForDocument(enquiry, type, created?.status);
+        if (nextStage) {
+          await ensureDefaultFlowRules();
+          const flowRules = await FlowRuleModel.find({
+            flowType: "TRADE_ENQUIRY",
+            isDeleted: { $ne: true },
+            isActive: true,
+          }).lean();
+          const stageOrder = new Map<string, number>(
+            flowRules.map((r: any) => [String(r.stageKey || "").toUpperCase(), Number(r.sortOrder || 0)])
+          );
+          const currentStage = String((enquiry as any)?.workflowStage || stageKey || "").toUpperCase();
+          if (shouldAdvanceInquiryStage(currentStage, nextStage, stageOrder)) {
+            (enquiry as any).workflowStage = nextStage;
+            await enquiry.save();
+          }
+        }
+      }
+
+      if ((created as any).orderId) {
+        await applyPaymentPlanDocUpdate(
+          new Types.ObjectId(String((created as any).orderId)),
+          String(created.type || ""),
+          String((created as any).verifiedStatus || "")
+        );
+      }
 
       return res.status(201).json({ success: true, data: created });
     } catch (error) {
@@ -493,6 +572,39 @@ export class TradeDocumentController {
       }
 
       const updated = await TradeDocumentModel.findByIdAndUpdate(id, updatePayload, { new: true });
+      if ((updated as any)?.orderId) {
+        await applyPaymentPlanDocUpdate(
+          new Types.ObjectId(String((updated as any).orderId)),
+          String((updated as any).type || ""),
+          String((updated as any).verifiedStatus || "")
+        );
+      }
+      if ((updated as any)?.enquiryId) {
+        const enquiry = await InquiryModel.findById((updated as any).enquiryId);
+        if (enquiry) {
+          const nextStage = resolveInquiryStageForDocument(
+            enquiry,
+            String((updated as any)?.type || ""),
+            String((updated as any)?.status || "")
+          );
+          if (nextStage) {
+            await ensureDefaultFlowRules();
+            const flowRules = await FlowRuleModel.find({
+              flowType: "TRADE_ENQUIRY",
+              isDeleted: { $ne: true },
+              isActive: true,
+            }).lean();
+            const stageOrder = new Map<string, number>(
+              flowRules.map((r: any) => [String(r.stageKey || "").toUpperCase(), Number(r.sortOrder || 0)])
+            );
+            const currentStage = String((enquiry as any)?.workflowStage || "").toUpperCase();
+            if (shouldAdvanceInquiryStage(currentStage, nextStage, stageOrder)) {
+              (enquiry as any).workflowStage = nextStage;
+              await enquiry.save();
+            }
+          }
+        }
+      }
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
       next(error);
@@ -517,6 +629,36 @@ export class TradeDocumentController {
     return TradeDocumentModel.create({
       type: "QUOTATION",
       status: "DRAFT",
+      documentNumber,
+      enquiryId: enquiry._id,
+      inventoryReservationId: snapshot.inventoryReservationId || null,
+      buyer: snapshot.buyer,
+      seller: snapshot.seller,
+      lineItems: snapshot.lineItems,
+      totals: snapshot.totals,
+      terms: snapshot.terms,
+      createdBy: null,
+    });
+  }
+
+  async autoCreateLoiForInquiry(inquiryId: Types.ObjectId, inventoryReservationId?: Types.ObjectId | null) {
+    const existing = await TradeDocumentModel.findOne({ enquiryId: inquiryId, type: "LOI", isDeleted: { $ne: true } });
+    if (existing) return existing;
+
+    const enquiry = await InquiryModel.findById(inquiryId);
+    if (!enquiry) return null;
+
+    const snapshot = await buildSnapshotFromEnquiry(enquiry as any, inventoryReservationId || undefined);
+    const sellerCompanyId = snapshot.seller?.companyId || null;
+    if (!sellerCompanyId) return null;
+
+    const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("name slug").lean();
+    const companyCode = buildCompanyCode(sellerCompany);
+    const documentNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "LOI", companyCode);
+
+    return TradeDocumentModel.create({
+      type: "LOI",
+      status: "SENT",
       documentNumber,
       enquiryId: enquiry._id,
       inventoryReservationId: snapshot.inventoryReservationId || null,

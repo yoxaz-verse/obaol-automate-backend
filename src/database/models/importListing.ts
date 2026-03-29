@@ -25,6 +25,12 @@ const ImportListingSchema: Schema = new Schema(
       default: "OPEN",
       index: true,
     },
+    importStatus: {
+      type: String,
+      enum: ["DRAFT", "LISTED", "RESERVED", "APPROVED", "LOCKED", "ENQUIRY_CREATED"],
+      default: "LISTED",
+      index: true,
+    },
     isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }

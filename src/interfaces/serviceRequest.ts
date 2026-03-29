@@ -9,6 +9,7 @@ export type ServiceRequestType =
   | "WAREHOUSING";
 
 export type ServiceRequestStatus = "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type ServiceRequestMode = "DIRECT" | "OPEN";
 
 export interface IServiceRequestBid {
   company: Types.ObjectId | string;
@@ -22,6 +23,7 @@ export interface IServiceRequestBid {
 
 export interface IServiceRequest extends Document {
   requestType: ServiceRequestType;
+  requestMode?: ServiceRequestMode;
   title: string;
   serviceSpecifications: string;
   fromState: Types.ObjectId;

@@ -17,7 +17,13 @@ export const orderFilterHook = async (
 
     // Operator: orders tied to inquiries assigned to this operator, plus external orders they created
     if (role === "operator" || role === "team") {
-        const inquiryIds = await InquiryModel.find({ assignedOperatorId: userId }).distinct("_id");
+        const inquiryIds = await InquiryModel.find({
+            $or: [
+                { assignedOperatorId: userId },
+                { supplierOperatorId: userId },
+                { dealCloserOperatorId: userId },
+            ],
+        }).distinct("_id");
         return {
             ...query,
             $or: [

@@ -83,31 +83,40 @@ export class ServiceRequestController {
       return res.status(400).json({ success: false, message: "Invalid requestType." });
     }
 
+    const requestModeRaw = String(req.body?.requestMode || "").toUpperCase();
+    const requestMode = requestModeRaw === "OPEN" ? "OPEN" : "DIRECT";
     const warehouseId = toObjectId(req.body?.warehouseId);
     const enquiryId = toObjectId(req.body?.enquiryId);
     const orderId = toObjectId(req.body?.orderId);
     let candidateProviders: string[] = [];
     if (requestType === "WAREHOUSING") {
-      if (!warehouseId) {
-        return res.status(400).json({ success: false, message: "Warehouse is required for warehousing requests." });
+      if (requestMode === "DIRECT") {
+        if (!warehouseId) {
+          return res.status(400).json({ success: false, message: "Warehouse is required for warehousing requests." });
+        }
+        const warehouse = await WarehouseModel.findById(warehouseId)
+          .select("ownerCompanyId listingType isRentalActive isActive")
+          .lean();
+        if (!warehouse) {
+          return res.status(404).json({ success: false, message: "Selected warehouse not found." });
+        }
+        if (
+          warehouse.listingType !== "RENTAL" ||
+          !warehouse.isRentalActive ||
+          !warehouse.isActive
+        ) {
+          return res.status(400).json({ success: false, message: "Selected warehouse is not available for rent." });
+        }
+        if (!warehouse.ownerCompanyId) {
+          return res.status(400).json({ success: false, message: "Selected warehouse has no owner company." });
+        }
+        candidateProviders = [String(warehouse.ownerCompanyId)];
+      } else {
+        if (warehouseId) {
+          return res.status(400).json({ success: false, message: "Warehouse must be empty for open requests." });
+        }
+        candidateProviders = await this.getCandidateProviderIds("WAREHOUSING");
       }
-      const warehouse = await WarehouseModel.findById(warehouseId)
-        .select("ownerCompanyId listingType isRentalActive isActive")
-        .lean();
-      if (!warehouse) {
-        return res.status(404).json({ success: false, message: "Selected warehouse not found." });
-      }
-      if (
-        warehouse.listingType !== "RENTAL" ||
-        !warehouse.isRentalActive ||
-        !warehouse.isActive
-      ) {
-        return res.status(400).json({ success: false, message: "Selected warehouse is not available for rent." });
-      }
-      if (!warehouse.ownerCompanyId) {
-        return res.status(400).json({ success: false, message: "Selected warehouse has no owner company." });
-      }
-      candidateProviders = [String(warehouse.ownerCompanyId)];
     } else {
       candidateProviders = await this.getCandidateProviderIds(requestType);
     }
@@ -166,6 +175,7 @@ export class ServiceRequestController {
 
       const created = await ServiceRequestModel.create({
         requestType,
+        requestMode: requestType === "WAREHOUSING" ? requestMode : "DIRECT",
         title,
         serviceSpecifications,
         fromState,
@@ -386,7 +396,7 @@ export class ServiceRequestController {
 
       const requestTypeToSubflow: Record<string, string> = {
         PROCUREMENT: "PROCUREMENT",
-        TRANSPORTATION: "LOGISTICS",
+        TRANSPORTATION: "INLAND_TRANSPORTATION",
         PACKAGING: "PACKAGING",
         WAREHOUSING: "INVENTORY",
       };

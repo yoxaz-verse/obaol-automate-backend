@@ -16,6 +16,9 @@ export interface IAssociate {
   hasCompany?: boolean;
   companyMode?: "existing" | "new" | "none";
   password: string;
+  authProvider?: "LOCAL" | "GOOGLE";
+  googleSub?: string | null;
+  googleEmailVerified?: boolean;
   isActive?: boolean;
   isDeleted?: boolean;
   isEmailVerified?: boolean;
@@ -48,6 +51,9 @@ export interface ICreateAssociate {
   hasCompany?: boolean;
   companyMode?: "existing" | "new" | "none";
   password: string;
+  authProvider?: "LOCAL" | "GOOGLE";
+  googleSub?: string | null;
+  googleEmailVerified?: boolean;
   isActive?: boolean;
   isDeleted?: boolean;
   isEmailVerified?: boolean;
@@ -80,6 +86,9 @@ export interface IUpdateAssociate {
   hasCompany?: boolean;
   companyMode?: "existing" | "new" | "none";
   password?: string;
+  authProvider?: "LOCAL" | "GOOGLE";
+  googleSub?: string | null;
+  googleEmailVerified?: boolean;
   isActive?: boolean;
   isDeleted?: boolean;
   isEmailVerified?: boolean;

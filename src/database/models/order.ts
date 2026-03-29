@@ -21,6 +21,14 @@ const ResponsibilitiesSchema = new Schema(
         shippingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
         packagingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
         qualityTestingBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+        cargoInsuranceBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+        exportCustomsBy: { type: String, enum: ["buyer", "seller", "obaol"], default: "obaol" },
+        importCustomsBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+        dutiesTaxesBy: { type: String, enum: ["buyer"], default: "buyer" },
+        portHandlingBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+        destinationInlandTransportBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+        destinationInspectionBy: { type: String, enum: ["buyer", "obaol"], default: "buyer" },
+        finalDeliveryConfirmationBy: { type: String, enum: ["obaol"], default: "obaol" },
     },
     { _id: false }
 );
@@ -50,6 +58,21 @@ const MilestonesSchema = new Schema(
     { _id: false }
 );
 
+const PaymentPlanSchema = new Schema(
+    {
+        milestones: [
+            {
+                label: { type: String, required: true },
+                percent: { type: Number, required: true },
+                dueAtDocType: { type: String, default: null },
+                dueAtStageKey: { type: String, default: null },
+                status: { type: String, enum: ["PENDING", "DUE", "PAID"], default: "PENDING" },
+            },
+        ],
+    },
+    { _id: false }
+);
+
 const OrderSchema: Schema = new Schema(
     {
         enquiry: { type: Schema.Types.ObjectId, ref: "Inquiry", default: null },
@@ -58,6 +81,7 @@ const OrderSchema: Schema = new Schema(
         isExternal: { type: Boolean, default: false, index: true },
         externalCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
         externalTradeType: { type: String, enum: ["DOMESTIC", "INTERNATIONAL", null], default: null },
+        externalRole: { type: String, enum: ["BUYER", "SELLER", "MEDIATOR", null], default: null },
         externalBuyer: {
             name: { type: String, default: "" },
             email: { type: String, default: "" },
@@ -74,6 +98,24 @@ const OrderSchema: Schema = new Schema(
             quantity: { type: Number, default: null },
             unit: { type: String, default: "" },
         },
+        packagingSpecifications: {
+            type: String,
+            maxlength: 4000,
+            trim: true,
+            default: "",
+        },
+        executionContext: {
+            tradeType: { type: String, enum: ["DOMESTIC", "INTERNATIONAL"], default: "DOMESTIC" },
+            originCountry: { type: String, default: null },
+            originState: { type: String, default: null },
+            originDistrict: { type: String, default: null },
+            originPort: { type: String, default: null },
+            destinationCountry: { type: String, default: null },
+            destinationState: { type: String, default: null },
+            destinationDistrict: { type: String, default: null },
+            destinationPort: { type: String, default: null },
+            routeNotes: { type: String, default: null },
+        },
         isDemo: { type: Boolean, default: false, index: true },
         demoTag: { type: String, default: null, index: true },
         demoCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
@@ -81,10 +123,22 @@ const OrderSchema: Schema = new Schema(
         closedByOperator: { type: Schema.Types.ObjectId, ref: "Operator", default: null },
         associateCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null },
         commissionProcessedAt: { type: Date, default: null },
+        paymentTermId: { type: Schema.Types.ObjectId, ref: "PaymentTerm", default: null },
+        incotermId: { type: Schema.Types.ObjectId, ref: "Incoterm", default: null },
+        supplierOperatorId: { type: Schema.Types.ObjectId, ref: "Operator", default: null },
+        dealCloserOperatorId: { type: Schema.Types.ObjectId, ref: "Operator", default: null },
+        paymentPlan: { type: PaymentPlanSchema, default: null },
         trackingId: { type: String },
         logistics: [LogisticsSchema],
         responsibilities: { type: ResponsibilitiesSchema, default: {} },
         milestones: { type: MilestonesSchema, default: {} },
+        subflowInstances: [
+            {
+                type: { type: String, required: true },
+                instanceKey: { type: String, required: true },
+                label: { type: String, default: null },
+            },
+        ],
         subflowStages: { type: Schema.Types.Mixed, default: {} },
     },
     {

@@ -173,7 +173,7 @@ export class OrganizationReportController {
           executionContext: (existingInquiry as any).executionContext || {},
           responsibilityPlan: (existingInquiry as any).responsibilityPlan || {},
           status: InquiryStatus.NEW,
-          workflowStage: "INQUIRY_CREATED",
+          workflowStage: "ENQUIRY_CREATED",
           createdBy: req.user?.id,
         });
 

@@ -2,9 +2,11 @@ import { Document, Types } from "mongoose";
 
 export type ImportReservationStatus =
   | "PENDING"
-  | "ACCEPTED"
+  | "APPROVED"
   | "REJECTED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "LOCKED"
+  | "ACCEPTED";
 
 export interface IImportReservation extends Document {
   listingId: Types.ObjectId;
@@ -12,6 +14,7 @@ export interface IImportReservation extends Document {
   buyerCompanyId: Types.ObjectId;
   quantityRequested: number;
   status: ImportReservationStatus;
+  reservationStatus?: ImportReservationStatus;
   linkedEnquiryId?: Types.ObjectId | null;
   requestedAt?: Date | null;
   acceptedAt?: Date | null;
@@ -21,4 +24,3 @@ export interface IImportReservation extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
-

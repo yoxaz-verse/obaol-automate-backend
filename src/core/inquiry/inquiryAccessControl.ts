@@ -75,6 +75,8 @@ export function canAccessInquiry(
     ) {
         return (
             getAttrId(inquiry.assignedOperatorId) === userId.toString() ||
+            getAttrId((inquiry as any).supplierOperatorId) === userId.toString() ||
+            getAttrId((inquiry as any).dealCloserOperatorId) === userId.toString() ||
             getAttrId((inquiry as any).createdBy) === userId.toString()
         );
     }
@@ -139,6 +141,8 @@ export function filterInquiryFields(
         roleLower === "admin" ||
         ((userRole === UserRole.OPERATOR || roleLower === "operator" || roleLower === "team") &&
             (getAttrId(inquiry.assignedOperatorId) === context.userId.toString() ||
+                getAttrId((inquiry as any).supplierOperatorId) === context.userId.toString() ||
+                getAttrId((inquiry as any).dealCloserOperatorId) === context.userId.toString() ||
                 getAttrId((inquiry as any).createdBy) === context.userId.toString()))
     ) {
         return inquiry;
@@ -150,12 +154,22 @@ export function filterInquiryFields(
 
         if (associateRole === "buyer") {
             // Buyer can see: product, quantity, specifications, status
-            const { notes, assignedOperatorId, sellerAssociateId, mediatorAssociateId, ...safeFields } = inquiry;
+            const {
+                notes,
+                assignedOperatorId,
+                sellerAssociateId,
+                mediatorAssociateId,
+                supplierOperatorId,
+                dealCloserOperatorId,
+                ...safeFields
+            } = inquiry;
             return {
                 ...safeFields,
                 // Explicitly exclude sensitive fields and counterparties
                 notes: undefined,
                 assignedOperatorId: undefined,
+                supplierOperatorId: undefined,
+                dealCloserOperatorId: undefined,
                 sellerAssociateId: undefined,
                 mediatorAssociateId: undefined
             };
@@ -166,6 +180,8 @@ export function filterInquiryFields(
             const {
                 notes,
                 assignedOperatorId,
+                supplierOperatorId,
+                dealCloserOperatorId,
                 specifications,
                 buyerAssociateId,
                 mediatorAssociateId,
@@ -175,6 +191,8 @@ export function filterInquiryFields(
                 ...safeFields,
                 notes: undefined,
                 assignedOperatorId: undefined,
+                supplierOperatorId: undefined,
+                dealCloserOperatorId: undefined,
                 specifications: undefined,
                 buyerAssociateId: undefined,
                 mediatorAssociateId: undefined
@@ -186,6 +204,8 @@ export function filterInquiryFields(
             const {
                 notes,
                 assignedOperatorId,
+                supplierOperatorId,
+                dealCloserOperatorId,
                 specifications,
                 buyerAssociateId,
                 sellerAssociateId,
@@ -195,6 +215,8 @@ export function filterInquiryFields(
                 ...safeFields,
                 notes: undefined,
                 assignedOperatorId: undefined,
+                supplierOperatorId: undefined,
+                dealCloserOperatorId: undefined,
                 specifications: undefined,
                 buyerAssociateId: undefined,
                 sellerAssociateId: undefined

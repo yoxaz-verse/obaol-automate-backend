@@ -20,6 +20,12 @@ const ServiceRequestSchema: Schema = new Schema(
       required: true,
       index: true,
     },
+    requestMode: {
+      type: String,
+      enum: ["DIRECT", "OPEN"],
+      default: "DIRECT",
+      index: true,
+    },
     title: {
       type: String,
       required: true,

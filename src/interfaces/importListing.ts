@@ -1,6 +1,13 @@
 import { Document, Types } from "mongoose";
 
 export type ImportListingStatus = "OPEN" | "PARTIAL" | "FULL" | "CLOSED";
+export type ImportFlowStatus =
+  | "DRAFT"
+  | "LISTED"
+  | "RESERVED"
+  | "APPROVED"
+  | "LOCKED"
+  | "ENQUIRY_CREATED";
 
 export interface IImportListing extends Document {
   importerCompanyId: Types.ObjectId;
@@ -20,6 +27,7 @@ export interface IImportListing extends Document {
   portName?: string | null;
   country?: string | null;
   status: ImportListingStatus;
+  importStatus?: ImportFlowStatus;
   isDeleted?: boolean;
   createdAt: Date;
   updatedAt: Date;

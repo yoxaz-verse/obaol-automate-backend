@@ -36,6 +36,7 @@ import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
 import { FlowRuleModel } from "../database/models/flowRule";
 import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
+import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
@@ -167,6 +168,8 @@ export class InquiryController {
                 sellerAssociateId,
                 mediatorAssociateId,
                 assignedOperatorId,
+                supplierOperatorId,
+                dealCloserOperatorId,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -207,6 +210,7 @@ export class InquiryController {
                 }
             }
 
+            const isImport = String(req.body?.sourceType || "").toUpperCase() === "IMPORT" || Boolean(req.body?.importListingId);
             // Create inquiry
             const inquiry = await InquiryModel.create({
                 productId,
@@ -217,6 +221,8 @@ export class InquiryController {
                 sellerAssociateId,
                 mediatorAssociateId,
                 assignedOperatorId: normalizedAssignedOperatorId,
+                supplierOperatorId: supplierOperatorId || null,
+                dealCloserOperatorId: dealCloserOperatorId || null,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -227,6 +233,8 @@ export class InquiryController {
                 mediatorCommission,
                 notes,
                 status: InquiryStatus.NEW,
+                loiSubmittedAt: isImport ? null : new Date(),
+                workflowStage: isImport ? "QUOTATION_REVISION" : "LOI_ACCEPTED_QTY_CONFIRMED",
                 createdBy: req.user!.id
             });
 
@@ -280,7 +288,9 @@ export class InquiryController {
                     select: "name email phone associateCompany",
                     populate: { path: "associateCompany", select: "name" }
                 },
-                { path: "assignedOperatorId", select: "name email" }
+                { path: "assignedOperatorId", select: "name email" },
+                { path: "supplierOperatorId", select: "name email" },
+                { path: "dealCloserOperatorId", select: "name email" }
             ]);
 
             await this.notifyInquiryParticipants({
@@ -346,7 +356,11 @@ export class InquiryController {
             const isAdmin = req.user!.role === UserRole.ADMIN;
             const isAssignedOperator =
                 (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
-                inquiry.assignedOperatorId?.toString() === req.user!.id;
+                (
+                    inquiry.assignedOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
+                );
 
             let isSeller = false;
             if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
@@ -512,6 +526,11 @@ export class InquiryController {
             }
 
             inquiry.sellerAcceptedAt = new Date();
+            (inquiry as any).supplierQtyConfirmedAt = new Date();
+            const currentStage = String((inquiry as any).workflowStage || "").trim().toUpperCase();
+            if (!currentStage || currentStage === "ENQUIRY_CREATED" || currentStage === "LOI_ACCEPTED_QTY_CONFIRMED") {
+                (inquiry as any).workflowStage = "QUOTATION_REVISION";
+            }
             await inquiry.save();
 
             const reservation = await InventoryReservationModel.create({
@@ -635,6 +654,348 @@ export class InquiryController {
                 message: "Inquiry confirmed by buyer"
             });
         } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Buyer requests clarification on quotation
+     * PATCH /api/v1/web/inquiries/:id/request-clarification
+     */
+    async requestClarification(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid inquiry ID"
+                });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Inquiry not found"
+                });
+            }
+
+            const context: InquiryAccessContext = this.buildAccessContext(req);
+
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied"
+                });
+            }
+
+            let isBuyer = false;
+            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
+                const role = getAssociateRole(inquiry as any, context.associateId);
+                isBuyer = role === "buyer";
+            }
+
+            const isAdmin = req.user!.role === UserRole.ADMIN;
+
+            if (!isBuyer && !isAdmin) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Only the buyer or admin can request clarification"
+                });
+            }
+
+            const reasonsRaw = Array.isArray(req.body?.reasons) ? req.body.reasons : [];
+            const reasons = reasonsRaw
+                .map((value: any) => String(value || "").trim().toUpperCase())
+                .filter((value: string) => ["RATE", "PAYMENT_TERMS", "DELIVERY_TIMELINE"].includes(value));
+            if (reasons.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "At least one clarification reason is required"
+                });
+            }
+            const communicatedConfirmed = Boolean(req.body?.communicatedConfirmed);
+            if (!communicatedConfirmed) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Please confirm clarification has been communicated"
+                });
+            }
+            let clarificationRate: number | null = null;
+            if (reasons.includes("RATE")) {
+                const rateValue = Number(req.body?.clarificationRate);
+                if (!rateValue || Number.isNaN(rateValue)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Clarification rate is required"
+                    });
+                }
+                clarificationRate = rateValue;
+            }
+
+            (inquiry as any).buyerClarificationRequestedAt = new Date();
+            (inquiry as any).clarificationReasons = reasons;
+            (inquiry as any).clarificationRate = clarificationRate;
+            (inquiry as any).clarificationPaymentTerms = reasons.includes("PAYMENT_TERMS");
+            (inquiry as any).clarificationDeliveryTimeline = reasons.includes("DELIVERY_TIMELINE");
+            (inquiry as any).clarificationCommunicatedAt = new Date();
+            inquiry.buyerConfirmedAt = null;
+            (inquiry as any).workflowStage = "QUOTATION_REVISION";
+            await inquiry.save();
+
+            await createInquiryEvent(
+                inquiry._id,
+                InquiryEventType.UPDATED,
+                req.user!.id,
+                {
+                    metadata: { action: "CLARIFICATION_REQUESTED" }
+                }
+            );
+
+            await this.notifyInquiryParticipants({
+                inquiry,
+                actorId: req.user!.id,
+                type: NotificationTypes.INQUIRY_STATUS_CHANGED,
+                title: "Buyer requested clarification",
+                message: "Buyer requested clarification. Quotation needs revision.",
+                payload: { action: "CLARIFICATION_REQUESTED" },
+                priority: "high",
+            });
+
+            res.json({
+                success: true,
+                data: inquiry,
+                message: "Clarification requested"
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Apply workflow action
+     * PATCH /api/v1/web/inquiries/:id/actions
+     */
+    async applyAction(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const actionKey = String(req.body?.actionKey || "").trim().toUpperCase();
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+            const now = new Date();
+            const reasons = Array.isArray(req.body?.reasons) ? req.body.reasons.map((r: any) => String(r).toUpperCase()) : [];
+
+            switch (actionKey) {
+                case "LOI_SUBMITTED":
+                    (inquiry as any).loiSubmittedAt = now;
+                    (inquiry as any).workflowStage = "LOI_ACCEPTED_QTY_CONFIRMED";
+                    await this.tradeDocController.autoCreateLoiForInquiry(new Types.ObjectId(String(inquiry._id)));
+                    break;
+                case "SUPPLIER_QTY_CONFIRMED":
+                    (inquiry as any).supplierQtyConfirmedAt = now;
+                    (inquiry as any).sellerAcceptedAt = now;
+                    (inquiry as any).workflowStage = "QUOTATION_REVISION";
+                    break;
+                case "REVISION_REQUESTED": {
+                    if (!reasons.length) {
+                        return res.status(400).json({ success: false, message: "At least one revision reason is required." });
+                    }
+                    const communicatedConfirmed = Boolean(req.body?.communicatedConfirmed);
+                    if (!communicatedConfirmed) {
+                        return res.status(400).json({ success: false, message: "Please confirm that the revision request was communicated." });
+                    }
+                    const wantsRate = reasons.includes("RATE");
+                    const parsedRate = wantsRate ? Number(req.body?.revisionRate) : null;
+                    if (wantsRate && (!parsedRate || Number.isNaN(parsedRate))) {
+                        return res.status(400).json({ success: false, message: "Revision rate is required when Rate is selected." });
+                    }
+                    const wantsDelivery = reasons.includes("DELIVERY_TIMELINE");
+                    const deliveryMode = String(req.body?.deliveryMode || "").trim().toUpperCase();
+                    const deliveryDate = req.body?.deliveryDate ? new Date(req.body.deliveryDate) : null;
+                    if (wantsDelivery) {
+                        if (!["DELIVER_TO_LOCATION", "PRODUCT_READY"].includes(deliveryMode)) {
+                            return res.status(400).json({ success: false, message: "Delivery mode is required when Delivery Timeline is selected." });
+                        }
+                        if (!deliveryDate || Number.isNaN(deliveryDate.getTime())) {
+                            return res.status(400).json({ success: false, message: "Delivery date is required when Delivery Timeline is selected." });
+                        }
+                    }
+                    (inquiry as any).revisionRequestedAt = now;
+                    (inquiry as any).revisionReasons = reasons;
+                    (inquiry as any).revisionRate = wantsRate ? parsedRate : null;
+                    (inquiry as any).revisionPaymentTerms = reasons.includes("PAYMENT_TERMS");
+                    (inquiry as any).revisionDeliveryTimeline = reasons.includes("DELIVERY_TIMELINE");
+                    (inquiry as any).revisionCommunicatedAt = now;
+                    (inquiry as any).revisionThread = {
+                        items: reasons.map((key: string) => ({
+                            key,
+                            buyerRequested: true,
+                            buyerRate: key === "RATE" ? parsedRate : null,
+                            buyerDeliveryMode: key === "DELIVERY_TIMELINE" ? deliveryMode || null : null,
+                            buyerDeliveryDate: key === "DELIVERY_TIMELINE" ? deliveryDate : null,
+                            supplierAcknowledged: false,
+                            supplierCounterRate: null,
+                            repliedAt: null,
+                        })),
+                        buyerRequestedAt: now,
+                        buyerConfirmedAt: null,
+                    };
+                    (inquiry as any).buyerConfirmedAt = null;
+                    (inquiry as any).workflowStage = "QUOTATION_REVISION";
+                    break;
+                }
+                case "REVISION_CONFIRMED": {
+                    const thread = (inquiry as any)?.revisionThread;
+                    const items = Array.isArray(thread?.items) ? thread.items : [];
+                    if (!items.length) {
+                        return res.status(400).json({ success: false, message: "No revision request found to confirm." });
+                    }
+                const allAcknowledged = items.every((item: any) =>
+                    Boolean(item?.supplierAcknowledged) || (item?.supplierCounterRate !== null && item?.supplierCounterRate !== undefined)
+                );
+                if (!allAcknowledged) {
+                    return res.status(400).json({ success: false, message: "Supplier reply is required for all revision items before confirming." });
+                }
+                    (inquiry as any).revisionThread = {
+                        ...(thread || {}),
+                        buyerConfirmedAt: now,
+                    };
+                    (inquiry as any).workflowStage = "QUOTATION_CREATED";
+                    break;
+                }
+                case "QUOTATION_CREATED":
+                    (inquiry as any).quotationCreatedAt = now;
+                    (inquiry as any).revisionRequestedAt = null;
+                    (inquiry as any).workflowStage = "QUOTATION_DECISION";
+                    break;
+                case "QUOTATION_ACCEPTED":
+                    (inquiry as any).buyerConfirmedAt = now;
+                    (inquiry as any).workflowStage = "RESPONSIBILITIES_FINALIZED";
+                    break;
+                case "RETURN_TO_REVISION":
+                    (inquiry as any).revisionRequestedAt = now;
+                    (inquiry as any).buyerConfirmedAt = null;
+                    (inquiry as any).workflowStage = "QUOTATION_REVISION";
+                    break;
+                case "RESPONSIBILITIES_FINALIZED":
+                    (inquiry as any).responsibilitiesFinalizedAt = now;
+                    (inquiry as any).workflowStage = "PROFORMA_ISSUED";
+                    break;
+                case "PROFORMA_CREATED":
+                    (inquiry as any).proformaCreatedAt = now;
+                    (inquiry as any).workflowStage = "OTHER_DOCUMENTS";
+                    break;
+                case "OTHER_DOCS_UPLOADED":
+                case "OTHER_DOCS_SKIPPED":
+                    (inquiry as any).otherDocsCompletedAt = now;
+                    (inquiry as any).workflowStage = "PURCHASE_ORDER_CREATED";
+                    break;
+                case "PO_UPLOADED":
+                case "PO_SKIPPED":
+                    (inquiry as any).poSubmittedAt = now;
+                    (inquiry as any).workflowStage = "PURCHASE_ORDER_CREATED";
+                    break;
+                default:
+                    return res.status(400).json({ success: false, message: "Unknown actionKey." });
+            }
+
+            await inquiry.save();
+            return res.status(200).json({ success: true, data: inquiry, message: "Action applied." });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Supplier replies to revision checklist
+     * PATCH /api/v1/web/inquiries/:id/revision-reply
+     */
+    async replyToRevision(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+            const role = String(req.user?.role || "").toLowerCase();
+            if (role !== "admin" && role !== "operator" && role !== "team" && role !== "associate") {
+                return res.status(403).json({ success: false, message: "Not authorized to reply to revisions" });
+            }
+
+            const context: InquiryAccessContext = this.buildAccessContext(req);
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({ success: false, message: "Access denied" });
+            }
+
+            const isAdmin = req.user?.role === UserRole.ADMIN || role === "admin";
+            const isAssignedOperator =
+                (req.user?.role === UserRole.OPERATOR || req.user?.role === "team" || role === "operator" || role === "team") &&
+                (
+                    inquiry.assignedOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
+                );
+            let isSeller = false;
+            if (req.user?.role === UserRole.ASSOCIATE && context.associateId) {
+                const associationRole = getAssociateRole(inquiry as any, context.associateId);
+                isSeller = associationRole === "seller";
+            }
+            const isSupplier = String((inquiry as any)?.sellerAssociateId || "") === String(req.user?.id || "");
+
+            if (!isAdmin && !isAssignedOperator && !isSeller && !isSupplier) {
+                return res.status(403).json({ success: false, message: "Only the supplier, assigned operator, or admin can reply to revisions." });
+            }
+
+            const replies = Array.isArray(req.body?.replies) ? req.body.replies : [];
+            if (!replies.length) {
+                return res.status(400).json({ success: false, message: "No revision replies provided." });
+            }
+
+            const thread = (inquiry as any)?.revisionThread || { items: [] };
+            const items = Array.isArray(thread?.items) ? thread.items : [];
+            if (!items.length) {
+                return res.status(400).json({ success: false, message: "No revision request found to reply to." });
+            }
+
+            const now = new Date();
+            const updatedItems = items.map((item: any, index: number) => {
+                const normalizedKey = String(item?.key || "").toUpperCase();
+                let reply = replies.find((r: any) => String(r?.key || "").toUpperCase() === normalizedKey);
+                if (!reply && replies.length === 1 && items.length === 1) {
+                    reply = replies[0];
+                }
+                if (!reply) return item;
+                const hasAck = typeof reply?.acknowledged !== "undefined";
+                const hasCounter = reply?.counterRate !== undefined && reply?.counterRate !== null && String(reply?.counterRate).trim() !== "";
+                const acknowledged = hasAck
+                    ? Boolean(reply?.acknowledged)
+                    : Boolean(item?.supplierAcknowledged) || (hasCounter ? true : false);
+                const counterRate = hasCounter ? Number(reply.counterRate) : item?.supplierCounterRate ?? null;
+                return {
+                    ...item,
+                    supplierAcknowledged: acknowledged,
+                    supplierCounterRate: normalizedKey === "RATE" ? counterRate : item?.supplierCounterRate ?? null,
+                    repliedAt: acknowledged ? now : item?.repliedAt || null,
+                };
+            });
+
+            (inquiry as any).revisionThread = {
+                ...thread,
+                items: updatedItems,
+            };
+            await inquiry.save();
+
+            return res.status(200).json({ success: true, data: inquiry, message: "Revision reply saved." });
+        } catch (error) {
             next(error);
         }
     }
@@ -875,12 +1236,46 @@ export class InquiryController {
                 packagingSpecifications: null,
             };
 
+            const rawSegments = Array.isArray(req.body?.inlandTransportSegments)
+                ? req.body.inlandTransportSegments
+                : [];
+            const transportSegments = rawSegments
+                .map((segment: any, index: number) => ({
+                    label: String(segment?.label || "").trim(),
+                    from: String(segment?.from || "").trim(),
+                    to: String(segment?.to || "").trim(),
+                    index,
+                }))
+                .filter((segment: any) => segment.label || segment.from || segment.to);
+
+            const transportationTasks = transportSegments.length > 0
+                ? transportSegments.map((segment: any) => ({
+                    type: "TRANSPORTATION",
+                    ownerBy: plan.transportBy,
+                    title: segment.label ? `Inland Transportation: ${segment.label}` : "Inland Transportation",
+                    details: {
+                        ...baseDetails,
+                        from: segment.from || baseDetails.from,
+                        to: segment.to || baseDetails.to,
+                        segmentLabel: segment.label || null,
+                        segmentKey: `SEGMENT_${segment.index + 1}`,
+                    },
+                }))
+                : [
+                    {
+                        type: "TRANSPORTATION",
+                        ownerBy: plan.transportBy,
+                        title: "Inland Transportation",
+                        details: baseDetails,
+                    },
+                ];
+
             const executionInquirySeed = [
                 { type: "PROCUREMENT", ownerBy: plan.procurementBy, title: "Procurement Inquiry", details: baseDetails },
                 ...(tradeType === "INTERNATIONAL" && isFromIndia
                     ? [{ type: "CERTIFICATION", ownerBy: plan.exportCustomsBy, title: "Export Customs Clearance Inquiry", details: baseDetails }]
                     : []),
-                { type: "TRANSPORTATION", ownerBy: plan.transportBy, title: "Transportation Inquiry", details: baseDetails },
+                ...transportationTasks,
                 ...(tradeType === "INTERNATIONAL"
                     ? [{ type: "SHIPPING", ownerBy: plan.shippingBy, title: "Freight Forwarding & Shipping Inquiry", details: { ...baseDetails, requiresShipping: true } }]
                     : []),
@@ -914,6 +1309,7 @@ export class InquiryController {
             (inquiry as any).executionContext = mergedContext;
             (inquiry as any).packagingSpecifications = packagingSpecifications;
             (inquiry as any).executionInquiries = executionInquiries;
+            (inquiry as any).workflowStage = "PROFORMA_ISSUED";
             await inquiry.save();
 
             await createInquiryEvent(
@@ -1027,7 +1423,12 @@ export class InquiryController {
                 candidateProviders.some((provider: any) => String(provider?._id || provider || "") === associateCompanyId)
             );
             const assignedOperatorId = inquiry.assignedOperatorId?.toString() || "";
-            const isAssignedOperator = Boolean(isOperatorUser && assignedOperatorId && assignedOperatorId === req.user!.id);
+            const supplierOperatorId = (inquiry as any).supplierOperatorId?.toString() || "";
+            const dealCloserOperatorId = (inquiry as any).dealCloserOperatorId?.toString() || "";
+            const isAssignedOperator = Boolean(
+                isOperatorUser &&
+                (assignedOperatorId === req.user!.id || supplierOperatorId === req.user!.id || dealCloserOperatorId === req.user!.id)
+            );
             const canBid =
                 isProviderCandidate ||
                 (ownerBy === "buyer" && associateRole === "buyer") ||
@@ -1050,7 +1451,7 @@ export class InquiryController {
             if (isBidAttempt) {
                 const subflowMap: Record<string, string> = {
                     PROCUREMENT: "PROCUREMENT",
-                    TRANSPORTATION: "LOGISTICS",
+                    TRANSPORTATION: "INLAND_TRANSPORTATION",
                     SHIPPING: "FREIGHT_FORWARDING",
                     PACKAGING: "PACKAGING",
                 };
@@ -1273,7 +1674,25 @@ export class InquiryController {
                         select: "name email phone associateCompany",
                         populate: { path: "associateCompany", select: "name" }
                     },
+                    {
+                        path: "importListingId",
+                        select: "importerCompanyId importerAssociateId portName expectedArrivalDate",
+                        populate: [
+                            {
+                                path: "importerCompanyId",
+                                select: "name phone supervisor",
+                                populate: { path: "supervisor", select: "name email phone lastSeenAt associateCompany", populate: { path: "associateCompany", select: "name" } }
+                            },
+                            {
+                                path: "importerAssociateId",
+                                select: "name email phone lastSeenAt associateCompany",
+                                populate: { path: "associateCompany", select: "name" }
+                            }
+                        ]
+                    },
                     { path: "assignedOperatorId", select: "name email" },
+                    { path: "supplierOperatorId", select: "name email" },
+                    { path: "dealCloserOperatorId", select: "name email" },
                     { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -1376,6 +1795,8 @@ export class InquiryController {
                             populate: { path: "associateCompany", select: "name" }
                         },
                         { path: "assignedOperatorId", select: "name email" },
+                        { path: "supplierOperatorId", select: "name email" },
+                        { path: "dealCloserOperatorId", select: "name email" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -1487,6 +1908,75 @@ export class InquiryController {
     }
 
     /**
+     * Update inquiry details (responsibilities/specifications/context)
+     * PATCH /api/v1/web/inquiries/:id
+     */
+    async update(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+
+            const context: InquiryAccessContext = this.buildAccessContext(req);
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({ success: false, message: "Access denied" });
+            }
+
+            if (typeof req.body?.specifications !== "undefined") {
+                (inquiry as any).specifications = req.body.specifications;
+            }
+            if (typeof req.body?.responsibilityPlan === "object") {
+                (inquiry as any).responsibilityPlan = req.body.responsibilityPlan || {};
+            }
+            if (typeof req.body?.executionContext === "object") {
+                const mergedContext: any = {
+                    ...(inquiry as any).executionContext,
+                    ...(req.body.executionContext || {}),
+                };
+                const tradeType = String(mergedContext.tradeType || "DOMESTIC").toUpperCase() === "INTERNATIONAL"
+                    ? "INTERNATIONAL"
+                    : "DOMESTIC";
+                mergedContext.tradeType = tradeType;
+                (inquiry as any).executionContext = mergedContext;
+            }
+            if (typeof req.body?.packagingSpecifications !== "undefined") {
+                (inquiry as any).packagingSpecifications = String(req.body.packagingSpecifications || "");
+            }
+            if (typeof req.body?.supplierOperatorId !== "undefined") {
+                (inquiry as any).supplierOperatorId = req.body.supplierOperatorId || null;
+            }
+            if (typeof req.body?.dealCloserOperatorId !== "undefined") {
+                (inquiry as any).dealCloserOperatorId = req.body.dealCloserOperatorId || null;
+            }
+            if (typeof req.body?.importDeliveryMode !== "undefined") {
+                const isImport = String((inquiry as any)?.sourceType || "").toUpperCase() === "IMPORT" || Boolean((inquiry as any)?.importListingId);
+                if (!isImport) {
+                    return res.status(400).json({ success: false, message: "importDeliveryMode is only allowed for import enquiries." });
+                }
+                const mode = String(req.body.importDeliveryMode || "").toUpperCase();
+                if (mode && !["PORT_PICKUP", "OBAOL_SERVICE"].includes(mode)) {
+                    return res.status(400).json({ success: false, message: "Invalid importDeliveryMode value." });
+                }
+                (inquiry as any).importDeliveryMode = mode || null;
+            }
+            if (Array.isArray(req.body?.history)) {
+                (inquiry as any).history = req.body.history;
+            }
+
+            await inquiry.save();
+            return res.status(200).json({ success: true, data: inquiry, message: "Inquiry updated" });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
      * Update inquiry workflow stage (additive workflow, no status mutation)
      * PATCH /api/v1/web/inquiries/:id/workflow-stage
      */
@@ -1518,21 +2008,40 @@ export class InquiryController {
             const requiredActions = Array.isArray((stageRule as any)?.requiredActions)
                 ? (stageRule as any).requiredActions
                 : [];
-            const missingActions: string[] = [];
-            if (requiredActions.includes("SUPPLIER_ACCEPTED") && !(inquiry as any).sellerAcceptedAt) {
-                missingActions.push("SUPPLIER_ACCEPTED");
-            }
-            if (requiredActions.includes("BUYER_CONFIRMED") && !(inquiry as any).buyerConfirmedAt) {
-                missingActions.push("BUYER_CONFIRMED");
-            }
-            if (requiredActions.includes("RESPONSIBILITIES_FINALIZED") && !(inquiry as any).responsibilitiesFinalizedAt) {
-                missingActions.push("RESPONSIBILITIES_FINALIZED");
-            }
-            if (missingActions.length) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Required actions missing: ${missingActions.join(", ")}`,
-                });
+            const requiredActionMode = String((stageRule as any)?.requiredActionMode || "ALL").toUpperCase();
+
+            const isActionSatisfied = (action: string) => {
+                const key = String(action || "").toUpperCase();
+                if (key === "LOI_SUBMITTED") return Boolean((inquiry as any).loiSubmittedAt);
+                if (key === "SUPPLIER_QTY_CONFIRMED") return Boolean((inquiry as any).supplierQtyConfirmedAt);
+                if (key === "REVISION_REQUESTED") return Boolean((inquiry as any).revisionRequestedAt);
+                if (key === "REVISION_CONFIRMED") return Boolean((inquiry as any).revisionThread?.buyerConfirmedAt);
+                if (key === "QUOTATION_CREATED") return Boolean((inquiry as any).quotationCreatedAt);
+                if (key === "QUOTATION_ACCEPTED") return Boolean((inquiry as any).buyerConfirmedAt);
+                if (key === "RETURN_TO_REVISION") return Boolean((inquiry as any).revisionRequestedAt);
+                if (key === "RESPONSIBILITIES_FINALIZED") return Boolean((inquiry as any).responsibilitiesFinalizedAt);
+                if (key === "PROFORMA_CREATED") return Boolean((inquiry as any).proformaCreatedAt);
+                if (key === "OTHER_DOCS_UPLOADED" || key === "OTHER_DOCS_SKIPPED") return Boolean((inquiry as any).otherDocsCompletedAt);
+                if (key === "PO_UPLOADED" || key === "PO_SKIPPED") return Boolean((inquiry as any).poSubmittedAt);
+                return false;
+            };
+
+            if (requiredActions.length) {
+                const missingActions = requiredActions.filter((action: string) => !isActionSatisfied(action));
+                if (requiredActionMode === "ANY") {
+                    const anySatisfied = requiredActions.some((action: string) => isActionSatisfied(action));
+                    if (!anySatisfied) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `At least one required action must be completed: ${requiredActions.join(", ")}`,
+                        });
+                    }
+                } else if (missingActions.length) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Required actions missing: ${missingActions.join(", ")}`,
+                    });
+                }
             }
 
             const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
@@ -1599,9 +2108,31 @@ export class InquiryController {
                 }
 
                 if (!(inquiry as any).order) {
+                    const executionTasks = Array.isArray((inquiry as any).executionInquiries)
+                        ? (inquiry as any).executionInquiries
+                        : [];
+                    const inlandTransportInstances = executionTasks
+                        .filter((task: any) => String(task?.type || "").toUpperCase() === "TRANSPORTATION")
+                        .map((task: any, index: number) => ({
+                            type: "INLAND_TRANSPORTATION",
+                            instanceKey: String(task?._id || `SEGMENT_${index + 1}`),
+                            label: String(task?.details?.segmentLabel || task?.title || "").trim() || `Inland Transportation ${index + 1}`,
+                        }));
+                    const paymentTermId = (inquiry as any).paymentTermId ? new Types.ObjectId(String((inquiry as any).paymentTermId)) : null;
+                    const incotermId = (inquiry as any).preferredIncoterm
+                        ? new Types.ObjectId(String((inquiry as any).preferredIncoterm))
+                        : null;
+                    const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
+                    const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
                     const createdOrder = await OrderModel.create({
                         enquiry: inquiry._id,
                         responsibilities: responsibilityPlan,
+                        paymentTermId,
+                        incotermId,
+                        paymentPlan,
+                        subflowInstances: inlandTransportInstances,
+                        supplierOperatorId: (inquiry as any).supplierOperatorId || null,
+                        dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,
                     });
                     await InventoryReservationModel.updateMany(
                         { enquiryId: inquiry._id, status: "RESERVED", isDeleted: { $ne: true } },
@@ -1725,7 +2256,11 @@ export class InquiryController {
             const isAdmin = req.user!.role === UserRole.ADMIN;
             const isAssignedOperator =
                 (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
-                inquiry.assignedOperatorId?.toString() === req.user!.id;
+                (
+                    inquiry.assignedOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
+                );
 
             if (!isAdmin && !isAssignedOperator) {
                 return res.status(403).json({

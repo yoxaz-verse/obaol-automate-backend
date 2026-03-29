@@ -4,11 +4,13 @@ export type DocumentRuleStageType =
   | "INQUIRY"
   | "ORDER"
   | "PROCUREMENT"
-  | "LOGISTICS"
-  | "INLAND_LOGISTICS"
+  | "INLAND_TRANSPORTATION"
   | "PACKAGING"
   | "FREIGHT_FORWARDING"
-  | "INVENTORY";
+  | "INVENTORY"
+  | "CERTIFICATION"
+  | "QUALITY_QA"
+  | "WAREHOUSE";
 export type DocumentRuleRole = "BUYER" | "SELLER" | "OBAOL" | "PACKAGING" | "QUALITY" | "TRANSPORT" | "SHIPPING";
 export type DocumentRuleAction = "CREATE" | "UPLOAD";
 export type DocumentRuleVisibility = "BUYER" | "SELLER" | "BOTH" | "INTERNAL";

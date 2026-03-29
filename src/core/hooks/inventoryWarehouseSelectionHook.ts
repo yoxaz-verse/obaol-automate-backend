@@ -35,6 +35,16 @@ export const inventoryWarehouseSelectionHook: HookFunction = async (payload, mod
     return nextPayload;
   }
 
+  if (location === "PRIVATE") {
+    nextPayload.custodianType = null;
+    nextPayload.warehouseId = null;
+    nextPayload.warehouseName = "Private Location";
+    nextPayload.status = "AVAILABLE";
+    nextPayload.storedAt = null;
+    delete nextPayload.storageLocation;
+    return nextPayload;
+  }
+
   if (!warehouseIdRaw || !Types.ObjectId.isValid(String(warehouseIdRaw))) {
     throw new Error("Valid warehouse is required for selected storage location.");
   }
@@ -54,11 +64,6 @@ export const inventoryWarehouseSelectionHook: HookFunction = async (payload, mod
     if (location === "MY") {
       if (String((warehouse as any).ownerCompanyId || "") !== String(companyId)) {
         throw new Error("You can only select your own warehouses.");
-      }
-    }
-    if (location === "RENTAL") {
-      if ((warehouse as any).listingType !== "RENTAL" || !(warehouse as any).isRentalActive) {
-        throw new Error("Selected warehouse is not available for rental.");
       }
     }
   }

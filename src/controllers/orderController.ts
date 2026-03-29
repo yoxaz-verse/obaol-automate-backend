@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { Types } from "mongoose";
 import { OrderModel } from "../database/models/order";
 import { InquiryModel as EnquiryModel } from "../database/models/enquiry";
 import { CrudEngine } from "../core/engine/crud.engine";
@@ -12,6 +13,7 @@ import { FlowRuleModel } from "../database/models/flowRule";
 import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
 import { ensureDefaultDocumentRules } from "../utils/documentRules";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
+import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -82,6 +84,18 @@ export class OrderController {
                 req.body.milestones.procurementDate = now;
             }
 
+            if (!req.body.paymentTermId && (enquiry as any).paymentTermId) {
+                req.body.paymentTermId = (enquiry as any).paymentTermId;
+            }
+            if (!req.body.incotermId && (enquiry as any).preferredIncoterm) {
+                req.body.incotermId = (enquiry as any).preferredIncoterm;
+            }
+            if (!req.body.paymentPlan) {
+                const termId = req.body.paymentTermId ? new Types.ObjectId(String(req.body.paymentTermId)) : null;
+                const paymentPlan = await buildPaymentPlanFromTermId(termId, tradeType);
+                if (paymentPlan) req.body.paymentPlan = paymentPlan;
+            }
+
             const order = await this.engine.create(req, req.body);
 
             if (req.body.enquiry) {
@@ -138,6 +152,18 @@ export class OrderController {
             const externalSeller = req.body?.externalSeller || {};
             const externalProduct = req.body?.externalProduct || {};
             const externalTradeType = String(req.body?.externalTradeType || "").toUpperCase();
+            const externalRole = String(req.body?.externalRole || "").toUpperCase();
+            const executionContext = req.body?.executionContext || {};
+            const packagingSpecifications = String(req.body?.packagingSpecifications || "").trim();
+            const responsibilitiesRaw = req.body?.responsibilities || {};
+            const responsibilities = Object.entries(responsibilitiesRaw).reduce((acc, [key, value]) => {
+                const normalized = String(value || "").trim().toLowerCase();
+                if (!normalized) return acc;
+                acc[key] = normalized;
+                return acc;
+            }, {} as Record<string, string>);
+            const incotermId = req.body?.incotermId || null;
+            const paymentTermId = req.body?.paymentTermId || null;
 
             if (!externalBuyer?.name || !externalSeller?.name || !externalProduct?.name || !externalTradeType) {
                 return res.status(400).json({
@@ -148,6 +174,61 @@ export class OrderController {
             if (!["DOMESTIC", "INTERNATIONAL"].includes(externalTradeType)) {
                 return res.status(400).json({ success: false, message: "Invalid trade type." });
             }
+            if (!["BUYER", "SELLER", "MEDIATOR"].includes(externalRole)) {
+                return res.status(400).json({ success: false, message: "External role is required." });
+            }
+            if (!packagingSpecifications) {
+                return res.status(400).json({ success: false, message: "Packaging specifications are required." });
+            }
+            const contextTradeType = String(executionContext?.tradeType || externalTradeType).toUpperCase();
+            if (!["DOMESTIC", "INTERNATIONAL"].includes(contextTradeType)) {
+                return res.status(400).json({ success: false, message: "Execution context trade type is required." });
+            }
+            if (contextTradeType === "DOMESTIC") {
+                if (!executionContext.originState || !executionContext.originDistrict || !executionContext.destinationState || !executionContext.destinationDistrict) {
+                    return res.status(400).json({ success: false, message: "Domestic execution context requires origin/destination state and district." });
+                }
+            } else {
+                if (!executionContext.originCountry || !executionContext.originPort || !executionContext.destinationCountry || !executionContext.destinationPort) {
+                    return res.status(400).json({ success: false, message: "International execution context requires origin/destination country and port." });
+                }
+            }
+
+            const allowedOwners = new Set(["buyer", "seller", "obaol"]);
+            const allowedBuyerOnly = new Set(["buyer"]);
+            const allowedBuyerOrObaol = new Set(["buyer", "obaol"]);
+            const allowedObaolOnly = new Set(["obaol"]);
+            const requiredKeys = contextTradeType === "INTERNATIONAL"
+                ? ["procurementBy", "qualityTestingBy", "packagingBy", "transportBy", "shippingBy", "certificateBy"]
+                : ["procurementBy", "qualityTestingBy", "packagingBy", "transportBy"];
+            const hasRequired = requiredKeys.every((k) => allowedOwners.has(String(responsibilities?.[k] || "")));
+            if (!hasRequired) {
+                return res.status(400).json({ success: false, message: "Responsibilities are incomplete or invalid." });
+            }
+            const responsibilityValidators: Record<string, (value: string) => boolean> = {
+                procurementBy: (v) => allowedOwners.has(v),
+                certificateBy: (v) => allowedOwners.has(v),
+                transportBy: (v) => allowedOwners.has(v),
+                shippingBy: (v) => allowedOwners.has(v),
+                packagingBy: (v) => allowedOwners.has(v),
+                qualityTestingBy: (v) => allowedOwners.has(v),
+                cargoInsuranceBy: (v) => allowedOwners.has(v),
+                exportCustomsBy: (v) => allowedOwners.has(v),
+                importCustomsBy: (v) => allowedBuyerOrObaol.has(v),
+                dutiesTaxesBy: (v) => allowedBuyerOnly.has(v),
+                portHandlingBy: (v) => allowedBuyerOrObaol.has(v),
+                destinationInlandTransportBy: (v) => allowedBuyerOrObaol.has(v),
+                destinationInspectionBy: (v) => allowedBuyerOrObaol.has(v),
+                finalDeliveryConfirmationBy: (v) => allowedObaolOnly.has(v),
+            };
+            const invalidEntry = Object.entries(responsibilityValidators).find(([key, validator]) => {
+                const raw = String(responsibilities?.[key] || "");
+                if (!raw) return false;
+                return !validator(raw);
+            });
+            if (invalidEntry) {
+                return res.status(400).json({ success: false, message: "Invalid responsibility selection." });
+            }
 
             await ensureDefaultFlowRules();
             const firstStage = await FlowRuleModel.findOne({
@@ -157,11 +238,12 @@ export class OrderController {
                 tradeType: { $in: [externalTradeType, "BOTH"] },
             }).sort({ sortOrder: 1 }).lean();
 
-            const payload = {
+            const payload: any = {
                 enquiry: null,
                 isExternal: true,
                 externalCreatedBy: req.user?.id || null,
                 externalTradeType,
+                externalRole,
                 externalBuyer: {
                     name: String(externalBuyer.name || "").trim(),
                     email: String(externalBuyer.email || "").trim(),
@@ -178,9 +260,31 @@ export class OrderController {
                     quantity: externalProduct.quantity ?? null,
                     unit: String(externalProduct.unit || "").trim(),
                 },
+                executionContext: {
+                    tradeType: contextTradeType,
+                    originCountry: executionContext.originCountry || null,
+                    originState: executionContext.originState || null,
+                    originDistrict: executionContext.originDistrict || null,
+                    originPort: executionContext.originPort || null,
+                    destinationCountry: executionContext.destinationCountry || null,
+                    destinationState: executionContext.destinationState || null,
+                    destinationDistrict: executionContext.destinationDistrict || null,
+                    destinationPort: executionContext.destinationPort || null,
+                    routeNotes: executionContext.routeNotes || null,
+                },
+                packagingSpecifications,
+                responsibilities,
+                incotermId,
+                paymentTermId,
                 workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"),
                 status: "Procuring",
             };
+
+            if (!payload.paymentPlan && paymentTermId) {
+                const termId = new Types.ObjectId(String(paymentTermId));
+                const paymentPlan = await buildPaymentPlanFromTermId(termId, contextTradeType);
+                if (paymentPlan) payload.paymentPlan = paymentPlan;
+            }
 
             const order = await this.engine.create(req, payload);
             return res.status(201).json({ success: true, data: order });
@@ -267,7 +371,25 @@ export class OrderController {
                     isDeleted: { $ne: true },
                     isActive: true,
                 }).lean();
-                if (subflowConfigs.length > 0) {
+                const executionTasks = Array.isArray((order as any)?.enquiry?.executionInquiries)
+                    ? (order as any).enquiry.executionInquiries
+                    : [];
+                const requiredSubflowTypes = new Set<string>();
+                executionTasks.forEach((task: any) => {
+                    const type = String(task?.type || "").toUpperCase();
+                    if (!type) return;
+                    if (type === "PROCUREMENT") requiredSubflowTypes.add("PROCUREMENT");
+                    if (type === "PACKAGING") requiredSubflowTypes.add("PACKAGING");
+                    if (type === "QUALITY_TESTING") requiredSubflowTypes.add("QUALITY_QA");
+                    if (type === "CERTIFICATION") requiredSubflowTypes.add("CERTIFICATION");
+                    if (type === "WAREHOUSE") requiredSubflowTypes.add("WAREHOUSE");
+                    if (type === "SHIPPING") requiredSubflowTypes.add("FREIGHT_FORWARDING");
+                    if (type === "TRANSPORTATION") requiredSubflowTypes.add("INLAND_TRANSPORTATION");
+                });
+                const scopedConfigs = requiredSubflowTypes.size
+                    ? subflowConfigs.filter((config: any) => requiredSubflowTypes.has(String(config.subflowType || "").toUpperCase()))
+                    : [];
+                if (scopedConfigs.length > 0) {
                     const orderStages = await FlowRuleModel.find({
                         flowType: "TRADE_ORDER",
                         isDeleted: { $ne: true },
@@ -295,18 +417,44 @@ export class OrderController {
                     };
 
                     const completedSubflows = new Set<string>();
-                    for (const config of subflowConfigs) {
-                        const stages = await getSubflowStages(String(config.subflowType));
+                    for (const config of scopedConfigs) {
+                        const configType = String(config.subflowType || "").toUpperCase();
+                        const stages = await getSubflowStages(configType);
                         if (!stages.length) continue;
                         const lastStage = stages[stages.length - 1];
-                        const currentStage = String((order as any)?.subflowStages?.[config.subflowType] || "").toUpperCase();
-                        if (currentStage && currentStage === String(lastStage.stageKey)) {
-                            completedSubflows.add(String(config.subflowType));
+                        if (configType === "INLAND_TRANSPORTATION") {
+                            const instances = Array.isArray((order as any)?.subflowInstances)
+                                ? (order as any).subflowInstances.filter((inst: any) => String(inst?.type || "").toUpperCase() === "INLAND_TRANSPORTATION")
+                                : [];
+                            if (instances.length > 0) {
+                                const allComplete = instances.every((inst: any) => {
+                                    const instanceKey = String(inst?.instanceKey || "");
+                                    if (!instanceKey) return false;
+                                    const stageKey = String((order as any)?.subflowStages?.[`INLAND_TRANSPORTATION::${instanceKey}`] || "").toUpperCase();
+                                    return stageKey && stageKey === String(lastStage.stageKey);
+                                });
+                                if (allComplete) completedSubflows.add(configType);
+                            } else {
+                                const currentStage = String(
+                                    (order as any)?.subflowStages?.[configType] ||
+                                    (order as any)?.subflowStages?.INLAND_LOGISTICS ||
+                                    (order as any)?.subflowStages?.LOGISTICS ||
+                                    ""
+                                ).toUpperCase();
+                                if (currentStage && currentStage === String(lastStage.stageKey)) {
+                                    completedSubflows.add(configType);
+                                }
+                            }
+                        } else {
+                            const currentStage = String((order as any)?.subflowStages?.[configType] || "").toUpperCase();
+                            if (currentStage && currentStage === String(lastStage.stageKey)) {
+                                completedSubflows.add(configType);
+                            }
                         }
                     }
 
                     const missingSubflows: string[] = [];
-                    for (const config of subflowConfigs) {
+                    for (const config of scopedConfigs) {
                         const gateStage = String(config.mustCompleteBeforeOrderStage || "").toUpperCase();
                         const gateRank = stageRank.get(gateStage) ?? 0;
                         if (nextRank >= gateRank) {

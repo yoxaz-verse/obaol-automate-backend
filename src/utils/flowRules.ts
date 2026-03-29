@@ -5,62 +5,110 @@ import { OrderRuleModel } from "../database/models/orderRule";
 const DEFAULT_TRADE_ENQUIRY = [
   {
     flowType: "TRADE_ENQUIRY",
-    stageKey: "INQUIRY_CREATED",
-    label: "Inquiry Created",
-    description: "New enquiry created",
+    stageKey: "ENQUIRY_CREATED",
+    label: "Enquiry Created",
+    description: "LOI auto-created from buyer to seller",
     sortOrder: 10,
     isActive: true,
-    requiredActions: ["SUPPLIER_ACCEPTED"],
+    requiredActions: ["LOI_SUBMITTED"],
+    requiredActionMode: "ALL",
+    actionBy: "BUYER",
     triggersOrderCreation: false,
   },
   {
     flowType: "TRADE_ENQUIRY",
-    stageKey: "QUOTATION_SUBMITTED",
-    label: "Quotation Submitted",
-    description: "Supplier accepted and quotation provided",
+    stageKey: "LOI_ACCEPTED_QTY_CONFIRMED",
+    label: "LOI Accepted & Quantity Confirmed",
+    description: "Supplier confirms quantity and accepts LOI",
     sortOrder: 20,
     isActive: true,
-    requiredActions: ["BUYER_CONFIRMED"],
+    requiredActions: ["SUPPLIER_QTY_CONFIRMED"],
+    requiredActionMode: "ALL",
+    actionBy: "SUPPLIER",
     triggersOrderCreation: false,
   },
   {
     flowType: "TRADE_ENQUIRY",
-    stageKey: "QUOTATION_REVISED",
-    label: "Quotation Revised",
-    description: "Quotation updated/revised",
+    stageKey: "QUOTATION_REVISION",
+    label: "Quotation Revision",
+    description: "Buyer requests revision via checklist",
     sortOrder: 30,
     isActive: true,
-    requiredActions: [],
+    requiredActions: ["REVISION_REQUESTED", "REVISION_CONFIRMED"],
+    requiredActionMode: "ALL",
+    actionBy: "BUYER",
+    triggersOrderCreation: false,
+  },
+  {
+    flowType: "TRADE_ENQUIRY",
+    stageKey: "QUOTATION_CREATED",
+    label: "Quotation Created",
+    description: "Supplier creates quotation document",
+    sortOrder: 40,
+    isActive: true,
+    requiredActions: ["QUOTATION_CREATED"],
+    requiredActionMode: "ALL",
+    actionBy: "SUPPLIER",
+    triggersOrderCreation: false,
+  },
+  {
+    flowType: "TRADE_ENQUIRY",
+    stageKey: "QUOTATION_DECISION",
+    label: "Quotation Decision",
+    description: "Buyer accepts or returns to revision",
+    sortOrder: 50,
+    isActive: true,
+    requiredActions: ["QUOTATION_ACCEPTED", "RETURN_TO_REVISION"],
+    requiredActionMode: "ANY",
+    actionBy: "BUYER",
+    triggersOrderCreation: false,
+  },
+  {
+    flowType: "TRADE_ENQUIRY",
+    stageKey: "RESPONSIBILITIES_FINALIZED",
+    label: "Responsibilities Finalized",
+    description: "Both parties finalize responsibilities",
+    sortOrder: 60,
+    isActive: true,
+    requiredActions: ["RESPONSIBILITIES_FINALIZED"],
+    requiredActionMode: "ALL",
+    actionBy: "BOTH",
     triggersOrderCreation: false,
   },
   {
     flowType: "TRADE_ENQUIRY",
     stageKey: "PROFORMA_ISSUED",
     label: "Proforma Issued",
-    description: "Execution responsibilities finalized",
-    sortOrder: 40,
+    description: "Supplier issues proforma invoice",
+    sortOrder: 70,
     isActive: true,
-    requiredActions: ["RESPONSIBILITIES_FINALIZED"],
+    requiredActions: ["PROFORMA_CREATED"],
+    requiredActionMode: "ALL",
+    actionBy: "SUPPLIER",
     triggersOrderCreation: false,
   },
   {
     flowType: "TRADE_ENQUIRY",
-    stageKey: "PURCHASE_ORDER_RECEIVED",
-    label: "Purchase Order Received",
-    description: "PO received from buyer",
-    sortOrder: 50,
+    stageKey: "OTHER_DOCUMENTS",
+    label: "Other Documents",
+    description: "NDA/Contract and similar documents",
+    sortOrder: 80,
     isActive: true,
-    requiredActions: [],
+    requiredActions: ["OTHER_DOCS_UPLOADED", "OTHER_DOCS_SKIPPED"],
+    requiredActionMode: "ANY",
+    actionBy: "BOTH",
     triggersOrderCreation: false,
   },
   {
     flowType: "TRADE_ENQUIRY",
-    stageKey: "ORDER_CONFIRMED",
-    label: "Order Confirmed",
-    description: "Order confirmed and created",
-    sortOrder: 60,
+    stageKey: "PURCHASE_ORDER_CREATED",
+    label: "Purchase Order Created",
+    description: "Buyer uploads or skips purchase order",
+    sortOrder: 90,
     isActive: true,
-    requiredActions: [],
+    requiredActions: ["PO_UPLOADED", "PO_SKIPPED"],
+    requiredActionMode: "ANY",
+    actionBy: "BUYER",
     triggersOrderCreation: true,
   },
 ];
@@ -169,21 +217,13 @@ const DEFAULT_PROCUREMENT = [
   },
 ];
 
-const DEFAULT_LOGISTICS = [
-  { flowType: "LOGISTICS", stageKey: "PICKUP_SCHEDULED", label: "Pickup Scheduled", description: "Pickup time and route are confirmed with the carrier.", sortOrder: 10 },
-  { flowType: "LOGISTICS", stageKey: "VEHICLE_ARRIVED", label: "Vehicle Arrived", description: "Vehicle arrives at the pickup point and is ready to load.", sortOrder: 20 },
-  { flowType: "LOGISTICS", stageKey: "LOADING_CONFIRMED", label: "Loading Confirmed", description: "Loading is completed and quantity is verified.", sortOrder: 30 },
-  { flowType: "LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", description: "Shipment is moving toward the destination.", sortOrder: 40 },
-  { flowType: "LOGISTICS", stageKey: "ARRIVED_AT_DESTINATION", label: "Arrived at Destination", description: "Vehicle reaches the destination hub or delivery point.", sortOrder: 50 },
-  { flowType: "LOGISTICS", stageKey: "UNLOADED_HANDED_OVER", label: "Unloaded & Handed Over", description: "Cargo is unloaded and handed over to the receiving party.", sortOrder: 60 },
-];
-
-const DEFAULT_INLAND_LOGISTICS = [
-  { flowType: "INLAND_LOGISTICS", stageKey: "VEHICLE_ASSIGNED", label: "Vehicle Assigned", description: "Inland vehicle is assigned for the route.", sortOrder: 10 },
-  { flowType: "INLAND_LOGISTICS", stageKey: "PICKUP_CONFIRMED", label: "Pickup Confirmed", description: "Pickup is confirmed at the origin location.", sortOrder: 20 },
-  { flowType: "INLAND_LOGISTICS", stageKey: "IN_TRANSIT", label: "In Transit", description: "Inland shipment is moving between hubs.", sortOrder: 30 },
-  { flowType: "INLAND_LOGISTICS", stageKey: "REACHED_HUB", label: "Reached Hub", description: "Cargo arrives at the designated inland hub.", sortOrder: 40 },
-  { flowType: "INLAND_LOGISTICS", stageKey: "HANDOVER_COMPLETED", label: "Handover Completed", description: "Cargo is handed over to the next execution partner.", sortOrder: 50 },
+const DEFAULT_INLAND_TRANSPORTATION = [
+  { flowType: "INLAND_TRANSPORTATION", stageKey: "PICKUP_SCHEDULED", label: "Pickup Scheduled", description: "Pickup time and route are confirmed with the carrier.", sortOrder: 10 },
+  { flowType: "INLAND_TRANSPORTATION", stageKey: "VEHICLE_ARRIVED", label: "Vehicle Arrived", description: "Vehicle arrives at the pickup point and is ready to load.", sortOrder: 20 },
+  { flowType: "INLAND_TRANSPORTATION", stageKey: "LOADING_CONFIRMED", label: "Loading Confirmed", description: "Loading is completed and quantity is verified.", sortOrder: 30 },
+  { flowType: "INLAND_TRANSPORTATION", stageKey: "IN_TRANSIT", label: "In Transit", description: "Shipment is moving toward the destination.", sortOrder: 40 },
+  { flowType: "INLAND_TRANSPORTATION", stageKey: "ARRIVED_AT_DESTINATION", label: "Arrived at Destination", description: "Vehicle reaches the destination hub or delivery point.", sortOrder: 50 },
+  { flowType: "INLAND_TRANSPORTATION", stageKey: "UNLOADED_HANDED_OVER", label: "Unloaded & Handed Over", description: "Cargo is unloaded and handed over to the receiving party.", sortOrder: 60 },
 ];
 
 const DEFAULT_PACKAGING = [
@@ -203,6 +243,18 @@ const DEFAULT_FREIGHT_FORWARDING = [
   { flowType: "FREIGHT_FORWARDING", stageKey: "ARRIVED", label: "Arrived", description: "Freight has arrived at destination.", sortOrder: 60 },
 ];
 
+const DEFAULT_CERTIFICATION = [
+  { flowType: "CERTIFICATION", stageKey: "DOCS_COLLECTED", label: "Docs Collected", description: "Required certification documents are collected.", sortOrder: 10 },
+  { flowType: "CERTIFICATION", stageKey: "CERTIFICATION_SUBMITTED", label: "Certification Submitted", description: "Certification submission is filed with the authority.", sortOrder: 20 },
+  { flowType: "CERTIFICATION", stageKey: "CERTIFIED", label: "Certified", description: "Certification is approved and confirmed.", sortOrder: 30 },
+];
+
+const DEFAULT_QUALITY_QA = [
+  { flowType: "QUALITY_QA", stageKey: "SAMPLE_SENT", label: "Sample Sent", description: "Samples are sent for lab or QA testing.", sortOrder: 10 },
+  { flowType: "QUALITY_QA", stageKey: "LAB_PENDING", label: "Lab Pending", description: "Lab analysis is in progress.", sortOrder: 20 },
+  { flowType: "QUALITY_QA", stageKey: "QA_APPROVED", label: "QA Approved", description: "Quality assurance is approved.", sortOrder: 30 },
+];
+
 const DEFAULT_INVENTORY = [
   { flowType: "INVENTORY", stageKey: "STOCK_IN", label: "Stock In", description: "Inventory is received into storage.", sortOrder: 10 },
   { flowType: "INVENTORY", stageKey: "QUALITY_CHECKED", label: "Quality Checked", description: "Incoming stock is inspected and verified.", sortOrder: 20 },
@@ -212,29 +264,41 @@ const DEFAULT_INVENTORY = [
   { flowType: "INVENTORY", stageKey: "DISPATCHED", label: "Dispatched", description: "Inventory has been dispatched out of storage.", sortOrder: 60 },
 ];
 
-const buildDefaults = () => [
-  ...DEFAULT_TRADE_ENQUIRY,
-  ...DEFAULT_TRADE_ORDER,
-  ...DEFAULT_SAMPLING,
-  ...DEFAULT_WAREHOUSE,
-  ...DEFAULT_PROCUREMENT,
-  ...DEFAULT_LOGISTICS,
-  ...DEFAULT_INLAND_LOGISTICS,
-  ...DEFAULT_PACKAGING,
-  ...DEFAULT_FREIGHT_FORWARDING,
-  ...DEFAULT_INVENTORY,
-].map((rule) => ({
-  ...rule,
-  stageKey: String(rule.stageKey).toUpperCase(),
-  label: String(rule.label || "").trim(),
-  description: String((rule as any).description || ""),
-  isActive: (rule as any).isActive !== false,
-  requiredActions: Array.isArray((rule as any).requiredActions) ? (rule as any).requiredActions : [],
-  triggersOrderCreation: Boolean((rule as any).triggersOrderCreation),
-  triggersClose: Boolean((rule as any).triggersClose),
-  tradeType: (rule as any).tradeType || "BOTH",
-  isDeleted: false,
-}));
+const buildDefaults = () => {
+  const defaults = [
+    ...DEFAULT_TRADE_ENQUIRY,
+    ...DEFAULT_TRADE_ORDER,
+    ...DEFAULT_SAMPLING,
+    ...DEFAULT_WAREHOUSE,
+    ...DEFAULT_PROCUREMENT,
+    ...DEFAULT_INLAND_TRANSPORTATION,
+    ...DEFAULT_PACKAGING,
+    ...DEFAULT_FREIGHT_FORWARDING,
+    ...DEFAULT_CERTIFICATION,
+    ...DEFAULT_QUALITY_QA,
+    ...DEFAULT_INVENTORY,
+  ].map((rule) => ({
+    ...rule,
+    stageKey: String(rule.stageKey).toUpperCase(),
+    label: String(rule.label || "").trim(),
+    description: String((rule as any).description || ""),
+    isActive: (rule as any).isActive !== false,
+    requiredActions: Array.isArray((rule as any).requiredActions) ? (rule as any).requiredActions : [],
+    requiredActionMode: (rule as any).requiredActionMode || "ALL",
+    triggersOrderCreation: Boolean((rule as any).triggersOrderCreation),
+    triggersClose: Boolean((rule as any).triggersClose),
+    tradeType: (rule as any).tradeType || "BOTH",
+    isDeleted: false,
+  }));
+
+  const seen = new Set<string>();
+  return defaults.filter((rule: any) => {
+    const key = `${String(rule.flowType).toUpperCase()}::${String(rule.stageKey).toUpperCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const getDefaultDescriptionMap = () => {
   const map = new Map<string, string>();
@@ -274,6 +338,59 @@ const backfillFlowRuleDescriptions = async (flowType?: string) => {
   }
 };
 
+const normalizeFlowTypes = async () => {
+  const rules = await FlowRuleModel.find({}).select({ _id: 1, flowType: 1, stageKey: 1 }).lean();
+  if (!rules.length) return;
+  const seen = new Set<string>();
+  const duplicateIds: string[] = [];
+
+  rules.forEach((rule: any) => {
+    const normalizedFlowType = String(rule.flowType || "").toUpperCase().trim();
+    const normalizedStageKey = String(rule.stageKey || "").toUpperCase().trim();
+    if (!normalizedFlowType || !normalizedStageKey) return;
+    const key = `${normalizedFlowType}::${normalizedStageKey}`;
+    if (seen.has(key)) {
+      duplicateIds.push(String(rule._id));
+      return;
+    }
+    seen.add(key);
+  });
+
+  if (duplicateIds.length) {
+    await FlowRuleModel.updateMany(
+      { _id: { $in: duplicateIds } },
+      { $set: { isDeleted: true } }
+    );
+  }
+
+  const bulk = rules
+    .map((rule: any) => {
+      const normalizedFlowType = String(rule.flowType || "").toUpperCase().trim();
+      const normalizedStageKey = String(rule.stageKey || "").toUpperCase().trim();
+      if (!normalizedFlowType || !normalizedStageKey) return null;
+      if (normalizedFlowType === rule.flowType && normalizedStageKey === rule.stageKey) return null;
+      if (duplicateIds.includes(String(rule._id))) return null;
+      return {
+        updateOne: {
+          filter: { _id: rule._id },
+          update: { $set: { flowType: normalizedFlowType, stageKey: normalizedStageKey } },
+        },
+      };
+    })
+    .filter(Boolean) as any[];
+
+  if (bulk.length) {
+    await FlowRuleModel.bulkWrite(bulk);
+  }
+};
+
+const hardDeleteFlowTypes = async (flowTypes: string[]) => {
+  const normalized = Array.from(new Set(flowTypes.map((flowType) => String(flowType).toUpperCase().trim()))).filter(Boolean);
+  if (!normalized.length) return;
+  const regexes = normalized.map((flowType) => new RegExp(`^${flowType}$`, "i"));
+  await FlowRuleModel.deleteMany({ flowType: { $in: regexes } });
+};
+
 const migrateFromLegacy = async () => {
   const legacyEnquiry = await EnquiryRuleModel.find({ isDeleted: { $ne: true } }).lean();
   const legacyOrder = await OrderRuleModel.find({ isDeleted: { $ne: true } }).lean();
@@ -286,6 +403,7 @@ const migrateFromLegacy = async () => {
     sortOrder: Number(rule.sortOrder || 0),
     isActive: rule.isActive !== false,
     requiredActions: Array.isArray(rule.requiredActions) ? rule.requiredActions : [],
+    actionBy: rule.actionBy || null,
     triggersOrderCreation: Boolean(rule.triggersOrderCreation),
     isDeleted: false,
   }));
@@ -345,16 +463,7 @@ const migrateFromLegacy = async () => {
       requiredActions: [],
       isDeleted: false,
     })),
-    ...DEFAULT_LOGISTICS.map((r) => ({
-      ...r,
-      stageKey: String(r.stageKey).toUpperCase(),
-      label: String(r.label || ""),
-      description: "",
-      isActive: true,
-      requiredActions: [],
-      isDeleted: false,
-    })),
-    ...DEFAULT_INLAND_LOGISTICS.map((r) => ({
+    ...DEFAULT_INLAND_TRANSPORTATION.map((r) => ({
       ...r,
       stageKey: String(r.stageKey).toUpperCase(),
       label: String(r.label || ""),
@@ -381,6 +490,24 @@ const migrateFromLegacy = async () => {
       requiredActions: [],
       isDeleted: false,
     })),
+    ...DEFAULT_CERTIFICATION.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
+    ...DEFAULT_QUALITY_QA.map((r) => ({
+      ...r,
+      stageKey: String(r.stageKey).toUpperCase(),
+      label: String(r.label || ""),
+      description: "",
+      isActive: true,
+      requiredActions: [],
+      isDeleted: false,
+    })),
     ...DEFAULT_INVENTORY.map((r) => ({
       ...r,
       stageKey: String(r.stageKey).toUpperCase(),
@@ -395,37 +522,82 @@ const migrateFromLegacy = async () => {
 
 export const ensureDefaultFlowRules = async () => {
   await FlowRuleModel.updateMany(
-    { isDeleted: { $ne: true }, flowType: "INTERNAL_LOGISTICS" },
-    { flowType: "INLAND_LOGISTICS" }
+    { flowType: "TRADE_ENQUIRY", stageKey: "INQUIRY_CREATED" },
+    { stageKey: "ENQUIRY_CREATED", label: "Enquiry Created" }
   );
-  const count = await FlowRuleModel.countDocuments({ isDeleted: { $ne: true } });
-  if (count > 0) {
+  await normalizeFlowTypes();
+  await FlowRuleModel.updateMany(
+    { isDeleted: { $ne: true }, flowType: "INTERNAL_LOGISTICS" },
+    { flowType: "INLAND_TRANSPORTATION" }
+  );
+  await FlowRuleModel.updateMany(
+    { isDeleted: { $ne: true }, flowType: "INLAND_LOGISTICS" },
+    { flowType: "INLAND_TRANSPORTATION" }
+  );
+  await FlowRuleModel.updateMany(
+    { isDeleted: { $ne: true }, flowType: "LOGISTICS" },
+    { flowType: "INLAND_TRANSPORTATION" }
+  );
+  const defaults = await migrateFromLegacy();
+  const defaultFlowTypes = Array.from(new Set(defaults.map((rule: any) => String(rule.flowType).toUpperCase())));
+
+  const existingFlowTypes = await FlowRuleModel.distinct("flowType", { isDeleted: { $ne: true } });
+  const existingSet = new Set(existingFlowTypes.map((flowType: any) => String(flowType).toUpperCase()));
+  const missingFlowTypes = defaultFlowTypes.filter((flowType) => !existingSet.has(flowType));
+
+  if (!missingFlowTypes.length) {
     await backfillFlowRuleDescriptions();
     return;
   }
-  const defaults = await migrateFromLegacy();
-  await FlowRuleModel.insertMany(defaults);
+
+  await hardDeleteFlowTypes(missingFlowTypes);
+  const missingDefaults = defaults.filter((rule: any) => missingFlowTypes.includes(String(rule.flowType).toUpperCase()));
+  if (missingDefaults.length) {
+    await FlowRuleModel.insertMany(missingDefaults);
+  }
   await backfillFlowRuleDescriptions();
 };
 
 export const seedDefaultFlowRules = async (force = false, flowType?: string) => {
+  await normalizeFlowTypes();
   await FlowRuleModel.updateMany(
     { isDeleted: { $ne: true }, flowType: "INTERNAL_LOGISTICS" },
-    { flowType: "INLAND_LOGISTICS" }
+    { flowType: "INLAND_TRANSPORTATION" }
+  );
+  await FlowRuleModel.updateMany(
+    { isDeleted: { $ne: true }, flowType: "INLAND_LOGISTICS" },
+    { flowType: "INLAND_TRANSPORTATION" }
+  );
+  await FlowRuleModel.updateMany(
+    { isDeleted: { $ne: true }, flowType: "LOGISTICS" },
+    { flowType: "INLAND_TRANSPORTATION" }
   );
   if (force) {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (flowType) filter.flowType = String(flowType).toUpperCase();
-    await FlowRuleModel.updateMany(filter, { isDeleted: true });
+    if (flowType) {
+      await hardDeleteFlowTypes([String(flowType).toUpperCase()]);
+    } else {
+      const allDefaults = buildDefaults();
+      const allTypes = Array.from(new Set(allDefaults.map((rule: any) => String(rule.flowType))));
+      await hardDeleteFlowTypes(allTypes);
+    }
   }
 
   if (flowType) {
     const type = String(flowType).toUpperCase();
     const existing = await FlowRuleModel.countDocuments({ isDeleted: { $ne: true }, flowType: type });
-    if (existing > 0) return;
+    if (existing > 0) {
+      await backfillFlowRuleDescriptions(type);
+      return;
+    }
     const allDefaults = buildDefaults();
     const scoped = allDefaults.filter((r: any) => String(r.flowType) === type);
-    if (scoped.length) await FlowRuleModel.insertMany(scoped);
+    if (scoped.length === 0) {
+      throw new Error(`Unknown flowType '${type}' - no default flow rules available.`);
+    }
+    if (scoped.length) {
+      await hardDeleteFlowTypes([type]);
+      await FlowRuleModel.insertMany(scoped);
+    }
     await backfillFlowRuleDescriptions(type);
     return;
   }

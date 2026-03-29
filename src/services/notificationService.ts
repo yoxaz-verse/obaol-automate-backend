@@ -52,6 +52,8 @@ class NotificationService {
     this.addRecipient(map, inquiry?.sellerAssociateId, "Associate");
     this.addRecipient(map, inquiry?.mediatorAssociateId, "Associate");
     this.addRecipient(map, inquiry?.assignedOperatorId, "Operator");
+    this.addRecipient(map, inquiry?.supplierOperatorId, "Operator");
+    this.addRecipient(map, inquiry?.dealCloserOperatorId, "Operator");
     await this.addAdmins(map);
     return map;
   }

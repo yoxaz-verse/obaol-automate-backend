@@ -2,9 +2,9 @@ import { DocumentRuleModel } from "../database/models/documentRule";
 
 export const DEFAULT_DOCUMENT_RULES = [
   // Inquiry stages
-  { docType: "QUOTATION", stageType: "INQUIRY", stageKey: "QUOTATION_SUBMITTED", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 10 },
+  { docType: "QUOTATION", stageType: "INQUIRY", stageKey: "QUOTATION_CREATED", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 10 },
   { docType: "PROFORMA_INVOICE", stageType: "INQUIRY", stageKey: "PROFORMA_ISSUED", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 20 },
-  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_RECEIVED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 30 },
+  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 30 },
   { docType: "SALES_CONTRACT", stageType: "ORDER", stageKey: "CONTRACT_SIGNED", responsibleRole: "OBAOL", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 40 },
   // Order stages
   { docType: "PACKING_LIST", stageType: "ORDER", stageKey: "PACKING_COMPLETED", responsibleRole: "PACKAGING", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 50 },
@@ -21,7 +21,15 @@ export const DEFAULT_DOCUMENT_RULES = [
 export const ensureDefaultDocumentRules = async () => {
   await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },
-    { stageType: "INLAND_LOGISTICS" }
+    { stageType: "INLAND_TRANSPORTATION" }
+  );
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INLAND_LOGISTICS" },
+    { stageType: "INLAND_TRANSPORTATION" }
+  );
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "LOGISTICS" },
+    { stageType: "INLAND_TRANSPORTATION" }
   );
   const count = await DocumentRuleModel.countDocuments({ isDeleted: { $ne: true } });
   if (count > 0) return;
@@ -35,7 +43,15 @@ export const ensureDefaultDocumentRules = async () => {
 export const seedDefaultDocumentRules = async (force = false) => {
   await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },
-    { stageType: "INLAND_LOGISTICS" }
+    { stageType: "INLAND_TRANSPORTATION" }
+  );
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INLAND_LOGISTICS" },
+    { stageType: "INLAND_TRANSPORTATION" }
+  );
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "LOGISTICS" },
+    { stageType: "INLAND_TRANSPORTATION" }
   );
   if (force) {
     await DocumentRuleModel.updateMany({ isDeleted: { $ne: true } }, { isDeleted: true });

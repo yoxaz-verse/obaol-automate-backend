@@ -32,6 +32,7 @@ export class EnquiryRuleController {
         requiredActions: Array.isArray(req.body?.requiredActions)
           ? req.body.requiredActions.map((a: any) => String(a).toUpperCase())
           : [],
+        requiredActionMode: String(req.body?.requiredActionMode || "ALL").toUpperCase(),
         triggersOrderCreation: Boolean(req.body?.triggersOrderCreation),
       };
 
@@ -62,6 +63,9 @@ export class EnquiryRuleController {
         update.requiredActions = Array.isArray(req.body.requiredActions)
           ? req.body.requiredActions.map((a: any) => String(a).toUpperCase())
           : [];
+      }
+      if (req.body?.requiredActionMode !== undefined) {
+        update.requiredActionMode = String(req.body.requiredActionMode || "ALL").toUpperCase();
       }
       if (req.body?.triggersOrderCreation !== undefined) update.triggersOrderCreation = Boolean(req.body.triggersOrderCreation);
 

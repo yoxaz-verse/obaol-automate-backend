@@ -8,6 +8,8 @@ const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase
 const isAdminRole = (role: string) => role === "admin";
 const isOperatorRole = (role: string) => role === "operator" || role === "team";
 const isAssociateRole = (role: string) => role === "associate";
+const isAdminLikeRole = (role: string) => isAdminRole(role) || isOperatorRole(role);
+const SAMPLE_REQUEST_COOLDOWN_DAYS = Math.max(Number(process.env.SAMPLE_REQUEST_COOLDOWN_DAYS || 7), 0);
 
 const toObjectId = (value: any) => {
   if (!Types.ObjectId.isValid(String(value || ""))) return null;
@@ -25,16 +27,33 @@ export class SampleRequestController {
     return associate?.associateCompany ? String(associate.associateCompany) : null;
   }
 
+  private getPopulateQuery() {
+    return {
+      path: "variantRateId",
+      select: "rate productVariant associateCompany",
+      populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } },
+    };
+  }
+
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const role = normalizeRole(req.user?.role);
       const userId = String(req.user?.id || "").trim();
       if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
-      if (!isAssociateRole(role)) {
-        return res.status(403).json({ success: false, message: "Only buyers can request samples." });
-      }
 
+      const buyerAssociateId = (isAdminLikeRole(role) && req.body?.buyerAssociateId)
+        ? toObjectId(req.body.buyerAssociateId)
+        : toObjectId(userId);
+
+      if (!isAdminLikeRole(role) && !isAssociateRole(role)) {
+        return res.status(403).json({ success: false, message: "Only buyers or authorized officers can request samples." });
+      }
+      if (isAdminLikeRole(role) && !buyerAssociateId) {
+        return res.status(400).json({ success: false, message: "buyerAssociateId is required for administrative requests." });
+      }
       const variantRateId = toObjectId(req.body?.variantRateId);
+      if (!variantRateId) return res.status(400).json({ success: false, message: "variantRateId is required." });
+
       const requestState = toObjectId(req.body?.requestState);
       const requestDistrict = toObjectId(req.body?.requestDistrict);
       const requestDivision = toObjectId(req.body?.requestDivision);
@@ -43,18 +62,8 @@ export class SampleRequestController {
       const requestPincode = String(req.body?.requestPincode || "").trim();
       const requestedSampleQtyKg = Number(req.body?.requestedSampleQtyKg);
 
-      if (!variantRateId) return res.status(400).json({ success: false, message: "variantRateId is required." });
       if (!requestState || !requestDistrict || !requestDivision) {
         return res.status(400).json({ success: false, message: "state, district, and division are required." });
-      }
-      if (!requestAddress) {
-        return res.status(400).json({ success: false, message: "Full address is required." });
-      }
-      if (!requestPincode) {
-        return res.status(400).json({ success: false, message: "Pincode is required." });
-      }
-      if (!requestedSampleQtyKg || Number.isNaN(requestedSampleQtyKg) || requestedSampleQtyKg <= 0) {
-        return res.status(400).json({ success: false, message: "Sample quantity (kg) is required." });
       }
 
       const variantRate = await VariantRateModel.findById(variantRateId)
@@ -63,15 +72,34 @@ export class SampleRequestController {
       if (!variantRate) {
         return res.status(404).json({ success: false, message: "Variant rate not found." });
       }
-      if (!variantRate.productVariant || !variantRate.associateCompany) {
-        return res.status(400).json({ success: false, message: "Variant rate is missing required supplier details." });
+
+      if (SAMPLE_REQUEST_COOLDOWN_DAYS > 0) {
+        const cutoff = new Date(Date.now() - SAMPLE_REQUEST_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+        const existing = await SampleRequestModel.findOne({
+          variantRateId,
+          buyerAssociateId,
+          requestedAt: { $gte: cutoff },
+          status: { $nin: ["REJECTED", "CANCELLED"] },
+          isDeleted: { $ne: true },
+        })
+          .sort({ requestedAt: -1 })
+          .select("requestedAt status")
+          .lean();
+        if (existing?.requestedAt) {
+          const nextAllowedAt = new Date(existing.requestedAt.getTime() + SAMPLE_REQUEST_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+          return res.status(409).json({
+            success: false,
+            message: "Sample already requested. Please try again after the cooling period.",
+            nextAllowedAt,
+          });
+        }
       }
 
       const created = await SampleRequestModel.create({
         variantRateId,
         productVariant: variantRate.productVariant,
         supplierCompanyId: variantRate.associateCompany,
-        buyerAssociateId: userId,
+        buyerAssociateId: buyerAssociateId,
         requestState,
         requestDistrict,
         requestDivision,
@@ -112,12 +140,15 @@ export class SampleRequestController {
       const page = Math.max(parseInt(String(req.query?.page || "1"), 10), 1);
       const limit = Math.min(Math.max(parseInt(String(req.query?.limit || "20"), 10), 1), 200);
       const status = String(req.query?.status || "").toUpperCase();
+      const variantRateId = toObjectId(req.query?.variantRateId);
+      const requestedBuyerId = toObjectId(req.query?.buyerAssociateId);
 
       const query: any = { isDeleted: { $ne: true } };
       if (status) query.status = status;
+      if (variantRateId) query.variantRateId = variantRateId;
 
       if (isAdminRole(role) || isOperatorRole(role)) {
-        // full access
+        if (requestedBuyerId) query.buyerAssociateId = requestedBuyerId;
       } else if (isAssociateRole(role)) {
         const companyId = await this.resolveAssociateCompany(userId);
         query.$or = [{ buyerAssociateId: userId }];
@@ -133,11 +164,7 @@ export class SampleRequestController {
           .sort({ requestedAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit)
-          .populate({
-            path: "variantRateId",
-            select: "rate productVariant associateCompany",
-            populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } },
-          })
+          .populate(this.getPopulateQuery())
           .populate("supplierCompanyId", "name email phone")
           .populate("buyerAssociateId", "name email phone")
           .populate("requestState", "name")
@@ -162,11 +189,54 @@ export class SampleRequestController {
     }
   }
 
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid sample request id." });
+      }
+
+      const request = await SampleRequestModel.findById(id)
+        .populate(this.getPopulateQuery())
+        .populate("supplierCompanyId", "name email phone")
+        .populate("buyerAssociateId", "name email phone")
+        .populate("requestState", "name")
+        .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
+        .populate("requestCity", "name")
+        .populate("receiptFileId", "fileURL fileId originalName")
+        .lean();
+      if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
+
+      if (isAdminLikeRole(role)) {
+        return res.status(200).json({ success: true, data: request });
+      }
+
+      if (isAssociateRole(role)) {
+        const companyId = await this.resolveAssociateCompany(userId);
+        const canAccess =
+          String(request.buyerAssociateId) === String(userId) ||
+          (companyId && String(request.supplierCompanyId) === String(companyId));
+        if (!canAccess) {
+          return res.status(403).json({ success: false, message: "Access denied." });
+        }
+        return res.status(200).json({ success: true, data: request });
+      }
+
+      return res.status(403).json({ success: false, message: "Access denied." });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async quote(req: Request, res: Response, next: NextFunction) {
     try {
       const role = normalizeRole(req.user?.role);
       const userId = String(req.user?.id || "").trim();
-      if (!isAssociateRole(role)) {
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
         return res.status(403).json({ success: false, message: "Only suppliers can quote samples." });
       }
 
@@ -184,14 +254,14 @@ export class SampleRequestController {
         return res.status(400).json({ success: false, message: "supplierPrice is required." });
       }
 
-      const companyId = await this.resolveAssociateCompany(userId);
-      if (!companyId) {
+      const companyId = isAdminLike ? null : await this.resolveAssociateCompany(userId);
+      if (!isAdminLike && !companyId) {
         return res.status(403).json({ success: false, message: "Supplier company not found." });
       }
 
       const request = await SampleRequestModel.findById(id).lean();
       if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
-      if (String(request.supplierCompanyId) !== String(companyId)) {
+      if (!isAdminLike && String(request.supplierCompanyId) !== String(companyId)) {
         return res.status(403).json({ success: false, message: "Not allowed to quote this request." });
       }
       if (request.status !== "REQUESTED") {
@@ -212,11 +282,7 @@ export class SampleRequestController {
         },
         { new: true }
       )
-        .populate({
-          path: "variantRateId",
-          select: "rate productVariant associateCompany",
-          populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } },
-        })
+        .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
         .populate("buyerAssociateId", "name email phone")
         .populate("requestState", "name")
@@ -234,7 +300,8 @@ export class SampleRequestController {
     try {
       const role = normalizeRole(req.user?.role);
       const userId = String(req.user?.id || "").trim();
-      if (!isAssociateRole(role)) {
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
         return res.status(403).json({ success: false, message: "Only buyers can accept or reject samples." });
       }
 
@@ -250,7 +317,7 @@ export class SampleRequestController {
 
       const request = await SampleRequestModel.findById(id).lean();
       if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
-      if (String(request.buyerAssociateId) !== String(userId)) {
+      if (!isAdminLike && String(request.buyerAssociateId) !== String(userId)) {
         return res.status(403).json({ success: false, message: "Not allowed to modify this request." });
       }
       if (request.status !== "QUOTED") {
@@ -265,11 +332,7 @@ export class SampleRequestController {
       if (nextStatus === "REJECTED") updatePayload.rejectedAt = new Date();
 
       const updated = await SampleRequestModel.findByIdAndUpdate(id, updatePayload, { new: true })
-        .populate({
-          path: "variantRateId",
-          select: "rate productVariant associateCompany",
-          populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } },
-        })
+        .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
         .populate("buyerAssociateId", "name email phone")
         .populate("requestState", "name")
@@ -311,17 +374,295 @@ export class SampleRequestController {
         { markupPercent, buyerPrice },
         { new: true }
       )
-        .populate({
-          path: "variantRateId",
-          select: "rate productVariant associateCompany",
-          populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } },
-        })
+        .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
         .populate("buyerAssociateId", "name email phone")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
         .populate("requestCity", "name");
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async paymentReceived(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
+        return res.status(403).json({ success: false, message: "Only buyers can confirm payment." });
+      }
+
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid sample request id." });
+      }
+
+      const request = await SampleRequestModel.findById(id).lean();
+      if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
+      if (!isAdminLike && String(request.buyerAssociateId) !== String(userId)) {
+        return res.status(403).json({ success: false, message: "Not allowed to update this request." });
+      }
+      if (request.status !== "ACCEPTED") {
+        return res.status(400).json({ success: false, message: "Payment can be confirmed only after acceptance." });
+      }
+
+      const updated = await SampleRequestModel.findByIdAndUpdate(
+        id,
+        { status: "PAYMENT_RECEIVED", paymentReceivedAt: new Date() },
+        { new: true }
+      )
+        .populate(this.getPopulateQuery())
+        .populate("supplierCompanyId", "name email phone")
+        .populate("buyerAssociateId", "name email phone")
+        .populate("requestState", "name")
+        .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
+        .populate("requestCity", "name");
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async packagingStart(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
+        return res.status(403).json({ success: false, message: "Only suppliers can start packaging." });
+      }
+
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid sample request id." });
+      }
+
+      const request = await SampleRequestModel.findById(id).lean();
+      if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
+      if (!isAdminLike) {
+        const companyId = await this.resolveAssociateCompany(userId);
+        if (!companyId || String(request.supplierCompanyId) !== String(companyId)) {
+          return res.status(403).json({ success: false, message: "Not allowed to update this request." });
+        }
+      }
+      if (request.status !== "PAYMENT_RECEIVED") {
+        return res.status(400).json({ success: false, message: "Packaging can start only after payment is received." });
+      }
+
+      const updated = await SampleRequestModel.findByIdAndUpdate(
+        id,
+        { status: "PREPARING_PACKAGING", packagingStartedAt: new Date() },
+        { new: true }
+      )
+        .populate(this.getPopulateQuery())
+        .populate("supplierCompanyId", "name email phone")
+        .populate("buyerAssociateId", "name email phone")
+        .populate("requestState", "name")
+        .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
+        .populate("requestCity", "name");
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async packaged(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
+        return res.status(403).json({ success: false, message: "Only suppliers can mark packaged." });
+      }
+
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid sample request id." });
+      }
+
+      const request = await SampleRequestModel.findById(id).lean();
+      if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
+      if (!isAdminLike) {
+        const companyId = await this.resolveAssociateCompany(userId);
+        if (!companyId || String(request.supplierCompanyId) !== String(companyId)) {
+          return res.status(403).json({ success: false, message: "Not allowed to update this request." });
+        }
+      }
+      if (request.status !== "PREPARING_PACKAGING") {
+        return res.status(400).json({ success: false, message: "Packaging can be completed only after it starts." });
+      }
+
+      const updated = await SampleRequestModel.findByIdAndUpdate(
+        id,
+        { status: "PACKAGED", packagedAt: new Date() },
+        { new: true }
+      )
+        .populate(this.getPopulateQuery())
+        .populate("supplierCompanyId", "name email phone")
+        .populate("buyerAssociateId", "name email phone")
+        .populate("requestState", "name")
+        .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
+        .populate("requestCity", "name");
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async courierSubmit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
+        return res.status(403).json({ success: false, message: "Only suppliers can submit to courier." });
+      }
+
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid sample request id." });
+      }
+
+      const trackingNumber = String(req.body?.courierTrackingNumber || "").trim();
+      const courierAgencyName = String(req.body?.courierAgencyName || "").trim();
+      if (!trackingNumber) {
+        return res.status(400).json({ success: false, message: "courierTrackingNumber is required." });
+      }
+
+      const request = await SampleRequestModel.findById(id).lean();
+      if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
+      if (!isAdminLike) {
+        const companyId = await this.resolveAssociateCompany(userId);
+        if (!companyId || String(request.supplierCompanyId) !== String(companyId)) {
+          return res.status(403).json({ success: false, message: "Not allowed to update this request." });
+        }
+      }
+      if (request.status !== "PACKAGED") {
+        return res.status(400).json({ success: false, message: "Courier submission is allowed only after packaging." });
+      }
+
+      const updated = await SampleRequestModel.findByIdAndUpdate(
+        id,
+        {
+          status: "COURIER_SUBMITTED",
+          courierSubmittedAt: new Date(),
+          courierTrackingNumber: trackingNumber,
+          courierAgencyName: courierAgencyName || null,
+        },
+        { new: true }
+      )
+        .populate(this.getPopulateQuery())
+        .populate("supplierCompanyId", "name email phone")
+        .populate("buyerAssociateId", "name email phone")
+        .populate("requestState", "name")
+        .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
+        .populate("requestCity", "name");
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async inTransit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
+        return res.status(403).json({ success: false, message: "Only suppliers can mark in-transit." });
+      }
+
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid sample request id." });
+      }
+
+      const request = await SampleRequestModel.findById(id).lean();
+      if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
+      if (!isAdminLike) {
+        const companyId = await this.resolveAssociateCompany(userId);
+        if (!companyId || String(request.supplierCompanyId) !== String(companyId)) {
+          return res.status(403).json({ success: false, message: "Not allowed to update this request." });
+        }
+      }
+      if (request.status !== "COURIER_SUBMITTED") {
+        return res.status(400).json({ success: false, message: "In-transit is allowed only after courier submission." });
+      }
+
+      const updated = await SampleRequestModel.findByIdAndUpdate(
+        id,
+        { status: "IN_TRANSIT", inTransitAt: new Date() },
+        { new: true }
+      )
+        .populate(this.getPopulateQuery())
+        .populate("supplierCompanyId", "name email phone")
+        .populate("buyerAssociateId", "name email phone")
+        .populate("requestState", "name")
+        .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
+        .populate("requestCity", "name");
+
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async receiptConfirm(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const isAdminLike = isAdminLikeRole(role);
+      if (!isAssociateRole(role) && !isAdminLike) {
+        return res.status(403).json({ success: false, message: "Only buyers can confirm receipt." });
+      }
+
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid sample request id." });
+      }
+
+      const request = await SampleRequestModel.findById(id).lean();
+      if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
+      if (!isAdminLike && String(request.buyerAssociateId) !== String(userId)) {
+        return res.status(403).json({ success: false, message: "Not allowed to update this request." });
+      }
+      if (request.status !== "IN_TRANSIT") {
+        return res.status(400).json({ success: false, message: "Receipt can be confirmed only after transit." });
+      }
+
+      const receiptFileId = toObjectId(req.body?.receiptFileId);
+
+      const updated = await SampleRequestModel.findByIdAndUpdate(
+        id,
+        {
+          status: "RECEIPT_CONFIRMED",
+          receiptConfirmedAt: new Date(),
+          receiptFileId: receiptFileId || null,
+        },
+        { new: true }
+      )
+        .populate(this.getPopulateQuery())
+        .populate("supplierCompanyId", "name email phone")
+        .populate("buyerAssociateId", "name email phone")
+        .populate("requestState", "name")
+        .populate("requestDistrict", "name")
+        .populate("requestDivision", "name")
+        .populate("requestCity", "name")
+        .populate("receiptFileId", "fileURL fileId originalName");
 
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {

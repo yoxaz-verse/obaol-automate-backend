@@ -4,6 +4,12 @@ export type SampleRequestStatus =
   | "REQUESTED"
   | "QUOTED"
   | "ACCEPTED"
+  | "PAYMENT_RECEIVED"
+  | "PREPARING_PACKAGING"
+  | "PACKAGED"
+  | "COURIER_SUBMITTED"
+  | "IN_TRANSIT"
+  | "RECEIPT_CONFIRMED"
   | "REJECTED"
   | "CANCELLED";
 
@@ -24,6 +30,15 @@ export interface ISampleRequest extends Document {
   quotedAt?: Date | null;
   acceptedAt?: Date | null;
   rejectedAt?: Date | null;
+  paymentReceivedAt?: Date | null;
+  packagingStartedAt?: Date | null;
+  packagedAt?: Date | null;
+  courierSubmittedAt?: Date | null;
+  courierAgencyName?: string | null;
+  courierTrackingNumber?: string | null;
+  inTransitAt?: Date | null;
+  receiptConfirmedAt?: Date | null;
+  receiptFileId?: Types.ObjectId | null;
   supplierMinQty?: number | null;
   supplierPrice?: number | null;
   markupPercent: number;

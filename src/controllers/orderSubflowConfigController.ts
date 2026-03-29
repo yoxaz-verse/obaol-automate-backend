@@ -51,7 +51,15 @@ class OrderSubflowConfigController {
     try {
       await OrderSubflowConfigModel.updateMany(
         { isDeleted: { $ne: true }, subflowType: "INTERNAL_LOGISTICS" },
-        { subflowType: "INLAND_LOGISTICS" }
+        { subflowType: "INLAND_TRANSPORTATION" }
+      );
+      await OrderSubflowConfigModel.updateMany(
+        { isDeleted: { $ne: true }, subflowType: "INLAND_LOGISTICS" },
+        { subflowType: "INLAND_TRANSPORTATION" }
+      );
+      await OrderSubflowConfigModel.updateMany(
+        { isDeleted: { $ne: true }, subflowType: "LOGISTICS" },
+        { subflowType: "INLAND_TRANSPORTATION" }
       );
       await OrderSubflowConfigModel.updateMany(
         {
@@ -99,6 +107,20 @@ class OrderSubflowConfigController {
       if (biddingValidation) {
         return res.status(400).json({ success: false, message: biddingValidation });
       }
+      const existing = await OrderSubflowConfigModel.findOne({
+        orderFlowType: "TRADE_ORDER",
+        subflowType: payload.subflowType,
+      }).lean();
+
+      if (existing) {
+        const updated = await OrderSubflowConfigModel.findByIdAndUpdate(
+          existing._id,
+          { ...payload, isDeleted: false },
+          { new: true }
+        ).lean();
+        return res.status(200).json({ success: true, data: updated, upserted: true });
+      }
+
       const created = await OrderSubflowConfigModel.create(payload);
       res.status(201).json({ success: true, data: created });
     } catch (error) {

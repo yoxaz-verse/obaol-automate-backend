@@ -90,6 +90,11 @@ const InquirySchema: Schema = new Schema(
             type: Date,
             default: null
         },
+        importDeliveryMode: {
+            type: String,
+            enum: ["PORT_PICKUP", "OBAOL_SERVICE", null],
+            default: null
+        },
 
         // Commercial terms
         preferredIncoterm: {
@@ -117,6 +122,96 @@ const InquirySchema: Schema = new Schema(
             default: null
         },
         buyerConfirmedAt: {
+            type: Date,
+            default: null
+        },
+        buyerClarificationRequestedAt: {
+            type: Date,
+            default: null
+        },
+        clarificationReasons: {
+            type: [String],
+            enum: ["RATE", "PAYMENT_TERMS", "DELIVERY_TIMELINE"],
+            default: [],
+        },
+        clarificationRate: {
+            type: Number,
+            default: null
+        },
+        clarificationPaymentTerms: {
+            type: Boolean,
+            default: false
+        },
+        clarificationDeliveryTimeline: {
+            type: Boolean,
+            default: false
+        },
+        clarificationCommunicatedAt: {
+            type: Date,
+            default: null
+        },
+        loiSubmittedAt: {
+            type: Date,
+            default: null
+        },
+        supplierQtyConfirmedAt: {
+            type: Date,
+            default: null
+        },
+        revisionRequestedAt: {
+            type: Date,
+            default: null
+        },
+        revisionReasons: {
+            type: [String],
+            enum: ["RATE", "PAYMENT_TERMS", "DELIVERY_TIMELINE"],
+            default: [],
+        },
+        revisionRate: {
+            type: Number,
+            default: null
+        },
+        revisionPaymentTerms: {
+            type: Boolean,
+            default: false
+        },
+        revisionDeliveryTimeline: {
+            type: Boolean,
+            default: false
+        },
+        revisionCommunicatedAt: {
+            type: Date,
+            default: null
+        },
+        revisionThread: {
+            items: [
+                {
+                    key: { type: String, enum: ["RATE", "PAYMENT_TERMS", "DELIVERY_TIMELINE"] },
+                    buyerRequested: { type: Boolean, default: false },
+                    buyerRate: { type: Number, default: null },
+                    buyerDeliveryMode: { type: String, enum: ["DELIVER_TO_LOCATION", "PRODUCT_READY"], default: null },
+                    buyerDeliveryDate: { type: Date, default: null },
+                    supplierAcknowledged: { type: Boolean, default: false },
+                    supplierCounterRate: { type: Number, default: null },
+                    repliedAt: { type: Date, default: null },
+                },
+            ],
+            buyerRequestedAt: { type: Date, default: null },
+            buyerConfirmedAt: { type: Date, default: null },
+        },
+        quotationCreatedAt: {
+            type: Date,
+            default: null
+        },
+        proformaCreatedAt: {
+            type: Date,
+            default: null
+        },
+        otherDocsCompletedAt: {
+            type: Date,
+            default: null
+        },
+        poSubmittedAt: {
             type: Date,
             default: null
         },
@@ -156,7 +251,7 @@ const InquirySchema: Schema = new Schema(
             {
                 type: {
                     type: String,
-                    enum: ["PROCUREMENT", "CERTIFICATION", "TRANSPORTATION", "SHIPPING", "PACKAGING", "QUALITY_TESTING"],
+                    enum: ["PROCUREMENT", "CERTIFICATION", "TRANSPORTATION", "SHIPPING", "PACKAGING", "QUALITY_TESTING", "WAREHOUSE"],
                     required: true
                 },
                 ownerBy: {
@@ -179,6 +274,8 @@ const InquirySchema: Schema = new Schema(
                     fromState: { type: String, default: null },
                     fromDistrict: { type: String, default: null },
                     packagingSpecifications: { type: String, default: null },
+                    segmentLabel: { type: String, default: null },
+                    segmentKey: { type: String, default: null },
                 },
                 candidateProviders: [{ type: Schema.Types.ObjectId, ref: "AssociateCompany" }],
                 bids: [
@@ -207,6 +304,18 @@ const InquirySchema: Schema = new Schema(
             default: null,
             index: true
         },
+        supplierOperatorId: {
+            type: Schema.Types.ObjectId,
+            ref: "Operator",
+            default: null,
+            index: true
+        },
+        dealCloserOperatorId: {
+            type: Schema.Types.ObjectId,
+            ref: "Operator",
+            default: null,
+            index: true
+        },
         order: {
             type: Schema.Types.ObjectId,
             ref: "Order",
@@ -225,7 +334,7 @@ const InquirySchema: Schema = new Schema(
         // Industry workflow stage (additive, does not replace status)
         workflowStage: {
             type: String,
-            default: "INQUIRY_CREATED",
+            default: "ENQUIRY_CREATED",
             index: true
         },
         isDemo: { type: Boolean, default: false, index: true },
@@ -275,7 +384,7 @@ InquirySchema.index({ sellerAssociateId: 1, createdAt: -1 });
 
 // Validation: Buyer and seller must be different
 InquirySchema.pre<IInquiry>("save", function (next) {
-    if (this.buyerAssociateId.equals(this.sellerAssociateId)) {
+    if (this.buyerAssociateId && this.sellerAssociateId && this.buyerAssociateId.equals(this.sellerAssociateId)) {
         next(new Error("Buyer and seller cannot be the same associate"));
     } else {
         next();

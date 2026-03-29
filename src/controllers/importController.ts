@@ -32,12 +32,29 @@ const normalizeUnit = (value: any, fallback: "MT" | "KG") => {
   return unit === "KG" ? "KG" : "MT";
 };
 
+const normalizeReservationStatus = (value: any) => {
+  const status = String(value || "").toUpperCase();
+  if (status === "ACCEPTED") return "APPROVED";
+  return status || "PENDING";
+};
+
 export class ImportController {
   private async resolveAssociateCompany(userId: string): Promise<string | null> {
     const associate = await AssociateModel.findById(userId)
       .select("_id associateCompany")
       .lean();
     return associate?.associateCompany ? String(associate.associateCompany) : null;
+  }
+
+  private async resolveCompanyAssociate(companyId: string): Promise<string | null> {
+    const associate = await AssociateModel.findOne({
+      associateCompany: companyId,
+      isDeleted: { $ne: true },
+      isActive: true,
+    })
+      .select("_id")
+      .lean();
+    return associate?._id ? String(associate._id) : null;
   }
 
   private async isImporterCompany(companyId: string | null): Promise<boolean> {
@@ -57,6 +74,43 @@ export class ImportController {
       .select("_id")
       .lean();
     return !!mapping;
+  }
+
+  private async recomputeListingState(listingId: Types.ObjectId) {
+    const listing = await ImportListingModel.findById(listingId);
+    if (!listing) return null;
+
+    const activeStatuses = ["PENDING", "APPROVED", "LOCKED", "ACCEPTED"];
+    const reservations = await ImportReservationModel.find({
+      listingId,
+      isDeleted: { $ne: true },
+      status: { $in: activeStatuses },
+    }).select("quantityRequested status reservationStatus linkedEnquiryId");
+
+    const reservedQty = reservations.reduce((sum, r: any) => sum + Number(r.quantityRequested || 0), 0);
+    listing.availableQuantity = Math.max(0, Number(listing.totalQuantity || 0) - reservedQty);
+    listing.status =
+      listing.availableQuantity <= 0 ? "FULL" : reservedQty > 0 ? "PARTIAL" : "OPEN";
+
+    const hasLocked = reservations.some(
+      (r: any) => normalizeReservationStatus(r.reservationStatus || r.status) === "LOCKED" || r.linkedEnquiryId
+    );
+    if (hasLocked) {
+      listing.importStatus = "ENQUIRY_CREATED";
+    } else if (listing.importStatus !== "ENQUIRY_CREATED") {
+      const hasApproved = reservations.some(
+        (r: any) => normalizeReservationStatus(r.reservationStatus || r.status) === "APPROVED"
+      );
+      const hasPending = reservations.some(
+        (r: any) => normalizeReservationStatus(r.reservationStatus || r.status) === "PENDING"
+      );
+      if (hasApproved) listing.importStatus = "APPROVED";
+      else if (hasPending) listing.importStatus = "RESERVED";
+      else listing.importStatus = listing.importStatus === "DRAFT" ? "DRAFT" : "LISTED";
+    }
+
+    await listing.save();
+    return listing;
   }
 
   async createListing(req: Request, res: Response, next: NextFunction) {
@@ -158,6 +212,7 @@ export class ImportController {
         portName,
         country: "India",
         status: "OPEN",
+        importStatus: "LISTED",
       });
 
       const populated = await ImportListingModel.findById(created._id)
@@ -188,7 +243,10 @@ export class ImportController {
       const importerCompanyId = String(req.query?.importerCompanyId || "").trim();
 
       const query: any = { isDeleted: { $ne: true } };
-      if (status) query.status = status;
+      if (status) {
+        const normalized = normalizeReservationStatus(status);
+        query.status = { $in: [normalized, status] };
+      }
 
       if (isAdminRole(role) || isOperatorRole(role)) {
         if (importerCompanyId && Types.ObjectId.isValid(importerCompanyId)) {
@@ -225,6 +283,7 @@ export class ImportController {
       }
 
       const normalizedRows = rows.map((row: any) => {
+        if (!row.importStatus) row.importStatus = "LISTED";
         if (isAdminRole(role)) {
           row.displayPrice = Number(row.price || 0);
           row.canViewCommission = true;
@@ -288,7 +347,7 @@ export class ImportController {
 
       const acceptedCount = await ImportReservationModel.countDocuments({
         listingId: listing._id,
-        status: "ACCEPTED",
+        status: { $in: ["APPROVED", "LOCKED", "ACCEPTED"] },
         isDeleted: { $ne: true },
       });
       if (acceptedCount > 0) {
@@ -396,8 +455,9 @@ export class ImportController {
     try {
       const role = normalizeRole(req.user?.role);
       const userId = String(req.user?.id || "").trim();
-      if (!isAssociateRole(role)) {
-        return res.status(403).json({ success: false, message: "Only associates can reserve quantities." });
+      const isAdminUser = isAdminRole(role);
+      if (!isAssociateRole(role) && !isAdminUser) {
+        return res.status(403).json({ success: false, message: "Only buyers or admins can reserve quantities." });
       }
 
       const listingId = String(req.params?.id || "");
@@ -414,26 +474,62 @@ export class ImportController {
       if (!listing || listing.isDeleted) {
         return res.status(404).json({ success: false, message: "Listing not found." });
       }
-      if (listing.status === "CLOSED" || listing.status === "FULL") {
+      if (listing.status === "CLOSED" || listing.status === "FULL" || listing.importStatus === "ENQUIRY_CREATED") {
         return res.status(400).json({ success: false, message: "Listing is closed or fully reserved." });
       }
-      if (Number(listing.availableQuantity) < quantityRequested) {
+      const activeStatuses = ["PENDING", "APPROVED", "LOCKED", "ACCEPTED"];
+      const existingReserved = await ImportReservationModel.aggregate([
+        { $match: { listingId: new Types.ObjectId(listingId), isDeleted: { $ne: true }, status: { $in: activeStatuses } } },
+        { $group: { _id: "$listingId", qty: { $sum: "$quantityRequested" } } },
+      ]);
+      const reservedQty = existingReserved?.[0]?.qty || 0;
+      const available = Math.max(0, Number(listing.totalQuantity || 0) - reservedQty);
+      if (available < quantityRequested) {
         return res.status(400).json({ success: false, message: "Requested quantity exceeds availability." });
       }
 
-      const companyId = await this.resolveAssociateCompany(userId);
-      if (!companyId) {
-        return res.status(400).json({ success: false, message: "Buyer company not found." });
+      let companyId: any = null;
+      let buyerAssociateId: any = userId;
+      if (isAdminUser) {
+        const bodyCompanyId = String(req.body?.buyerCompanyId || "").trim();
+        if (!bodyCompanyId || !Types.ObjectId.isValid(bodyCompanyId)) {
+          return res.status(400).json({ success: false, message: "buyerCompanyId is required for admin reservations." });
+        }
+        companyId = bodyCompanyId;
+        const bodyAssociateId = String(req.body?.buyerAssociateId || "").trim();
+        if (bodyAssociateId && Types.ObjectId.isValid(bodyAssociateId)) {
+          buyerAssociateId = bodyAssociateId;
+        } else {
+          const resolvedAssociateId = await this.resolveCompanyAssociate(companyId);
+          if (!resolvedAssociateId) {
+            return res.status(400).json({ success: false, message: "No buyer associate found for the selected company." });
+          }
+          buyerAssociateId = resolvedAssociateId;
+        }
+      } else {
+        companyId = await this.resolveAssociateCompany(userId);
+        if (!companyId) {
+          return res.status(400).json({ success: false, message: "Buyer company not found." });
+        }
+      }
+      if (String(buyerAssociateId) === String(listing.importerAssociateId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected buyer maps to the same associate as the importer. Please choose a different buyer.",
+        });
       }
 
       const created = await ImportReservationModel.create({
         listingId,
-        buyerAssociateId: userId,
+        buyerAssociateId,
         buyerCompanyId: companyId,
         quantityRequested,
         status: "PENDING",
+        reservationStatus: "PENDING",
         requestedAt: new Date(),
       });
+
+      await this.recomputeListingState(new Types.ObjectId(listingId));
 
       const populated = await ImportReservationModel.findById(created._id)
         .populate({
@@ -511,6 +607,7 @@ export class ImportController {
       }
 
       const normalizedRows = rows.map((row: any) => {
+        if (!row.reservationStatus) row.reservationStatus = normalizeReservationStatus(row.status);
         if (isAdminRole(role)) {
           if (row?.listingId) {
             row.listingId.displayPrice = Number(row.listingId.price || 0);
@@ -561,7 +658,8 @@ export class ImportController {
 
       const reservation = await ImportReservationModel.findById(id);
       if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
-      if (reservation.status !== "PENDING") {
+      const currentStatus = normalizeReservationStatus(reservation.reservationStatus || reservation.status);
+      if (currentStatus !== "PENDING") {
         return res.status(400).json({ success: false, message: "Reservation is not pending." });
       }
 
@@ -575,11 +673,219 @@ export class ImportController {
         }
       }
 
-      if (listing.status === "CLOSED" || listing.status === "FULL") {
+      if (listing.status === "CLOSED" || listing.status === "FULL" || listing.importStatus === "ENQUIRY_CREATED") {
         return res.status(400).json({ success: false, message: "Listing is closed or fully reserved." });
       }
-      if (Number(listing.availableQuantity) < Number(reservation.quantityRequested)) {
-        return res.status(400).json({ success: false, message: "Not enough quantity available." });
+      const approvedReserved = await ImportReservationModel.aggregate([
+        {
+          $match: {
+            listingId: listing._id,
+            isDeleted: { $ne: true },
+            status: { $in: ["APPROVED", "LOCKED", "ACCEPTED"] },
+            _id: { $ne: reservation._id },
+          },
+        },
+        { $group: { _id: "$listingId", qty: { $sum: "$quantityRequested" } } },
+      ]);
+      const alreadyApprovedQty = approvedReserved?.[0]?.qty || 0;
+      const availableAfterApproved = Math.max(0, Number(listing.totalQuantity || 0) - alreadyApprovedQty);
+      if (availableAfterApproved < Number(reservation.quantityRequested || 0)) {
+        return res.status(400).json({
+          success: false,
+          message: "Not enough quantity available to approve this reservation.",
+        });
+      }
+
+      reservation.status = "APPROVED";
+      reservation.reservationStatus = "APPROVED";
+      reservation.acceptedAt = new Date();
+      await reservation.save();
+
+      await this.recomputeListingState(listing._id);
+
+      const populated = await ImportReservationModel.findById(reservation._id)
+        .populate({
+          path: "listingId",
+          populate: [
+            { path: "importerCompanyId", select: "name" },
+            { path: "portId", select: "name loCode" },
+          ],
+        })
+        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerCompanyId", "name")
+        .lean();
+
+      return res.json({ success: true, data: populated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async rejectReservation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const id = String(req.params?.id || "");
+      if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid reservation id." });
+
+      const reservation = await ImportReservationModel.findById(id);
+      if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
+      const currentStatus = normalizeReservationStatus(reservation.reservationStatus || reservation.status);
+      if (currentStatus !== "PENDING") {
+        return res.status(400).json({ success: false, message: "Reservation is not pending." });
+      }
+
+      const listing = await ImportListingModel.findById(reservation.listingId).select("importerAssociateId").lean();
+      if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
+
+      if (!isAdminRole(role) && !isOperatorRole(role)) {
+        if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
+        if (String(listing.importerAssociateId) !== userId) {
+          return res.status(403).json({ success: false, message: "Not allowed to reject this reservation." });
+        }
+      }
+
+      reservation.status = "REJECTED";
+      reservation.reservationStatus = "REJECTED";
+      reservation.rejectedAt = new Date();
+      await reservation.save();
+      await this.recomputeListingState(reservation.listingId as any);
+      return res.json({ success: true, data: reservation });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelReservation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const id = String(req.params?.id || "");
+      if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid reservation id." });
+
+      const reservation = await ImportReservationModel.findById(id);
+      if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
+      if (!isAdminRole(role)) {
+        if (!isAssociateRole(role)) {
+          return res.status(403).json({ success: false, message: "Only buyers or admins can cancel reservations." });
+        }
+        if (String(reservation.buyerAssociateId) !== userId) {
+          return res.status(403).json({ success: false, message: "Not allowed to cancel this reservation." });
+        }
+      }
+      const currentStatus = normalizeReservationStatus(reservation.reservationStatus || reservation.status);
+      if (currentStatus !== "PENDING") {
+        return res.status(400).json({ success: false, message: "Only pending reservations can be cancelled." });
+      }
+
+      reservation.status = "CANCELLED";
+      reservation.reservationStatus = "CANCELLED";
+      reservation.cancelledAt = new Date();
+      await reservation.save();
+      await this.recomputeListingState(reservation.listingId as any);
+      return res.json({ success: true, data: reservation });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async editReservation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const listingId = String(req.params?.id || "");
+      const reservationId = String(req.params?.reservationId || "");
+      if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(reservationId)) {
+        return res.status(400).json({ success: false, message: "Invalid reservation id." });
+      }
+
+      const reservation = await ImportReservationModel.findById(reservationId);
+      if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
+      const currentStatus = normalizeReservationStatus(reservation.reservationStatus || reservation.status);
+      if (currentStatus !== "PENDING") {
+        return res.status(400).json({ success: false, message: "Only pending reservations can be edited." });
+      }
+
+      if (!isAdminRole(role)) {
+        if (!isAssociateRole(role)) {
+          return res.status(403).json({ success: false, message: "Only buyers or admins can edit reservations." });
+        }
+        if (String(reservation.buyerAssociateId) !== userId) {
+          return res.status(403).json({ success: false, message: "Not allowed to edit this reservation." });
+        }
+      }
+
+      const listing = await ImportListingModel.findById(listingId);
+      if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
+      if (String(listing._id) !== String(reservation.listingId)) {
+        return res.status(400).json({ success: false, message: "Reservation does not belong to this listing." });
+      }
+
+      const quantityRequested = toNumber(req.body?.quantityRequested);
+      if (!quantityRequested || quantityRequested <= 0) {
+        return res.status(400).json({ success: false, message: "quantityRequested is required." });
+      }
+
+      const activeStatuses = ["PENDING", "APPROVED", "LOCKED", "ACCEPTED"];
+      const otherReserved = await ImportReservationModel.aggregate([
+        {
+          $match: {
+            listingId: listing._id,
+            isDeleted: { $ne: true },
+            status: { $in: activeStatuses },
+            _id: { $ne: reservation._id },
+          },
+        },
+        { $group: { _id: "$listingId", qty: { $sum: "$quantityRequested" } } },
+      ]);
+      const reservedQty = otherReserved?.[0]?.qty || 0;
+      const available = Math.max(0, Number(listing.totalQuantity || 0) - reservedQty);
+      if (available < quantityRequested) {
+        return res.status(400).json({ success: false, message: "Requested quantity exceeds availability." });
+      }
+
+      reservation.quantityRequested = quantityRequested;
+      await reservation.save();
+      await this.recomputeListingState(listing._id);
+
+      return res.json({ success: true, data: reservation });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async lockReservation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      const listingId = String(req.params?.id || "");
+      const reservationId = String(req.params?.reservationId || "");
+      if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(reservationId)) {
+        return res.status(400).json({ success: false, message: "Invalid reservation id." });
+      }
+
+      const reservation = await ImportReservationModel.findById(reservationId);
+      if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
+      const currentStatus = normalizeReservationStatus(reservation.reservationStatus || reservation.status);
+      if (currentStatus !== "APPROVED") {
+        return res.status(400).json({ success: false, message: "Only approved reservations can be locked." });
+      }
+
+      const listing = await ImportListingModel.findById(listingId);
+      if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
+      if (String(listing._id) !== String(reservation.listingId)) {
+        return res.status(400).json({ success: false, message: "Reservation does not belong to this listing." });
+      }
+
+      if (!isAdminRole(role) && !isOperatorRole(role)) {
+        if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
+        if (String(listing.importerAssociateId) !== userId) {
+          return res.status(403).json({ success: false, message: "Not allowed to lock this reservation." });
+        }
+      }
+
+      if (reservation.linkedEnquiryId) {
+        return res.status(400).json({ success: false, message: "Reservation already locked and linked to enquiry." });
       }
 
       if (!listing.productId && !listing.productVariant) {
@@ -591,9 +897,22 @@ export class ImportController {
         const variant = await ProductVariantModel.findById(listing.productVariant).select("product").lean();
         if (variant?.product) productId = variant.product as any;
       }
-
       if (!productId) {
         return res.status(400).json({ success: false, message: "Unable to resolve product for enquiry." });
+      }
+
+      if (!reservation.buyerAssociateId) {
+        return res.status(400).json({ success: false, message: "Buyer associate is required to create an enquiry." });
+      }
+      if (String(reservation.buyerAssociateId) === String(listing.importerAssociateId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Buyer and seller cannot be the same associate.",
+          debug: {
+            buyerAssociateId: String(reservation.buyerAssociateId),
+            sellerAssociateId: String(listing.importerAssociateId),
+          },
+        });
       }
 
       const enquiry = await InquiryModel.create({
@@ -618,7 +937,9 @@ export class ImportController {
           destinationCountry: "India",
           destinationPort: listing.portName || null,
         },
+        sellerAcceptedAt: new Date(),
         status: InquiryStatus.NEW,
+        workflowStage: "QUOTATION_REVISION",
         createdBy: req.user!.id,
       });
 
@@ -629,14 +950,14 @@ export class ImportController {
         { metadata: { status: InquiryStatus.NEW } }
       );
 
-      reservation.status = "ACCEPTED";
-      reservation.acceptedAt = new Date();
+      reservation.status = "LOCKED";
+      reservation.reservationStatus = "LOCKED";
       reservation.linkedEnquiryId = enquiry._id;
       await reservation.save();
 
-      listing.availableQuantity = Number(listing.availableQuantity) - Number(reservation.quantityRequested);
-      listing.status = listing.availableQuantity <= 0 ? "FULL" : "PARTIAL";
+      listing.importStatus = "ENQUIRY_CREATED";
       await listing.save();
+      await this.recomputeListingState(listing._id);
 
       const populated = await ImportReservationModel.findById(reservation._id)
         .populate({
@@ -652,67 +973,6 @@ export class ImportController {
         .lean();
 
       return res.json({ success: true, data: populated });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async rejectReservation(req: Request, res: Response, next: NextFunction) {
-    try {
-      const role = normalizeRole(req.user?.role);
-      const userId = String(req.user?.id || "").trim();
-      const id = String(req.params?.id || "");
-      if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid reservation id." });
-
-      const reservation = await ImportReservationModel.findById(id);
-      if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
-      if (reservation.status !== "PENDING") {
-        return res.status(400).json({ success: false, message: "Reservation is not pending." });
-      }
-
-      const listing = await ImportListingModel.findById(reservation.listingId).select("importerAssociateId").lean();
-      if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
-
-      if (!isAdminRole(role) && !isOperatorRole(role)) {
-        if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
-        if (String(listing.importerAssociateId) !== userId) {
-          return res.status(403).json({ success: false, message: "Not allowed to reject this reservation." });
-        }
-      }
-
-      reservation.status = "REJECTED";
-      reservation.rejectedAt = new Date();
-      await reservation.save();
-      return res.json({ success: true, data: reservation });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async cancelReservation(req: Request, res: Response, next: NextFunction) {
-    try {
-      const role = normalizeRole(req.user?.role);
-      const userId = String(req.user?.id || "").trim();
-      const id = String(req.params?.id || "");
-      if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid reservation id." });
-
-      if (!isAssociateRole(role)) {
-        return res.status(403).json({ success: false, message: "Only associates can cancel reservations." });
-      }
-
-      const reservation = await ImportReservationModel.findById(id);
-      if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
-      if (String(reservation.buyerAssociateId) !== userId) {
-        return res.status(403).json({ success: false, message: "Not allowed to cancel this reservation." });
-      }
-      if (reservation.status !== "PENDING") {
-        return res.status(400).json({ success: false, message: "Only pending reservations can be cancelled." });
-      }
-
-      reservation.status = "CANCELLED";
-      reservation.cancelledAt = new Date();
-      await reservation.save();
-      return res.json({ success: true, data: reservation });
     } catch (error) {
       next(error);
     }

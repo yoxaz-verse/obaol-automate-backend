@@ -7,7 +7,7 @@ export const COMPANY_INTERESTS = [
   "QUALITY_TESTING",
   "OCEAN_FREIGHT",
   "AIR_FREIGHT",
-  "INLAND_LOGISTICS",
+  "INLAND_TRANSPORTATION",
   "SEA_FREIGHT_FORWARDING",
   "AIR_FREIGHT_FORWARDING",
   "CUSTOMS_CLEARANCE",
@@ -30,7 +30,7 @@ export const ASSOCIATE_INTERESTS = [
   "CERTIFICATION_PARTNER",
   "OCEAN_FREIGHT",
   "AIR_FREIGHT",
-  "INLAND_LOGISTICS",
+  "INLAND_TRANSPORTATION",
   "SEA_FREIGHT_FORWARDING",
   "AIR_FREIGHT_FORWARDING",
   "CUSTOMS_CLEARANCE",
@@ -47,6 +47,7 @@ export const normalizeCompanyInterests = (values: any): CompanyInterest[] => {
   const allowed = new Set(COMPANY_INTERESTS);
   const normalized = values
     .map((value) => String(value || "").trim().toUpperCase())
+    .map((value) => (value === "INLAND_LOGISTICS" ? "INLAND_TRANSPORTATION" : value))
     .filter((value) => allowed.has(value as CompanyInterest));
   return Array.from(new Set(normalized)) as CompanyInterest[];
 };
@@ -56,6 +57,7 @@ export const normalizeAssociateInterests = (values: any): AssociateInterest[] =>
   const allowed = new Set(ASSOCIATE_INTERESTS);
   const normalized = values
     .map((value) => String(value || "").trim().toUpperCase())
+    .map((value) => (value === "INLAND_LOGISTICS" ? "INLAND_TRANSPORTATION" : value))
     .filter((value) => allowed.has(value as AssociateInterest));
   return Array.from(new Set(normalized)) as AssociateInterest[];
 };

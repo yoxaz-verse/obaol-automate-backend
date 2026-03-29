@@ -6,11 +6,13 @@ export type FlowType =
   | "SAMPLING"
   | "WAREHOUSE"
   | "PROCUREMENT"
-  | "LOGISTICS"
-  | "INLAND_LOGISTICS"
+  | "INLAND_TRANSPORTATION"
   | "PACKAGING"
   | "FREIGHT_FORWARDING"
-  | "INVENTORY";
+  | "INVENTORY"
+  | "CERTIFICATION"
+  | "QUALITY_QA"
+  | "WAREHOUSE";
 
 export interface IFlowRule extends Document {
   flowType: FlowType;
@@ -20,6 +22,8 @@ export interface IFlowRule extends Document {
   sortOrder: number;
   isActive: boolean;
   requiredActions?: string[];
+  requiredActionMode?: "ALL" | "ANY";
+  actionBy?: "BUYER" | "SUPPLIER" | "BOTH" | "EITHER";
   triggersOrderCreation?: boolean;
   triggersClose?: boolean;
   tradeType?: "DOMESTIC" | "INTERNATIONAL" | "BOTH";

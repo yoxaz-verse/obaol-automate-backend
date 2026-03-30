@@ -23,7 +23,6 @@ export interface InquiryDocument {
     buyerAssociateId?: Types.ObjectId;
     sellerAssociateId?: Types.ObjectId;
     mediatorAssociateId?: Types.ObjectId | null;
-    assignedOperatorId?: Types.ObjectId | null;
     notes?: string;
     [key: string]: any;
 }
@@ -74,7 +73,6 @@ export function canAccessInquiry(
         roleLower === "team"
     ) {
         return (
-            getAttrId(inquiry.assignedOperatorId) === userId.toString() ||
             getAttrId((inquiry as any).supplierOperatorId) === userId.toString() ||
             getAttrId((inquiry as any).dealCloserOperatorId) === userId.toString() ||
             getAttrId((inquiry as any).createdBy) === userId.toString()
@@ -135,13 +133,12 @@ export function filterInquiryFields(
     const { userRole, associateId, associateCompanyId } = context;
     const roleLower = String(userRole || "").toLowerCase();
 
-    // Admin and assigned operator: full access
+    // Admin and assigned operators: full access
     if (
         userRole === UserRole.ADMIN ||
         roleLower === "admin" ||
         ((userRole === UserRole.OPERATOR || roleLower === "operator" || roleLower === "team") &&
-            (getAttrId(inquiry.assignedOperatorId) === context.userId.toString() ||
-                getAttrId((inquiry as any).supplierOperatorId) === context.userId.toString() ||
+            (getAttrId((inquiry as any).supplierOperatorId) === context.userId.toString() ||
                 getAttrId((inquiry as any).dealCloserOperatorId) === context.userId.toString() ||
                 getAttrId((inquiry as any).createdBy) === context.userId.toString()))
     ) {
@@ -156,7 +153,6 @@ export function filterInquiryFields(
             // Buyer can see: product, quantity, specifications, status
             const {
                 notes,
-                assignedOperatorId,
                 sellerAssociateId,
                 mediatorAssociateId,
                 supplierOperatorId,
@@ -167,7 +163,6 @@ export function filterInquiryFields(
                 ...safeFields,
                 // Explicitly exclude sensitive fields and counterparties
                 notes: undefined,
-                assignedOperatorId: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
                 sellerAssociateId: undefined,
@@ -179,7 +174,6 @@ export function filterInquiryFields(
             // Seller can see: product, quantity, status (no specifications, no buyer)
             const {
                 notes,
-                assignedOperatorId,
                 supplierOperatorId,
                 dealCloserOperatorId,
                 specifications,
@@ -190,7 +184,6 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 notes: undefined,
-                assignedOperatorId: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
                 specifications: undefined,
@@ -203,7 +196,6 @@ export function filterInquiryFields(
             // Mediator can see: product, quantity, status (no specifications, no buyer/seller names)
             const {
                 notes,
-                assignedOperatorId,
                 supplierOperatorId,
                 dealCloserOperatorId,
                 specifications,
@@ -214,7 +206,6 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 notes: undefined,
-                assignedOperatorId: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
                 specifications: undefined,
@@ -227,7 +218,6 @@ export function filterInquiryFields(
         if (isExecutionProviderForCompany(inquiry, associateCompanyId)) {
             const {
                 notes,
-                assignedOperatorId,
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
@@ -238,7 +228,6 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 notes: undefined,
-                assignedOperatorId: undefined,
                 buyerAssociateId: undefined,
                 sellerAssociateId: undefined,
                 mediatorAssociateId: undefined,
@@ -280,7 +269,11 @@ export function buildInquiryAccessFilter(
         roleLower === "team"
     ) {
         return {
-            $or: [{ assignedOperatorId: userId }, { createdBy: userId }]
+            $or: [
+                { supplierOperatorId: userId },
+                { dealCloserOperatorId: userId },
+                { createdBy: userId }
+            ]
         };
     }
 

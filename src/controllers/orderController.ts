@@ -11,6 +11,8 @@ import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
 import { FlowRuleModel } from "../database/models/flowRule";
 import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
+import { AssociateModel } from "../database/models/associate";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { ensureDefaultDocumentRules } from "../utils/documentRules";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { buildPaymentPlanFromTermId, applyPaymentPlanStageUpdate } from "../utils/paymentPlan";
@@ -71,6 +73,28 @@ export class OrderController {
             if (!req.body.responsibilities) {
                 req.body.responsibilities = responsibilityPlan;
             }
+            if (!req.body.executionContext && (enquiry as any).executionContext) {
+                req.body.executionContext = (enquiry as any).executionContext;
+            }
+            if (!req.body.supplierOperatorId) {
+                let autoSupplierOperatorId: any = (enquiry as any).supplierOperatorId || null;
+                if (!autoSupplierOperatorId) {
+                    try {
+                        const sellerAssociate = await AssociateModel.findById(enquiry.sellerAssociateId).select("associateCompany").lean();
+                        const sellerCompanyId = sellerAssociate?.associateCompany || null;
+                        if (sellerCompanyId) {
+                            const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("assignedOperator").lean();
+                            autoSupplierOperatorId = sellerCompany?.assignedOperator || null;
+                        }
+                    } catch (error) {
+                        autoSupplierOperatorId = null;
+                    }
+                }
+                if (autoSupplierOperatorId) req.body.supplierOperatorId = autoSupplierOperatorId;
+            }
+            if (!req.body.dealCloserOperatorId && (enquiry as any).dealCloserOperatorId) {
+                req.body.dealCloserOperatorId = (enquiry as any).dealCloserOperatorId;
+            }
             // Initialize milestone dates on conversion (scheduling + procurement + source inspection).
             const now = new Date();
             req.body.milestones = req.body.milestones || {};
@@ -82,6 +106,36 @@ export class OrderController {
             }
             if (!req.body.milestones.procurementDate) {
                 req.body.milestones.procurementDate = now;
+            }
+            if (!req.body.milestones.deliveryTargetDate) {
+                const expectedArrival = (enquiry as any)?.expectedArrivalDate
+                    ? new Date((enquiry as any).expectedArrivalDate)
+                    : null;
+                let revisionDelivery: Date | null = null;
+                const rounds = Array.isArray((enquiry as any).revisionRounds) ? (enquiry as any).revisionRounds : [];
+                if (rounds.length > 0) {
+                    const sorted = [...rounds].sort((a: any, b: any) => {
+                        const aTime = new Date(a?.buyerRequestedAt || a?.closedAt || 0).getTime();
+                        const bTime = new Date(b?.buyerRequestedAt || b?.closedAt || 0).getTime();
+                        return bTime - aTime;
+                    });
+                    const found = sorted.find((round: any) =>
+                        Array.isArray(round?.items) &&
+                        round.items.some((item: any) => String(item?.key || "").toUpperCase() === "DELIVERY_TIMELINE" && item?.buyerDeliveryDate)
+                    );
+                    if (found) {
+                        const item = found.items.find((i: any) => String(i?.key || "").toUpperCase() === "DELIVERY_TIMELINE" && i?.buyerDeliveryDate);
+                        if (item?.buyerDeliveryDate) revisionDelivery = new Date(item.buyerDeliveryDate);
+                    }
+                } else if ((enquiry as any)?.revisionThread?.items) {
+                    const item = (enquiry as any).revisionThread.items.find((i: any) => String(i?.key || "").toUpperCase() === "DELIVERY_TIMELINE" && i?.buyerDeliveryDate);
+                    if (item?.buyerDeliveryDate) revisionDelivery = new Date(item.buyerDeliveryDate);
+                }
+
+                const targetDate = revisionDelivery || expectedArrival || null;
+                if (targetDate && !Number.isNaN(targetDate.getTime())) {
+                    req.body.milestones.deliveryTargetDate = targetDate;
+                }
             }
 
             if (!req.body.paymentTermId && (enquiry as any).paymentTermId) {

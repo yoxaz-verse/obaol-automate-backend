@@ -50,7 +50,7 @@ export const orderCommissionPreWriteHook: HookFunction = async (payload, mode, i
 
     if ((!derivedCompanyId || !mongoose.Types.ObjectId.isValid(derivedCompanyId)) && orderEnquiryId) {
         const inquiry = await InquiryModel.findById(orderEnquiryId)
-            .select("sellerAssociateId assignedOperatorId")
+            .select("sellerAssociateId dealCloserOperatorId")
             .lean();
 
         if (inquiry) {
@@ -65,9 +65,9 @@ export const orderCommissionPreWriteHook: HookFunction = async (payload, mode, i
                 }
             }
 
-            const inquiryAssignedOperator = String((inquiry as any).assignedOperatorId || "").trim();
-            if (!derivedCloserId && inquiryAssignedOperator && mongoose.Types.ObjectId.isValid(inquiryAssignedOperator)) {
-                derivedCloserId = inquiryAssignedOperator;
+            const inquiryDealCloserId = String((inquiry as any).dealCloserOperatorId || "").trim();
+            if (!derivedCloserId && inquiryDealCloserId && mongoose.Types.ObjectId.isValid(inquiryDealCloserId)) {
+                derivedCloserId = inquiryDealCloserId;
             }
         }
     }

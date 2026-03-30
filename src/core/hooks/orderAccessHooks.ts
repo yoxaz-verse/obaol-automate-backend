@@ -19,7 +19,6 @@ export const orderFilterHook = async (
     if (role === "operator" || role === "team") {
         const inquiryIds = await InquiryModel.find({
             $or: [
-                { assignedOperatorId: userId },
                 { supplierOperatorId: userId },
                 { dealCloserOperatorId: userId },
             ],

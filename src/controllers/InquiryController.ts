@@ -167,7 +167,6 @@ export class InquiryController {
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
-                assignedOperatorId,
                 supplierOperatorId,
                 dealCloserOperatorId,
                 variantRateId,
@@ -178,12 +177,6 @@ export class InquiryController {
                 notes
             } = req.body;
             let { rate, adminCommission, mediatorCommission } = req.body;
-            const roleLower = String(req.user?.role || "").toLowerCase();
-            const isOperatorCreator = roleLower === "operator" || roleLower === "team";
-            const normalizedAssignedOperatorId = isOperatorCreator
-                ? req.user!.id
-                : (assignedOperatorId || null);
-
             // Validation
             if (!productId || !buyerAssociateId || !sellerAssociateId) {
                 return res.status(400).json({
@@ -191,6 +184,19 @@ export class InquiryController {
                     message: "productId, buyerAssociateId, and sellerAssociateId are required"
                 });
             }
+
+            let autoSupplierOperatorId: any = null;
+            try {
+                const sellerAssociate = await AssociateModel.findById(sellerAssociateId).select("associateCompany").lean();
+                const sellerCompanyId = sellerAssociate?.associateCompany || null;
+                if (sellerCompanyId) {
+                    const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("assignedOperator").lean();
+                    autoSupplierOperatorId = sellerCompany?.assignedOperator || null;
+                }
+            } catch (error) {
+                autoSupplierOperatorId = null;
+            }
+            const resolvedSupplierOperatorId = supplierOperatorId || autoSupplierOperatorId || null;
 
             // Backend Rate & Commission Lookup
             if (catalogItemId) {
@@ -220,8 +226,7 @@ export class InquiryController {
                 buyerAssociateId,
                 sellerAssociateId,
                 mediatorAssociateId,
-                assignedOperatorId: normalizedAssignedOperatorId,
-                supplierOperatorId: supplierOperatorId || null,
+                supplierOperatorId: resolvedSupplierOperatorId,
                 dealCloserOperatorId: dealCloserOperatorId || null,
                 variantRateId,
                 catalogItemId,
@@ -288,7 +293,6 @@ export class InquiryController {
                     select: "name email phone associateCompany",
                     populate: { path: "associateCompany", select: "name" }
                 },
-                { path: "assignedOperatorId", select: "name email" },
                 { path: "supplierOperatorId", select: "name email" },
                 { path: "dealCloserOperatorId", select: "name email" }
             ]);
@@ -357,7 +361,6 @@ export class InquiryController {
             const isAssignedOperator =
                 (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
                 (
-                    inquiry.assignedOperatorId?.toString() === req.user!.id ||
                     (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
                     (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
                 );
@@ -998,7 +1001,6 @@ export class InquiryController {
             const isAssignedOperator =
                 (req.user?.role === UserRole.OPERATOR || req.user?.role === "team" || role === "operator" || role === "team") &&
                 (
-                    inquiry.assignedOperatorId?.toString() === req.user!.id ||
                     (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
                     (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
                 );
@@ -1493,12 +1495,11 @@ export class InquiryController {
                 associateCompanyId &&
                 candidateProviders.some((provider: any) => String(provider?._id || provider || "") === associateCompanyId)
             );
-            const assignedOperatorId = inquiry.assignedOperatorId?.toString() || "";
             const supplierOperatorId = (inquiry as any).supplierOperatorId?.toString() || "";
             const dealCloserOperatorId = (inquiry as any).dealCloserOperatorId?.toString() || "";
             const isAssignedOperator = Boolean(
                 isOperatorUser &&
-                (assignedOperatorId === req.user!.id || supplierOperatorId === req.user!.id || dealCloserOperatorId === req.user!.id)
+                (supplierOperatorId === req.user!.id || dealCloserOperatorId === req.user!.id)
             );
             const canBid =
                 isProviderCandidate ||
@@ -1761,9 +1762,8 @@ export class InquiryController {
                             }
                         ]
                     },
-                    { path: "assignedOperatorId", select: "name email" },
-                    { path: "supplierOperatorId", select: "name email" },
-                    { path: "dealCloserOperatorId", select: "name email" },
+                { path: "supplierOperatorId", select: "name email" },
+                { path: "dealCloserOperatorId", select: "name email" },
                     { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -1865,9 +1865,8 @@ export class InquiryController {
                             select: "name email phone associateCompany",
                             populate: { path: "associateCompany", select: "name" }
                         },
-                        { path: "assignedOperatorId", select: "name email" },
-                        { path: "supplierOperatorId", select: "name email" },
-                        { path: "dealCloserOperatorId", select: "name email" },
+                    { path: "supplierOperatorId", select: "name email" },
+                    { path: "dealCloserOperatorId", select: "name email" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -2271,10 +2270,10 @@ export class InquiryController {
             }
 
             // Store previous assignment
-            const previousOperator = inquiry.assignedOperatorId?.toString() || null;
+            const previousOperator = (inquiry as any).supplierOperatorId?.toString() || null;
 
-            // Update assignment
-            inquiry.assignedOperatorId = new Types.ObjectId(operatorId);
+            // Update supply ownership operator
+            (inquiry as any).supplierOperatorId = new Types.ObjectId(operatorId);
             await inquiry.save();
 
             // Log assignment event
@@ -2288,14 +2287,14 @@ export class InquiryController {
                 }
             );
 
-            await inquiry.populate("assignedOperatorId", "name email");
+            await inquiry.populate("supplierOperatorId", "name email");
 
             await this.notifyInquiryParticipants({
                 inquiry,
                 actorId: req.user!.id,
                 type: NotificationTypes.INQUIRY_ASSIGNED,
-                title: "Inquiry assignment updated",
-                message: "A responsible operator has been assigned for this inquiry.",
+                title: "Supply ownership operator updated",
+                message: "Supply ownership operator has been assigned for this inquiry.",
                 payload: { previousOperator, operatorId },
                 priority: "high",
             });
@@ -2303,7 +2302,7 @@ export class InquiryController {
             res.json({
                 success: true,
                 data: inquiry,
-                message: "Operator assigned successfully"
+                message: "Supply ownership operator assigned successfully"
             });
         } catch (error: any) {
             next(error);
@@ -2339,7 +2338,6 @@ export class InquiryController {
             const isAssignedOperator =
                 (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
                 (
-                    inquiry.assignedOperatorId?.toString() === req.user!.id ||
                     (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
                     (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
                 );

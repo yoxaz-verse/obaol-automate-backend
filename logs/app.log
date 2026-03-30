@@ -4921,3 +4921,32 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij
 2026-03-29T21:11:32.842Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
 2026-03-29T21:12:45.059Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
 2026-03-29T21:13:53.042Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T05:18:47.900Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T05:44:19.611Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T10:24:54.109Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T13:04:05.805Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-30T13:05:22.153Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T13:06:51.001Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-30T13:09:57.612Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-30T15:43:36.554Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-30T15:46:27.712Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-30T15:47:53.206Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T15:49:15.731Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T15:50:40.134Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T15:52:04.567Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T15:56:22.560Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-30T15:57:41.207Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T15:58:56.286Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T16:00:24.593Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T16:01:44.148Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T16:03:04.263Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T16:05:51.855Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T16:09:50.954Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T17:27:50.702Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T17:33:28.506Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T17:39:52.556Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T18:07:35.767Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-03-30T18:10:24.417Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-03-30T18:29:48.873Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-03-30T18:30:00.137Z [INFO]: Running daily variant rate reset cron job... 
+2026-03-30T18:30:00.254Z [INFO]: Successfully offlined 1 variant rates. 

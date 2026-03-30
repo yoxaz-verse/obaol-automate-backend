@@ -4,8 +4,8 @@ export const DEFAULT_DOCUMENT_RULES = [
   // Inquiry stages
   { docType: "QUOTATION", stageType: "INQUIRY", stageKey: "QUOTATION_CREATED", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 10 },
   { docType: "PROFORMA_INVOICE", stageType: "INQUIRY", stageKey: "PROFORMA_ISSUED", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 20 },
-  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "CREATE", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 30 },
-  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 31 },
+  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 30 },
+  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 31 },
   { docType: "SALES_CONTRACT", stageType: "ORDER", stageKey: "CONTRACT_SIGNED", responsibleRole: "OBAOL", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 40 },
   // Order stages
   { docType: "PACKING_LIST", stageType: "ORDER", stageKey: "PACKING_COMPLETED", responsibleRole: "PACKAGING", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 50 },
@@ -26,7 +26,7 @@ export const ensureDefaultDocumentRules = async () => {
   );
   await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED" },
-    { docType: "PURCHASE_ORDER" }
+    { docType: "PURCHASE_ORDER", visibility: "BOTH" }
   );
   await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },
@@ -64,7 +64,7 @@ export const ensureDefaultDocumentRules = async () => {
       stageKey: "PURCHASE_ORDER_CREATED",
       responsibleRole: "BUYER",
       actionType: "CREATE",
-      visibility: "SELLER",
+      visibility: "BOTH",
       tradeType: "BOTH",
       isRequired: true,
       sortOrder: 30,
@@ -86,7 +86,7 @@ export const ensureDefaultDocumentRules = async () => {
       stageKey: "PURCHASE_ORDER_CREATED",
       responsibleRole: "BUYER",
       actionType: "UPLOAD",
-      visibility: "SELLER",
+      visibility: "BOTH",
       tradeType: "BOTH",
       isRequired: true,
       sortOrder: 31,
@@ -103,7 +103,7 @@ export const seedDefaultDocumentRules = async (force = false) => {
   );
   await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED" },
-    { docType: "PURCHASE_ORDER" }
+    { docType: "PURCHASE_ORDER", visibility: "BOTH" }
   );
   await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },

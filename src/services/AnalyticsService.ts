@@ -146,7 +146,9 @@ export class AnalyticsService {
         const companyIds = companyRows.map((row: any) => row._id);
         const companyCount = companyIds.length;
 
-        const inquiryFilter = { $or: [{ assignedOperatorId: id }, { createdBy: id }] };
+        const inquiryFilter = {
+            $or: [{ supplierOperatorId: id }, { dealCloserOperatorId: id }, { createdBy: id }]
+        };
         const incompleteStatuses = ["COMPLETED", "CLOSED", "CANCELLED", "CONVERTED"];
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);

@@ -77,6 +77,7 @@ export interface IOrderMilestones {
     transportDispatchDate?: Date | null;
     shippingBookedDate?: Date | null;
     customsClearanceDate?: Date | null;
+    deliveryTargetDate?: Date | null;
 }
 
 export interface IOrder extends Document {

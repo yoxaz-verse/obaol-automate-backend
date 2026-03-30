@@ -591,6 +591,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
             associateDistrict,
             associateDivision,
             associatePincodeEntry,
+            referralCode,
         } = req.body;
 
         // Input validation
@@ -691,6 +692,19 @@ export const registerAssociate = async (req: Request, res: Response) => {
                 });
             }
             designationId = String(designationExists._id);
+        }
+
+        let assignedOperatorId: any = null;
+        if (referralCode && String(referralCode).trim()) {
+            const operator = await OperatorModel.findOne({ referralCode: String(referralCode).trim().toUpperCase() }).select("_id");
+            if (operator) {
+                assignedOperatorId = operator._id;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid referral code. Please check and try again."
+                });
+            }
         }
 
         let linkedCompanyId: any = null;
@@ -888,6 +902,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         serviceCapabilities: requestedInterests,
                         registrationStatus: "PENDING_REVIEW",
                         isApproved: false,
+                        assignedOperator: assignedOperatorId || undefined,
                     });
                     linkedCompanyId = createdCompany._id;
                     createdCompanyId = createdCompany._id;
@@ -981,6 +996,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
             onboardingContactPreference: String(contactPreference || "phone").toLowerCase() === "email" ? "email" : "phone",
             onboardingContactNotes: String(contactNotes || "").trim(),
             registrationSource: "SELF_REGISTERED",
+            assignedOperator: assignedOperatorId || undefined,
         });
 
         // Notify admins about new pending approvals

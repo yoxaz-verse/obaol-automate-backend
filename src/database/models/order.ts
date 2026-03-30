@@ -54,6 +54,7 @@ const MilestonesSchema = new Schema(
         transportDispatchDate: { type: Date, default: null },
         shippingBookedDate: { type: Date, default: null },
         customsClearanceDate: { type: Date, default: null },
+        deliveryTargetDate: { type: Date, default: null },
     },
     { _id: false }
 );

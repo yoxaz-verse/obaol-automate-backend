@@ -83,7 +83,6 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
             return {
                 ...query,
                 $or: [
-                    { assignedOperatorId: user.id },
                     { supplierOperatorId: user.id },
                     { dealCloserOperatorId: user.id },
                     { createdBy: user.id }

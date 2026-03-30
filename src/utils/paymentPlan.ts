@@ -28,6 +28,36 @@ export const resolveMilestoneDocType = (milestoneText: string | null | undefined
 export const buildPaymentPlan = (paymentTerm: any, tradeType?: string | null) => {
     if (!paymentTerm) return null;
     const milestones: PaymentMilestone[] = [];
+    const explicitMilestones = Array.isArray(paymentTerm?.milestones) ? paymentTerm.milestones : [];
+    if (explicitMilestones.length > 0) {
+        explicitMilestones.forEach((milestone: any) => {
+            const percent = Number(milestone?.percent || 0);
+            if (!percent) return;
+            const triggerType = String(milestone?.triggerType || "DOC").toUpperCase();
+            const triggerValue = String(milestone?.triggerValue || milestone?.label || "").trim();
+            if (triggerType === "STAGE") {
+                milestones.push({
+                    label: String(milestone?.label || "Milestone").trim() || "Milestone",
+                    percent,
+                    dueAtDocType: null,
+                    dueAtStageKey: String(triggerValue || "").toUpperCase(),
+                    status: "PENDING",
+                });
+                return;
+            }
+            const resolvedDocType = triggerValue.includes("_")
+                ? normalizeDocType(triggerValue)
+                : resolveMilestoneDocType(triggerValue || String(milestone?.label || ""), tradeType);
+            milestones.push({
+                label: String(milestone?.label || "Milestone").trim() || "Milestone",
+                percent,
+                dueAtDocType: resolvedDocType,
+                status: "PENDING",
+            });
+        });
+        return { milestones };
+    }
+
     const advancePercent = Number(paymentTerm?.advancePercent || 0);
     const balancePercent = Number(paymentTerm?.balancePercent || 0);
 
@@ -83,6 +113,34 @@ export const applyPaymentPlanDocUpdate = async (orderId: Types.ObjectId, docType
             }
             return milestone;
         }
+        if (milestone.status === "PENDING") {
+            touched = true;
+            return { ...milestone, status: "DUE" };
+        }
+        return milestone;
+    });
+
+    if (!touched) return;
+    await OrderModel.findByIdAndUpdate(orderId, {
+        $set: { "paymentPlan.milestones": nextMilestones },
+    });
+};
+
+export const applyPaymentPlanStageUpdate = async (orderId: Types.ObjectId, stageKey: string) => {
+    if (!orderId || !stageKey) return;
+    const normalizedStageKey = String(stageKey || "").toUpperCase().trim();
+    if (!normalizedStageKey) return;
+
+    const order = await OrderModel.findById(orderId).select("paymentPlan").lean();
+    const milestones: PaymentMilestone[] = Array.isArray((order as any)?.paymentPlan?.milestones)
+        ? (order as any).paymentPlan.milestones
+        : [];
+    if (milestones.length === 0) return;
+
+    let touched = false;
+    const nextMilestones = milestones.map((milestone) => {
+        const dueStage = String(milestone.dueAtStageKey || "").toUpperCase();
+        if (!dueStage || dueStage !== normalizedStageKey) return milestone;
         if (milestone.status === "PENDING") {
             touched = true;
             return { ...milestone, status: "DUE" };

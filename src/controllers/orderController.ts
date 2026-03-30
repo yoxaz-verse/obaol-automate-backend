@@ -13,7 +13,7 @@ import { FlowRuleModel } from "../database/models/flowRule";
 import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
 import { ensureDefaultDocumentRules } from "../utils/documentRules";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
-import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
+import { buildPaymentPlanFromTermId, applyPaymentPlanStageUpdate } from "../utils/paymentPlan";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -509,6 +509,9 @@ export class OrderController {
             }
             const result = await this.engine.update(req, req.params.id, req.body);
             if (!result) return res.status(404).json({ success: false, message: "Order not found" });
+            if (workflowStage) {
+                await applyPaymentPlanStageUpdate(result._id, workflowStage);
+            }
             res.json({ success: true, data: result });
         } catch (error: any) {
             logError(error, req, "OrderController.update");

@@ -199,6 +199,27 @@ const InquirySchema: Schema = new Schema(
             buyerRequestedAt: { type: Date, default: null },
             buyerConfirmedAt: { type: Date, default: null },
         },
+        revisionRounds: [
+            {
+                roundId: { type: String, required: true },
+                status: { type: String, enum: ["OPEN", "CONFIRMED", "SKIPPED"], default: "OPEN" },
+                items: [
+                    {
+                        key: { type: String, enum: ["RATE", "PAYMENT_TERMS", "DELIVERY_TIMELINE"] },
+                        buyerRequested: { type: Boolean, default: false },
+                        buyerRate: { type: Number, default: null },
+                        buyerDeliveryMode: { type: String, enum: ["DELIVER_TO_LOCATION", "PRODUCT_READY"], default: null },
+                        buyerDeliveryDate: { type: Date, default: null },
+                        supplierAcknowledged: { type: Boolean, default: false },
+                        supplierCounterRate: { type: Number, default: null },
+                        repliedAt: { type: Date, default: null },
+                    },
+                ],
+                buyerRequestedAt: { type: Date, default: null },
+                buyerConfirmedAt: { type: Date, default: null },
+                closedAt: { type: Date, default: null },
+            },
+        ],
         quotationCreatedAt: {
             type: Date,
             default: null

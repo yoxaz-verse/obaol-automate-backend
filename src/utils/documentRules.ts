@@ -4,7 +4,8 @@ export const DEFAULT_DOCUMENT_RULES = [
   // Inquiry stages
   { docType: "QUOTATION", stageType: "INQUIRY", stageKey: "QUOTATION_CREATED", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 10 },
   { docType: "PROFORMA_INVOICE", stageType: "INQUIRY", stageKey: "PROFORMA_ISSUED", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 20 },
-  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 30 },
+  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "CREATE", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 30 },
+  { docType: "PURCHASE_ORDER", stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 31 },
   { docType: "SALES_CONTRACT", stageType: "ORDER", stageKey: "CONTRACT_SIGNED", responsibleRole: "OBAOL", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 40 },
   // Order stages
   { docType: "PACKING_LIST", stageType: "ORDER", stageKey: "PACKING_COMPLETED", responsibleRole: "PACKAGING", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 50 },
@@ -20,6 +21,14 @@ export const DEFAULT_DOCUMENT_RULES = [
 
 export const ensureDefaultDocumentRules = async () => {
   await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INQUIRY", stageKey: "PROFORMA_ISSUED" },
+    { docType: "PROFORMA_INVOICE", actionType: "CREATE" }
+  );
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED" },
+    { docType: "PURCHASE_ORDER" }
+  );
+  await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },
     { stageType: "INLAND_TRANSPORTATION" }
   );
@@ -32,15 +41,70 @@ export const ensureDefaultDocumentRules = async () => {
     { stageType: "INLAND_TRANSPORTATION" }
   );
   const count = await DocumentRuleModel.countDocuments({ isDeleted: { $ne: true } });
-  if (count > 0) return;
-  await DocumentRuleModel.insertMany(DEFAULT_DOCUMENT_RULES.map((rule) => ({
-    ...rule,
-    isActive: true,
-    isDeleted: false,
-  })));
+  if (count === 0) {
+    await DocumentRuleModel.insertMany(DEFAULT_DOCUMENT_RULES.map((rule) => ({
+      ...rule,
+      isActive: true,
+      isDeleted: false,
+    })));
+    return;
+  }
+  // Ensure PO create + upload rules both exist
+  const poCreateRule = await DocumentRuleModel.findOne({
+    isDeleted: { $ne: true },
+    stageType: "INQUIRY",
+    stageKey: "PURCHASE_ORDER_CREATED",
+    docType: "PURCHASE_ORDER",
+    actionType: "CREATE",
+  });
+  if (!poCreateRule) {
+    await DocumentRuleModel.create({
+      docType: "PURCHASE_ORDER",
+      stageType: "INQUIRY",
+      stageKey: "PURCHASE_ORDER_CREATED",
+      responsibleRole: "BUYER",
+      actionType: "CREATE",
+      visibility: "SELLER",
+      tradeType: "BOTH",
+      isRequired: true,
+      sortOrder: 30,
+      isActive: true,
+      isDeleted: false,
+    });
+  }
+  const poUploadRule = await DocumentRuleModel.findOne({
+    isDeleted: { $ne: true },
+    stageType: "INQUIRY",
+    stageKey: "PURCHASE_ORDER_CREATED",
+    docType: "PURCHASE_ORDER",
+    actionType: "UPLOAD",
+  });
+  if (!poUploadRule) {
+    await DocumentRuleModel.create({
+      docType: "PURCHASE_ORDER",
+      stageType: "INQUIRY",
+      stageKey: "PURCHASE_ORDER_CREATED",
+      responsibleRole: "BUYER",
+      actionType: "UPLOAD",
+      visibility: "SELLER",
+      tradeType: "BOTH",
+      isRequired: true,
+      sortOrder: 31,
+      isActive: true,
+      isDeleted: false,
+    });
+  }
 };
 
 export const seedDefaultDocumentRules = async (force = false) => {
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INQUIRY", stageKey: "PROFORMA_ISSUED" },
+    { docType: "PROFORMA_INVOICE", actionType: "CREATE" }
+  );
+  await DocumentRuleModel.updateMany(
+    { isDeleted: { $ne: true }, stageType: "INQUIRY", stageKey: "PURCHASE_ORDER_CREATED" },
+    { docType: "PURCHASE_ORDER" }
+  );
   await DocumentRuleModel.updateMany(
     { isDeleted: { $ne: true }, stageType: "INTERNAL_LOGISTICS" },
     { stageType: "INLAND_TRANSPORTATION" }

@@ -34,8 +34,8 @@ const DEFAULT_TRADE_ENQUIRY = [
     description: "Buyer requests revision via checklist",
     sortOrder: 30,
     isActive: true,
-    requiredActions: ["REVISION_REQUESTED", "REVISION_CONFIRMED"],
-    requiredActionMode: "ALL",
+    requiredActions: ["REVISION_REQUESTED", "REVISION_CONFIRMED", "REVISION_SKIPPED"],
+    requiredActionMode: "ANY",
     actionBy: "BUYER",
     triggersOrderCreation: false,
   },
@@ -109,6 +109,18 @@ const DEFAULT_TRADE_ENQUIRY = [
     requiredActions: ["PO_UPLOADED", "PO_SKIPPED"],
     requiredActionMode: "ANY",
     actionBy: "BUYER",
+    triggersOrderCreation: true,
+  },
+  {
+    flowType: "TRADE_ENQUIRY",
+    stageKey: "CONVERT_TO_ORDER",
+    label: "Convert to Order",
+    description: "Finalize and convert enquiry into an order",
+    sortOrder: 100,
+    isActive: true,
+    requiredActions: ["CONVERT_TO_ORDER"],
+    requiredActionMode: "ALL",
+    actionBy: "EITHER",
     triggersOrderCreation: true,
   },
 ];
@@ -525,6 +537,38 @@ export const ensureDefaultFlowRules = async () => {
     { flowType: "TRADE_ENQUIRY", stageKey: "INQUIRY_CREATED" },
     { stageKey: "ENQUIRY_CREATED", label: "Enquiry Created" }
   );
+  // Force reset TRADE_ENQUIRY to the current default if stages drifted
+  try {
+    const legacyStageKeys = new Set([
+      "INQUIRY_CREATED",
+      "QUOTE_REQUESTED",
+      "QUOTATION_SUBMITTED",
+      "QUOTATION_REVISED",
+      "PROFORMA_ISSUED",
+      "PURCHASE_ORDER_RECEIVED",
+      "ORDER_CONFIRMED",
+    ]);
+    const defaultStageKeys = new Set(DEFAULT_TRADE_ENQUIRY.map((rule: any) => String(rule.stageKey).toUpperCase()));
+    const existingStages = await FlowRuleModel.distinct("stageKey", { isDeleted: { $ne: true }, flowType: "TRADE_ENQUIRY" });
+    const existingSet = new Set(existingStages.map((stage: any) => String(stage).toUpperCase()));
+    const hasLegacyStages = Array.from(existingSet).some((key) => legacyStageKeys.has(key));
+    const stagesMatch =
+      defaultStageKeys.size === existingSet.size &&
+      Array.from(defaultStageKeys).every((key) => existingSet.has(key));
+    if (!stagesMatch || hasLegacyStages) {
+      await hardDeleteFlowTypes(["TRADE_ENQUIRY"]);
+      await FlowRuleModel.insertMany(DEFAULT_TRADE_ENQUIRY.map((rule) => ({
+        ...rule,
+        stageKey: String(rule.stageKey).toUpperCase(),
+        label: String(rule.label || rule.stageKey),
+        description: rule.description || "",
+        requiredActionMode: String(rule.requiredActionMode || "ALL").toUpperCase(),
+        isDeleted: false,
+      })));
+    }
+  } catch (error) {
+    console.error("[flowRules] Failed to reset TRADE_ENQUIRY defaults", error);
+  }
   await normalizeFlowTypes();
   await FlowRuleModel.updateMany(
     { isDeleted: { $ne: true }, flowType: "INTERNAL_LOGISTICS" },

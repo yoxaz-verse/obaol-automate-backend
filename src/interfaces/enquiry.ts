@@ -63,6 +63,23 @@ export interface IInquiry extends Document {
     buyerRequestedAt?: Date | null;
     buyerConfirmedAt?: Date | null;
   };
+  revisionRounds?: Array<{
+    roundId: string;
+    status: "OPEN" | "CONFIRMED" | "SKIPPED";
+    items: Array<{
+      key: "RATE" | "PAYMENT_TERMS" | "DELIVERY_TIMELINE";
+      buyerRequested: boolean;
+      buyerRate?: number | null;
+      buyerDeliveryMode?: "DELIVER_TO_LOCATION" | "PRODUCT_READY" | null;
+      buyerDeliveryDate?: Date | null;
+      supplierAcknowledged?: boolean;
+      supplierCounterRate?: number | null;
+      repliedAt?: Date | null;
+    }>;
+    buyerRequestedAt?: Date | null;
+    buyerConfirmedAt?: Date | null;
+    closedAt?: Date | null;
+  }>;
   quotationCreatedAt?: Date | null;
   proformaCreatedAt?: Date | null;
   otherDocsCompletedAt?: Date | null;

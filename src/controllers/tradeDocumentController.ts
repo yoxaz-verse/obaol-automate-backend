@@ -329,7 +329,11 @@ export class TradeDocumentController {
       });
 
       if (stageType === "INQUIRY") {
-        const nextStage = resolveInquiryStageForDocument(enquiry, type, created?.status);
+        let nextStage = resolveInquiryStageForDocument(enquiry, type, created?.status);
+        if (String(type || "").toUpperCase() === "PURCHASE_ORDER" && String(created?.status || "").toUpperCase() !== "DRAFT") {
+          (enquiry as any).poSubmittedAt = new Date();
+          nextStage = "CONVERT_TO_ORDER";
+        }
         if (nextStage) {
           await ensureDefaultFlowRules();
           const flowRules = await FlowRuleModel.find({

@@ -16,7 +16,9 @@ export type EnquiryRuleAction =
   | "OTHER_DOCS_UPLOADED"
   | "OTHER_DOCS_SKIPPED"
   | "PO_UPLOADED"
-  | "PO_SKIPPED";
+  | "PO_SKIPPED"
+  | "REVISION_SKIPPED"
+  | "CONVERT_TO_ORDER";
 
 export type EnquiryRuleActionBy = "BUYER" | "SUPPLIER" | "BOTH" | "EITHER";
 

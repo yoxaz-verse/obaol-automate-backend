@@ -826,6 +826,37 @@ export class InquiryController {
                             return res.status(400).json({ success: false, message: "Delivery date is required when Delivery Timeline is selected." });
                         }
                     }
+                    const revisionItems = reasons.map((key: string) => ({
+                        key,
+                        buyerRequested: true,
+                        buyerRate: key === "RATE" ? parsedRate : null,
+                        buyerDeliveryMode: key === "DELIVERY_TIMELINE" ? deliveryMode || null : null,
+                        buyerDeliveryDate: key === "DELIVERY_TIMELINE" ? deliveryDate : null,
+                        supplierAcknowledged: false,
+                        supplierCounterRate: null,
+                        repliedAt: null,
+                    }));
+                    const rounds = Array.isArray((inquiry as any).revisionRounds)
+                        ? [...(inquiry as any).revisionRounds]
+                        : [];
+                    const openRoundIndex = rounds.findIndex((round: any) => String(round?.status || "").toUpperCase() === "OPEN");
+                    if (openRoundIndex >= 0) {
+                        rounds[openRoundIndex] = {
+                            ...rounds[openRoundIndex],
+                            status: "SKIPPED",
+                            closedAt: now,
+                        };
+                    }
+                    const roundId = new Types.ObjectId().toString();
+                    rounds.push({
+                        roundId,
+                        status: "OPEN",
+                        items: revisionItems,
+                        buyerRequestedAt: now,
+                        buyerConfirmedAt: null,
+                        closedAt: null,
+                    });
+                    (inquiry as any).revisionRounds = rounds;
                     (inquiry as any).revisionRequestedAt = now;
                     (inquiry as any).revisionReasons = reasons;
                     (inquiry as any).revisionRate = wantsRate ? parsedRate : null;
@@ -833,16 +864,7 @@ export class InquiryController {
                     (inquiry as any).revisionDeliveryTimeline = reasons.includes("DELIVERY_TIMELINE");
                     (inquiry as any).revisionCommunicatedAt = now;
                     (inquiry as any).revisionThread = {
-                        items: reasons.map((key: string) => ({
-                            key,
-                            buyerRequested: true,
-                            buyerRate: key === "RATE" ? parsedRate : null,
-                            buyerDeliveryMode: key === "DELIVERY_TIMELINE" ? deliveryMode || null : null,
-                            buyerDeliveryDate: key === "DELIVERY_TIMELINE" ? deliveryDate : null,
-                            supplierAcknowledged: false,
-                            supplierCounterRate: null,
-                            repliedAt: null,
-                        })),
+                        items: revisionItems,
                         buyerRequestedAt: now,
                         buyerConfirmedAt: null,
                     };
@@ -850,9 +872,35 @@ export class InquiryController {
                     (inquiry as any).workflowStage = "QUOTATION_REVISION";
                     break;
                 }
+                case "REVISION_SKIPPED": {
+                    const rounds = Array.isArray((inquiry as any).revisionRounds)
+                        ? [...(inquiry as any).revisionRounds]
+                        : [];
+                    const roundId = new Types.ObjectId().toString();
+                    rounds.push({
+                        roundId,
+                        status: "SKIPPED",
+                        items: [],
+                        buyerRequestedAt: now,
+                        buyerConfirmedAt: null,
+                        closedAt: now,
+                    });
+                    (inquiry as any).revisionRounds = rounds;
+                    (inquiry as any).revisionThread = {
+                        items: [],
+                        buyerRequestedAt: now,
+                        buyerConfirmedAt: null,
+                    };
+                    (inquiry as any).workflowStage = "QUOTATION_CREATED";
+                    break;
+                }
                 case "REVISION_CONFIRMED": {
-                    const thread = (inquiry as any)?.revisionThread;
-                    const items = Array.isArray(thread?.items) ? thread.items : [];
+                    const rounds = Array.isArray((inquiry as any).revisionRounds)
+                        ? [...(inquiry as any).revisionRounds]
+                        : [];
+                    const openRoundIndex = rounds.findIndex((round: any) => String(round?.status || "").toUpperCase() === "OPEN");
+                    const currentRound = openRoundIndex >= 0 ? rounds[openRoundIndex] : null;
+                    const items = Array.isArray(currentRound?.items) ? currentRound.items : [];
                     if (!items.length) {
                         return res.status(400).json({ success: false, message: "No revision request found to confirm." });
                     }
@@ -862,8 +910,18 @@ export class InquiryController {
                 if (!allAcknowledged) {
                     return res.status(400).json({ success: false, message: "Supplier reply is required for all revision items before confirming." });
                 }
+                    if (openRoundIndex >= 0) {
+                        rounds[openRoundIndex] = {
+                            ...rounds[openRoundIndex],
+                            status: "CONFIRMED",
+                            buyerConfirmedAt: now,
+                            closedAt: now,
+                        };
+                        (inquiry as any).revisionRounds = rounds;
+                    }
                     (inquiry as any).revisionThread = {
-                        ...(thread || {}),
+                        items,
+                        buyerRequestedAt: currentRound?.buyerRequestedAt || now,
                         buyerConfirmedAt: now,
                     };
                     (inquiry as any).workflowStage = "QUOTATION_CREATED";
@@ -899,7 +957,7 @@ export class InquiryController {
                 case "PO_UPLOADED":
                 case "PO_SKIPPED":
                     (inquiry as any).poSubmittedAt = now;
-                    (inquiry as any).workflowStage = "PURCHASE_ORDER_CREATED";
+                    (inquiry as any).workflowStage = "CONVERT_TO_ORDER";
                     break;
                 default:
                     return res.status(400).json({ success: false, message: "Unknown actionKey." });
@@ -960,14 +1018,18 @@ export class InquiryController {
                 return res.status(400).json({ success: false, message: "No revision replies provided." });
             }
 
-            const thread = (inquiry as any)?.revisionThread || { items: [] };
-            const items = Array.isArray(thread?.items) ? thread.items : [];
+            const rounds = Array.isArray((inquiry as any).revisionRounds)
+                ? [...(inquiry as any).revisionRounds]
+                : [];
+            const openRoundIndex = rounds.findIndex((round: any) => String(round?.status || "").toUpperCase() === "OPEN");
+            const currentRound = openRoundIndex >= 0 ? rounds[openRoundIndex] : null;
+            const items = Array.isArray(currentRound?.items) ? currentRound.items : [];
             if (!items.length) {
                 return res.status(400).json({ success: false, message: "No revision request found to reply to." });
             }
 
             const now = new Date();
-            const updatedItems = items.map((item: any, index: number) => {
+            const updatedItems = items.map((item: any) => {
                 const normalizedKey = String(item?.key || "").toUpperCase();
                 let reply = replies.find((r: any) => String(r?.key || "").toUpperCase() === normalizedKey);
                 if (!reply && replies.length === 1 && items.length === 1) {
@@ -976,9 +1038,8 @@ export class InquiryController {
                 if (!reply) return item;
                 const hasAck = typeof reply?.acknowledged !== "undefined";
                 const hasCounter = reply?.counterRate !== undefined && reply?.counterRate !== null && String(reply?.counterRate).trim() !== "";
-                const acknowledged = hasAck
-                    ? Boolean(reply?.acknowledged)
-                    : Boolean(item?.supplierAcknowledged) || (hasCounter ? true : false);
+                let acknowledged = hasAck ? Boolean(reply?.acknowledged) : Boolean(item?.supplierAcknowledged);
+                if (hasCounter) acknowledged = true;
                 const counterRate = hasCounter ? Number(reply.counterRate) : item?.supplierCounterRate ?? null;
                 return {
                     ...item,
@@ -988,10 +1049,20 @@ export class InquiryController {
                 };
             });
 
+            if (openRoundIndex >= 0) {
+                rounds[openRoundIndex] = {
+                    ...rounds[openRoundIndex],
+                    items: updatedItems,
+                };
+                (inquiry as any).revisionRounds = rounds;
+            }
             (inquiry as any).revisionThread = {
-                ...thread,
                 items: updatedItems,
+                buyerRequestedAt: currentRound?.buyerRequestedAt || null,
+                buyerConfirmedAt: currentRound?.buyerConfirmedAt || null,
             };
+            inquiry.markModified("revisionRounds");
+            inquiry.markModified("revisionThread");
             await inquiry.save();
 
             return res.status(200).json({ success: true, data: inquiry, message: "Revision reply saved." });
@@ -2014,8 +2085,19 @@ export class InquiryController {
                 const key = String(action || "").toUpperCase();
                 if (key === "LOI_SUBMITTED") return Boolean((inquiry as any).loiSubmittedAt);
                 if (key === "SUPPLIER_QTY_CONFIRMED") return Boolean((inquiry as any).supplierQtyConfirmedAt);
-                if (key === "REVISION_REQUESTED") return Boolean((inquiry as any).revisionRequestedAt);
-                if (key === "REVISION_CONFIRMED") return Boolean((inquiry as any).revisionThread?.buyerConfirmedAt);
+                if (key === "REVISION_REQUESTED") {
+                    const rounds = Array.isArray((inquiry as any).revisionRounds) ? (inquiry as any).revisionRounds : [];
+                    return Boolean(rounds.length) || Boolean((inquiry as any).revisionRequestedAt);
+                }
+                if (key === "REVISION_CONFIRMED") {
+                    const rounds = Array.isArray((inquiry as any).revisionRounds) ? (inquiry as any).revisionRounds : [];
+                    return rounds.some((round: any) => String(round?.status || "").toUpperCase() === "CONFIRMED") ||
+                        Boolean((inquiry as any).revisionThread?.buyerConfirmedAt);
+                }
+                if (key === "REVISION_SKIPPED") {
+                    const rounds = Array.isArray((inquiry as any).revisionRounds) ? (inquiry as any).revisionRounds : [];
+                    return rounds.some((round: any) => String(round?.status || "").toUpperCase() === "SKIPPED");
+                }
                 if (key === "QUOTATION_CREATED") return Boolean((inquiry as any).quotationCreatedAt);
                 if (key === "QUOTATION_ACCEPTED") return Boolean((inquiry as any).buyerConfirmedAt);
                 if (key === "RETURN_TO_REVISION") return Boolean((inquiry as any).revisionRequestedAt);

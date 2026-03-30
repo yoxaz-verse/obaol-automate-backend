@@ -30,8 +30,8 @@ const DEFAULT_RULES = [
     description: "Buyer requests revision via checklist",
     sortOrder: 30,
     isActive: true,
-    requiredActions: ["REVISION_REQUESTED", "REVISION_CONFIRMED"],
-    requiredActionMode: "ALL",
+    requiredActions: ["REVISION_REQUESTED", "REVISION_CONFIRMED", "REVISION_SKIPPED"],
+    requiredActionMode: "ANY",
     actionBy: "BUYER",
     triggersOrderCreation: false,
   },
@@ -101,6 +101,17 @@ const DEFAULT_RULES = [
     actionBy: "BUYER",
     triggersOrderCreation: true,
   },
+  {
+    stageKey: "CONVERT_TO_ORDER",
+    label: "Convert to Order",
+    description: "Finalize and convert enquiry into an order",
+    sortOrder: 100,
+    isActive: true,
+    requiredActions: ["CONVERT_TO_ORDER"],
+    requiredActionMode: "ALL",
+    actionBy: "EITHER",
+    triggersOrderCreation: true,
+  },
 ];
 
 export const ensureDefaultEnquiryRules = async () => {
@@ -112,9 +123,25 @@ export const ensureDefaultEnquiryRules = async () => {
     { workflowStage: "INQUIRY_CREATED" },
     { workflowStage: "ENQUIRY_CREATED" }
   );
-  const count = await EnquiryRuleModel.countDocuments({ isDeleted: { $ne: true } });
-  if (count > 0) return;
+  const existingStages = await EnquiryRuleModel.distinct("stageKey", { isDeleted: { $ne: true } });
+  const existingSet = new Set(existingStages.map((stage: any) => String(stage).toUpperCase()));
+  const defaultSet = new Set(DEFAULT_RULES.map((rule) => String(rule.stageKey).toUpperCase()));
+  const legacyStageKeys = new Set([
+    "INQUIRY_CREATED",
+    "QUOTE_REQUESTED",
+    "QUOTATION_SUBMITTED",
+    "QUOTATION_REVISED",
+    "PROFORMA_ISSUED",
+    "PURCHASE_ORDER_RECEIVED",
+    "ORDER_CONFIRMED",
+  ]);
+  const hasLegacyStages = Array.from(existingSet).some((key) => legacyStageKeys.has(key));
+  const stagesMatch =
+    existingSet.size === defaultSet.size &&
+    Array.from(defaultSet).every((key) => existingSet.has(key));
+  if (stagesMatch && existingSet.size > 0 && !hasLegacyStages) return;
 
+  await EnquiryRuleModel.updateMany({ isDeleted: { $ne: true } }, { isDeleted: true });
   await EnquiryRuleModel.insertMany(
     DEFAULT_RULES.map((rule) => ({
       ...rule,

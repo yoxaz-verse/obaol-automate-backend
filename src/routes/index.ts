@@ -28,11 +28,6 @@ router.use(`${prefix}/orders`, orderRoutes);
 import inquiryRoutes from "./v1/inquiryRoutes";
 router.use(`${prefix}/inquiries`, inquiryRoutes);
 
-// Standalone service requests
-import serviceRequestRoutes from "./v1/serviceRequestRoutes";
-router.use(`${prefix}/service-requests`, serviceRequestRoutes);
-console.info(`[routes] mounted ${prefix}/service-requests`);
-
 // Sample requests
 import sampleRequestRoutes from "./v1/sampleRequestRoutes";
 router.use(`${prefix}/sample-requests`, sampleRequestRoutes);

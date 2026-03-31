@@ -50,7 +50,6 @@ import { CompanySubFunctionModel } from "../../database/models/companySubFunctio
 import { CompanyFunctionMappingModel } from "../../database/models/companyFunctionMapping";
 import { OrganizationReportModel } from "../../database/models/organizationReport";
 import { InventoryModel } from "../../database/models/inventory";
-import { ServiceRequestModel } from "../../database/models/serviceRequest";
 import { InventoryReservationModel } from "../../database/models/inventoryReservation";
 import { DocumentRuleModel } from "../../database/models/documentRule";
 import { WarehouseModel } from "../../database/models/warehouse";
@@ -384,21 +383,6 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             reporterCompanyId: "associate-companies",
             targetCompanyId: "associate-companies",
             reviewedBy: "admins",
-        },
-    },
-    "service-requests": {
-        model: ServiceRequestModel,
-        searchableFields: ["title", "serviceSpecifications", "requestType", "status"],
-        sortableFields: ["createdAt", "updatedAt", "status"],
-        allowedOperations: ["list", "create", "read", "update", "delete"],
-        relations: {
-            fromState: "states",
-            fromDistrict: "districts",
-            toState: "states",
-            toDistrict: "districts",
-            candidateProviders: "associate-companies",
-            committedProvider: "associate-companies",
-            "bids.company": "associate-companies",
         },
     },
     "researched-companies": {

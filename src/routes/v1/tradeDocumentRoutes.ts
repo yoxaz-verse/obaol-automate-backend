@@ -7,6 +7,7 @@ const controller = new TradeDocumentController();
 
 router.post("/", authenticateToken, controller.create.bind(controller));
 router.get("/", authenticateToken, controller.list.bind(controller));
+router.post("/:id/email", authenticateToken, controller.emailDocument.bind(controller));
 router.get("/:id", authenticateToken, controller.getById.bind(controller));
 router.patch("/:id", authenticateToken, controller.update.bind(controller));
 

@@ -43,6 +43,43 @@ export async function sendOtpEmail(toEmail: string, code: string, lang: string =
   }
 }
 
+export async function sendTradeDocumentEmail(
+  toEmail: string,
+  subject: string,
+  htmlPart: string,
+  textPart: string
+) {
+  console.log(`📧 Sending trade document email to: ${toEmail}`);
+  try {
+    const result = await mailjetClient
+      .post("send", { version: "v3.1" })
+      .request({
+        Messages: [
+          {
+            From: {
+              Email: process.env.MAILJET_SENDER_EMAIL || "obaol.biz@gmail.com",
+              Name: "OBAOL Trade Desk",
+            },
+            To: [{ Email: toEmail }],
+            Subject: subject,
+            TextPart: textPart,
+            HTMLPart: htmlPart,
+          },
+        ],
+      });
+
+    console.log("✅ Trade doc email sent:", JSON.stringify(result.body, null, 2));
+  } catch (error: any) {
+    console.error(
+      "❌ Failed to send trade document email to:",
+      toEmail,
+      "Error:",
+      error.response?.data || error.message
+    );
+    throw new Error(`Email sending failed: ${error.message}`);
+  }
+}
+
 // API Key
 // 1232159e0de6174b723725c726be4ac8
 

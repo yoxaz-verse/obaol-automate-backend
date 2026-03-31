@@ -962,6 +962,76 @@ export class InquiryController {
                     (inquiry as any).poSubmittedAt = now;
                     (inquiry as any).workflowStage = "CONVERT_TO_ORDER";
                     break;
+                case "CONVERT_TO_ORDER": {
+                    if (!inquiry.sellerAcceptedAt || !inquiry.buyerConfirmedAt) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Supplier acceptance and buyer confirmation are required before order confirmation"
+                        });
+                    }
+                    if (!(inquiry as any).responsibilitiesFinalizedAt) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Responsibilities must be finalized before order confirmation"
+                        });
+                    }
+                    const responsibilityPlan: any = (inquiry as any).responsibilityPlan || {};
+                    const requiredKeys = [
+                        "procurementBy",
+                        "certificateBy",
+                        "transportBy",
+                        "shippingBy",
+                        "packagingBy",
+                        "qualityTestingBy"
+                    ];
+                    const allowedOwners = new Set(["buyer", "seller", "obaol"]);
+                    const isPlanComplete = requiredKeys.every((k) => allowedOwners.has(String(responsibilityPlan?.[k] || "")));
+                    if (!isPlanComplete) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Responsibilities must be finalized before order confirmation"
+                        });
+                    }
+                    if (!(inquiry as any).order) {
+                        const executionTasks = Array.isArray((inquiry as any).executionInquiries)
+                            ? (inquiry as any).executionInquiries
+                            : [];
+                        const inlandTransportInstances = executionTasks
+                            .filter((task: any) => String(task?.type || "").toUpperCase() === "TRANSPORTATION")
+                            .map((task: any, index: number) => ({
+                                type: "INLAND_TRANSPORTATION",
+                                instanceKey: String(task?._id || `SEGMENT_${index + 1}`),
+                                label: String(task?.details?.segmentLabel || task?.title || "").trim() || `Inland Transportation ${index + 1}`,
+                            }));
+                        const paymentTermId = (inquiry as any).paymentTermId ? new Types.ObjectId(String((inquiry as any).paymentTermId)) : null;
+                        const incotermId = (inquiry as any).preferredIncoterm
+                            ? new Types.ObjectId(String((inquiry as any).preferredIncoterm))
+                            : null;
+                        const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
+                        const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
+                        const createdOrder = await OrderModel.create({
+                            enquiry: inquiry._id,
+                            responsibilities: responsibilityPlan,
+                            paymentTermId,
+                            incotermId,
+                            paymentPlan,
+                            subflowInstances: inlandTransportInstances,
+                            supplierOperatorId: (inquiry as any).supplierOperatorId || null,
+                            dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,
+                        });
+                        await InventoryReservationModel.updateMany(
+                            { enquiryId: inquiry._id, status: "RESERVED", isDeleted: { $ne: true } },
+                            { $set: { orderId: createdOrder._id } }
+                        );
+                        await TradeDocumentModel.updateMany(
+                            { enquiryId: inquiry._id, isDeleted: { $ne: true } },
+                            { $set: { orderId: createdOrder._id } }
+                        );
+                        (inquiry as any).order = createdOrder._id;
+                    }
+                    (inquiry as any).workflowStage = "CONVERT_TO_ORDER";
+                    break;
+                }
                 default:
                     return res.status(400).json({ success: false, message: "Unknown actionKey." });
             }
@@ -1456,7 +1526,7 @@ export class InquiryController {
     async updateExecutionInquiry(req: Request, res: Response, next: NextFunction) {
         try {
             const { id, type } = req.params;
-            const { bidAmount, commitNote, status, committedProvider } = req.body;
+            const { bidAmount, commitNote, status, committedProvider, bidCompanyId } = req.body;
 
             if (!Types.ObjectId.isValid(id)) {
                 return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
@@ -1501,10 +1571,13 @@ export class InquiryController {
                 isOperatorUser &&
                 (supplierOperatorId === req.user!.id || dealCloserOperatorId === req.user!.id)
             );
+            const bidCompanyOverride = String(bidCompanyId || "").trim();
+            const isAdminBid = (isAdmin || isAssignedOperator) && bidCompanyOverride;
             const canBid =
                 isProviderCandidate ||
                 (ownerBy === "buyer" && associateRole === "buyer") ||
-                (ownerBy === "seller" && associateRole === "seller");
+                (ownerBy === "seller" && associateRole === "seller") ||
+                isAdminBid;
             const canCommit = isAdmin || isAssignedOperator;
             const canUpdateStatus = isAdmin;
             const canAct = canBid || canCommit || canUpdateStatus;
@@ -1577,18 +1650,33 @@ export class InquiryController {
             if ((canBid || canCommit) && typeof commitNote === "string") {
                 task.commitNote = commitNote;
             }
-            if (isProviderCandidate && (typeof bidAmount === "number" || typeof commitNote === "string")) {
+            if ((isProviderCandidate || isAdminBid) && (typeof bidAmount === "number" || typeof commitNote === "string")) {
+                const biddingCompanyId = isAdminBid ? bidCompanyOverride : associateCompanyId;
+                if (!Types.ObjectId.isValid(String(biddingCompanyId || ""))) {
+                    return res.status(400).json({ success: false, message: "Invalid bid company id." });
+                }
+                if (isAdminBid) {
+                    const isCommittedCandidate = candidateProviders.some(
+                        (provider: any) => String(provider?._id || provider || "") === biddingCompanyId
+                    );
+                    if (!isCommittedCandidate) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Bid company is not in candidate providers",
+                        });
+                    }
+                }
                 const bidRows = Array.isArray(task.bids) ? task.bids : [];
                 const existingBidIndex = bidRows.findIndex(
-                    (bid: any) => String(bid?.company?._id || bid?.company || "") === associateCompanyId
+                    (bid: any) => String(bid?.company?._id || bid?.company || "") === biddingCompanyId
                 );
                 const now = new Date();
                 const bidPayload = {
-                    company: associateCompanyId,
+                    company: biddingCompanyId,
                     amount: typeof bidAmount === "number" && !Number.isNaN(bidAmount) ? bidAmount : null,
                     note: typeof commitNote === "string" ? commitNote : "",
                     status: "SUBMITTED",
-                    createdBy: context.associateId || null,
+                    createdBy: isAdminBid ? null : context.associateId || null,
                     createdAt: now,
                     updatedAt: now,
                 };

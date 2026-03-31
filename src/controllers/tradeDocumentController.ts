@@ -10,6 +10,8 @@ import { DocumentRuleModel } from "../database/models/documentRule";
 import { applyPaymentPlanDocUpdate } from "../utils/paymentPlan";
 import { FlowRuleModel } from "../database/models/flowRule";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
+import { sendTradeDocumentEmail } from "../utils/mailer";
+import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEmail";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -613,6 +615,65 @@ export class TradeDocumentController {
         }
       }
       return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async emailDocument(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const isPrivileged = isAdminRole(role) || isOperatorRole(role);
+      if (!isPrivileged) {
+        return res.status(403).json({ success: false, message: "Only admin/operator can email documents." });
+      }
+
+      const id = req.params.id;
+      if (!Types.ObjectId.isValid(String(id))) {
+        return res.status(400).json({ success: false, message: "Invalid document id." });
+      }
+
+      const doc = await TradeDocumentModel.findById(id).lean();
+      if (!doc || (doc as any).isDeleted) {
+        return res.status(404).json({ success: false, message: "Document not found." });
+      }
+
+      const enquiry = (doc as any)?.enquiryId ? await InquiryModel.findById((doc as any).enquiryId).lean() : null;
+      const docType = String((doc as any)?.type || "").toUpperCase();
+      const recipientRole = String(req.body?.recipientRole || "").toUpperCase();
+
+      const buyerEmail = String((doc as any)?.buyer?.email || "");
+      const sellerEmail = String((doc as any)?.seller?.email || "");
+      const recipients: string[] = [];
+
+      if (!recipientRole || recipientRole === "BOTH") {
+        if (buyerEmail) recipients.push(buyerEmail);
+        if (sellerEmail) recipients.push(sellerEmail);
+      } else if (recipientRole === "BUYER" && buyerEmail) {
+        recipients.push(buyerEmail);
+      } else if (recipientRole === "SELLER" && sellerEmail) {
+        recipients.push(sellerEmail);
+      }
+
+      if (recipients.length === 0) {
+        return res.status(400).json({ success: false, message: "No recipients available for this document." });
+      }
+
+      const template = buildTradeDocumentEmail({
+        docType,
+        documentNumber: String((doc as any)?.documentNumber || ""),
+        status: String((doc as any)?.status || ""),
+        enquiryCode: (enquiry as any)?.code || (enquiry as any)?.enquiryNumber || "",
+        buyerName: String((doc as any)?.buyer?.name || ""),
+        sellerName: String((doc as any)?.seller?.name || ""),
+        createdAt: (doc as any)?.createdAt ? new Date((doc as any).createdAt).toDateString() : "",
+      });
+
+      for (const email of recipients) {
+        await sendTradeDocumentEmail(email, template.subject, template.htmlPart, template.textPart);
+      }
+
+      return res.status(200).json({ success: true, message: "Document emailed successfully." });
     } catch (error) {
       next(error);
     }

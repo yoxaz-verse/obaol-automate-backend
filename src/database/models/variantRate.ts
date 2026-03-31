@@ -5,6 +5,9 @@ import { Types } from "mongoose";
 import { RelationshipSync } from "../../core/behaviors/relationshipSync";
 import { TimeCalculations } from "../../core/behaviors/timeCalculations";
 
+const COMMISSION_RATE = 0.025;
+const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
 const VariantRateSchema: Schema = new Schema({
   rate: { type: Number, required: true },
   quantity: { type: Number, required: false, min: 0 },
@@ -66,6 +69,13 @@ VariantRateSchema.pre<IVariantRate>("save", async function (next) {
   } catch {
     next();
   }
+});
+VariantRateSchema.pre<IVariantRate>("save", function (next) {
+  if (this.isModified("rate") || this.commission === undefined || this.commission === null) {
+    const nextCommission = round2(Number(this.rate || 0) * COMMISSION_RATE);
+    this.commission = nextCommission;
+  }
+  next();
 });
 VariantRateSchema.pre<IVariantRate>("save", function (next) {
   if (this.isModified("isLive")) {

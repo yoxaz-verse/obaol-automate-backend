@@ -16,6 +16,7 @@ import { variantRateLivePreWriteHook, variantRateNotificationPostWriteHook } fro
 import { variantRateOwnershipPreWriteHook } from "./variantRateOwnershipHooks";
 import { operatorAssociateCreatePreWriteHook, operatorCompanyCreatePreWriteHook } from "./operatorOnboardingHooks";
 import { operatorVariantRateWritePreHook } from "./operatorVariantRateWriteHook";
+import { variantRateCommissionPreWriteHook } from "./variantRateCommissionHook";
 import { orderCommissionPreWriteHook } from "./orderCommissionPreWriteHook";
 import { orderCommissionPostWriteHook } from "./orderCommissionPostWriteHook";
 import { operatorMentorValidationHook } from "./operatorMentorValidationHook";
@@ -69,6 +70,7 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreWrite("variant-rates", async (payload, mode, id, req) => {
         let nextPayload = await variantRateOwnershipPreWriteHook(payload, mode, id, req);
         nextPayload = await operatorVariantRateWritePreHook(nextPayload, mode, id, req);
+        nextPayload = await variantRateCommissionPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLivePreWriteHook(nextPayload, mode, id, req);
         return nextPayload;
     });

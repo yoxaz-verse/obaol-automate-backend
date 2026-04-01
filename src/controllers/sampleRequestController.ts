@@ -254,6 +254,13 @@ export class SampleRequestController {
         return res.status(400).json({ success: false, message: "supplierPrice is required." });
       }
 
+      const rawPaymentTerm = String(req.body?.samplePaymentTerm || "").trim().toUpperCase();
+      const samplePaymentTerm =
+        rawPaymentTerm.length > 0 ? rawPaymentTerm : undefined;
+      if (samplePaymentTerm && !["ADVANCE", "COURIER_CHARGES"].includes(samplePaymentTerm)) {
+        return res.status(400).json({ success: false, message: "samplePaymentTerm must be ADVANCE or COURIER_CHARGES." });
+      }
+
       const companyId = isAdminLike ? null : await this.resolveAssociateCompany(userId);
       if (!isAdminLike && !companyId) {
         return res.status(403).json({ success: false, message: "Supplier company not found." });
@@ -271,15 +278,20 @@ export class SampleRequestController {
       const markupPercent = Number(request.markupPercent || 20);
       const buyerPrice = computeBuyerPrice(supplierPrice, markupPercent);
 
+      const updatePayload: any = {
+        supplierMinQty,
+        supplierPrice,
+        buyerPrice,
+        status: "QUOTED",
+        quotedAt: new Date(),
+      };
+      if (samplePaymentTerm) {
+        updatePayload.samplePaymentTerm = samplePaymentTerm;
+      }
+
       const updated = await SampleRequestModel.findByIdAndUpdate(
         id,
-        {
-          supplierMinQty,
-          supplierPrice,
-          buyerPrice,
-          status: "QUOTED",
-          quotedAt: new Date(),
-        },
+        updatePayload,
         { new: true }
       )
         .populate(this.getPopulateQuery())

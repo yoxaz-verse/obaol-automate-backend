@@ -87,6 +87,20 @@ const PaymentTermSchema: Schema = new Schema(
                 }
                 return [];
             },
+            validate: {
+                validator: function (value: any) {
+                    if (!Array.isArray(value) || value.length === 0) return true;
+                    if (value.length < 1 || value.length > 3) return false;
+                    let total = 0;
+                    for (const item of value) {
+                        const percent = Number(item?.percent || 0);
+                        if (!Number.isFinite(percent) || percent <= 0) return false;
+                        total += percent;
+                    }
+                    return Math.round(total * 100) / 100 === 100;
+                },
+                message: "Milestones must contain 1-3 items with positive percent values that sum to 100.",
+            },
         },
         isDefault: {
             type: Boolean,

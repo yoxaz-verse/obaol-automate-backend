@@ -47,6 +47,7 @@ const SampleRequestSchema: Schema = new Schema(
     receiptFileId: { type: Schema.Types.ObjectId, ref: "File", default: null },
     supplierMinQty: { type: Number, default: null },
     supplierPrice: { type: Number, default: null },
+    samplePaymentTerm: { type: String, enum: ["ADVANCE", "COURIER_CHARGES"], default: "ADVANCE" },
     markupPercent: { type: Number, default: 20 },
     buyerPrice: { type: Number, default: null },
     isDeleted: { type: Boolean, default: false, index: true },

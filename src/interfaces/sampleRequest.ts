@@ -41,6 +41,7 @@ export interface ISampleRequest extends Document {
   receiptFileId?: Types.ObjectId | null;
   supplierMinQty?: number | null;
   supplierPrice?: number | null;
+  samplePaymentTerm?: "ADVANCE" | "COURIER_CHARGES";
   markupPercent: number;
   buyerPrice?: number | null;
   isDeleted: boolean;

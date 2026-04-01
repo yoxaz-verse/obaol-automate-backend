@@ -102,6 +102,12 @@ const TradeDocumentSchema: Schema = new Schema(
     totals: { type: TotalsSchema, default: {} },
     terms: { type: TermsSchema, default: {} },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    audienceScope: {
+      type: String,
+      enum: ["SELLER_OBAOL", "OBAOL_BUYER"],
+      default: "SELLER_OBAOL",
+      index: true,
+    },
     isDemo: { type: Boolean, default: false, index: true },
     demoTag: { type: String, default: null, index: true },
     demoCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },

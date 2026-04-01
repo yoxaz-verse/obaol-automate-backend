@@ -225,6 +225,14 @@ export class OrderController {
                     message: "Buyer name, seller name, product name, and trade type are required."
                 });
             }
+            const buyerName = String(externalBuyer?.name || "").trim();
+            const sellerName = String(externalSeller?.name || "").trim();
+            if (!buyerName || !sellerName || buyerName.toLowerCase() === "undisclosed" || sellerName.toLowerCase() === "undisclosed") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Buyer and seller must be disclosed to create an external order."
+                });
+            }
             if (!["DOMESTIC", "INTERNATIONAL"].includes(externalTradeType)) {
                 return res.status(400).json({ success: false, message: "Invalid trade type." });
             }

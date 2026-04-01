@@ -20,6 +20,7 @@ export type TradeDocumentType =
   | "LCL_DRAFT";
 export type TradeDocumentStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLED";
 export type TradeDocumentVerifiedStatus = "PENDING" | "VERIFIED" | "REJECTED";
+export type TradeDocumentAudienceScope = "SELLER_OBAOL" | "OBAOL_BUYER";
 
 export interface ITradeDocumentPartySnapshot {
   associateId?: Types.ObjectId | null;
@@ -80,6 +81,7 @@ export interface ITradeDocument extends Document {
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
   isDeleted?: boolean;
+  audienceScope?: TradeDocumentAudienceScope;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +101,7 @@ export interface ICreateTradeDocument {
   isDemo?: boolean;
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
+  audienceScope?: TradeDocumentAudienceScope;
 }
 
 export interface IUpdateTradeDocument {
@@ -112,4 +115,5 @@ export interface IUpdateTradeDocument {
   isDemo?: boolean;
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
+  audienceScope?: TradeDocumentAudienceScope;
 }

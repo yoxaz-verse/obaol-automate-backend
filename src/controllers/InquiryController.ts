@@ -1352,6 +1352,8 @@ export class InquiryController {
                     : null,
             ]);
 
+            const originCountryName = originCountryDoc ? String((originCountryDoc as any).name || "") : "";
+            const isOriginIndia = originCountryName.trim().toLowerCase() === "india";
             const routeFrom =
                 tradeType === "INTERNATIONAL"
                     ? [originPortDoc ? `${(originPortDoc as any).name} (${(originPortDoc as any).loCode})` : null, originCountryDoc ? (originCountryDoc as any).name : null]
@@ -1368,7 +1370,7 @@ export class InquiryController {
                     : [destinationDistrictDoc ? (destinationDistrictDoc as any).name : null, destinationStateDoc ? (destinationStateDoc as any).name : null]
                         .filter(Boolean)
                         .join(", ");
-            const baseDetails = {
+            const commonDetails = {
                 tradeType,
                 from: routeFrom,
                 to: routeTo,
@@ -1377,6 +1379,22 @@ export class InquiryController {
                 fromState: originStateDoc ? (originStateDoc as any).name : null,
                 fromDistrict: originDistrictDoc ? (originDistrictDoc as any).name : null,
                 packagingSpecifications: null,
+            };
+            const originPortLabel = originPortDoc
+                ? `${(originPortDoc as any).name} (${(originPortDoc as any).loCode})`
+                : "";
+            const originDistrictLabel = originDistrictDoc ? String((originDistrictDoc as any).name || "") : "";
+            const originStateLabel = originStateDoc ? String((originStateDoc as any).name || "") : "";
+            const inlandDetails = {
+                ...commonDetails,
+                from:
+                    tradeType === "INTERNATIONAL" && isOriginIndia && plan.transportBy !== "seller"
+                        ? (originDistrictLabel || originStateLabel || originCountryName)
+                        : "",
+                to:
+                    tradeType === "INTERNATIONAL" && isOriginIndia && plan.transportBy !== "seller"
+                        ? originPortLabel
+                        : "",
             };
 
             const rawSegments = Array.isArray(req.body?.inlandTransportSegments)
@@ -1397,9 +1415,9 @@ export class InquiryController {
                     ownerBy: plan.transportBy,
                     title: segment.label ? `Inland Transportation: ${segment.label}` : "Inland Transportation",
                     details: {
-                        ...baseDetails,
-                        from: segment.from || baseDetails.from,
-                        to: segment.to || baseDetails.to,
+                        ...commonDetails,
+                        from: segment.from || inlandDetails.from,
+                        to: segment.to || inlandDetails.to,
                         segmentLabel: segment.label || null,
                         segmentKey: `SEGMENT_${segment.index + 1}`,
                     },
@@ -1409,29 +1427,29 @@ export class InquiryController {
                         type: "TRANSPORTATION",
                         ownerBy: plan.transportBy,
                         title: "Inland Transportation",
-                        details: baseDetails,
+                        details: inlandDetails,
                     },
                 ];
 
             const executionInquirySeed = [
-                { type: "PROCUREMENT", ownerBy: plan.procurementBy, title: "Procurement Inquiry", details: baseDetails },
+                { type: "PROCUREMENT", ownerBy: plan.procurementBy, title: "Procurement Inquiry", details: commonDetails },
                 ...(tradeType === "INTERNATIONAL" && isFromIndia
-                    ? [{ type: "CERTIFICATION", ownerBy: plan.exportCustomsBy, title: "Export Customs Clearance Inquiry", details: baseDetails }]
+                    ? [{ type: "CERTIFICATION", ownerBy: plan.exportCustomsBy, title: "Export Customs Clearance Inquiry", details: commonDetails }]
                     : []),
                 ...transportationTasks,
                 ...(tradeType === "INTERNATIONAL"
-                    ? [{ type: "SHIPPING", ownerBy: plan.shippingBy, title: "Freight Forwarding & Shipping Inquiry", details: { ...baseDetails, requiresShipping: true } }]
+                    ? [{ type: "SHIPPING", ownerBy: plan.shippingBy, title: "Freight Forwarding & Shipping Inquiry", details: { ...commonDetails, requiresShipping: true } }]
                     : []),
                 {
                     type: "PACKAGING",
                     ownerBy: plan.packagingBy,
                     title: "Packaging Inquiry",
                     details: {
-                        ...baseDetails,
+                        ...commonDetails,
                         packagingSpecifications,
                     },
                 },
-                { type: "QUALITY_TESTING", ownerBy: plan.qualityTestingBy, title: "Quality Testing & Assurance Inquiry", details: baseDetails },
+                { type: "QUALITY_TESTING", ownerBy: plan.qualityTestingBy, title: "Quality Testing & Assurance Inquiry", details: commonDetails },
             ];
 
             const candidateSets = await Promise.all(

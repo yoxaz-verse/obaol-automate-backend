@@ -308,27 +308,67 @@ export class TradeDocumentController {
       const sellerCompanyId = snapshot.seller?.companyId || null;
       if (!sellerCompanyId) return res.status(400).json({ success: false, message: "Seller company is missing." });
 
-      const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("name slug").lean();
-      const companyCode = buildCompanyCode(sellerCompany);
-      const documentNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), type, companyCode);
+      const obaolCompanyIdRaw = String(process.env.OBAOL_COMPANY_ID || "").trim();
+      if (!obaolCompanyIdRaw || !Types.ObjectId.isValid(obaolCompanyIdRaw)) {
+        return res.status(400).json({ success: false, message: "OBAOL company configuration is missing." });
+      }
+      const obaolCompanyId = new Types.ObjectId(obaolCompanyIdRaw);
 
-      const created = await TradeDocumentModel.create({
+      const [sellerCompany, obaolCompany] = await Promise.all([
+        AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),
+        AssociateCompanyModel.findById(obaolCompanyId).select("name slug email phone address gstin").lean(),
+      ]);
+      if (!obaolCompany) {
+        return res.status(400).json({ success: false, message: "OBAOL company configuration is invalid." });
+      }
+
+      const sellerCompanyCode = buildCompanyCode(sellerCompany);
+      const obaolCompanyCode = buildCompanyCode(obaolCompany);
+      const sellerDocNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), type, sellerCompanyCode);
+      const obaolDocNumber = await generateDocumentNumber(obaolCompanyId, type, obaolCompanyCode);
+
+      const obaolSnapshot = {
+        associateId: null,
+        companyId: obaolCompanyId,
+        name: String(obaolCompany?.name || "").trim(),
+        email: String(obaolCompany?.email || "").trim(),
+        phone: String(obaolCompany?.phone || "").trim(),
+        address: String(obaolCompany?.address || "").trim(),
+        gstin: String(obaolCompany?.gstin || "").trim(),
+      };
+
+      const basePayload = {
         type,
         status: req.body?.status || "DRAFT",
-        documentNumber,
         fileUrl: req.body?.fileUrl || null,
         uploadedBy: req.user?.id || null,
         verifiedStatus: req.body?.verifiedStatus || "PENDING",
         enquiryId: enquiry._id,
         orderId: orderId || null,
         inventoryReservationId: snapshot.inventoryReservationId || null,
-        buyer: snapshot.buyer,
-        seller: snapshot.seller,
         lineItems: snapshot.lineItems,
         totals: snapshot.totals,
         terms: { ...snapshot.terms, ...(req.body?.terms || {}) },
         createdBy: req.user?.id || null,
+      };
+
+      const createdSellerObaol = await TradeDocumentModel.create({
+        ...basePayload,
+        documentNumber: sellerDocNumber,
+        buyer: obaolSnapshot,
+        seller: snapshot.seller,
+        audienceScope: "SELLER_OBAOL",
       });
+
+      const createdObaolBuyer = await TradeDocumentModel.create({
+        ...basePayload,
+        documentNumber: obaolDocNumber,
+        buyer: snapshot.buyer,
+        seller: obaolSnapshot,
+        audienceScope: "OBAOL_BUYER",
+      });
+
+      const created = createdSellerObaol;
 
       if (stageType === "INQUIRY") {
         let nextStage = resolveInquiryStageForDocument(enquiry, type, created?.status);
@@ -680,8 +720,11 @@ export class TradeDocumentController {
   }
 
   async autoCreateQuotationForInquiry(inquiryId: Types.ObjectId, inventoryReservationId?: Types.ObjectId | null) {
-    const existing = await TradeDocumentModel.findOne({ enquiryId: inquiryId, type: "QUOTATION", isDeleted: { $ne: true } });
-    if (existing) return existing;
+    const existingDocs = await TradeDocumentModel.find({ enquiryId: inquiryId, type: "QUOTATION", isDeleted: { $ne: true } }).lean();
+    const existingScopes = new Set(existingDocs.map((doc: any) => String(doc?.audienceScope || "SELLER_OBAOL").toUpperCase()));
+    if (existingDocs.length >= 2 && existingScopes.has("SELLER_OBAOL") && existingScopes.has("OBAOL_BUYER")) {
+      return existingDocs[0] as any;
+    }
 
     const enquiry = await InquiryModel.findById(inquiryId);
     if (!enquiry) return null;
@@ -690,28 +733,71 @@ export class TradeDocumentController {
     const sellerCompanyId = snapshot.seller?.companyId || null;
     if (!sellerCompanyId) return null;
 
-    const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("name slug").lean();
-    const companyCode = buildCompanyCode(sellerCompany);
-    const documentNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "QUOTATION", companyCode);
+    const obaolCompanyIdRaw = String(process.env.OBAOL_COMPANY_ID || "").trim();
+    if (!obaolCompanyIdRaw || !Types.ObjectId.isValid(obaolCompanyIdRaw)) return null;
+    const obaolCompanyId = new Types.ObjectId(obaolCompanyIdRaw);
 
-    return TradeDocumentModel.create({
+    const [sellerCompany, obaolCompany] = await Promise.all([
+      AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),
+      AssociateCompanyModel.findById(obaolCompanyId).select("name slug email phone address gstin").lean(),
+    ]);
+    if (!obaolCompany) return null;
+
+    const sellerCompanyCode = buildCompanyCode(sellerCompany);
+    const obaolCompanyCode = buildCompanyCode(obaolCompany);
+    const sellerDocNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "QUOTATION", sellerCompanyCode);
+    const obaolDocNumber = await generateDocumentNumber(obaolCompanyId, "QUOTATION", obaolCompanyCode);
+
+    const obaolSnapshot = {
+      associateId: null,
+      companyId: obaolCompanyId,
+      name: String(obaolCompany?.name || "").trim(),
+      email: String(obaolCompany?.email || "").trim(),
+      phone: String(obaolCompany?.phone || "").trim(),
+      address: String(obaolCompany?.address || "").trim(),
+      gstin: String(obaolCompany?.gstin || "").trim(),
+    };
+
+    const basePayload = {
       type: "QUOTATION",
       status: "DRAFT",
-      documentNumber,
       enquiryId: enquiry._id,
       inventoryReservationId: snapshot.inventoryReservationId || null,
-      buyer: snapshot.buyer,
-      seller: snapshot.seller,
       lineItems: snapshot.lineItems,
       totals: snapshot.totals,
       terms: snapshot.terms,
       createdBy: null,
-    });
+    };
+
+    const createdSellerObaol = existingScopes.has("SELLER_OBAOL")
+      ? existingDocs.find((doc: any) => String(doc?.audienceScope || "SELLER_OBAOL").toUpperCase() === "SELLER_OBAOL")
+      : await TradeDocumentModel.create({
+          ...basePayload,
+          documentNumber: sellerDocNumber,
+          buyer: obaolSnapshot,
+          seller: snapshot.seller,
+          audienceScope: "SELLER_OBAOL",
+        });
+
+    if (!existingScopes.has("OBAOL_BUYER")) {
+      await TradeDocumentModel.create({
+        ...basePayload,
+        documentNumber: obaolDocNumber,
+        buyer: snapshot.buyer,
+        seller: obaolSnapshot,
+        audienceScope: "OBAOL_BUYER",
+      });
+    }
+
+    return createdSellerObaol as any;
   }
 
   async autoCreateLoiForInquiry(inquiryId: Types.ObjectId, inventoryReservationId?: Types.ObjectId | null) {
-    const existing = await TradeDocumentModel.findOne({ enquiryId: inquiryId, type: "LOI", isDeleted: { $ne: true } });
-    if (existing) return existing;
+    const existingDocs = await TradeDocumentModel.find({ enquiryId: inquiryId, type: "LOI", isDeleted: { $ne: true } }).lean();
+    const existingScopes = new Set(existingDocs.map((doc: any) => String(doc?.audienceScope || "SELLER_OBAOL").toUpperCase()));
+    if (existingDocs.length >= 2 && existingScopes.has("SELLER_OBAOL") && existingScopes.has("OBAOL_BUYER")) {
+      return existingDocs[0] as any;
+    }
 
     const enquiry = await InquiryModel.findById(inquiryId);
     if (!enquiry) return null;
@@ -720,22 +806,62 @@ export class TradeDocumentController {
     const sellerCompanyId = snapshot.seller?.companyId || null;
     if (!sellerCompanyId) return null;
 
-    const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("name slug").lean();
-    const companyCode = buildCompanyCode(sellerCompany);
-    const documentNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "LOI", companyCode);
+    const obaolCompanyIdRaw = String(process.env.OBAOL_COMPANY_ID || "").trim();
+    if (!obaolCompanyIdRaw || !Types.ObjectId.isValid(obaolCompanyIdRaw)) return null;
+    const obaolCompanyId = new Types.ObjectId(obaolCompanyIdRaw);
 
-    return TradeDocumentModel.create({
+    const [sellerCompany, obaolCompany] = await Promise.all([
+      AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),
+      AssociateCompanyModel.findById(obaolCompanyId).select("name slug email phone address gstin").lean(),
+    ]);
+    if (!obaolCompany) return null;
+
+    const sellerCompanyCode = buildCompanyCode(sellerCompany);
+    const obaolCompanyCode = buildCompanyCode(obaolCompany);
+    const sellerDocNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "LOI", sellerCompanyCode);
+    const obaolDocNumber = await generateDocumentNumber(obaolCompanyId, "LOI", obaolCompanyCode);
+
+    const obaolSnapshot = {
+      associateId: null,
+      companyId: obaolCompanyId,
+      name: String(obaolCompany?.name || "").trim(),
+      email: String(obaolCompany?.email || "").trim(),
+      phone: String(obaolCompany?.phone || "").trim(),
+      address: String(obaolCompany?.address || "").trim(),
+      gstin: String(obaolCompany?.gstin || "").trim(),
+    };
+
+    const basePayload = {
       type: "LOI",
       status: "SENT",
-      documentNumber,
       enquiryId: enquiry._id,
       inventoryReservationId: snapshot.inventoryReservationId || null,
-      buyer: snapshot.buyer,
-      seller: snapshot.seller,
       lineItems: snapshot.lineItems,
       totals: snapshot.totals,
       terms: snapshot.terms,
       createdBy: null,
-    });
+    };
+
+    const createdSellerObaol = existingScopes.has("SELLER_OBAOL")
+      ? existingDocs.find((doc: any) => String(doc?.audienceScope || "SELLER_OBAOL").toUpperCase() === "SELLER_OBAOL")
+      : await TradeDocumentModel.create({
+          ...basePayload,
+          documentNumber: sellerDocNumber,
+          buyer: obaolSnapshot,
+          seller: snapshot.seller,
+          audienceScope: "SELLER_OBAOL",
+        });
+
+    if (!existingScopes.has("OBAOL_BUYER")) {
+      await TradeDocumentModel.create({
+        ...basePayload,
+        documentNumber: obaolDocNumber,
+        buyer: snapshot.buyer,
+        seller: obaolSnapshot,
+        audienceScope: "OBAOL_BUYER",
+      });
+    }
+
+    return createdSellerObaol as any;
   }
 }

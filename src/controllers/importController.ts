@@ -474,7 +474,7 @@ export class ImportController {
       if (!listing || listing.isDeleted) {
         return res.status(404).json({ success: false, message: "Listing not found." });
       }
-      if (listing.status === "CLOSED" || listing.status === "FULL" || listing.importStatus === "ENQUIRY_CREATED") {
+      if (listing.status === "CLOSED" || listing.status === "FULL") {
         return res.status(400).json({ success: false, message: "Listing is closed or fully reserved." });
       }
       const activeStatuses = ["PENDING", "APPROVED", "LOCKED", "ACCEPTED"];

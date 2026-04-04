@@ -2,13 +2,15 @@ import mongoose, { Document, Types } from "mongoose";
 
 export interface IVariantRate extends Document {
   rate: number;
-  quantity?: number;
   selected?: boolean;
   productVariant: Types.ObjectId;
   associate: Types.ObjectId;
   duration?: number;
   commission?: number;
   associateCompany?: Types.ObjectId;
+  locationSource?: "WAREHOUSE" | "OFFICE_ADDRESS";
+  warehouseId?: Types.ObjectId | null;
+  officeAddress?: string;
   isLive: boolean;
   tags?: Types.ObjectId[];
   state: mongoose.Schema.Types.ObjectId;
@@ -33,13 +35,15 @@ export interface IVariantRate extends Document {
 
 export interface ICreateVariantRate {
   rate: number;
-  quantity?: number;
   productVariant: Types.ObjectId;
   selected?: boolean;
   commission?: number;
   duration?: number;
   isLive?: boolean;
   associate: Types.ObjectId;
+  locationSource?: "WAREHOUSE" | "OFFICE_ADDRESS";
+  warehouseId?: Types.ObjectId | null;
+  officeAddress?: string;
   state: mongoose.Schema.Types.ObjectId;
   district: mongoose.Schema.Types.ObjectId;
   division?: mongoose.Schema.Types.ObjectId;
@@ -59,13 +63,15 @@ export interface ICreateVariantRate {
 
 export interface IUpdateVariantRate {
   rate?: number;
-  quantity?: number;
   productVariant?: Types.ObjectId;
   selected?: boolean;
   commission?: number;
   duration?: number;
   isLive?: boolean;
   associate?: Types.ObjectId;
+  locationSource?: "WAREHOUSE" | "OFFICE_ADDRESS";
+  warehouseId?: Types.ObjectId | null;
+  officeAddress?: string;
   state?: mongoose.Schema.Types.ObjectId;
   district?: mongoose.Schema.Types.ObjectId;
   division?: mongoose.Schema.Types.ObjectId;

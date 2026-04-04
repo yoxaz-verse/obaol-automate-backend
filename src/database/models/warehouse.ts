@@ -5,6 +5,17 @@ const WarehouseSchema = new Schema(
     {
         name: { type: String, required: true, trim: true },
         address: { type: String, default: "" },
+        location: {
+            latitude: { type: Number },
+            longitude: { type: Number },
+            label: { type: String, default: "" },
+            district: { type: String, default: "" },
+            pincode: { type: String, default: "" },
+            city: { type: String, default: "" },
+            state: { type: String, default: "" },
+            country: { type: String, default: "" },
+        },
+        totalCapacity: { type: Number, default: 0, min: 0 },
         ownerCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null, index: true },
         ownerAssociateId: { type: Schema.Types.ObjectId, ref: "Associate", default: null, index: true },
         listingType: { type: String, enum: ["PRIVATE", "RENTAL"], default: "PRIVATE", index: true },

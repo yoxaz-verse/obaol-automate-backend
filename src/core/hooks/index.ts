@@ -17,6 +17,7 @@ import { variantRateOwnershipPreWriteHook } from "./variantRateOwnershipHooks";
 import { operatorAssociateCreatePreWriteHook, operatorCompanyCreatePreWriteHook } from "./operatorOnboardingHooks";
 import { operatorVariantRateWritePreHook } from "./operatorVariantRateWriteHook";
 import { variantRateCommissionPreWriteHook } from "./variantRateCommissionHook";
+import { variantRateLocationPostReadHook, variantRateLocationPreWriteHook } from "./variantRateLocationHook";
 import { orderCommissionPreWriteHook } from "./orderCommissionPreWriteHook";
 import { orderCommissionPostWriteHook } from "./orderCommissionPostWriteHook";
 import { operatorMentorValidationHook } from "./operatorMentorValidationHook";
@@ -70,6 +71,7 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreWrite("variant-rates", async (payload, mode, id, req) => {
         let nextPayload = await variantRateOwnershipPreWriteHook(payload, mode, id, req);
         nextPayload = await operatorVariantRateWritePreHook(nextPayload, mode, id, req);
+        nextPayload = await variantRateLocationPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateCommissionPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLivePreWriteHook(nextPayload, mode, id, req);
         return nextPayload;
@@ -78,6 +80,7 @@ export const registerAllHooks = () => {
         await variantRateNotificationPostWriteHook(payload, mode, id, req);
         return await variantRateInventoryLinkHook(payload, mode, id, req);
     });
+    HookDispatcher.registerPostRead("variant-rates", variantRateLocationPostReadHook);
 
     // Company capability masters are admin managed and soft-deactivation only.
     HookDispatcher.registerPreWrite("company-functions", companyFunctionMasterWriteHook);

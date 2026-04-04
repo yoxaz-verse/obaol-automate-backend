@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { Types } from "mongoose";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
+import { SystemConfigModel } from "../database/models/systemConfig";
 import { DocumentSequenceModel } from "../database/models/documentSequence";
 import { InquiryModel } from "../database/models/enquiry";
 import { OrderModel } from "../database/models/order";
@@ -101,6 +102,17 @@ const shouldAdvanceInquiryStage = (currentStage: string, nextStage: string, stag
   return nextOrder >= currentOrder;
 };
 
+const OBAOL_COMPANY_KEY = "OBAOL_COMPANY_ID";
+
+const resolveObaolCompanyId = async (): Promise<Types.ObjectId | null> => {
+  const envId = String(process.env.OBAOL_COMPANY_ID || "").trim();
+  if (envId && Types.ObjectId.isValid(envId)) return new Types.ObjectId(envId);
+  const config = await SystemConfigModel.findOne({ key: OBAOL_COMPANY_KEY }).lean();
+  const configId = String(config?.value || "").trim();
+  if (configId && Types.ObjectId.isValid(configId)) return new Types.ObjectId(configId);
+  return null;
+};
+
 const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationId?: Types.ObjectId | null) => {
   const populated = await InquiryModel.findById(enquiry._id)
     .populate([
@@ -124,6 +136,14 @@ const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationI
         select: "name email phone associateCompany",
         populate: { path: "associateCompany", select: "name email phone address gstin slug" },
       },
+      {
+        path: "importListingId",
+        select: "importerCompanyId importerAssociateId",
+        populate: [
+          { path: "importerCompanyId", select: "name email phone address gstin slug" },
+          { path: "importerAssociateId", select: "name email phone associateCompany" },
+        ],
+      },
       { path: "preferredIncoterm", select: "code name" },
     ])
     .lean();
@@ -131,9 +151,19 @@ const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationI
   if (!populated) throw new Error("Inquiry not found.");
 
   const buyerAssociate: any = populated.buyerAssociateId || {};
-  const sellerAssociate: any = populated.sellerAssociateId || {};
+  let sellerAssociate: any = populated.sellerAssociateId || {};
   const buyerCompany: any = buyerAssociate.associateCompany || {};
-  const sellerCompany: any = sellerAssociate.associateCompany || {};
+  let sellerCompany: any = sellerAssociate.associateCompany || {};
+  const importListing: any = (populated as any)?.importListingId || null;
+  const importerCompany: any = importListing?.importerCompanyId || null;
+  const importerAssociate: any = importListing?.importerAssociateId || null;
+
+  if ((!sellerCompany || !sellerCompany?._id) && importerCompany) {
+    sellerCompany = importerCompany;
+  }
+  if ((!sellerAssociate || !sellerAssociate?._id) && importerAssociate) {
+    sellerAssociate = importerAssociate;
+  }
 
   const ratePerKg = Number((populated as any).rate || (populated as any)?.variantRateId?.rate || 0);
   const commissionPerKg = Number(populated.adminCommission || 0) + Number(populated.mediatorCommission || 0);
@@ -308,11 +338,10 @@ export class TradeDocumentController {
       const sellerCompanyId = snapshot.seller?.companyId || null;
       if (!sellerCompanyId) return res.status(400).json({ success: false, message: "Seller company is missing." });
 
-      const obaolCompanyIdRaw = String(process.env.OBAOL_COMPANY_ID || "").trim();
-      if (!obaolCompanyIdRaw || !Types.ObjectId.isValid(obaolCompanyIdRaw)) {
-        return res.status(400).json({ success: false, message: "OBAOL company configuration is missing." });
+      const obaolCompanyId = await resolveObaolCompanyId();
+      if (!obaolCompanyId) {
+        return res.status(400).json({ success: false, message: "OBAOL company configuration is missing. Set it in Dashboard → Company." });
       }
-      const obaolCompanyId = new Types.ObjectId(obaolCompanyIdRaw);
 
       const [sellerCompany, obaolCompany] = await Promise.all([
         AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),
@@ -733,9 +762,8 @@ export class TradeDocumentController {
     const sellerCompanyId = snapshot.seller?.companyId || null;
     if (!sellerCompanyId) return null;
 
-    const obaolCompanyIdRaw = String(process.env.OBAOL_COMPANY_ID || "").trim();
-    if (!obaolCompanyIdRaw || !Types.ObjectId.isValid(obaolCompanyIdRaw)) return null;
-    const obaolCompanyId = new Types.ObjectId(obaolCompanyIdRaw);
+    const obaolCompanyId = await resolveObaolCompanyId();
+    if (!obaolCompanyId) return null;
 
     const [sellerCompany, obaolCompany] = await Promise.all([
       AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),
@@ -806,9 +834,8 @@ export class TradeDocumentController {
     const sellerCompanyId = snapshot.seller?.companyId || null;
     if (!sellerCompanyId) return null;
 
-    const obaolCompanyIdRaw = String(process.env.OBAOL_COMPANY_ID || "").trim();
-    if (!obaolCompanyIdRaw || !Types.ObjectId.isValid(obaolCompanyIdRaw)) return null;
-    const obaolCompanyId = new Types.ObjectId(obaolCompanyIdRaw);
+    const obaolCompanyId = await resolveObaolCompanyId();
+    if (!obaolCompanyId) return null;
 
     const [sellerCompany, obaolCompany] = await Promise.all([
       AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),

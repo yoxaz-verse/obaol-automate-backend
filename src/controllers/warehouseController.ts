@@ -35,6 +35,29 @@ const normalizeUnit = (value: any, fallback: "KG" | "MT") => {
   return unit === "KG" ? "KG" : "MT";
 };
 
+const toLocation = (value: any) => {
+  if (!value || typeof value !== "object") return null;
+  const latitude = toNumber(value.latitude);
+  const longitude = toNumber(value.longitude);
+  if (latitude === null || longitude === null) return null;
+  const label = String(value.label || "").trim();
+  const district = String(value.district || "").trim();
+  const pincode = String(value.pincode || "").trim();
+  const city = String(value.city || "").trim();
+  const state = String(value.state || "").trim();
+  const country = String(value.country || "").trim();
+  return {
+    latitude,
+    longitude,
+    ...(label ? { label } : {}),
+    ...(district ? { district } : {}),
+    ...(pincode ? { pincode } : {}),
+    ...(city ? { city } : {}),
+    ...(state ? { state } : {}),
+    ...(country ? { country } : {}),
+  };
+};
+
 const diffDaysCeil = (fromDate: Date, toDate: Date) => {
   const ms = toDate.getTime() - fromDate.getTime();
   if (ms <= 0) return 0;
@@ -64,13 +87,14 @@ export class WarehouseController {
       const storageRatePerUnit = toNumber(req.body?.storageRatePerUnit);
       const unit = normalizeUnit(req.body?.unit, "MT");
       const allowedCategoryIds = toObjectIdArray(req.body?.allowedCategoryIds);
+      const location = toLocation(req.body?.location);
+      const totalCapacity = toNumber(req.body?.totalCapacity);
 
       if (!name) {
         return res.status(400).json({ success: false, message: "Warehouse name is required." });
       }
-      if (storageRatePerUnit === null || storageRatePerUnit < 0) {
-        return res.status(400).json({ success: false, message: "Storage rate must be a valid number." });
-      }
+      const normalizedStorageRate = storageRatePerUnit === null || storageRatePerUnit < 0 ? 0 : storageRatePerUnit;
+      const normalizedCapacity = totalCapacity === null || totalCapacity < 0 ? 0 : totalCapacity;
 
       const allowedCategories = ["GENERAL", "COLD_STORAGE", "BONDED", "AGRO"];
       let ownerCompanyId: string | null = null;
@@ -89,9 +113,11 @@ export class WarehouseController {
       const warehouse = await WarehouseModel.create({
         name,
         address,
+        ...(location ? { location } : {}),
         category: allowedCategories.includes(category) ? category : "GENERAL",
-        storageRatePerUnit,
+        storageRatePerUnit: normalizedStorageRate,
         unit,
+        totalCapacity: normalizedCapacity,
         isActive: req.body?.isActive !== undefined ? Boolean(req.body?.isActive) : true,
         ownerCompanyId: ownerCompanyId || req.body?.ownerCompanyId || null,
         ownerAssociateId: ownerAssociateId || req.body?.ownerAssociateId || null,
@@ -175,6 +201,14 @@ export class WarehouseController {
       const payload: any = {};
       if (req.body?.name !== undefined) payload.name = String(req.body?.name || "").trim();
       if (req.body?.address !== undefined) payload.address = String(req.body?.address || "").trim();
+      if (req.body?.location !== undefined) {
+        if (req.body.location === null) {
+          payload.location = null;
+        } else {
+          const location = toLocation(req.body.location);
+          if (location) payload.location = location;
+        }
+      }
       if (req.body?.category !== undefined) {
         const category = String(req.body?.category || "GENERAL").trim().toUpperCase();
         payload.category = ["GENERAL", "COLD_STORAGE", "BONDED", "AGRO"].includes(category)
@@ -183,16 +217,21 @@ export class WarehouseController {
       }
       if (req.body?.storageRatePerUnit !== undefined) {
         const rate = toNumber(req.body?.storageRatePerUnit);
-        if (rate === null || rate < 0) {
-          return res.status(400).json({ success: false, message: "Storage rate must be a valid number." });
+        if (rate !== null && rate >= 0) {
+          payload.storageRatePerUnit = rate;
         }
-        payload.storageRatePerUnit = rate;
       }
       if (req.body?.unit !== undefined) payload.unit = normalizeUnit(req.body?.unit, "MT");
       if (req.body?.allowedCategoryIds !== undefined) {
         payload.allowedCategoryIds = toObjectIdArray(req.body?.allowedCategoryIds);
       }
       if (req.body?.isActive !== undefined) payload.isActive = Boolean(req.body?.isActive);
+      if (req.body?.totalCapacity !== undefined) {
+        const cap = toNumber(req.body?.totalCapacity);
+        if (cap !== null && cap >= 0) {
+          payload.totalCapacity = cap;
+        }
+      }
       if (req.body?.listingType !== undefined) {
         const listingType = String(req.body?.listingType || "PRIVATE").trim().toUpperCase();
         payload.listingType = listingType === "RENTAL" ? "RENTAL" : "PRIVATE";

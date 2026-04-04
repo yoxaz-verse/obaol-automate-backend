@@ -58,6 +58,10 @@ console.info(`[routes] mounted ${prefix}/document-rules`);
 import orderSubflowConfigRoutes from "./v1/orderSubflowConfigRoutes";
 router.use(`${prefix}/flow-rules/subflows`, orderSubflowConfigRoutes);
 console.info(`[routes] mounted ${prefix}/flow-rules/subflows`);
+// System config (admin)
+import systemConfigRoutes from "./v1/systemConfigRoutes";
+router.use(`${prefix}/system-config`, systemConfigRoutes);
+console.info(`[routes] mounted ${prefix}/system-config`);
 
 // Enquiry rules
 import enquiryRuleRoutes from "./v1/enquiryRuleRoutes";
@@ -114,6 +118,8 @@ router.use(`${prefix}/catalog`, catalogRoutes);
 // Company Metrics
 import { CompanyController } from "../controllers/CompanyController";
 router.get(`${prefix}/associate-companies/:id/stats`, CompanyController.getTeamStats);
+router.get(`${prefix}/associate-companies/:id/enquiries`, CompanyController.getCompanyEnquiries);
+router.get(`${prefix}/associate-companies/:id/activity`, CompanyController.getCompanyActivity);
 
 // Diagnostic Routes (Development)
 import diagnosticRoutes from "./diagnosticRoutes";

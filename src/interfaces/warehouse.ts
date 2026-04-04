@@ -3,6 +3,17 @@ import { Document, Schema } from "mongoose";
 export interface IWarehouse extends Document {
     name: string;
     address?: string;
+    location?: {
+        latitude?: number;
+        longitude?: number;
+        label?: string;
+        district?: string;
+        pincode?: string;
+        city?: string;
+        state?: string;
+        country?: string;
+    } | null;
+    totalCapacity?: number;
     ownerCompanyId?: Schema.Types.ObjectId | null;
     ownerAssociateId?: Schema.Types.ObjectId | null;
     listingType: "PRIVATE" | "RENTAL";

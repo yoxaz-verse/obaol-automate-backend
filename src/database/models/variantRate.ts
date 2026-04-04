@@ -10,7 +10,6 @@ const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILO
 
 const VariantRateSchema: Schema = new Schema({
   rate: { type: Number, required: true },
-  quantity: { type: Number, required: false, min: 0 },
   commission: { type: Number },
   selected: { type: Boolean, default: false },
   productVariant: {
@@ -29,6 +28,14 @@ const VariantRateSchema: Schema = new Schema({
     ref: "AssociateCompany",
     required: false,
   },
+  locationSource: {
+    type: String,
+    enum: ["WAREHOUSE", "OFFICE_ADDRESS"],
+    default: "WAREHOUSE",
+    index: true,
+  },
+  warehouseId: { type: Schema.Types.ObjectId, ref: "Warehouse", default: null },
+  officeAddress: { type: String, default: "" },
   tags: [{ type: Types.ObjectId, ref: "Tag" }],
   isLive: { type: Boolean, default: false },
   duration: { type: Number, default: 1 }, // duration in days

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CommissionModel } from "../database/models/commission";
+import { CommissionRuleModel } from "../database/models/commissionRule";
 import { OrderModel } from "../database/models/order";
 import { OperatorHierarchyService } from "./operatorHierarchy.service";
 
@@ -14,6 +15,33 @@ type PayoutRow = {
 
 const round2 = (value: number) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const isCompletedStatus = (status: unknown) => String(status || "").trim().toUpperCase() === "COMPLETED";
+
+const DEFAULT_RULE = {
+  poolPercent: 30,
+  closerPercent: 40,
+  portfolioPercent: 30,
+  leadershipL1Percent: 12,
+  leadershipL2Percent: 8,
+  leadershipL3PoolPercent: 10,
+  leadershipL3MaxEachPercent: 5,
+};
+
+const resolveCommissionRule = async () => {
+  const defaultRule = await CommissionRuleModel.findOne({ isDefault: true, isActive: { $ne: false } }).lean();
+  const activeRule =
+    defaultRule ||
+    (await CommissionRuleModel.findOne({ isActive: { $ne: false } }).sort({ updatedAt: -1, createdAt: -1 }).lean());
+  if (!activeRule) return DEFAULT_RULE;
+  return {
+    poolPercent: Number(activeRule.poolPercent ?? DEFAULT_RULE.poolPercent),
+    closerPercent: Number(activeRule.closerPercent ?? DEFAULT_RULE.closerPercent),
+    portfolioPercent: Number(activeRule.portfolioPercent ?? DEFAULT_RULE.portfolioPercent),
+    leadershipL1Percent: Number(activeRule.leadershipL1Percent ?? DEFAULT_RULE.leadershipL1Percent),
+    leadershipL2Percent: Number(activeRule.leadershipL2Percent ?? DEFAULT_RULE.leadershipL2Percent),
+    leadershipL3PoolPercent: Number(activeRule.leadershipL3PoolPercent ?? DEFAULT_RULE.leadershipL3PoolPercent),
+    leadershipL3MaxEachPercent: Number(activeRule.leadershipL3MaxEachPercent ?? DEFAULT_RULE.leadershipL3MaxEachPercent),
+  };
+};
 
 export class CommissionEngine {
   static async processTradeCommission(orderId: string) {
@@ -72,7 +100,8 @@ export class CommissionEngine {
       throw err;
     }
 
-    const commissionPool = round2(profit * 0.3);
+    const rule = await resolveCommissionRule();
+    const commissionPool = round2(profit * (rule.poolPercent / 100));
     if (commissionPool <= 0) {
       await OrderModel.updateOne(
         { _id: orderId, commissionProcessedAt: null },
@@ -87,16 +116,16 @@ export class CommissionEngine {
       operatorId: new mongoose.Types.ObjectId(String(closedByOperator)),
       type: "closer",
       level: null,
-      percent: 40,
-      amount: round2(commissionPool * 0.4),
+      percent: rule.closerPercent,
+      amount: round2(commissionPool * (rule.closerPercent / 100)),
     });
 
     payouts.push({
       operatorId: new mongoose.Types.ObjectId(String(portfolioOwner)),
       type: "portfolio",
       level: null,
-      percent: 30,
-      amount: round2(commissionPool * 0.3),
+      percent: rule.portfolioPercent,
+      amount: round2(commissionPool * (rule.portfolioPercent / 100)),
     });
 
     const leadershipChain = await OperatorHierarchyService.getLeadershipChain(String(portfolioOwner));
@@ -110,8 +139,8 @@ export class CommissionEngine {
           operatorId: new mongoose.Types.ObjectId(String(l1._id)),
           type: "leadership",
           level: 1,
-          percent: 12,
-          amount: round2(commissionPool * 0.12),
+          percent: rule.leadershipL1Percent,
+          amount: round2(commissionPool * (rule.leadershipL1Percent / 100)),
         });
       }
 
@@ -120,13 +149,13 @@ export class CommissionEngine {
           operatorId: new mongoose.Types.ObjectId(String(l2._id)),
           type: "leadership",
           level: 2,
-          percent: 8,
-          amount: round2(commissionPool * 0.08),
+          percent: rule.leadershipL2Percent,
+          amount: round2(commissionPool * (rule.leadershipL2Percent / 100)),
         });
       }
 
       if (l3Plus.length > 0) {
-        const eachPercent = Math.min(10 / l3Plus.length, 5);
+        const eachPercent = Math.min(rule.leadershipL3PoolPercent / l3Plus.length, rule.leadershipL3MaxEachPercent);
         for (const node of l3Plus) {
           payouts.push({
             operatorId: new mongoose.Types.ObjectId(String(node._id)),

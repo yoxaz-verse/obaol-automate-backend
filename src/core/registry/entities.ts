@@ -45,6 +45,7 @@ import { CatalogItemModel } from "../../database/models/catalogItem";
 import FileModel from "../../database/models/file";
 import { IncotermModel } from "../../database/models/incoterm";
 import { PaymentTermModel } from "../../database/models/paymentTerm";
+import { CommissionRuleModel } from "../../database/models/commissionRule";
 import { CompanyFunctionModel } from "../../database/models/companyFunction";
 import { CompanySubFunctionModel } from "../../database/models/companySubFunction";
 import { CompanyFunctionMappingModel } from "../../database/models/companyFunctionMapping";
@@ -147,7 +148,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "variant-rates": {
         model: VariantRateModel,
-        searchableFields: ["customId", "rate", "quantity"],
+        searchableFields: ["customId", "rate"],
         sortableFields: ["createdAt", "rate"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
@@ -161,7 +162,8 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "associateCompany.district": "districts",
             "associateCompany.division": "divisions",
             "associateCompany.assignedOperator": "operators",
-            sourceInventory: "inventories"
+            sourceInventory: "inventories",
+            warehouseId: "warehouses"
         },
     },
     "displayed-rates": {
@@ -525,6 +527,12 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         model: PaymentTermModel,
         searchableFields: ["label", "milestone"],
         sortableFields: ["label"],
+        allowedOperations: ["list", "create", "read", "update", "delete"],
+    },
+    "commission-rules": {
+        model: CommissionRuleModel,
+        searchableFields: ["name"],
+        sortableFields: ["name", "createdAt"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
     },
 

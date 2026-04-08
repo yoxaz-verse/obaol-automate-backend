@@ -31,6 +31,7 @@ const AssociateCompanySchema = new mongoose.Schema(
     phoneSecondaryCountryCode: { type: String, default: "+91" },
     phoneSecondaryNational: { type: String, default: "" },
     serviceCapabilities: [{ type: String, default: [] }],
+    companyFunctionPriorities: [{ type: mongoose.Types.ObjectId, ref: "CompanyFunction" }],
     assignedOperator: { type: mongoose.Schema.Types.ObjectId, ref: "Operator" },
     supervisor: { type: mongoose.Schema.Types.ObjectId, ref: "Associate" },
     slug: { type: String, unique: true, sparse: true, trim: true }, // For improved SEO & catalog URLs

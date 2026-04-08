@@ -10,111 +10,60 @@ const slugify = (value: string) =>
 
 const COMPANY_FUNCTION_SEED = [
   {
-    name: "Sourcing & Procurement",
-    slug: "procurement",
-    subFunctions: [
-      "Raw Material Procurement",
-      "Farmer Aggregation",
-      "Mandis / Trade Sourcing",
-      "Commodity Brokerage",
-      "Export Order Sourcing",
-    ],
+    name: "Sourcing",
+    slug: "sourcing",
+    subFunctions: [],
   },
   {
-    name: "Processing & Packaging",
+    name: "Packaging",
     slug: "packaging",
-    subFunctions: [
-      "Cleaning / Sorting",
-      "Grading",
-      "Private Label Packaging",
-      "Bulk Packaging",
-      "Vacuum / Retail Packing",
-      "Value Addition Processing",
-    ],
+    subFunctions: [],
   },
   {
-    name: "Testing & Certification",
-    slug: "quality-testing",
-    subFunctions: [
-      "Lab Testing (Residue / Quality)",
-      "FSSAI Compliance",
-      "Phytosanitary Certification",
-      "Organic Certification",
-      "Inspection Services",
-      "Export Documentation Support",
-    ],
+    name: "Quality Testing & Labs",
+    slug: "testing",
+    subFunctions: [],
   },
   {
-    name: "Logistics Services",
-    slug: "shipping",
-    subFunctions: [
-      "Sea Freight (Export)",
-      "Sea Freight (Import)",
-      "Air Freight",
-      "Customs Clearance (Export)",
-      "Customs Clearance (Import)",
-      "Inland Transport",
-      "Reefer Logistics",
-      "LCL Consolidation",
-      "Warehousing",
-      "Cold Storage",
-    ],
+    name: "Warehouse / Storage",
+    slug: "warehouse-storage",
+    subFunctions: [],
   },
   {
-    name: "Warehousing & Storage",
-    slug: "warehousing",
-    subFunctions: [
-      "General Warehouse",
-      "Cold Storage",
-      "Bonded Warehouse",
-      "Agro Warehouse",
-    ],
-  },
-  {
-    name: "Finance & Risk Support",
+    name: "Finance & Insurance",
     slug: "finance-risk",
-    subFunctions: [
-      "Trade Finance",
-      "LC Handling",
-      "ECGC Advisory",
-      "Insurance (Marine / Cargo)",
-      "Forex Advisory",
-    ],
-  },
-  {
-    name: "Market & Trade Support",
-    slug: "market-support",
-    subFunctions: [
-      "Export Consulting",
-      "Market Intelligence",
-      "Buyer Sourcing",
-      "International Marketing",
-      "Trade Compliance Advisory",
-    ],
+    subFunctions: [],
   },
   {
     name: "Importing & Distribution",
-    slug: "importer",
-    subFunctions: [
-      "Commodity Importing",
-      "Port-Based Distribution",
-      "Domestic Release & Clearance",
-      "Inventory Liquidation",
-    ],
+    slug: "importing-distribution",
+    subFunctions: [],
+  },
+  {
+    name: "Freight Forwarding",
+    slug: "freight-forwarding",
+    subFunctions: [],
+  },
+  {
+    name: "Inland Logistics",
+    slug: "inland-logistics",
+    subFunctions: [],
   },
 ];
 
 export const seedCompanyFunctions = async () => {
+  const allowedSlugs = COMPANY_FUNCTION_SEED.map((fn) => fn.slug);
   for (let i = 0; i < COMPANY_FUNCTION_SEED.length; i += 1) {
     const fn = COMPANY_FUNCTION_SEED[i];
     const functionDoc = await CompanyFunctionModel.findOneAndUpdate(
-      { slug: fn.slug },
+      { $or: [{ slug: fn.slug }, { name: fn.name }] },
       {
         $set: {
           name: fn.name,
           description: "",
           isActive: true,
           orderIndex: i + 1,
+          slug: fn.slug,
         },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -136,4 +85,9 @@ export const seedCompanyFunctions = async () => {
       );
     }
   }
+
+  await CompanyFunctionModel.updateMany(
+    { slug: { $nin: allowedSlugs } },
+    { $set: { isActive: false } }
+  );
 };

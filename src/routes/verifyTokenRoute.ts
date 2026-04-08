@@ -5,6 +5,7 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
 import { normalizeCompanyInterests } from "../constants/companyInterests";
+import { OperatorModel } from "../database/models/operator";
 
 const verifyTokenRoute = Router();
 
@@ -23,19 +24,26 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   let companyInterests: string[] = [];
   let companyInterestsConfigured = true;
   let dashboardTutorialStatus: string | null = null;
+  let onboardingComplete = false;
+  let registrationStatus: string | null = null;
 
   if (roleLower === "associate") {
     const associate = await AssociateModel.findById(req.user.id)
-      .select("associateCompany dashboardTutorialStatus")
+      .select("associateCompany dashboardTutorialStatus onboardingComplete registrationStatus")
       .lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
     dashboardTutorialStatus = associate?.dashboardTutorialStatus || "PENDING";
+    onboardingComplete = Boolean(associate?.onboardingComplete);
+    registrationStatus = associate?.registrationStatus ? String(associate.registrationStatus) : null;
   } else if (roleLower === "operator" || roleLower === "team") {
     const companies = await AssociateCompanyModel.find({ assignedOperator: req.user.id }).select("_id").limit(2).lean();
     if (companies.length === 1) {
       associateCompanyId = String(companies[0]._id);
       companyInterestsConfigured = false;
     }
+    const operator = await OperatorModel.findById(req.user.id).select("onboardingComplete registrationStatus").lean();
+    onboardingComplete = Boolean(operator?.onboardingComplete);
+    registrationStatus = operator?.registrationStatus ? String(operator.registrationStatus) : null;
   }
 
   if (associateCompanyId) {
@@ -60,6 +68,8 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       companyInterestsConfigured,
       companyInterests,
       dashboardTutorialStatus,
+      onboardingComplete,
+      registrationStatus,
       verified: {
         email: verificationRecord?.verified === true,
         phone: false, // phone/gst can be added later if needed

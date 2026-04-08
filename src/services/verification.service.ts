@@ -10,7 +10,7 @@ class VerificationService extends BaseService {
     public async initiateVerification(userId: string, userType: any, method: "email" | "phone", ip: string, userAgent: string, email?: string, lang: string = "en") {
         // Generate 6-digit OTP
         const code = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+        const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes expiry
 
         // Save to DB
         await VerificationModel.create({
@@ -26,7 +26,7 @@ class VerificationService extends BaseService {
 
         // Send Email if method is email
         if (method === "email" && email) {
-            await sendOtpEmail(email, code, lang);
+            await sendOtpEmail(email, code, lang, userType);
         }
 
         return { success: true, message: `OTP sent to ${method}` };

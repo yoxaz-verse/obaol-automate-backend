@@ -8,13 +8,20 @@ export interface IAssociate {
   phone: string;
   phoneCountryCode?: string;
   phoneNational?: string;
-  phoneSecondary: string;
+  phoneSecondary?: string;
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
   associateInterests?: string[];
-  associateCompany: string; // Assuming this is stored as the ID of the AssociateCompany
+  associateCompany?: Types.ObjectId | string | null; // Assuming this is stored as the ID of the AssociateCompany
   hasCompany?: boolean;
   companyMode?: "existing" | "new" | "none";
+  address?: string;
+  geoType?: "INDIAN" | "INTERNATIONAL";
+  country?: Types.ObjectId | string | null;
+  state?: Types.ObjectId | string | null;
+  district?: Types.ObjectId | string | null;
+  division?: Types.ObjectId | string | null;
+  pincodeEntry?: Types.ObjectId | string | null;
   password: string;
   authProvider?: "LOCAL" | "GOOGLE";
   googleSub?: string | null;
@@ -29,6 +36,8 @@ export interface IAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  referralCode?: string;
+  onboardingComplete?: boolean;
   dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
   dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
@@ -42,14 +51,21 @@ export interface ICreateAssociate {
   phone: string;
   phoneCountryCode?: string;
   phoneNational?: string;
-  phoneSecondary: string;
+  phoneSecondary?: string;
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
   associateInterests?: string[];
-  associateCompany: string; // ID of the AssociateCompany
+  associateCompany?: Types.ObjectId | string | null; // ID of the AssociateCompany
   designation?: Types.ObjectId | string | null;
   hasCompany?: boolean;
   companyMode?: "existing" | "new" | "none";
+  address?: string;
+  geoType?: "INDIAN" | "INTERNATIONAL";
+  country?: Types.ObjectId | string | null;
+  state?: Types.ObjectId | string | null;
+  district?: Types.ObjectId | string | null;
+  division?: Types.ObjectId | string | null;
+  pincodeEntry?: Types.ObjectId | string | null;
   password: string;
   authProvider?: "LOCAL" | "GOOGLE";
   googleSub?: string | null;
@@ -64,6 +80,8 @@ export interface ICreateAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  referralCode?: string;
+  onboardingComplete?: boolean;
   dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
   dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
@@ -82,9 +100,16 @@ export interface IUpdateAssociate {
   phoneSecondaryNational?: string;
   associateInterests?: string[];
   designation?: Types.ObjectId | string | null;
-  associateCompany?: string; // ID of the AssociateCompany
+  associateCompany?: Types.ObjectId | string | null; // ID of the AssociateCompany
   hasCompany?: boolean;
   companyMode?: "existing" | "new" | "none";
+  address?: string;
+  geoType?: "INDIAN" | "INTERNATIONAL";
+  country?: Types.ObjectId | string | null;
+  state?: Types.ObjectId | string | null;
+  district?: Types.ObjectId | string | null;
+  division?: Types.ObjectId | string | null;
+  pincodeEntry?: Types.ObjectId | string | null;
   password?: string;
   authProvider?: "LOCAL" | "GOOGLE";
   googleSub?: string | null;
@@ -99,6 +124,8 @@ export interface IUpdateAssociate {
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
+  referralCode?: string;
+  onboardingComplete?: boolean;
   dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
   dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;

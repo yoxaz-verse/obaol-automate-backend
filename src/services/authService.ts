@@ -58,6 +58,27 @@ const COUNTRY_ALIAS_TO_CODE: Record<string, string> = {
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeCountryToken = (value: string) => String(value || "").trim().toUpperCase().replace(/[^A-Z]/g, "");
+
+const DRAFT_PHONE_E164 = "+910000000000";
+const DRAFT_PHONE_COUNTRY = "+91";
+const DRAFT_PHONE_NATIONAL = "0000000000";
+const DRAFT_OPERATOR_ADDRESS = "Pending";
+
+const deriveDisplayName = (email: string) => {
+    const local = String(email || "").split("@")[0] || "New User";
+    const cleaned = local.replace(/[._-]+/g, " ").trim();
+    return cleaned ? cleaned.replace(/\b\w/g, (c) => c.toUpperCase()) : "New User";
+};
+
+const issueAuthCookie = (res: Response, userForToken: any, rememberMe = false) => {
+    const jwtExpiresIn = rememberMe ? "24h" : "2h";
+    const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
+    const token = generateJWTToken(userForToken, jwtExpiresIn);
+    const host = String(res.req?.headers["x-forwarded-host"] || res.req?.headers.host || "");
+    const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
+    res.setHeader("Cache-Control", "no-store");
+    res.cookie("auth_token", token, cookieOptions);
+};
 const countryAcronym = (name: string) =>
     String(name || "")
         .trim()
@@ -227,8 +248,9 @@ export const authenticateUser = async (req: Request, res: Response) => {
 
         const roleLower = String(finalRole || "").toLowerCase();
         if (roleLower === "associate") {
+            const onboardingComplete = (user as any).onboardingComplete === true;
             const registrationStatus = String((user as any).registrationStatus || "PENDING_REVIEW").toUpperCase();
-            if (registrationStatus !== "APPROVED" || user.isActive === false) {
+            if (onboardingComplete && (registrationStatus !== "APPROVED" || user.isActive === false)) {
                 return res.status(401).json({ message: "Account pending admin approval." });
             }
             const linkedCompanyId = (user as any).associateCompany;
@@ -241,12 +263,15 @@ export const authenticateUser = async (req: Request, res: Response) => {
                     String((company as any).registrationStatus || "").toUpperCase() !== "APPROVED" ||
                     (company as any).isApproved !== true
                 ) {
-                    return res.status(401).json({ message: "Account pending admin approval." });
+                    if (onboardingComplete) {
+                        return res.status(401).json({ message: "Account pending admin approval." });
+                    }
                 }
             }
         } else if (roleLower === "operator" || roleLower === "team" || roleLower === "warehouse_operator" || roleLower === "warehouse-operator" || roleLower === "warehouseoperator") {
+            const onboardingComplete = (user as any).onboardingComplete === true;
             const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
-            if (registrationStatus !== "APPROVED" || user.isActive === false) {
+            if (onboardingComplete && (registrationStatus !== "APPROVED" || user.isActive === false)) {
                 return res.status(401).json({ message: "Account pending admin approval." });
             }
         } else if (user.isActive === false) {
@@ -522,31 +547,26 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             if (existingRole) {
                 return res.status(409).json({ success: false, message: "Account already exists — sign in." });
             }
-            const registerPayload = req.body?.registerPayload || {};
+            const displayName = String(googlePayload.name || "").trim() || deriveDisplayName(email);
             const generatedPassword = generateRandomPassword();
-            req.body = {
-                ...registerPayload,
-                name: registerPayload?.name || googlePayload.name || "",
-                email,
-                password: generatedPassword,
-                confirmPassword: generatedPassword,
-                authProvider: "GOOGLE",
-                googleSub: googlePayload.sub,
-                googleEmailVerified: Boolean(googlePayload.email_verified),
-                isEmailVerified: true,
-            };
-
             if (role === "Operator") {
-                await registerOperator(req, res);
-            } else {
-                await registerAssociate(req, res);
-            }
-
-            const createdUserId = (res as any)?.locals?.createdUserId;
-            if (createdUserId) {
+                const operator = await OperatorModel.create({
+                    name: displayName,
+                    email,
+                    phone: DRAFT_PHONE_E164,
+                    phoneCountryCode: DRAFT_PHONE_COUNTRY,
+                    phoneNational: DRAFT_PHONE_NATIONAL,
+                    password: generatedPassword,
+                    address: DRAFT_OPERATOR_ADDRESS,
+                    authProvider: "GOOGLE",
+                    googleSub: googlePayload.sub,
+                    googleEmailVerified: Boolean(googlePayload.email_verified),
+                    isEmailVerified: true,
+                    onboardingComplete: false,
+                });
                 await VerificationModel.create({
-                    userId: String(createdUserId),
-                    userType: role,
+                    userId: String(operator._id),
+                    userType: "Operator",
                     method: "email",
                     code: "GOOGLE_VERIFIED",
                     expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
@@ -554,8 +574,50 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                     userAgent: String(req.headers["user-agent"] || ""),
                     verified: true,
                 });
+                issueAuthCookie(res, {
+                    ...operator.toObject(),
+                    role: "Operator",
+                }, rememberMe);
+                return res.json({
+                    success: true,
+                    user: { id: operator._id, email: operator.email, name: operator.name, role: "Operator" },
+                });
             }
-            return;
+
+            const associate = await AgentModel.create({
+                name: displayName,
+                email,
+                phone: DRAFT_PHONE_E164,
+                phoneCountryCode: DRAFT_PHONE_COUNTRY,
+                phoneNational: DRAFT_PHONE_NATIONAL,
+                password: generatedPassword,
+                authProvider: "GOOGLE",
+                googleSub: googlePayload.sub,
+                googleEmailVerified: Boolean(googlePayload.email_verified),
+                isEmailVerified: true,
+                onboardingComplete: false,
+                hasCompany: false,
+                companyMode: "none",
+            });
+            await VerificationModel.create({
+                userId: String(associate._id),
+                userType: "Associate",
+                method: "email",
+                code: "GOOGLE_VERIFIED",
+                expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
+                ipAddress: String(req.ip || ""),
+                userAgent: String(req.headers["user-agent"] || ""),
+                verified: true,
+            });
+            issueAuthCookie(res, {
+                ...associate.toObject(),
+                role: "Associate",
+                associateCompany: (associate as any).associateCompany,
+            }, rememberMe);
+            return res.json({
+                success: true,
+                user: { id: associate._id, email: associate.email, name: associate.name, role: "Associate" },
+            });
         }
 
         return res.status(400).json({ success: false, message: "Invalid intent." });
@@ -1070,6 +1132,325 @@ export const registerAssociate = async (req: Request, res: Response) => {
             success: false,
             message: error?.message || "Registration failed. Please try again later."
         });
+    }
+};
+
+export const startOnboarding = async (req: Request, res: Response) => {
+    try {
+        const emailRaw = String(req.body?.email || "").trim().toLowerCase();
+        const role = String(req.body?.role || "").trim();
+        const now = Date.now();
+        const draftWindowMs = 2 * 60 * 60 * 1000; // 2 hours
+
+        if (!emailRaw || !role) {
+            return res.status(400).json({ success: false, message: "Email and role are required." });
+        }
+        if (role !== "Associate" && role !== "Operator") {
+            return res.status(400).json({ success: false, message: "Role must be Associate or Operator." });
+        }
+
+        const [admin, projectManager, inventoryManager, operator, associate] = await Promise.all([
+            AdminModel.findOne({ email: emailRaw }).select("_id").lean(),
+            ProjectManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
+            InventoryManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
+            OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt").lean(),
+            AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified").lean(),
+        ]);
+
+        const isDraftWithinWindow = (user: any, checkEmailVerified: boolean) => {
+            if (!user) return false;
+            if (user.onboardingComplete) return false;
+            if (checkEmailVerified && user.isEmailVerified === true) return false;
+            if (String(user.authProvider || "LOCAL").toUpperCase() !== "LOCAL") return false;
+            if (String(user.registrationSource || "SELF_REGISTERED").toUpperCase() !== "SELF_REGISTERED") return false;
+            if (!user.createdAt) return false;
+            const createdAt = new Date(user.createdAt).getTime();
+            return now - createdAt <= draftWindowMs;
+        };
+
+        let operatorDoc: any = operator;
+        let associateDoc: any = associate;
+
+        if (operatorDoc && isDraftWithinWindow(operatorDoc, false)) {
+            await Promise.all([
+                OperatorModel.deleteOne({ _id: operatorDoc._id }),
+                VerificationModel.deleteMany({ userId: String(operatorDoc._id) }),
+            ]);
+            operatorDoc = null;
+        }
+
+        if (associateDoc && isDraftWithinWindow(associateDoc, true)) {
+            await Promise.all([
+                AgentModel.deleteOne({ _id: associateDoc._id }),
+                VerificationModel.deleteMany({ userId: String(associateDoc._id) }),
+            ]);
+            associateDoc = null;
+        }
+
+        if (admin || projectManager || inventoryManager || operatorDoc || associateDoc) {
+            return res.status(409).json({ success: false, message: "Account already exists — sign in." });
+        }
+
+        const displayName = deriveDisplayName(emailRaw);
+        const generatedPassword = generateRandomPassword();
+
+        if (role === "Operator") {
+            const newOperator = await OperatorModel.create({
+                name: displayName,
+                email: emailRaw,
+                phone: DRAFT_PHONE_E164,
+                phoneCountryCode: DRAFT_PHONE_COUNTRY,
+                phoneNational: DRAFT_PHONE_NATIONAL,
+                password: generatedPassword,
+                address: DRAFT_OPERATOR_ADDRESS,
+                authProvider: "LOCAL",
+                isEmailVerified: false,
+                onboardingComplete: false,
+            });
+            issueAuthCookie(res, { ...newOperator.toObject(), role: "Operator" }, false);
+            return res.json({ success: true, user: { id: newOperator._id, email: newOperator.email, name: newOperator.name, role: "Operator" } });
+        }
+
+        const newAssociate = await AgentModel.create({
+            name: displayName,
+            email: emailRaw,
+            phone: DRAFT_PHONE_E164,
+            phoneCountryCode: DRAFT_PHONE_COUNTRY,
+            phoneNational: DRAFT_PHONE_NATIONAL,
+            password: generatedPassword,
+            authProvider: "LOCAL",
+            isEmailVerified: false,
+            onboardingComplete: false,
+            hasCompany: false,
+            companyMode: "none",
+        });
+        issueAuthCookie(res, { ...newAssociate.toObject(), role: "Associate" }, false);
+        return res.json({ success: true, user: { id: newAssociate._id, email: newAssociate.email, name: newAssociate.name, role: "Associate" } });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: error?.message || "Failed to start onboarding." });
+    }
+};
+
+export const completeOnboarding = async (req: Request, res: Response) => {
+    try {
+        const role = String(req.body?.role || req.user?.role || "").trim();
+        const roleLower = role.toLowerCase();
+        const userId = String(req.user?.id || "");
+
+        if (!userId || !role) {
+            return res.status(400).json({ success: false, message: "Invalid session." });
+        }
+
+        if (roleLower === "associate") {
+            const associate = await AgentModel.findById(userId);
+            if (!associate) {
+                return res.status(404).json({ success: false, message: "Associate not found." });
+            }
+
+            const {
+                name,
+                email,
+                phone,
+                phoneCountryCode,
+                phoneNational,
+                phoneSecondary,
+                phoneSecondaryCountryCode,
+                phoneSecondaryNational,
+                designation,
+                hasCompany,
+                companyMode,
+                associateCompanyId,
+                company,
+                contactPreference,
+                contactNotes,
+                associateAddress,
+                associateGeoType,
+                associateCountry,
+                associateState,
+                associateDistrict,
+                associateDivision,
+                associatePincodeEntry,
+                referralCode,
+                password,
+            } = req.body || {};
+
+            if (!name || !email || !phone) {
+                return res.status(400).json({ success: false, message: "Name, email, and phone are required." });
+            }
+
+            if (String(associate.authProvider || "LOCAL").toUpperCase() !== "GOOGLE") {
+                if (!password) {
+                    return res.status(400).json({ success: false, message: "Password is required." });
+                }
+                const hashed = await hashPassword(String(password));
+                (associate as any).password = hashed;
+            }
+
+            const normalizedPrimary = normalizePhoneInput({
+                rawPhone: phone,
+                rawCountryCode: phoneCountryCode,
+                rawNational: phoneNational,
+            });
+            const normalizedSecondary = normalizePhoneInput({
+                rawPhone: phoneSecondary || phone,
+                rawCountryCode: phoneSecondaryCountryCode || normalizedPrimary.countryCode,
+                rawNational: phoneSecondaryNational,
+                fallbackCountryCode: normalizedPrimary.countryCode,
+            });
+
+            associate.name = String(name).trim();
+            associate.email = String(email).trim().toLowerCase();
+            associate.phone = normalizedPrimary.e164;
+            associate.phoneCountryCode = normalizedPrimary.countryCode;
+            associate.phoneNational = normalizedPrimary.national;
+            associate.phoneSecondary = normalizedSecondary.e164 || normalizedPrimary.e164;
+            associate.phoneSecondaryCountryCode = normalizedSecondary.countryCode || normalizedPrimary.countryCode;
+            associate.phoneSecondaryNational = normalizedSecondary.national || normalizedPrimary.national;
+            associate.designation = designation || null;
+            associate.onboardingContactPreference = String(contactPreference || "phone").toLowerCase() === "email" ? "email" : "phone";
+            associate.onboardingContactNotes = String(contactNotes || "").trim();
+            associate.address = String(associateAddress || "").trim();
+            associate.geoType = (String(associateGeoType || "INDIAN").toUpperCase() === "INTERNATIONAL"
+                ? "INTERNATIONAL"
+                : "INDIAN");
+            associate.country = associate.geoType === "INTERNATIONAL" ? associateCountry || null : null;
+            associate.state = associate.geoType === "INDIAN" ? associateState || null : null;
+            associate.district = associate.geoType === "INDIAN" ? associateDistrict || null : null;
+            associate.division = associate.geoType === "INDIAN" ? associateDivision || null : null;
+            associate.pincodeEntry = associate.geoType === "INDIAN" ? associatePincodeEntry || null : null;
+            associate.hasCompany = Boolean(hasCompany);
+            const normalizedCompanyMode = String(companyMode || "existing").toLowerCase();
+            associate.companyMode = associate.hasCompany
+                ? (normalizedCompanyMode === "new" ? "new" : "existing")
+                : "none";
+            if (!associate.hasCompany) {
+                associate.associateCompany = null;
+            }
+
+            if (associate.hasCompany && associate.companyMode === "existing") {
+                if (!associateCompanyId) {
+                    return res.status(400).json({ success: false, message: "Please select an existing company." });
+                }
+                associate.associateCompany = associateCompanyId;
+            }
+
+            if (associate.hasCompany && associate.companyMode === "new") {
+                const companyName = String(company?.name || "").trim();
+                const companyEmail = String(company?.email || "").trim().toLowerCase();
+                if (!companyName || !companyEmail) {
+                    return res.status(400).json({ success: false, message: "Company name and email are required." });
+                }
+                const companyPhone = normalizePhoneInput({
+                    rawPhone: company?.phone,
+                    rawCountryCode: company?.phoneCountryCode,
+                    rawNational: company?.phoneNational,
+                });
+                const companySecondary = normalizePhoneInput({
+                    rawPhone: company?.phoneSecondary || company?.phone,
+                    rawCountryCode: company?.phoneSecondaryCountryCode || companyPhone.countryCode,
+                    rawNational: company?.phoneSecondaryNational,
+                    fallbackCountryCode: companyPhone.countryCode,
+                });
+                if (!companyPhone.e164) {
+                    return res.status(400).json({ success: false, message: "Valid company phone is required." });
+                }
+                const existingCompany = await AssociateCompanyModel.findOne({ email: companyEmail }).select("_id").lean();
+                if (existingCompany) {
+                    associate.associateCompany = existingCompany._id;
+                } else {
+                    const createdCompany = await AssociateCompanyModel.create({
+                        name: companyName,
+                        email: companyEmail,
+                        phone: companyPhone.e164,
+                        phoneCountryCode: companyPhone.countryCode,
+                        phoneNational: companyPhone.national,
+                        phoneSecondary: companySecondary.e164 || companyPhone.e164,
+                        phoneSecondaryCountryCode: companySecondary.countryCode || companyPhone.countryCode,
+                        phoneSecondaryNational: companySecondary.national || companyPhone.national,
+                        geoType: company?.geoType || "INDIAN",
+                        country: company?.country || null,
+                        state: company?.state || null,
+                        district: company?.district || null,
+                        division: company?.division || null,
+                        pincodeEntry: company?.pincodeEntry || null,
+                        companyType: company?.companyType || null,
+                        gstin: company?.gstin || undefined,
+                        legalRegistrationNumber: company?.legalRegistrationNumber || undefined,
+                        legalComplianceInfo: company?.legalComplianceInfo || undefined,
+                        serviceCapabilities: Array.isArray(company?.subFunctionIds) ? company.subFunctionIds : [],
+                        assignedOperator: null,
+                        supervisor: associate._id,
+                        address: company?.address || "",
+                    });
+                    associate.associateCompany = createdCompany._id;
+                }
+            }
+
+            associate.referralCode = referralCode ? String(referralCode).trim().toUpperCase() : associate.referralCode;
+            associate.onboardingComplete = true;
+            await associate.save();
+
+            return res.status(200).json({ success: true, message: "Onboarding completed." });
+        }
+
+        if (roleLower === "operator") {
+            const operator = await OperatorModel.findById(userId);
+            if (!operator) {
+                return res.status(404).json({ success: false, message: "Operator not found." });
+            }
+            const {
+                name,
+                email,
+                phone,
+                phoneCountryCode,
+                phoneNational,
+                address,
+                state,
+                district,
+                languageKnown,
+                workingHours,
+                joiningDate,
+                password,
+            } = req.body || {};
+
+            if (!name || !email || !phone || !address) {
+                return res.status(400).json({ success: false, message: "Name, email, phone, and address are required." });
+            }
+
+            if (String(operator.authProvider || "LOCAL").toUpperCase() !== "GOOGLE") {
+                if (!password) {
+                    return res.status(400).json({ success: false, message: "Password is required." });
+                }
+                const hashed = await hashPassword(String(password));
+                (operator as any).password = hashed;
+            }
+
+            const normalizedPrimary = normalizePhoneInput({
+                rawPhone: phone,
+                rawCountryCode: phoneCountryCode,
+                rawNational: phoneNational,
+            });
+
+            operator.name = String(name).trim();
+            operator.email = String(email).trim().toLowerCase();
+            operator.phone = normalizedPrimary.e164;
+            operator.phoneCountryCode = normalizedPrimary.countryCode;
+            operator.phoneNational = normalizedPrimary.national;
+            operator.address = String(address).trim();
+            operator.state = state || null;
+            operator.district = district || null;
+            operator.languageKnown = Array.isArray(languageKnown) ? languageKnown : [];
+            operator.workingHours = Array.isArray(workingHours) ? workingHours : [];
+            operator.joiningDate = joiningDate ? new Date(joiningDate) : operator.joiningDate;
+            operator.onboardingComplete = true;
+            await operator.save();
+
+            return res.status(200).json({ success: true, message: "Onboarding completed." });
+        }
+
+        return res.status(400).json({ success: false, message: "Unsupported role." });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: error?.message || "Onboarding failed." });
     }
 };
 

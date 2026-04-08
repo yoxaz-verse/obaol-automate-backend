@@ -18,6 +18,8 @@ import {
   upsertCompanyInterests,
   authenticateGoogle,
   getEmailStatus,
+  startOnboarding,
+  completeOnboarding,
 } from "../services/authService";
 import authenticateToken from "../middlewares/auth";
 
@@ -34,6 +36,8 @@ authRoute.get("/register/countries", getRegisterCountries);
 authRoute.get("/register/pincodes", getRegisterPincodes);
 authRoute.post("/operator/register", registerOperator);
 authRoute.get("/operator/register/options", getOperatorRegisterOptions);
+authRoute.post("/onboarding/start", startOnboarding);
+authRoute.post("/onboarding", authenticateToken, completeOnboarding);
 authRoute.get("/company-interests/status", authenticateToken, getCompanyInterestsStatus);
 authRoute.put("/company-interests", authenticateToken, upsertCompanyInterests);
 authRoute.post("/logout", logoutUser);

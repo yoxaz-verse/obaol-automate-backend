@@ -21,6 +21,9 @@ export interface IOperator extends mongoose.Document {
     phoneCountryCode?: string;
     phoneNational?: string;
     password: string;
+    authProvider?: "LOCAL" | "GOOGLE";
+    googleSub?: string | null;
+    googleEmailVerified?: boolean;
     address: string;
     district?: mongoose.Types.ObjectId;
     state?: mongoose.Types.ObjectId;
@@ -42,6 +45,7 @@ export interface IOperator extends mongoose.Document {
     presenceUpdatedAt?: Date | null;
     presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
     referralCode?: string;
+    onboardingComplete?: boolean;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -90,6 +94,7 @@ const operatorSchema = new mongoose.Schema(
             default: "PENDING_REVIEW",
         },
         registrationSource: { type: String, default: "SELF_REGISTERED" },
+        onboardingComplete: { type: Boolean, default: false },
         approvedAt: { type: Date, default: null },
         approvedBy: { type: mongoose.Types.ObjectId, ref: "Admin", default: null },
         reviewNotes: { type: String, default: "" },

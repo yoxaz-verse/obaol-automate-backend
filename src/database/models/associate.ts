@@ -53,6 +53,7 @@ const associateSchema = new mongoose.Schema(
         },
         onboardingContactNotes: { type: String, default: "" },
         registrationSource: { type: String, default: "SELF_REGISTERED" },
+        onboardingComplete: { type: Boolean, default: false },
         dashboardTutorialStatus: {
             type: String,
             enum: ["PENDING", "SKIPPED", "COMPLETED"],

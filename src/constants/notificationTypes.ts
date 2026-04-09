@@ -7,6 +7,7 @@ export const NotificationTypes = {
   VARIANT_RATE_LIVE: "VARIANT_RATE_LIVE",
   EXECUTION_TASKS_CREATED: "EXECUTION_TASKS_CREATED",
   APPROVAL_REQUESTED: "APPROVAL_REQUESTED",
+  GENERAL_MESSAGE: "GENERAL_MESSAGE",
 } as const;
 
 export const NotificationEntityTypes = {
@@ -14,6 +15,7 @@ export const NotificationEntityTypes = {
   ORDER: "ORDER",
   VARIANT_RATE: "VARIANT_RATE",
   APPROVAL: "APPROVAL",
+  SYSTEM: "SYSTEM",
 } as const;
 
 export type NotificationType = (typeof NotificationTypes)[keyof typeof NotificationTypes];

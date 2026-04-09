@@ -4,9 +4,21 @@ import { AssociateModel } from "../database/models/associate";
 import { DisplayedRateModel } from "../database/models/displayedRate";
 import { CatalogItemModel } from "../database/models/catalogItem";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { CompanyFunctionModel } from "../database/models/companyFunction";
+import { OrderModel } from "../database/models/order";
 import mongoose from "mongoose";
 
 export class AnalyticsService {
+    private static COMPANY_FUNCTION_TYPE_MAP: Record<string, string[]> = {
+        "sourcing": ["PROCUREMENT"],
+        "packaging": ["PACKAGING"],
+        "testing": ["QUALITY_TESTING", "CERTIFICATION"],
+        "warehouse-storage": ["WAREHOUSE"],
+        "freight-forwarding": ["SHIPPING"],
+        "importing-distribution": ["SHIPPING", "TRANSPORTATION"],
+        "inland-logistics": ["TRANSPORTATION"],
+        "finance-risk": [],
+    };
 
     /**
      * Get enquiry trends for the last 30 days
@@ -204,5 +216,355 @@ export class AnalyticsService {
             liveRatePercentage,
             liveProductPercentage,
         };
+    }
+
+    static async getCompanyFunctionMetrics(companyId: string) {
+        const companyObjectId = new mongoose.Types.ObjectId(companyId);
+        const functions = await CompanyFunctionModel.find({ isActive: true })
+            .select("_id slug name orderIndex")
+            .lean();
+
+        const associates = await AssociateModel.find({
+            associateCompany: companyObjectId,
+            isDeleted: { $ne: true },
+        })
+            .select("_id")
+            .lean();
+        const associateIds = associates.map((row: any) => row._id);
+
+        const emptyMetrics = {
+            total: 0,
+            open: 0,
+            inProgress: 0,
+            completed: 0,
+        };
+
+        if (!associateIds.length) {
+            return functions.map((fn: any) => ({
+                functionId: fn._id,
+                slug: fn.slug,
+                name: fn.name,
+                orderIndex: fn.orderIndex ?? 0,
+                metrics: { ...emptyMetrics },
+            }));
+        }
+
+        const counts = await EnquiryModel.aggregate([
+            {
+                $match: {
+                    $or: [
+                        { buyerAssociateId: { $in: associateIds } },
+                        { sellerAssociateId: { $in: associateIds } },
+                        { mediatorAssociateId: { $in: associateIds } },
+                    ],
+                },
+            },
+            { $unwind: "$executionInquiries" },
+            {
+                $group: {
+                    _id: {
+                        type: "$executionInquiries.type",
+                        status: "$executionInquiries.status",
+                    },
+                    count: { $sum: 1 },
+                },
+            },
+        ]);
+
+        const byType = new Map<string, Record<string, number>>();
+        counts.forEach((row: any) => {
+            const type = String(row?._id?.type || "");
+            const status = String(row?._id?.status || "");
+            if (!type || !status) return;
+            if (!byType.has(type)) {
+                byType.set(type, { OPEN: 0, IN_PROGRESS: 0, COMPLETED: 0 });
+            }
+            const current = byType.get(type)!;
+            current[status] = (current[status] || 0) + Number(row?.count || 0);
+        });
+
+        return functions.map((fn: any) => {
+            const slug = String(fn?.slug || "");
+            const mappedTypes = AnalyticsService.COMPANY_FUNCTION_TYPE_MAP[slug] || [];
+            const totals = { ...emptyMetrics };
+            mappedTypes.forEach((type) => {
+                const counters = byType.get(type);
+                if (!counters) return;
+                totals.open += Number(counters.OPEN || 0);
+                totals.inProgress += Number(counters.IN_PROGRESS || 0);
+                totals.completed += Number(counters.COMPLETED || 0);
+            });
+            totals.total = totals.open + totals.inProgress + totals.completed;
+
+            return {
+                functionId: fn._id,
+                slug,
+                name: fn.name,
+                orderIndex: fn.orderIndex ?? 0,
+                metrics: totals,
+            };
+        });
+    }
+
+    static async getCompanyFunctionComponents(companyId: string) {
+        const companyObjectId = new mongoose.Types.ObjectId(companyId);
+        const functions = await CompanyFunctionModel.find({ isActive: true })
+            .select("_id slug name orderIndex")
+            .lean();
+
+        const associates = await AssociateModel.find({
+            associateCompany: companyObjectId,
+            isDeleted: { $ne: true },
+        })
+            .select("_id")
+            .lean();
+        const associateIds = associates.map((row: any) => row._id);
+
+        const emptyMetrics = {
+            total: 0,
+            open: 0,
+            inProgress: 0,
+            completed: 0,
+        };
+
+        const allMappedTypes = Array.from(
+            new Set(Object.values(AnalyticsService.COMPANY_FUNCTION_TYPE_MAP).flat())
+        );
+
+        const counts = associateIds.length
+            ? await EnquiryModel.aggregate([
+                {
+                    $match: {
+                        $or: [
+                            { buyerAssociateId: { $in: associateIds } },
+                            { sellerAssociateId: { $in: associateIds } },
+                            { mediatorAssociateId: { $in: associateIds } },
+                        ],
+                    },
+                },
+                { $unwind: "$executionInquiries" },
+                {
+                    $group: {
+                        _id: {
+                            type: "$executionInquiries.type",
+                            status: "$executionInquiries.status",
+                        },
+                        count: { $sum: 1 },
+                    },
+                },
+            ])
+            : [];
+
+        const byType = new Map<string, Record<string, number>>();
+        counts.forEach((row: any) => {
+            const type = String(row?._id?.type || "");
+            const status = String(row?._id?.status || "");
+            if (!type || !status) return;
+            if (!byType.has(type)) {
+                byType.set(type, { OPEN: 0, IN_PROGRESS: 0, COMPLETED: 0 });
+            }
+            const current = byType.get(type)!;
+            current[status] = (current[status] || 0) + Number(row?.count || 0);
+        });
+
+        const recentExecution = associateIds.length && allMappedTypes.length
+            ? await EnquiryModel.aggregate([
+                {
+                    $match: {
+                        $or: [
+                            { buyerAssociateId: { $in: associateIds } },
+                            { sellerAssociateId: { $in: associateIds } },
+                            { mediatorAssociateId: { $in: associateIds } },
+                        ],
+                    },
+                },
+                { $unwind: "$executionInquiries" },
+                {
+                    $match: {
+                        "executionInquiries.type": { $in: allMappedTypes },
+                    },
+                },
+                {
+                    $addFields: {
+                        executionSortDate: {
+                            $ifNull: ["$executionInquiries.createdAt", "$createdAt"],
+                        },
+                    },
+                },
+                { $sort: { executionSortDate: -1 } },
+                { $limit: 200 },
+                {
+                    $project: {
+                        enquiryId: "$_id",
+                        type: "$executionInquiries.type",
+                        status: "$executionInquiries.status",
+                        title: "$executionInquiries.title",
+                        createdAt: "$executionSortDate",
+                    },
+                },
+            ])
+            : [];
+
+        const orders = await OrderModel.find({ associateCompanyId: companyObjectId })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select("_id status createdAt externalProduct")
+            .lean();
+
+        return functions.map((fn: any) => {
+            const slug = String(fn?.slug || "");
+            const mappedTypes = AnalyticsService.COMPANY_FUNCTION_TYPE_MAP[slug] || [];
+            const totals = { ...emptyMetrics };
+            mappedTypes.forEach((type) => {
+                const counters = byType.get(type);
+                if (!counters) return;
+                totals.open += Number(counters.OPEN || 0);
+                totals.inProgress += Number(counters.IN_PROGRESS || 0);
+                totals.completed += Number(counters.COMPLETED || 0);
+            });
+            totals.total = totals.open + totals.inProgress + totals.completed;
+
+            const recentExecutionInquiries = mappedTypes.length
+                ? recentExecution
+                    .filter((item: any) => mappedTypes.includes(String(item?.type || "")))
+                    .slice(0, 5)
+                : [];
+
+            const recentOrders = orders.map((order: any) => ({
+                orderId: order?._id,
+                status: order?.status || "",
+                createdAt: order?.createdAt,
+                productName: order?.externalProduct?.name || "",
+            }));
+
+            return {
+                functionId: fn._id,
+                slug,
+                name: fn.name,
+                orderIndex: fn.orderIndex ?? 0,
+                metrics: totals,
+                recentExecutionInquiries,
+                recentOrders,
+            };
+        });
+    }
+
+    static async getGlobalCompanyFunctionComponents() {
+        const functions = await CompanyFunctionModel.find({ isActive: true })
+            .select("_id slug name orderIndex")
+            .lean();
+
+        const emptyMetrics = {
+            total: 0,
+            open: 0,
+            inProgress: 0,
+            completed: 0,
+        };
+
+        const allMappedTypes = Array.from(
+            new Set(Object.values(AnalyticsService.COMPANY_FUNCTION_TYPE_MAP).flat())
+        );
+
+        const counts = await EnquiryModel.aggregate([
+            { $unwind: "$executionInquiries" },
+            {
+                $group: {
+                    _id: {
+                        type: "$executionInquiries.type",
+                        status: "$executionInquiries.status",
+                    },
+                    count: { $sum: 1 },
+                },
+            },
+        ]);
+
+        const byType = new Map<string, Record<string, number>>();
+        counts.forEach((row: any) => {
+            const type = String(row?._id?.type || "");
+            const status = String(row?._id?.status || "");
+            if (!type || !status) return;
+            if (!byType.has(type)) {
+                byType.set(type, { OPEN: 0, IN_PROGRESS: 0, COMPLETED: 0 });
+            }
+            const current = byType.get(type)!;
+            current[status] = (current[status] || 0) + Number(row?.count || 0);
+        });
+
+        const recentExecution = allMappedTypes.length
+            ? await EnquiryModel.aggregate([
+                { $unwind: "$executionInquiries" },
+                {
+                    $match: {
+                        "executionInquiries.type": { $in: allMappedTypes },
+                    },
+                },
+                {
+                    $addFields: {
+                        executionSortDate: {
+                            $ifNull: ["$executionInquiries.createdAt", "$createdAt"],
+                        },
+                    },
+                },
+                { $sort: { executionSortDate: -1 } },
+                { $limit: 200 },
+                {
+                    $project: {
+                        enquiryId: "$_id",
+                        type: "$executionInquiries.type",
+                        status: "$executionInquiries.status",
+                        title: "$executionInquiries.title",
+                        createdAt: "$executionSortDate",
+                    },
+                },
+            ])
+            : [];
+
+        const orders = await OrderModel.find({})
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select("_id status createdAt externalProduct")
+            .lean();
+
+        return functions.map((fn: any) => {
+            const slug = String(fn?.slug || "");
+            const mappedTypes = AnalyticsService.COMPANY_FUNCTION_TYPE_MAP[slug] || [];
+            const totals = { ...emptyMetrics };
+            mappedTypes.forEach((type) => {
+                const counters = byType.get(type);
+                if (!counters) return;
+                totals.open += Number(counters.OPEN || 0);
+                totals.inProgress += Number(counters.IN_PROGRESS || 0);
+                totals.completed += Number(counters.COMPLETED || 0);
+            });
+            totals.total = totals.open + totals.inProgress + totals.completed;
+
+            const recentExecutionInquiries = mappedTypes.length
+                ? recentExecution
+                    .filter((item: any) => mappedTypes.includes(String(item?.type || "")))
+                    .slice(0, 5)
+                : [];
+
+            const recentOrders = orders.map((order: any) => ({
+                orderId: order?._id,
+                status: order?.status || "",
+                createdAt: order?.createdAt,
+                productName: order?.externalProduct?.name || "",
+            }));
+
+            const placeholderRecommended = totals.total === 0
+                && recentExecutionInquiries.length === 0
+                && recentOrders.length === 0;
+
+            return {
+                functionId: fn._id,
+                slug,
+                name: fn.name,
+                orderIndex: fn.orderIndex ?? 0,
+                metrics: totals,
+                recentExecutionInquiries,
+                recentOrders,
+                placeholderRecommended,
+            };
+        });
     }
 }

@@ -13,11 +13,13 @@ import { FlowRuleModel } from "../database/models/flowRule";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { sendTradeDocumentEmail } from "../utils/mailer";
 import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEmail";
+import { getCalculationConfig } from "../utils/calculationConfig";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
 const isOperatorRole = (role: string) => role === "operator" || role === "team";
 const isAssociateRole = (role: string) => role === "associate";
+const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const typeShort: Record<string, string> = {
   LOI: "LOI",
@@ -168,7 +170,16 @@ const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationI
   const ratePerKg = Number((populated as any).rate || (populated as any)?.variantRateId?.rate || 0);
   const commissionPerKg = Number(populated.adminCommission || 0) + Number(populated.mediatorCommission || 0);
   const quantityMT = Number(populated.quantity || 0);
-  const { qtyKg, subtotal, commissionTotal, grandTotal } = computeTotals(ratePerKg, commissionPerKg, quantityMT, 0);
+  const baseTotals = computeTotals(ratePerKg, commissionPerKg, quantityMT, 0);
+  const config = await getCalculationConfig();
+  const gstPercent = Number(config.gstPercent || 0);
+  const taxAmount = gstPercent > 0
+    ? round2((baseTotals.subtotal + baseTotals.commissionTotal) * (gstPercent / 100))
+    : 0;
+  const subtotal = baseTotals.subtotal;
+  const commissionTotal = baseTotals.commissionTotal;
+  const qtyKg = baseTotals.qtyKg;
+  const grandTotal = subtotal + commissionTotal + taxAmount;
 
   const productVariant = (populated as any)?.variantRateId?.productVariant;
   const productVariantId = productVariant?._id || null;
@@ -217,7 +228,7 @@ const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationI
       currency: "INR",
       subtotal,
       commissionTotal,
-      taxAmount: 0,
+      taxAmount,
       grandTotal,
     },
     terms: {

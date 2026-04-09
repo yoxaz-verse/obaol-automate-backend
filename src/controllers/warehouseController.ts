@@ -5,6 +5,7 @@ import { InventoryModel } from "../database/models/inventory";
 import { WarehouseMovementLogModel } from "../database/models/warehouseMovementLog";
 import { StorageChargeModel } from "../database/models/storageCharge";
 import { AssociateModel } from "../database/models/associate";
+import { getCalculationConfig } from "../utils/calculationConfig";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -84,7 +85,11 @@ export class WarehouseController {
       const name = String(req.body?.name || "").trim();
       const address = String(req.body?.address || "").trim();
       const category = String(req.body?.category || "GENERAL").trim().toUpperCase();
-      const storageRatePerUnit = toNumber(req.body?.storageRatePerUnit);
+      let storageRatePerUnit = toNumber(req.body?.storageRatePerUnit);
+      if (storageRatePerUnit === null) {
+        const config = await getCalculationConfig();
+        storageRatePerUnit = Number(config.warehouseStorageRateDefault || 0);
+      }
       const unit = normalizeUnit(req.body?.unit, "MT");
       const allowedCategoryIds = toObjectIdArray(req.body?.allowedCategoryIds);
       const location = toLocation(req.body?.location);

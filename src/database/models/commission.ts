@@ -5,7 +5,7 @@ const CommissionSchema: Schema = new Schema(
   {
     dealId: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
     operatorId: { type: Schema.Types.ObjectId, ref: "Operator", required: true, index: true },
-    type: { type: String, enum: ["closer", "portfolio", "leadership"], required: true },
+    type: { type: String, enum: ["closer", "portfolio", "leadership", "procurement", "handler"], required: true },
     level: { type: Number, default: null },
     percent: { type: Number, required: true },
     amount: { type: Number, required: true },

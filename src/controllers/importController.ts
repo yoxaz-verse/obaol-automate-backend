@@ -10,6 +10,7 @@ import { ProductVariantModel } from "../database/models/productVariant";
 import { InquiryModel } from "../database/models/enquiry";
 import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
 import { createInquiryEvent, InquiryEventType } from "../database/models/InquiryEvent";
+import { getCalculationConfig } from "../utils/calculationConfig";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -127,7 +128,15 @@ export class ImportController {
       const totalQuantity = toNumber(req.body?.totalQuantity);
       const price = toNumber(req.body?.price);
       const adminCommissionRaw = toNumber(req.body?.adminCommission);
-      const adminCommission = (isAdminRole(role) || isOperatorRole(role)) ? (adminCommissionRaw ?? 0) : 0;
+      let adminCommission = 0;
+      if (isAdminRole(role) || isOperatorRole(role)) {
+        if (req.body?.adminCommission === undefined || req.body?.adminCommission === null || req.body?.adminCommission === "") {
+          const config = await getCalculationConfig();
+          adminCommission = Number(config.importAdminCommissionDefault || 0);
+        } else {
+          adminCommission = adminCommissionRaw ?? 0;
+        }
+      }
       const quantityUnit = normalizeUnit(req.body?.quantityUnit, "MT");
       const priceUnit = normalizeUnit(req.body?.priceUnit, "KG");
 

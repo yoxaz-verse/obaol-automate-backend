@@ -89,6 +89,7 @@ export interface IInquiry extends Document {
   assignedOperatorId?: Types.ObjectId | null;
   supplierOperatorId?: Types.ObjectId | null;
   dealCloserOperatorId?: Types.ObjectId | null;
+  handlerOperatorId?: Types.ObjectId | null;
   order?: Types.ObjectId | null;
   responsibilityPlan?: {
     procurementBy?: "buyer" | "seller" | "obaol";
@@ -188,6 +189,7 @@ export interface ICreateInquiry {
   assignedOperatorId?: Types.ObjectId | null;
   supplierOperatorId?: Types.ObjectId | null;
   dealCloserOperatorId?: Types.ObjectId | null;
+  handlerOperatorId?: Types.ObjectId | null;
   preferredIncoterm?: Types.ObjectId | null;
   paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;
@@ -222,6 +224,7 @@ export interface IUpdateInquiry {
   assignedOperatorId?: Types.ObjectId | null;
   supplierOperatorId?: Types.ObjectId | null;
   dealCloserOperatorId?: Types.ObjectId | null;
+  handlerOperatorId?: Types.ObjectId | null;
   preferredIncoterm?: Types.ObjectId | null;
   paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;

@@ -7,7 +7,7 @@ import { OperatorHierarchyService } from "./operatorHierarchy.service";
 
 type PayoutRow = {
   operatorId: mongoose.Types.ObjectId;
-  type: "closer" | "portfolio" | "leadership";
+  type: "closer" | "portfolio" | "leadership" | "procurement" | "handler";
   level: number | null;
   percent: number;
   amount: number;
@@ -18,6 +18,8 @@ const isCompletedStatus = (status: unknown) => String(status || "").trim().toUpp
 
 const DEFAULT_RULE = {
   poolPercent: 30,
+  procurementPercent: 10,
+  handlerPercent: 10,
   closerPercent: 40,
   portfolioPercent: 30,
   leadershipL1Percent: 12,
@@ -34,6 +36,8 @@ const resolveCommissionRule = async () => {
   if (!activeRule) return DEFAULT_RULE;
   return {
     poolPercent: Number(activeRule.poolPercent ?? DEFAULT_RULE.poolPercent),
+    procurementPercent: Number(activeRule.procurementPercent ?? DEFAULT_RULE.procurementPercent),
+    handlerPercent: Number(activeRule.handlerPercent ?? DEFAULT_RULE.handlerPercent),
     closerPercent: Number(activeRule.closerPercent ?? DEFAULT_RULE.closerPercent),
     portfolioPercent: Number(activeRule.portfolioPercent ?? DEFAULT_RULE.portfolioPercent),
     leadershipL1Percent: Number(activeRule.leadershipL1Percent ?? DEFAULT_RULE.leadershipL1Percent),
@@ -52,7 +56,7 @@ export class CommissionEngine {
     }
 
     const order = await OrderModel.findById(orderId)
-      .select("_id status profit closedByOperator associateCompanyId commissionProcessedAt")
+      .select("_id status profit closedByOperator associateCompanyId commissionProcessedAt procurementOperatorId handlerOperatorId handlerBuyerRating handlerSellerRating")
       .lean();
 
     if (!order) {
@@ -72,6 +76,10 @@ export class CommissionEngine {
     const profit = Number((order as any).profit);
     const closedByOperator = (order as any).closedByOperator;
     const associateCompanyId = (order as any).associateCompanyId;
+    const procurementOperatorId = (order as any).procurementOperatorId;
+    const handlerOperatorId = (order as any).handlerOperatorId;
+    const handlerBuyerRating = Number((order as any).handlerBuyerRating || 0);
+    const handlerSellerRating = Number((order as any).handlerSellerRating || 0);
 
     if (!Number.isFinite(profit)) {
       const err: any = new Error("Completed order requires numeric profit.");
@@ -127,6 +135,30 @@ export class CommissionEngine {
       percent: rule.portfolioPercent,
       amount: round2(commissionPool * (rule.portfolioPercent / 100)),
     });
+
+    if (procurementOperatorId && Number(rule.procurementPercent) > 0) {
+      payouts.push({
+        operatorId: new mongoose.Types.ObjectId(String(procurementOperatorId)),
+        type: "procurement",
+        level: null,
+        percent: Number(rule.procurementPercent),
+        amount: round2(profit * (Number(rule.procurementPercent) / 100)),
+      });
+    }
+
+    if (handlerOperatorId && Number(rule.handlerPercent) > 0) {
+      const handlerScore = Math.max(0, handlerBuyerRating + handlerSellerRating);
+      const handlerEffectivePercent = Math.min(Number(rule.handlerPercent), handlerScore);
+      if (handlerEffectivePercent > 0) {
+        payouts.push({
+          operatorId: new mongoose.Types.ObjectId(String(handlerOperatorId)),
+          type: "handler",
+          level: null,
+          percent: round2(handlerEffectivePercent),
+          amount: round2(profit * (handlerEffectivePercent / 100)),
+        });
+      }
+    }
 
     const leadershipChain = await OperatorHierarchyService.getLeadershipChain(String(portfolioOwner));
     if (leadershipChain.length > 0) {

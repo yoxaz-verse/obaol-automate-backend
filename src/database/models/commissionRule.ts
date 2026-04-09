@@ -7,6 +7,8 @@ const CommissionRuleSchema: Schema = new Schema(
     isActive: { type: Boolean, default: true },
     isDefault: { type: Boolean, default: false },
     poolPercent: { type: Number, min: 0, max: 100, default: 30 },
+    procurementPercent: { type: Number, min: 0, max: 100, default: 10 },
+    handlerPercent: { type: Number, min: 0, max: 100, default: 10 },
     closerPercent: { type: Number, min: 0, max: 100, default: 40 },
     portfolioPercent: { type: Number, min: 0, max: 100, default: 30 },
     leadershipL1Percent: { type: Number, min: 0, max: 100, default: 12 },

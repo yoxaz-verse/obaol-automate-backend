@@ -337,6 +337,12 @@ const InquirySchema: Schema = new Schema(
             default: null,
             index: true
         },
+        handlerOperatorId: {
+            type: Schema.Types.ObjectId,
+            ref: "Operator",
+            default: null,
+            index: true
+        },
         order: {
             type: Schema.Types.ObjectId,
             ref: "Order",

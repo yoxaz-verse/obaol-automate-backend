@@ -5,6 +5,8 @@ export interface ICommissionRule extends Document {
   isActive?: boolean;
   isDefault?: boolean;
   poolPercent: number;
+  procurementPercent: number;
+  handlerPercent: number;
   closerPercent: number;
   portfolioPercent: number;
   leadershipL1Percent: number;

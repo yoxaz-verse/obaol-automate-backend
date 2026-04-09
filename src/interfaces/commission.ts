@@ -1,6 +1,6 @@
 import { Document, Types } from "mongoose";
 
-export type CommissionType = "closer" | "portfolio" | "leadership";
+export type CommissionType = "closer" | "portfolio" | "leadership" | "procurement" | "handler";
 
 export interface ICommission extends Document {
   dealId: Types.ObjectId;

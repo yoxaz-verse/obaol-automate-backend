@@ -4,8 +4,8 @@ import { AssociateModel } from "./associate";
 import { Types } from "mongoose";
 import { RelationshipSync } from "../../core/behaviors/relationshipSync";
 import { TimeCalculations } from "../../core/behaviors/timeCalculations";
+import { getVariantRateCommissionPercent } from "../../utils/calculationConfig";
 
-const COMMISSION_RATE = 0.025;
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const VariantRateSchema: Schema = new Schema({
@@ -77,12 +77,18 @@ VariantRateSchema.pre<IVariantRate>("save", async function (next) {
     next();
   }
 });
-VariantRateSchema.pre<IVariantRate>("save", function (next) {
-  if (this.isModified("rate") || this.commission === undefined || this.commission === null) {
-    const nextCommission = round2(Number(this.rate || 0) * COMMISSION_RATE);
-    this.commission = nextCommission;
+VariantRateSchema.pre<IVariantRate>("save", async function (next) {
+  try {
+    if (this.isModified("rate") || this.commission === undefined || this.commission === null) {
+      const commissionPercent = await getVariantRateCommissionPercent();
+      const commissionRate = Number.isFinite(commissionPercent) ? commissionPercent / 100 : 0.025;
+      const nextCommission = round2(Number(this.rate || 0) * commissionRate);
+      this.commission = nextCommission;
+    }
+    next();
+  } catch {
+    next();
   }
-  next();
 });
 VariantRateSchema.pre<IVariantRate>("save", function (next) {
   if (this.isModified("isLive")) {

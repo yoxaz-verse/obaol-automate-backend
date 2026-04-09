@@ -75,6 +75,7 @@ export function canAccessInquiry(
         return (
             getAttrId((inquiry as any).supplierOperatorId) === userId.toString() ||
             getAttrId((inquiry as any).dealCloserOperatorId) === userId.toString() ||
+            getAttrId((inquiry as any).handlerOperatorId) === userId.toString() ||
             getAttrId((inquiry as any).createdBy) === userId.toString()
         );
     }
@@ -140,6 +141,7 @@ export function filterInquiryFields(
         ((userRole === UserRole.OPERATOR || roleLower === "operator" || roleLower === "team") &&
             (getAttrId((inquiry as any).supplierOperatorId) === context.userId.toString() ||
                 getAttrId((inquiry as any).dealCloserOperatorId) === context.userId.toString() ||
+                getAttrId((inquiry as any).handlerOperatorId) === context.userId.toString() ||
                 getAttrId((inquiry as any).createdBy) === context.userId.toString()))
     ) {
         return inquiry;
@@ -157,6 +159,7 @@ export function filterInquiryFields(
                 mediatorAssociateId,
                 supplierOperatorId,
                 dealCloserOperatorId,
+                handlerOperatorId,
                 ...safeFields
             } = inquiry;
             return {
@@ -165,6 +168,7 @@ export function filterInquiryFields(
                 notes: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
+                handlerOperatorId: undefined,
                 sellerAssociateId: undefined,
                 mediatorAssociateId: undefined
             };
@@ -176,6 +180,7 @@ export function filterInquiryFields(
                 notes,
                 supplierOperatorId,
                 dealCloserOperatorId,
+                handlerOperatorId,
                 specifications,
                 buyerAssociateId,
                 mediatorAssociateId,
@@ -186,6 +191,7 @@ export function filterInquiryFields(
                 notes: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
+                handlerOperatorId: undefined,
                 specifications: undefined,
                 buyerAssociateId: undefined,
                 mediatorAssociateId: undefined
@@ -198,6 +204,7 @@ export function filterInquiryFields(
                 notes,
                 supplierOperatorId,
                 dealCloserOperatorId,
+                handlerOperatorId,
                 specifications,
                 buyerAssociateId,
                 sellerAssociateId,
@@ -208,6 +215,7 @@ export function filterInquiryFields(
                 notes: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
+                handlerOperatorId: undefined,
                 specifications: undefined,
                 buyerAssociateId: undefined,
                 sellerAssociateId: undefined
@@ -272,6 +280,7 @@ export function buildInquiryAccessFilter(
             $or: [
                 { supplierOperatorId: userId },
                 { dealCloserOperatorId: userId },
+                { handlerOperatorId: userId },
                 { createdBy: userId }
             ]
         };

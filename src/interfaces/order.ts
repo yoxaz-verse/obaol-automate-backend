@@ -101,6 +101,10 @@ export interface IOrder extends Document {
     incotermId?: Types.ObjectId | null;
     supplierOperatorId?: Types.ObjectId | null;
     dealCloserOperatorId?: Types.ObjectId | null;
+    procurementOperatorId?: Types.ObjectId | null;
+    handlerOperatorId?: Types.ObjectId | null;
+    handlerBuyerRating?: number | null;
+    handlerSellerRating?: number | null;
     paymentPlan?: IOrderPaymentPlan | null;
     trackingId?: string;
     logistics: ILogistics[];
@@ -135,6 +139,10 @@ export interface ICreateOrder {
     incotermId?: Types.ObjectId | null;
     supplierOperatorId?: Types.ObjectId | null;
     dealCloserOperatorId?: Types.ObjectId | null;
+    procurementOperatorId?: Types.ObjectId | null;
+    handlerOperatorId?: Types.ObjectId | null;
+    handlerBuyerRating?: number | null;
+    handlerSellerRating?: number | null;
     paymentPlan?: IOrderPaymentPlan | null;
     trackingId?: string;
     logistics?: ILogistics[];
@@ -164,6 +172,10 @@ export interface IUpdateOrder {
     incotermId?: Types.ObjectId | null;
     supplierOperatorId?: Types.ObjectId | null;
     dealCloserOperatorId?: Types.ObjectId | null;
+    procurementOperatorId?: Types.ObjectId | null;
+    handlerOperatorId?: Types.ObjectId | null;
+    handlerBuyerRating?: number | null;
+    handlerSellerRating?: number | null;
     paymentPlan?: IOrderPaymentPlan | null;
     trackingId?: string;
     logistics?: ILogistics[];

@@ -10,6 +10,11 @@ router.get("/obaol-company", authenticateToken, (req, res, next) =>
 router.post("/obaol-company", authenticateToken, (req, res, next) =>
   systemConfigController.setObaolCompany(req, res, next)
 );
+router.get("/calculations", authenticateToken, (req, res, next) =>
+  systemConfigController.getCalculations(req, res, next)
+);
+router.post("/calculations", authenticateToken, (req, res, next) =>
+  systemConfigController.setCalculations(req, res, next)
+);
 
 export default router;
-

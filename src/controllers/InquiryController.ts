@@ -169,6 +169,7 @@ export class InquiryController {
                 mediatorAssociateId,
                 supplierOperatorId,
                 dealCloserOperatorId,
+                handlerOperatorId,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -228,6 +229,7 @@ export class InquiryController {
                 mediatorAssociateId,
                 supplierOperatorId: resolvedSupplierOperatorId,
                 dealCloserOperatorId: dealCloserOperatorId || null,
+                handlerOperatorId: req.user?.role === "Admin" ? (handlerOperatorId || null) : null,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -294,7 +296,8 @@ export class InquiryController {
                     populate: { path: "associateCompany", select: "name" }
                 },
                 { path: "supplierOperatorId", select: "name email" },
-                { path: "dealCloserOperatorId", select: "name email" }
+                { path: "dealCloserOperatorId", select: "name email" },
+                { path: "handlerOperatorId", select: "name email" }
             ]);
 
             await this.notifyInquiryParticipants({
@@ -362,7 +365,8 @@ export class InquiryController {
                 (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
                 (
                     (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
-                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
+                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).handlerOperatorId?.toString() === req.user!.id
                 );
 
             let isSeller = false;
@@ -1018,6 +1022,7 @@ export class InquiryController {
                             subflowInstances: inlandTransportInstances,
                             supplierOperatorId: (inquiry as any).supplierOperatorId || null,
                             dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,
+                            handlerOperatorId: (inquiry as any).handlerOperatorId || null,
                         });
                         await InventoryReservationModel.updateMany(
                             { enquiryId: inquiry._id, status: "RESERVED", isDeleted: { $ne: true } },
@@ -1072,7 +1077,8 @@ export class InquiryController {
                 (req.user?.role === UserRole.OPERATOR || req.user?.role === "team" || role === "operator" || role === "team") &&
                 (
                     (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
-                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
+                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).handlerOperatorId?.toString() === req.user!.id
                 );
             let isSeller = false;
             if (req.user?.role === UserRole.ASSOCIATE && context.associateId) {
@@ -1585,9 +1591,10 @@ export class InquiryController {
             );
             const supplierOperatorId = (inquiry as any).supplierOperatorId?.toString() || "";
             const dealCloserOperatorId = (inquiry as any).dealCloserOperatorId?.toString() || "";
+            const handlerOperatorId = (inquiry as any).handlerOperatorId?.toString() || "";
             const isAssignedOperator = Boolean(
                 isOperatorUser &&
-                (supplierOperatorId === req.user!.id || dealCloserOperatorId === req.user!.id)
+                (supplierOperatorId === req.user!.id || dealCloserOperatorId === req.user!.id || handlerOperatorId === req.user!.id)
             );
             const bidCompanyOverride = String(bidCompanyId || "").trim();
             const isAdminBid = (isAdmin || isAssignedOperator) && bidCompanyOverride;
@@ -1973,6 +1980,7 @@ export class InquiryController {
                         },
                     { path: "supplierOperatorId", select: "name email" },
                     { path: "dealCloserOperatorId", select: "name email" },
+                    { path: "handlerOperatorId", select: "name email" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -2129,6 +2137,28 @@ export class InquiryController {
             }
             if (typeof req.body?.dealCloserOperatorId !== "undefined") {
                 (inquiry as any).dealCloserOperatorId = req.body.dealCloserOperatorId || null;
+            }
+            if (typeof req.body?.handlerOperatorId !== "undefined") {
+                const roleLower = String(req.user?.role || "").toLowerCase();
+                const handlerId = req.body.handlerOperatorId || null;
+                if (roleLower === "admin") {
+                    (inquiry as any).handlerOperatorId = handlerId;
+                } else {
+                    const supplierId = String((inquiry as any).supplierOperatorId || "");
+                    const closerId = String((inquiry as any).dealCloserOperatorId || "");
+                    const actorId = String(req.user?.id || "");
+                    const existingHandlerId = String((inquiry as any).handlerOperatorId || "");
+                    if (existingHandlerId && existingHandlerId !== actorId) {
+                        return res.status(403).json({ success: false, message: "Only admins can override the current handler." });
+                    }
+                    if (handlerId && String(handlerId) !== actorId) {
+                        return res.status(403).json({ success: false, message: "Only admins can assign other operators as handler." });
+                    }
+                    if (actorId !== supplierId && actorId !== closerId) {
+                        return res.status(403).json({ success: false, message: "Only the supplier owner or deal closer can volunteer as handler." });
+                    }
+                    (inquiry as any).handlerOperatorId = actorId || null;
+                }
             }
             if (typeof req.body?.importDeliveryMode !== "undefined") {
                 const isImport = String((inquiry as any)?.sourceType || "").toUpperCase() === "IMPORT" || Boolean((inquiry as any)?.importListingId);
@@ -2311,16 +2341,17 @@ export class InquiryController {
                         : null;
                     const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
                     const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
-                    const createdOrder = await OrderModel.create({
-                        enquiry: inquiry._id,
-                        responsibilities: responsibilityPlan,
-                        paymentTermId,
-                        incotermId,
-                        paymentPlan,
-                        subflowInstances: inlandTransportInstances,
-                        supplierOperatorId: (inquiry as any).supplierOperatorId || null,
-                        dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,
-                    });
+                        const createdOrder = await OrderModel.create({
+                            enquiry: inquiry._id,
+                            responsibilities: responsibilityPlan,
+                            paymentTermId,
+                            incotermId,
+                            paymentPlan,
+                            subflowInstances: inlandTransportInstances,
+                            supplierOperatorId: (inquiry as any).supplierOperatorId || null,
+                            dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,
+                            handlerOperatorId: (inquiry as any).handlerOperatorId || null,
+                        });
                     await InventoryReservationModel.updateMany(
                         { enquiryId: inquiry._id, status: "RESERVED", isDeleted: { $ne: true } },
                         { $set: { orderId: createdOrder._id } }
@@ -2445,7 +2476,8 @@ export class InquiryController {
                 (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
                 (
                     (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
-                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id
+                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id ||
+                    (inquiry as any).handlerOperatorId?.toString() === req.user!.id
                 );
 
             if (!isAdmin && !isAssignedOperator) {

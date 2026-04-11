@@ -27,28 +27,31 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   let onboardingComplete = false;
   let registrationStatus: string | null = null;
   let rejectionReason: string | null = null;
+  let pendingSince: Date | null = null;
   let associate: any = null;
   let operator: any = null;
 
   if (roleLower === "associate") {
     associate = await AssociateModel.findById(req.user.id)
-      .select("name email phone associateCompany dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes")
+      .select("name email phone associateCompany dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt")
       .lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
     dashboardTutorialStatus = associate?.dashboardTutorialStatus || "PENDING";
     onboardingComplete = Boolean(associate?.onboardingComplete);
     registrationStatus = associate?.registrationStatus ? String(associate.registrationStatus) : null;
     rejectionReason = associate?.reviewNotes ? String(associate.reviewNotes) : null;
+    pendingSince = associate?.approvalRequestedAt || associate?.createdAt || null;
   } else if (roleLower === "operator" || roleLower === "team") {
     const companies = await AssociateCompanyModel.find({ assignedOperator: req.user.id }).select("_id").limit(2).lean();
     if (companies.length === 1) {
       associateCompanyId = String(companies[0]._id);
       companyInterestsConfigured = false;
     }
-    operator = await OperatorModel.findById(req.user.id).select("name email phone onboardingComplete registrationStatus reviewNotes").lean();
+    operator = await OperatorModel.findById(req.user.id).select("name email phone onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt").lean();
     onboardingComplete = Boolean(operator?.onboardingComplete);
     registrationStatus = operator?.registrationStatus ? String(operator.registrationStatus) : null;
     rejectionReason = operator?.reviewNotes ? String(operator.reviewNotes) : null;
+    pendingSince = operator?.approvalRequestedAt || operator?.createdAt || null;
   }
 
   if (associateCompanyId) {
@@ -78,6 +81,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       onboardingComplete,
       registrationStatus,
       rejectionReason,
+      pendingSince,
       verified: {
         email: verificationRecord?.verified === true,
         phone: false, // phone/gst can be added later if needed

@@ -63,11 +63,24 @@ const DRAFT_PHONE_E164 = "+910000000000";
 const DRAFT_PHONE_COUNTRY = "+91";
 const DRAFT_PHONE_NATIONAL = "0000000000";
 const DRAFT_OPERATOR_ADDRESS = "Pending";
+const BLOCKED_ACCOUNT_MESSAGE = "This account is blocked from OBAOL ecosystem. Please contact support.";
+const PENDING_APPROVAL_MESSAGE = "Account pending admin approval.";
 
 const deriveDisplayName = (email: string) => {
     const local = String(email || "").split("@")[0] || "New User";
     const cleaned = local.replace(/[._-]+/g, " ").trim();
     return cleaned ? cleaned.replace(/\b\w/g, (c) => c.toUpperCase()) : "New User";
+};
+
+const sendRejectedAccountResponse = (res: Response, userDoc?: any) => {
+    const notes = String(userDoc?.reviewNotes || "").trim();
+    return res.status(403).json({
+        success: false,
+        status: "rejected",
+        isRejected: true,
+        message: BLOCKED_ACCOUNT_MESSAGE,
+        ...(notes ? { rejectionReason: notes } : {}),
+    });
 };
 
 const issueAuthCookie = (res: Response, userForToken: any, rememberMe = false) => {
@@ -291,8 +304,11 @@ export const authenticateUser = async (req: Request, res: Response) => {
         if (roleLower === "associate") {
             const onboardingComplete = (user as any).onboardingComplete === true;
             const registrationStatus = String((user as any).registrationStatus || "PENDING_REVIEW").toUpperCase();
+            if (registrationStatus === "REJECTED") {
+                return sendRejectedAccountResponse(res, user);
+            }
             if (onboardingComplete && (registrationStatus !== "APPROVED" || user.isActive === false)) {
-                return res.status(401).json({ message: "Account pending admin approval." });
+                return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
             }
             const linkedCompanyId = (user as any).associateCompany;
             if (linkedCompanyId) {
@@ -305,15 +321,17 @@ export const authenticateUser = async (req: Request, res: Response) => {
                     (company as any).isApproved !== true
                 ) {
                     if (onboardingComplete) {
-                        return res.status(401).json({ message: "Account pending admin approval." });
+                        return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
                     }
                 }
             }
         } else if (roleLower === "operator" || roleLower === "team" || roleLower === "warehouse_operator" || roleLower === "warehouse-operator" || roleLower === "warehouseoperator") {
-            const onboardingComplete = (user as any).onboardingComplete === true;
             const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
-            if (onboardingComplete && (registrationStatus !== "APPROVED" || user.isActive === false)) {
-                return res.status(401).json({ message: "Account pending admin approval." });
+            if (registrationStatus === "REJECTED") {
+                return sendRejectedAccountResponse(res, user);
+            }
+            if (registrationStatus === "APPROVED" && user.isActive === false) {
+                return res.status(401).json({ message: "Account is inactive. Please contact support." });
             }
         } else if (user.isActive === false) {
             return res.status(401).json({ message: "Account is inactive. Please contact support." });
@@ -362,7 +380,8 @@ export const authenticateUser = async (req: Request, res: Response) => {
                 id: user._id,
                 email: user.email,
                 name: user.name,
-                role: normalizedRole
+                role: normalizedRole,
+                registrationStatus: (user as any).registrationStatus || null,
             }
         });
 
@@ -470,19 +489,19 @@ export const getEmailStatus = async (req: Request, res: Response) => {
         if (!email) {
             return res.status(400).json({ success: false, message: "Email is required" });
         }
-        const [admin, projectManager, inventoryManager, operator, associate] = await Promise.all([
+        const [admin, projectManager, inventoryManager, operatorExisting, associateExisting] = await Promise.all([
             AdminModel.findOne({ email }).select("_id").lean(),
             ProjectManagerModel.findOne({ email }).select("_id").lean(),
             InventoryManagerModel.findOne({ email }).select("_id").lean(),
-            OperatorModel.findOne({ email }).select("_id").lean(),
-            AgentModel.findOne({ email }).select("_id").lean(),
+            OperatorModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
+            AgentModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
         ]);
         const role =
             admin ? "Admin" :
                 projectManager ? "ProjectManager" :
                     inventoryManager ? "InventoryManager" :
-                        operator ? "Operator" :
-                            associate ? "Associate" : undefined;
+                        operatorExisting ? "Operator" :
+                            associateExisting ? "Associate" : undefined;
         return res.json({ success: true, exists: Boolean(role), role });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Unable to verify email." });
@@ -509,19 +528,19 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "Google email is required." });
         }
 
-        const [admin, projectManager, inventoryManager, operator, associate] = await Promise.all([
+        const [admin, projectManager, inventoryManager, operatorExisting, associateExisting] = await Promise.all([
             AdminModel.findOne({ email }).select("_id").lean(),
             ProjectManagerModel.findOne({ email }).select("_id").lean(),
             InventoryManagerModel.findOne({ email }).select("_id").lean(),
-            OperatorModel.findOne({ email }).select("_id").lean(),
-            AgentModel.findOne({ email }).select("_id").lean(),
+            OperatorModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
+            AgentModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
         ]);
         const existingRole =
             admin ? "Admin" :
                 projectManager ? "ProjectManager" :
                     inventoryManager ? "InventoryManager" :
-                        operator ? "Operator" :
-                            associate ? "Associate" : null;
+                        operatorExisting ? "Operator" :
+                            associateExisting ? "Associate" : null;
 
         if (existingRole && existingRole !== role) {
             return res.status(409).json({
@@ -541,8 +560,11 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             const roleLower = String(role || "").toLowerCase();
             if (roleLower === "associate") {
                 const registrationStatus = String((user as any).registrationStatus || "PENDING_REVIEW").toUpperCase();
+                if (registrationStatus === "REJECTED") {
+                    return sendRejectedAccountResponse(res, user);
+                }
                 if (registrationStatus !== "APPROVED" || user.isActive === false) {
-                    return res.status(401).json({ message: "Account pending admin approval." });
+                    return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
                 }
                 const linkedCompanyId = (user as any).associateCompany;
                 if (linkedCompanyId) {
@@ -554,13 +576,16 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                         String((company as any).registrationStatus || "").toUpperCase() !== "APPROVED" ||
                         (company as any).isApproved !== true
                     ) {
-                        return res.status(401).json({ message: "Account pending admin approval." });
+                        return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
                     }
                 }
             } else {
                 const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
-                if (registrationStatus !== "APPROVED" || user.isActive === false) {
-                    return res.status(401).json({ message: "Account pending admin approval." });
+                if (registrationStatus === "REJECTED") {
+                    return sendRejectedAccountResponse(res, user);
+                }
+                if (registrationStatus === "APPROVED" && user.isActive === false) {
+                    return res.status(401).json({ message: "Account is inactive. Please contact support." });
                 }
             }
 
@@ -580,12 +605,24 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             res.cookie("auth_token", token, cookieOptions);
             return res.json({
                 success: true,
-                user: { id: user._id, email: user.email, name: user.name, role: normalizedRole },
+                user: {
+                    id: user._id,
+                    email: user.email,
+                    name: user.name,
+                    role: normalizedRole,
+                    registrationStatus: (user as any).registrationStatus || null,
+                },
             });
         }
 
         if (intent === "register") {
             if (existingRole) {
+                const rejectedExisting =
+                    (role === "Operator" && String((operatorExisting as any)?.registrationStatus || "").toUpperCase() === "REJECTED")
+                    || (role === "Associate" && String((associateExisting as any)?.registrationStatus || "").toUpperCase() === "REJECTED");
+                if (rejectedExisting) {
+                    return sendRejectedAccountResponse(res, role === "Operator" ? operatorExisting : associateExisting);
+                }
                 return res.status(409).json({ success: false, message: "Account already exists — sign in." });
             }
             const displayName = String(googlePayload.name || "").trim() || deriveDisplayName(email);
@@ -768,9 +805,16 @@ export const registerAssociate = async (req: Request, res: Response) => {
             });
         }
 
-        const existingAssociate = await AgentModel.findOne({ email: trimmedEmail });
+        const existingAssociate = await AgentModel.findOne({ email: trimmedEmail }).select("_id registrationStatus reviewNotes");
         const existingAdmin = await AdminModel.findOne({ email: trimmedEmail });
-        const existingOperator = await OperatorModel.findOne({ email: trimmedEmail });
+        const existingOperator = await OperatorModel.findOne({ email: trimmedEmail }).select("_id registrationStatus reviewNotes");
+
+        if (String((existingAssociate as any)?.registrationStatus || "").toUpperCase() === "REJECTED") {
+            return sendRejectedAccountResponse(res, existingAssociate);
+        }
+        if (String((existingOperator as any)?.registrationStatus || "").toUpperCase() === "REJECTED") {
+            return sendRejectedAccountResponse(res, existingOperator);
+        }
 
         if (existingAssociate || existingAdmin || existingOperator) {
             return res.status(400).json({
@@ -1230,8 +1274,8 @@ export const startOnboarding = async (req: Request, res: Response) => {
             AdminModel.findOne({ email: emailRaw }).select("_id").lean(),
             ProjectManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
             InventoryManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
-            OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt").lean(),
-            AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified").lean(),
+            OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt registrationStatus reviewNotes").lean(),
+            AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes").lean(),
         ]);
 
         const isDraftWithinWindow = (user: any, checkEmailVerified: boolean) => {
@@ -1262,6 +1306,13 @@ export const startOnboarding = async (req: Request, res: Response) => {
                 VerificationModel.deleteMany({ userId: String(associateDoc._id) }),
             ]);
             associateDoc = null;
+        }
+
+        if (role === "Operator" && operatorDoc && String((operatorDoc as any).registrationStatus || "").toUpperCase() === "REJECTED") {
+            return sendRejectedAccountResponse(res, operatorDoc);
+        }
+        if (role === "Associate" && associateDoc && String((associateDoc as any).registrationStatus || "").toUpperCase() === "REJECTED") {
+            return sendRejectedAccountResponse(res, associateDoc);
         }
 
         if (admin || projectManager || inventoryManager || operatorDoc || associateDoc) {
@@ -1465,6 +1516,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 
             associate.referralCode = referralCode ? String(referralCode).trim().toUpperCase() : associate.referralCode;
             associate.onboardingComplete = true;
+            (associate as any).approvalRequestedAt = new Date();
             await associate.save();
 
             return res.status(200).json({ success: true, message: "Onboarding completed." });
@@ -1520,6 +1572,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             operator.workingHours = Array.isArray(workingHours) ? workingHours : [];
             operator.joiningDate = joiningDate ? new Date(joiningDate) : operator.joiningDate;
             operator.onboardingComplete = true;
+            (operator as any).approvalRequestedAt = new Date();
             await operator.save();
 
             return res.status(200).json({ success: true, message: "Onboarding completed." });
@@ -1725,10 +1778,16 @@ export const registerOperator = async (req: Request, res: Response) => {
         }
 
         const [existingAssociate, existingAdmin, existingOperator] = await Promise.all([
-            AgentModel.findOne({ email: trimmedEmail }).select("_id"),
+            AgentModel.findOne({ email: trimmedEmail }).select("_id registrationStatus reviewNotes"),
             AdminModel.findOne({ email: trimmedEmail }).select("_id"),
-            OperatorModel.findOne({ email: trimmedEmail }).select("_id"),
+            OperatorModel.findOne({ email: trimmedEmail }).select("_id registrationStatus reviewNotes"),
         ]);
+        if (String((existingAssociate as any)?.registrationStatus || "").toUpperCase() === "REJECTED") {
+            return sendRejectedAccountResponse(res, existingAssociate);
+        }
+        if (String((existingOperator as any)?.registrationStatus || "").toUpperCase() === "REJECTED") {
+            return sendRejectedAccountResponse(res, existingOperator);
+        }
         if (existingAssociate || existingAdmin || existingOperator) {
             return res.status(400).json({ success: false, message: "Registration failed. This email is already registered." });
         }

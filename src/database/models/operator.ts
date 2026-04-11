@@ -38,6 +38,7 @@ export interface IOperator extends mongoose.Document {
     registrationSource?: "SELF_REGISTERED" | "ADMIN_CREATED";
     approvedAt?: Date | null;
     approvedBy?: mongoose.Types.ObjectId | null;
+    approvalRequestedAt?: Date | null;
     reviewNotes?: string;
     role: string;
     mentorOperator?: mongoose.Types.ObjectId | null;
@@ -97,6 +98,7 @@ const operatorSchema = new mongoose.Schema(
         onboardingComplete: { type: Boolean, default: false },
         approvedAt: { type: Date, default: null },
         approvedBy: { type: mongoose.Types.ObjectId, ref: "Admin", default: null },
+        approvalRequestedAt: { type: Date, default: null },
         reviewNotes: { type: String, default: "" },
         role: { type: String, default: "operator" },
         mentorOperator: { type: mongoose.Types.ObjectId, ref: "Operator", default: null, index: true },

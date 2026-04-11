@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { ImportListingModel } from "../database/models/importListing";
 import { ImportReservationModel } from "../database/models/importReservation";
 import { AssociateModel } from "../database/models/associate";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CompanyFunctionMappingModel } from "../database/models/companyFunctionMapping";
 import { CompanyFunctionModel } from "../database/models/companyFunction";
 import { UnLoCodeModel } from "../database/models/unLoCode";
@@ -347,7 +348,12 @@ export class ImportController {
       const listing = await ImportListingModel.findById(id);
       if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
 
-      if (!isAdminRole(role) && !isOperatorRole(role)) {
+      if (isOperatorRole(role)) {
+        const company = await AssociateCompanyModel.findById(listing.importerCompanyId).select("assignedOperator").lean();
+        if (!company || String(company.assignedOperator || "") !== userId) {
+          return res.status(403).json({ success: false, message: "Not allowed to edit this listing." });
+        }
+      } else if (!isAdminRole(role)) {
         if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
         if (String(listing.importerAssociateId) !== userId) {
           return res.status(403).json({ success: false, message: "Not allowed to edit this listing." });
@@ -445,7 +451,12 @@ export class ImportController {
       const listing = await ImportListingModel.findById(id);
       if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
 
-      if (!isAdminRole(role) && !isOperatorRole(role)) {
+      if (isOperatorRole(role)) {
+        const company = await AssociateCompanyModel.findById(listing.importerCompanyId).select("assignedOperator").lean();
+        if (!company || String(company.assignedOperator || "") !== userId) {
+          return res.status(403).json({ success: false, message: "Not allowed to close this listing." });
+        }
+      } else if (!isAdminRole(role)) {
         if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
         if (String(listing.importerAssociateId) !== userId) {
           return res.status(403).json({ success: false, message: "Not allowed to close this listing." });
@@ -465,7 +476,8 @@ export class ImportController {
       const role = normalizeRole(req.user?.role);
       const userId = String(req.user?.id || "").trim();
       const isAdminUser = isAdminRole(role);
-      if (!isAssociateRole(role) && !isAdminUser) {
+      const isOperatorUser = isOperatorRole(role);
+      if (!isAssociateRole(role) && !isAdminUser && !isOperatorUser) {
         return res.status(403).json({ success: false, message: "Only buyers or admins can reserve quantities." });
       }
 
@@ -499,14 +511,20 @@ export class ImportController {
 
       let companyId: any = null;
       let buyerAssociateId: any = userId;
-      if (isAdminUser) {
+      if (isAdminUser || isOperatorUser) {
         const bodyCompanyId = String(req.body?.buyerCompanyId || "").trim();
         if (!bodyCompanyId || !Types.ObjectId.isValid(bodyCompanyId)) {
-          return res.status(400).json({ success: false, message: "buyerCompanyId is required for admin reservations." });
+          return res.status(400).json({ success: false, message: "buyerCompanyId is required for this reservation." });
         }
         companyId = bodyCompanyId;
+        if (isOperatorUser) {
+          const company = await AssociateCompanyModel.findById(companyId).select("assignedOperator").lean();
+          if (!company || String(company.assignedOperator || "") !== userId) {
+            return res.status(403).json({ success: false, message: "Not allowed to reserve for this company." });
+          }
+        }
         const bodyAssociateId = String(req.body?.buyerAssociateId || "").trim();
-        if (bodyAssociateId && Types.ObjectId.isValid(bodyAssociateId)) {
+        if (isAdminUser && bodyAssociateId && Types.ObjectId.isValid(bodyAssociateId)) {
           buyerAssociateId = bodyAssociateId;
         } else {
           const resolvedAssociateId = await this.resolveCompanyAssociate(companyId);
@@ -675,7 +693,7 @@ export class ImportController {
       const listing = await ImportListingModel.findById(reservation.listingId);
       if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
 
-      if (!isAdminRole(role) && !isOperatorRole(role)) {
+      if (!isAdminRole(role)) {
         if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
         if (String(listing.importerAssociateId) !== userId) {
           return res.status(403).json({ success: false, message: "Not allowed to accept this reservation." });
@@ -747,7 +765,7 @@ export class ImportController {
       const listing = await ImportListingModel.findById(reservation.listingId).select("importerAssociateId").lean();
       if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
 
-      if (!isAdminRole(role) && !isOperatorRole(role)) {
+      if (!isAdminRole(role)) {
         if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
         if (String(listing.importerAssociateId) !== userId) {
           return res.status(403).json({ success: false, message: "Not allowed to reject this reservation." });
@@ -886,7 +904,7 @@ export class ImportController {
         return res.status(400).json({ success: false, message: "Reservation does not belong to this listing." });
       }
 
-      if (!isAdminRole(role) && !isOperatorRole(role)) {
+      if (!isAdminRole(role)) {
         if (!isAssociateRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
         if (String(listing.importerAssociateId) !== userId) {
           return res.status(403).json({ success: false, message: "Not allowed to lock this reservation." });

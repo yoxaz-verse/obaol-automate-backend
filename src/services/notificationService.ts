@@ -88,10 +88,14 @@ class NotificationService {
     return NotificationModel.insertMany(docs);
   }
 
-  async listForUser(userId: string, options: { page: number; limit: number; unreadOnly?: boolean; type?: string }) {
+  async listForUser(
+    userId: string,
+    options: { page: number; limit: number; unreadOnly?: boolean; type?: string; recipientRole?: RecipientRole }
+  ) {
     const page = Math.max(1, Number(options.page || 1));
     const limit = Math.min(100, Math.max(1, Number(options.limit || 20)));
     const query: any = { recipientUserId: new mongoose.Types.ObjectId(userId) };
+    if (options.recipientRole) query.recipientRole = options.recipientRole;
     if (options.unreadOnly) query.isRead = false;
     if (options.type) query.type = String(options.type).trim();
 
@@ -110,26 +114,27 @@ class NotificationService {
     };
   }
 
-  async unreadCount(userId: string) {
+  async unreadCount(userId: string, recipientRole?: RecipientRole) {
     const count = await NotificationModel.countDocuments({
       recipientUserId: new mongoose.Types.ObjectId(userId),
+      ...(recipientRole ? { recipientRole } : {}),
       isRead: false,
     });
     return count;
   }
 
-  async markRead(userId: string, id: string) {
+  async markRead(userId: string, id: string, recipientRole?: RecipientRole) {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
     return NotificationModel.findOneAndUpdate(
-      { _id: id, recipientUserId: new mongoose.Types.ObjectId(userId) },
+      { _id: id, recipientUserId: new mongoose.Types.ObjectId(userId), ...(recipientRole ? { recipientRole } : {}) },
       { $set: { isRead: true, readAt: new Date() } },
       { new: true }
     ).lean();
   }
 
-  async markAllRead(userId: string) {
+  async markAllRead(userId: string, recipientRole?: RecipientRole) {
     return NotificationModel.updateMany(
-      { recipientUserId: new mongoose.Types.ObjectId(userId), isRead: false },
+      { recipientUserId: new mongoose.Types.ObjectId(userId), ...(recipientRole ? { recipientRole } : {}), isRead: false },
       { $set: { isRead: true, readAt: new Date() } }
     );
   }

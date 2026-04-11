@@ -46,6 +46,7 @@ const associateSchema = new mongoose.Schema(
             enum: ["PENDING_REVIEW", "APPROVED", "REJECTED"],
             default: "PENDING_REVIEW",
         },
+        reviewNotes: { type: String, default: "" },
         onboardingContactPreference: {
             type: String,
             enum: ["phone", "email"],

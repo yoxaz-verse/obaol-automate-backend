@@ -33,6 +33,7 @@ export interface IAssociate {
   isOneToOneVerified?: boolean;
   isCompanyVerified?: boolean;
   registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reviewNotes?: string;
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
@@ -77,6 +78,7 @@ export interface ICreateAssociate {
   isOneToOneVerified?: boolean;
   isCompanyVerified?: boolean;
   registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reviewNotes?: string;
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;
@@ -121,6 +123,7 @@ export interface IUpdateAssociate {
   isOneToOneVerified?: boolean;
   isCompanyVerified?: boolean;
   registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reviewNotes?: string;
   onboardingContactPreference?: "phone" | "email";
   onboardingContactNotes?: string;
   registrationSource?: string;

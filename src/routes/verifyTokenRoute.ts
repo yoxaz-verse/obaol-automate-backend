@@ -26,24 +26,29 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   let dashboardTutorialStatus: string | null = null;
   let onboardingComplete = false;
   let registrationStatus: string | null = null;
+  let rejectionReason: string | null = null;
+  let associate: any = null;
+  let operator: any = null;
 
   if (roleLower === "associate") {
-    const associate = await AssociateModel.findById(req.user.id)
-      .select("associateCompany dashboardTutorialStatus onboardingComplete registrationStatus")
+    associate = await AssociateModel.findById(req.user.id)
+      .select("name email phone associateCompany dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes")
       .lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
     dashboardTutorialStatus = associate?.dashboardTutorialStatus || "PENDING";
     onboardingComplete = Boolean(associate?.onboardingComplete);
     registrationStatus = associate?.registrationStatus ? String(associate.registrationStatus) : null;
+    rejectionReason = associate?.reviewNotes ? String(associate.reviewNotes) : null;
   } else if (roleLower === "operator" || roleLower === "team") {
     const companies = await AssociateCompanyModel.find({ assignedOperator: req.user.id }).select("_id").limit(2).lean();
     if (companies.length === 1) {
       associateCompanyId = String(companies[0]._id);
       companyInterestsConfigured = false;
     }
-    const operator = await OperatorModel.findById(req.user.id).select("onboardingComplete registrationStatus").lean();
+    operator = await OperatorModel.findById(req.user.id).select("name email phone onboardingComplete registrationStatus reviewNotes").lean();
     onboardingComplete = Boolean(operator?.onboardingComplete);
     registrationStatus = operator?.registrationStatus ? String(operator.registrationStatus) : null;
+    rejectionReason = operator?.reviewNotes ? String(operator.reviewNotes) : null;
   }
 
   if (associateCompanyId) {
@@ -62,7 +67,9 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     success: true,
     user: {
       id: req.user.id,
-      email: req.user.email,
+      email: associate?.email || operator?.email || req.user.email,
+      name: associate?.name || operator?.name || req.user.name,
+      phone: associate?.phone || operator?.phone || null,
       role: req.user.role,
       associateCompanyId,
       companyInterestsConfigured,
@@ -70,6 +77,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       dashboardTutorialStatus,
       onboardingComplete,
       registrationStatus,
+      rejectionReason,
       verified: {
         email: verificationRecord?.verified === true,
         phone: false, // phone/gst can be added later if needed

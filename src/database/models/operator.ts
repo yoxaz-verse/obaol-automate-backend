@@ -25,6 +25,8 @@ export interface IOperator extends mongoose.Document {
     googleSub?: string | null;
     googleEmailVerified?: boolean;
     address: string;
+    geoType?: "INDIAN" | "INTERNATIONAL";
+    country?: mongoose.Types.ObjectId | null;
     district?: mongoose.Types.ObjectId;
     state?: mongoose.Types.ObjectId;
     joiningDate?: Date;
@@ -80,6 +82,8 @@ const operatorSchema = new mongoose.Schema(
         googleSub: { type: String, default: null },
         googleEmailVerified: { type: Boolean, default: false },
         address: { type: String, required: true },
+        geoType: { type: String, enum: ["INDIAN", "INTERNATIONAL"], default: "INDIAN" },
+        country: { type: mongoose.Types.ObjectId, ref: "Country", required: false },
         district: { type: mongoose.Types.ObjectId, ref: "District" },
         state: { type: mongoose.Types.ObjectId, ref: "State" },
         joiningDate: { type: Date, default: Date.now },

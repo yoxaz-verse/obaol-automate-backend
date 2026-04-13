@@ -302,28 +302,12 @@ export const authenticateUser = async (req: Request, res: Response) => {
 
         const roleLower = String(finalRole || "").toLowerCase();
         if (roleLower === "associate") {
-            const onboardingComplete = (user as any).onboardingComplete === true;
             const registrationStatus = String((user as any).registrationStatus || "PENDING_REVIEW").toUpperCase();
             if (registrationStatus === "REJECTED") {
                 return sendRejectedAccountResponse(res, user);
             }
-            if (onboardingComplete && (registrationStatus !== "APPROVED" || user.isActive === false)) {
-                return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
-            }
-            const linkedCompanyId = (user as any).associateCompany;
-            if (linkedCompanyId) {
-                const company = await AssociateCompanyModel.findById(linkedCompanyId)
-                    .select("registrationStatus isApproved")
-                    .lean();
-                if (
-                    !company ||
-                    String((company as any).registrationStatus || "").toUpperCase() !== "APPROVED" ||
-                    (company as any).isApproved !== true
-                ) {
-                    if (onboardingComplete) {
-                        return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
-                    }
-                }
+            if (registrationStatus === "APPROVED" && user.isActive === false) {
+                return res.status(401).json({ message: "Account is inactive. Please contact support." });
             }
         } else if (roleLower === "operator" || roleLower === "team" || roleLower === "warehouse_operator" || roleLower === "warehouse-operator" || roleLower === "warehouseoperator") {
             const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
@@ -563,21 +547,8 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                 if (registrationStatus === "REJECTED") {
                     return sendRejectedAccountResponse(res, user);
                 }
-                if (registrationStatus !== "APPROVED" || user.isActive === false) {
-                    return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
-                }
-                const linkedCompanyId = (user as any).associateCompany;
-                if (linkedCompanyId) {
-                    const company = await AssociateCompanyModel.findById(linkedCompanyId)
-                        .select("registrationStatus isApproved")
-                        .lean();
-                    if (
-                        !company ||
-                        String((company as any).registrationStatus || "").toUpperCase() !== "APPROVED" ||
-                        (company as any).isApproved !== true
-                    ) {
-                        return res.status(401).json({ message: PENDING_APPROVAL_MESSAGE });
-                    }
+                if (registrationStatus === "APPROVED" && user.isActive === false) {
+                    return res.status(401).json({ message: "Account is inactive. Please contact support." });
                 }
             } else {
                 const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
@@ -1534,6 +1505,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 phoneCountryCode,
                 phoneNational,
                 address,
+                geoType,
+                country,
                 state,
                 district,
                 languageKnown,
@@ -1544,6 +1517,21 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 
             if (!name || !email || !phone || !address) {
                 return res.status(400).json({ success: false, message: "Name, email, phone, and address are required." });
+            }
+            const locationGeoType = String(geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
+            if (locationGeoType === "INDIAN" && (!state || !district)) {
+                return res.status(400).json({ success: false, message: "State and district are required for Indian operators." });
+            }
+            if (locationGeoType === "INTERNATIONAL" && !String(country || "").trim()) {
+                return res.status(400).json({ success: false, message: "Country is required for international operators." });
+            }
+            let resolvedCountryId: any = null;
+            if (locationGeoType === "INTERNATIONAL") {
+                const countryExists = await resolveCountry(country);
+                if (!countryExists) {
+                    return res.status(400).json({ success: false, message: "Invalid country. Please choose a valid country." });
+                }
+                resolvedCountryId = countryExists._id;
             }
 
             if (String(operator.authProvider || "LOCAL").toUpperCase() !== "GOOGLE") {
@@ -1566,8 +1554,10 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             operator.phoneCountryCode = normalizedPrimary.countryCode;
             operator.phoneNational = normalizedPrimary.national;
             operator.address = String(address).trim();
-            operator.state = state || null;
-            operator.district = district || null;
+            (operator as any).geoType = locationGeoType;
+            (operator as any).country = locationGeoType === "INTERNATIONAL" ? resolvedCountryId : null;
+            operator.state = locationGeoType === "INDIAN" ? (state || null) : null;
+            operator.district = locationGeoType === "INDIAN" ? (district || null) : null;
             operator.languageKnown = Array.isArray(languageKnown) ? languageKnown : [];
             operator.workingHours = Array.isArray(workingHours) ? workingHours : [];
             operator.joiningDate = joiningDate ? new Date(joiningDate) : operator.joiningDate;
@@ -1698,12 +1688,13 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
  */
 export const getOperatorRegisterOptions = async (_req: Request, res: Response) => {
     try {
-        const [jobRolesRes, jobTypesRes, languagesRes, statesRes, districtsRes] = await Promise.allSettled([
+        const [jobRolesRes, jobTypesRes, languagesRes, statesRes, districtsRes, countriesRes] = await Promise.allSettled([
             JobRoleModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
             JobTypeModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
             LanguageModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
             StateModel.find({ isDeleted: { $ne: true } }).select("_id name code").sort({ name: 1 }).lean(),
             DistrictModel.find({ isDeleted: { $ne: true } }).select("_id name state").sort({ name: 1 }).lean(),
+            CountryModel.find({ isDeleted: { $ne: true } }).select("_id name code").sort({ name: 1 }).lean(),
         ]);
 
         res.json({
@@ -1714,12 +1705,13 @@ export const getOperatorRegisterOptions = async (_req: Request, res: Response) =
                 languages: languagesRes.status === "fulfilled" ? languagesRes.value : [],
                 states: statesRes.status === "fulfilled" ? statesRes.value : [],
                 districts: districtsRes.status === "fulfilled" ? districtsRes.value : [],
+                countries: countriesRes.status === "fulfilled" ? countriesRes.value : [],
             },
         });
     } catch (error: any) {
         res.status(200).json({
             success: true,
-            data: { jobRoles: [], jobTypes: [], languages: [], states: [], districts: [] },
+            data: { jobRoles: [], jobTypes: [], languages: [], states: [], districts: [], countries: [] },
             meta: { partial: true, error: error?.message || "Failed to load operator registration options." },
         });
     }
@@ -1739,6 +1731,8 @@ export const registerOperator = async (req: Request, res: Response) => {
             phoneNational,
             password,
             address,
+            geoType,
+            country,
             state,
             district,
             jobRole,
@@ -1751,8 +1745,12 @@ export const registerOperator = async (req: Request, res: Response) => {
         if (!name || !email || !phone || !password || !address) {
             return res.status(400).json({ success: false, message: "Name, email, phone, password, and address are required." });
         }
-        if (!state || !district) {
-            return res.status(400).json({ success: false, message: "State and district are required." });
+        const locationGeoType = String(geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
+        if (locationGeoType === "INDIAN" && (!state || !district)) {
+            return res.status(400).json({ success: false, message: "State and district are required for Indian operators." });
+        }
+        if (locationGeoType === "INTERNATIONAL" && !String(country || "").trim()) {
+            return res.status(400).json({ success: false, message: "Country is required for international operators." });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1775,6 +1773,14 @@ export const registerOperator = async (req: Request, res: Response) => {
 
         if (!normalizedPrimary.e164) {
             return res.status(400).json({ success: false, message: "Valid phone number is required." });
+        }
+        let resolvedCountryId: any = null;
+        if (locationGeoType === "INTERNATIONAL") {
+            const countryExists = await resolveCountry(country);
+            if (!countryExists) {
+                return res.status(400).json({ success: false, message: "Invalid country. Please choose a valid country." });
+            }
+            resolvedCountryId = countryExists._id;
         }
 
         const [existingAssociate, existingAdmin, existingOperator] = await Promise.all([
@@ -1815,8 +1821,10 @@ export const registerOperator = async (req: Request, res: Response) => {
             phoneNational: normalizedPrimary.national,
             password,
             address: String(address || "").trim(),
-            state,
-            district,
+            geoType: locationGeoType,
+            country: locationGeoType === "INTERNATIONAL" ? resolvedCountryId : null,
+            state: locationGeoType === "INDIAN" ? state : null,
+            district: locationGeoType === "INDIAN" ? district : null,
             ...(jobRole ? { jobRole } : {}),
             ...(jobType ? { jobType } : {}),
             languageKnown: Array.isArray(languageKnown) ? languageKnown : [],

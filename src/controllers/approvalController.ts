@@ -96,7 +96,7 @@ export class ApprovalController {
       const page = Math.max(1, Number(req.query.page || 1));
       const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
       const status = normalizeStatus(req.query.status) || "PENDING_REVIEW";
-      const query: any = { isDeleted: { $ne: true } };
+      const query: any = { isDeleted: { $ne: true }, onboardingComplete: true };
       if (status) query.registrationStatus = status;
       const searchQuery = buildSearch(req.query.search, ["name", "email", "phone"]);
       if (searchQuery) Object.assign(query, searchQuery);
@@ -127,7 +127,7 @@ export class ApprovalController {
       const page = Math.max(1, Number(req.query.page || 1));
       const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
       const status = normalizeStatus(req.query.status) || "PENDING_REVIEW";
-      const query: any = { isDeleted: { $ne: true } };
+      const query: any = { isDeleted: { $ne: true }, onboardingComplete: true };
       if (status) query.registrationStatus = status;
       const searchQuery = buildSearch(req.query.search, ["name", "email", "phone"]);
       if (searchQuery) Object.assign(query, searchQuery);
@@ -237,6 +237,14 @@ export class ApprovalController {
       if (status) query.registrationStatus = status;
       const searchQuery = buildSearch(req.query.search, ["name", "email", "phone", "gstin"]);
       if (searchQuery) Object.assign(query, searchQuery);
+
+      // Show pending companies only after the linked supervisor has actually submitted onboarding.
+      // This hides draft companies created during signup/onboarding preparation.
+      const eligibleSupervisors = await AssociateModel.distinct("_id", {
+        isDeleted: { $ne: true },
+        onboardingComplete: true,
+      });
+      query.supervisor = { $in: eligibleSupervisors };
 
       const [total, rows] = await Promise.all([
         AssociateCompanyModel.countDocuments(query),

@@ -35,6 +35,10 @@ import { notificationService } from "./notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { verifyGoogleIdToken } from "../utils/googleAuth";
 import { VerificationModel } from "../database/models/verification";
+import {
+    PRE_AUTH_BLOCKED_MESSAGE,
+    toBlockedResponsePayload,
+} from "../utils/preAuthGuard";
 
 const generateRandomPassword = (length = 12) => {
     const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -63,7 +67,7 @@ const DRAFT_PHONE_E164 = "+910000000000";
 const DRAFT_PHONE_COUNTRY = "+91";
 const DRAFT_PHONE_NATIONAL = "0000000000";
 const DRAFT_OPERATOR_ADDRESS = "Pending";
-const BLOCKED_ACCOUNT_MESSAGE = "This account is blocked from OBAOL ecosystem. Please contact support.";
+const BLOCKED_ACCOUNT_MESSAGE = PRE_AUTH_BLOCKED_MESSAGE;
 const PENDING_APPROVAL_MESSAGE = "Account pending admin approval.";
 
 const deriveDisplayName = (email: string) => {
@@ -477,9 +481,13 @@ export const getEmailStatus = async (req: Request, res: Response) => {
             AdminModel.findOne({ email }).select("_id").lean(),
             ProjectManagerModel.findOne({ email }).select("_id").lean(),
             InventoryManagerModel.findOne({ email }).select("_id").lean(),
-            OperatorModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
-            AgentModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
+            OperatorModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive isDeleted").lean(),
+            AgentModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive isDeleted").lean(),
         ]);
+        const blockedPayload = toBlockedResponsePayload(operatorExisting || associateExisting);
+        if (blockedPayload) {
+            return res.status(403).json(blockedPayload);
+        }
         const role =
             admin ? "Admin" :
                 projectManager ? "ProjectManager" :
@@ -1245,8 +1253,8 @@ export const startOnboarding = async (req: Request, res: Response) => {
             AdminModel.findOne({ email: emailRaw }).select("_id").lean(),
             ProjectManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
             InventoryManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
-            OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt registrationStatus reviewNotes").lean(),
-            AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes").lean(),
+            OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt registrationStatus reviewNotes isActive isDeleted").lean(),
+            AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes isActive isDeleted").lean(),
         ]);
 
         const isDraftWithinWindow = (user: any, checkEmailVerified: boolean) => {
@@ -1279,11 +1287,9 @@ export const startOnboarding = async (req: Request, res: Response) => {
             associateDoc = null;
         }
 
-        if (role === "Operator" && operatorDoc && String((operatorDoc as any).registrationStatus || "").toUpperCase() === "REJECTED") {
-            return sendRejectedAccountResponse(res, operatorDoc);
-        }
-        if (role === "Associate" && associateDoc && String((associateDoc as any).registrationStatus || "").toUpperCase() === "REJECTED") {
-            return sendRejectedAccountResponse(res, associateDoc);
+        const blockedPayload = toBlockedResponsePayload(operatorDoc || associateDoc);
+        if (blockedPayload) {
+            return res.status(403).json(blockedPayload);
         }
 
         if (admin || projectManager || inventoryManager || operatorDoc || associateDoc) {

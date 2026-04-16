@@ -7,6 +7,7 @@ import { OperatorModel } from "../database/models/operator";
 import { AdminModel } from "../database/models/admin";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
 import verificationService from "../services/verification.service";
+import { toBlockedResponsePayload } from "../utils/preAuthGuard";
 
 export const sendOTP = async (req: Request, res: Response) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
@@ -93,8 +94,8 @@ const findUserByEmail = async (email: string) => {
   const [admin, inventoryManager, operator, associate] = await Promise.all([
     AdminModel.findOne({ email: emailLower }).select("_id email").lean(),
     InventoryManagerModel.findOne({ email: emailLower }).select("_id email").lean(),
-    OperatorModel.findOne({ email: emailLower }).select("_id email").lean(),
-    AssociateModel.findOne({ email: emailLower }).select("_id email").lean(),
+    OperatorModel.findOne({ email: emailLower }).select("_id email onboardingComplete isDeleted registrationStatus isActive reviewNotes").lean(),
+    AssociateModel.findOne({ email: emailLower }).select("_id email onboardingComplete isDeleted registrationStatus isActive reviewNotes").lean(),
   ]);
   if (admin) return { id: String(admin._id), userType: "Admin", email: admin.email };
   if (inventoryManager) return { id: String(inventoryManager._id), userType: "InventoryManager", email: inventoryManager.email };
@@ -116,6 +117,12 @@ export const sendOtpForExistingEmail = async (req: Request, res: Response) => {
 
   try {
     const found = await findUserByEmail(String(email));
+    if (found && (found.userType === "Associate" || found.userType === "Operator")) {
+      const blockedPayload = toBlockedResponsePayload(found);
+      if (blockedPayload) {
+        return res.status(403).json(blockedPayload);
+      }
+    }
     if (found) {
       await verificationService.initiateVerification(
         found.id,
@@ -143,6 +150,12 @@ export const verifyOtpForExistingEmail = async (req: Request, res: Response) => 
     const found = await findUserByEmail(String(email));
     if (!found) {
       return res.status(400).json({ message: "Invalid or expired OTP." });
+    }
+    if (found.userType === "Associate" || found.userType === "Operator") {
+      const blockedPayload = toBlockedResponsePayload(found);
+      if (blockedPayload) {
+        return res.status(403).json(blockedPayload);
+      }
     }
     await verificationService.verify(found.id, found.userType, String(code), "email");
     const normalizedRole = String(found.userType || "").trim();

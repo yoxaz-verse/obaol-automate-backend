@@ -44,6 +44,7 @@ export const registerAllHooks = () => {
     });
 
     HookDispatcher.registerPreRead("enquiries", operatorFilterHook);
+    HookDispatcher.registerPreRead("inventories", operatorFilterHook);
     HookDispatcher.registerPostWrite("enquiries", enquiryInventoryReservationHook);
     HookDispatcher.registerPreRead("associates", async (query, mode, id, req) => {
         let q = await operatorFilterHook(query, mode, id, req);

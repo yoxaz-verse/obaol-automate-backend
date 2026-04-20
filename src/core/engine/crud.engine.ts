@@ -5,6 +5,7 @@ import { GenericRepository } from "../repositories/generic.repository";
 import { HookDispatcher } from "../hooks/hook.dispatcher";
 import { ExecutionMode } from "../types";
 import { getEntityConfig } from "../registry/entities";
+import { buildRegexSearchTerms } from "./searchableFields";
 
 export class CrudEngine extends BaseService {
     private repository: GenericRepository<any>;
@@ -67,9 +68,11 @@ export class CrudEngine extends BaseService {
         // 1. Handling Search
         let searchQuery: any = {};
         if (query.search && config) {
-            const searchTerms: any[] = config.searchableFields.map(field => ({
-                [field]: { $regex: query.search, $options: 'i' }
-            }));
+            const searchTerms: any[] = buildRegexSearchTerms(
+                this.model,
+                config.searchableFields,
+                query.search
+            );
 
             // Deep search in direct relations
             if (config.relations) {
@@ -79,9 +82,13 @@ export class CrudEngine extends BaseService {
 
                     const targetConfig = getEntityConfig(targetEntityKey);
                     if (targetConfig && targetConfig.searchableFields && targetConfig.searchableFields.length > 0) {
-                        const targetSearchTerms = targetConfig.searchableFields.map(f => ({
-                            [f]: { $regex: query.search, $options: 'i' }
-                        }));
+                        const targetSearchTerms = buildRegexSearchTerms(
+                            targetConfig.model,
+                            targetConfig.searchableFields,
+                            query.search
+                        );
+
+                        if (targetSearchTerms.length === 0) return null;
 
                         const matchingDocs = await targetConfig.model.find({
                             $or: targetSearchTerms,

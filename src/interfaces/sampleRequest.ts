@@ -42,6 +42,9 @@ export interface ISampleRequest extends Document {
   supplierMinQty?: number | null;
   supplierPrice?: number | null;
   samplePaymentTerm?: "ADVANCE" | "COURIER_CHARGES";
+  paymentMode?: "CASH" | "ONLINE" | null;
+  onlinePaymentMethod?: "GPAY" | "CARD" | null;
+  paymentConfirmedBy?: Types.ObjectId | null;
   markupPercent: number;
   buyerPrice?: number | null;
   isDeleted: boolean;

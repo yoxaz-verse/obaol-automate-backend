@@ -16,6 +16,17 @@ const toObjectId = (value: any) => {
   return new Types.ObjectId(String(value));
 };
 
+const normalizeEntityId = (value: any): string => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    if (value instanceof Types.ObjectId) return String(value);
+    if (value?._id) return String(value._id);
+    if (value?.id) return String(value.id);
+  }
+  return String(value);
+};
+
 const computeBuyerPrice = (supplierPrice: number, markupPercent: number) =>
   Number(supplierPrice) * (1 + Number(markupPercent || 0) / 100);
 
@@ -216,9 +227,11 @@ export class SampleRequestController {
 
       if (isAssociateRole(role)) {
         const companyId = await this.resolveAssociateCompany(userId);
+        const buyerAssociateId = normalizeEntityId((request as any)?.buyerAssociateId);
+        const supplierCompanyId = normalizeEntityId((request as any)?.supplierCompanyId);
         const canAccess =
-          String(request.buyerAssociateId) === String(userId) ||
-          (companyId && String(request.supplierCompanyId) === String(companyId));
+          buyerAssociateId === String(userId) ||
+          (companyId && supplierCompanyId === String(companyId));
         if (!canAccess) {
           return res.status(403).json({ success: false, message: "Access denied." });
         }
@@ -423,9 +436,29 @@ export class SampleRequestController {
         return res.status(400).json({ success: false, message: "Payment can be confirmed only after acceptance." });
       }
 
+      const paymentMode = String(req.body?.paymentMode || "").trim().toUpperCase();
+      const onlinePaymentMethod = String(req.body?.onlinePaymentMethod || "").trim().toUpperCase();
+      if (!["CASH", "ONLINE"].includes(paymentMode)) {
+        return res.status(400).json({ success: false, message: "paymentMode must be CASH or ONLINE." });
+      }
+      if (paymentMode === "ONLINE" && !["GPAY", "CARD"].includes(onlinePaymentMethod)) {
+        return res.status(400).json({ success: false, message: "onlinePaymentMethod must be GPAY or CARD for ONLINE payments." });
+      }
+      if (paymentMode === "CASH" && onlinePaymentMethod) {
+        return res.status(400).json({ success: false, message: "onlinePaymentMethod is allowed only when paymentMode is ONLINE." });
+      }
+
+      const paymentConfirmedBy = toObjectId(userId);
+
       const updated = await SampleRequestModel.findByIdAndUpdate(
         id,
-        { status: "PAYMENT_RECEIVED", paymentReceivedAt: new Date() },
+        {
+          status: "PAYMENT_RECEIVED",
+          paymentReceivedAt: new Date(),
+          paymentMode,
+          onlinePaymentMethod: paymentMode === "ONLINE" ? onlinePaymentMethod : null,
+          paymentConfirmedBy: paymentConfirmedBy || null,
+        },
         { new: true }
       )
         .populate(this.getPopulateQuery())

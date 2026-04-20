@@ -99,8 +99,30 @@ const findUserByEmail = async (email: string) => {
   ]);
   if (admin) return { id: String(admin._id), userType: "Admin", email: admin.email };
   if (inventoryManager) return { id: String(inventoryManager._id), userType: "InventoryManager", email: inventoryManager.email };
-  if (operator) return { id: String(operator._id), userType: "Operator", email: operator.email, onboardingComplete: operator.onboardingComplete };
-  if (associate) return { id: String(associate._id), userType: "Associate", email: associate.email, onboardingComplete: associate.onboardingComplete };
+  if (operator) {
+    return {
+      id: String(operator._id),
+      userType: "Operator",
+      email: operator.email,
+      onboardingComplete: operator.onboardingComplete,
+      isDeleted: operator.isDeleted,
+      registrationStatus: operator.registrationStatus,
+      isActive: operator.isActive,
+      reviewNotes: operator.reviewNotes,
+    };
+  }
+  if (associate) {
+    return {
+      id: String(associate._id),
+      userType: "Associate",
+      email: associate.email,
+      onboardingComplete: associate.onboardingComplete,
+      isDeleted: associate.isDeleted,
+      registrationStatus: associate.registrationStatus,
+      isActive: associate.isActive,
+      reviewNotes: associate.reviewNotes,
+    };
+  }
   return null;
 };
 
@@ -171,7 +193,8 @@ export const verifyOtpForExistingEmail = async (req: Request, res: Response) => 
         res.cookie("auth_token", token, cookieOptions);
         return res.status(200).json({ success: true, next: "/dashboard/onboarding" });
       }
-      return res.status(200).json({ success: true, next: "/auth" });
+      const next = normalizedRole === "Operator" ? "/auth/operator" : "/auth";
+      return res.status(200).json({ success: true, next });
     }
     return res.status(200).json({ success: true, next: "/auth" });
   } catch (error: any) {

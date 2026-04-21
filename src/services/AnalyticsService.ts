@@ -83,11 +83,21 @@ export class AnalyticsService {
         const [
             totalEnquiries,
             totalLiveRates,
-            totalAssociates
+            totalAssociates,
+            unassignedCompanies,
+            liveCompanyIds,
         ] = await Promise.all([
             EnquiryModel.countDocuments(),
             VariantRateModel.countDocuments({ isLive: true }),
-            AssociateModel.countDocuments()
+            AssociateModel.countDocuments(),
+            AssociateCompanyModel.countDocuments({
+                isDeleted: { $ne: true },
+                $or: [
+                    { assignedOperator: null },
+                    { assignedOperator: { $exists: false } },
+                ],
+            }),
+            VariantRateModel.distinct("associateCompany", { isLive: true }),
         ]);
 
         // Calculate growth (simple day-over-day for now, can be expanded)
@@ -98,11 +108,17 @@ export class AnalyticsService {
             createdAt: { $gte: yesterday }
         });
 
+        const companiesWithLiveProducts = Array.isArray(liveCompanyIds)
+            ? liveCompanyIds.filter((id: any) => Boolean(id)).length
+            : 0;
+
         return {
             totalEnquiries,
             newEnquiriesToday,
             totalLiveRates,
-            totalAssociates
+            totalAssociates,
+            unassignedCompanies,
+            companiesWithLiveProducts,
         };
     }
 
@@ -173,6 +189,7 @@ export class AnalyticsService {
             liveAssignedRates,
             distinctProductVariants,
             distinctLiveProductVariants,
+            assignedLiveCompanyIds,
         ] = await Promise.all([
             EnquiryModel.countDocuments(inquiryFilter),
             EnquiryModel.countDocuments({
@@ -195,6 +212,9 @@ export class AnalyticsService {
             companyCount
                 ? VariantRateModel.distinct("productVariant", { associateCompany: { $in: companyIds }, isLive: true }).then((arr) => arr.length)
                 : Promise.resolve(0),
+            companyCount
+                ? VariantRateModel.distinct("associateCompany", { associateCompany: { $in: companyIds }, isLive: true })
+                : Promise.resolve([]),
         ]);
 
         const liveRatePercentage = totalAssignedRates > 0
@@ -202,6 +222,10 @@ export class AnalyticsService {
             : 0;
         const liveProductPercentage = distinctProductVariants > 0
             ? Math.round((distinctLiveProductVariants / distinctProductVariants) * 100)
+            : 0;
+
+        const assignedCompaniesWithLiveProducts = Array.isArray(assignedLiveCompanyIds)
+            ? assignedLiveCompanyIds.filter((id: any) => Boolean(id)).length
             : 0;
 
         return {
@@ -213,6 +237,7 @@ export class AnalyticsService {
             liveAssignedRates,
             totalAssignedProducts: distinctProductVariants,
             liveAssignedProducts: distinctLiveProductVariants,
+            assignedCompaniesWithLiveProducts,
             liveRatePercentage,
             liveProductPercentage,
         };

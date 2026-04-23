@@ -1,4 +1,5 @@
 import { VariantRateModel } from "../../database/models/variantRate";
+import { AssociateModel } from "../../database/models/associate";
 import { ExecutionMode, HookFunction } from "../types";
 import { getOperatorCompanyScope } from "./operatorScope";
 
@@ -14,6 +15,13 @@ const forbidden = (message: string) => {
   return err;
 };
 
+const badRequest = (message: string) => {
+  const err: any = new Error(message);
+  err.status = 400;
+  err.statusCode = 400;
+  return err;
+};
+
 export const operatorVariantRateWritePreHook: HookFunction = async (payload, mode, id, req) => {
   if (!isOperatorActor(req)) return payload;
 
@@ -25,11 +33,30 @@ export const operatorVariantRateWritePreHook: HookFunction = async (payload, mod
   const { companyIdSet: assignedIdSet } = await getOperatorCompanyScope(operatorId);
 
   if (mode === ExecutionMode.CREATE) {
-    const targetCompany = String((payload as any)?.associateCompany || "");
-    if (!targetCompany || !assignedIdSet.has(targetCompany)) {
+    let targetCompany = String((payload as any)?.associateCompany || "").trim();
+
+    if (!targetCompany) {
+      const associateId = String((payload as any)?.associate || "").trim();
+      if (!associateId) {
+        throw badRequest("Select an associate company or provide a valid associate.");
+      }
+
+      const associate = await AssociateModel.findById(associateId).select("_id associateCompany").lean();
+      const resolvedCompanyId = String((associate as any)?.associateCompany || "").trim();
+      if (!resolvedCompanyId) {
+        throw badRequest("Selected associate is not linked to a company.");
+      }
+      targetCompany = resolvedCompanyId;
+    }
+
+    if (!assignedIdSet.has(targetCompany)) {
       throw forbidden("You can only create rates for companies assigned to you.");
     }
-    return payload;
+
+    return {
+      ...(payload as any),
+      associateCompany: targetCompany,
+    };
   }
 
   if (mode === ExecutionMode.UPDATE || mode === ExecutionMode.DELETE) {

@@ -1,9 +1,9 @@
-import { AssociateCompanyModel } from "../../database/models/associateCompany";
-import { AssociateModel } from "../../database/models/associate";
+import { getOperatorCompanyScope } from "./operatorScope";
 
 /**
  * Hook to inject filters for operators (overseers).
- * Restricts access to data belonging to companies assigned to the operator.
+ * Restricts access to data belonging to companies assigned to the operator
+ * or to operators in their downline.
  */
 export const operatorFilterHook = async (query: any, mode: string, id: string | undefined, req: any): Promise<any> => {
     if (!req?.user) return query;
@@ -20,10 +20,7 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
     };
     // Both 'operator' and 'team' refer to the overseer role
     if (roleLower === "operator" || roleLower === "team") {
-
-        // 1. Find all companies assigned to this operator
-        const assignedCompanies = await AssociateCompanyModel.find({ assignedOperator: user.id }).select("_id");
-        const assignedIds = assignedCompanies.map(c => c._id);
+        const { companyIds: assignedIds } = await getOperatorCompanyScope(String(user.id || ""));
         const assignedIdSet = new Set(assignedIds.map((companyId: any) => String(companyId)));
 
         const emptyQuery = { _id: "000000000000000000000000" };

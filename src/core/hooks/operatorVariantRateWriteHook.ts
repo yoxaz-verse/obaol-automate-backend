@@ -1,6 +1,6 @@
-import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { VariantRateModel } from "../../database/models/variantRate";
 import { ExecutionMode, HookFunction } from "../types";
+import { getOperatorCompanyScope } from "./operatorScope";
 
 const isOperatorActor = (req: any) => {
   const role = String(req?.user?.role || "").toLowerCase();
@@ -22,10 +22,7 @@ export const operatorVariantRateWritePreHook: HookFunction = async (payload, mod
     throw forbidden("Unauthorized operator session.");
   }
 
-  const assignedCompanies = await AssociateCompanyModel.find({ assignedOperator: operatorId })
-    .select("_id")
-    .lean();
-  const assignedIdSet = new Set(assignedCompanies.map((company: any) => String(company._id)));
+  const { companyIdSet: assignedIdSet } = await getOperatorCompanyScope(operatorId);
 
   if (mode === ExecutionMode.CREATE) {
     const targetCompany = String((payload as any)?.associateCompany || "");

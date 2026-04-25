@@ -79,7 +79,7 @@ describe("Inquiry create supplier ownership rule", () => {
     );
   });
 
-  it("blocks create when company has associate coverage but supplier operator is missing", async () => {
+  it("allows create when company has associates but supplier operator is missing", async () => {
     const product = await createProductFixture();
 
     const buyerCompany = await createCompany();
@@ -97,11 +97,12 @@ describe("Inquiry create supplier ownership rule", () => {
         quantity: 5,
       });
 
-    expect(res.status).toBe(400);
-    expect(String(res.body?.message || "")).toContain("Supplier ownership operator is required");
+    expect(res.status).toBe(201);
+    const supplierOperator = res.body?.data?.supplierOperatorId;
+    expect(supplierOperator === null || supplierOperator === undefined || supplierOperator === "").toBe(true);
   });
 
-  it("allows create with null supplier operator when company has no associate coverage", async () => {
+  it("allows create with null supplier operator when company has no active associates", async () => {
     const product = await createProductFixture();
 
     const buyerCompany = await createCompany();

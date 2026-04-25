@@ -202,21 +202,30 @@ export class InquiryController {
             }
 
             let autoSupplierOperatorId: any = null;
+            let hasSupplierAssociateCoverage = false;
             try {
                 const sellerAssociate = await AssociateModel.findById(sellerAssociateId).select("associateCompany").lean();
                 const sellerCompanyId = sellerAssociate?.associateCompany || null;
                 if (sellerCompanyId) {
-                    const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("assignedOperator").lean();
+                    const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("assignedOperator supervisor").lean();
                     autoSupplierOperatorId = sellerCompany?.assignedOperator || null;
+                    const hasSupervisor = Boolean(sellerCompany?.supervisor);
+                    const activeAssociateCount = await AssociateModel.countDocuments({
+                        associateCompany: sellerCompanyId,
+                        isActive: true,
+                        isDeleted: { $ne: true },
+                    });
+                    hasSupplierAssociateCoverage = hasSupervisor || activeAssociateCount > 0;
                 }
             } catch (error) {
                 autoSupplierOperatorId = null;
+                hasSupplierAssociateCoverage = false;
             }
             const resolvedSupplierOperatorId = supplierOperatorId || autoSupplierOperatorId || null;
-            if (!resolvedSupplierOperatorId) {
+            if (!resolvedSupplierOperatorId && hasSupplierAssociateCoverage) {
                 return res.status(400).json({
                     success: false,
-                    message: "Supplier ownership operator is required. Please assign an operator to the supplier company before creating this inquiry."
+                    message: "Supplier ownership operator is required for supplier companies with assigned associates. Please assign an operator to the supplier company before creating this inquiry."
                 });
             }
             const roleLower = String(req.user?.role || "").toLowerCase();

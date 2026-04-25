@@ -3,7 +3,7 @@ import { Types } from "mongoose";
 import { SampleRequestModel } from "../database/models/sampleRequest";
 import { VariantRateModel } from "../database/models/variantRate";
 import { AssociateModel } from "../database/models/associate";
-import { getOperatorCompanyScope } from "../core/hooks/operatorScope";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -40,7 +40,7 @@ export class SampleRequestController {
   }
 
   private async buildOperatorScopeQuery(userId: string): Promise<any> {
-    const { companyIds } = await getOperatorCompanyScope(userId);
+    const companyIds = await this.getDirectAssignedCompanyIds(userId);
     if (!companyIds.length) {
       return { _id: { $in: [] } };
     }
@@ -62,6 +62,17 @@ export class SampleRequestController {
         ...(buyerAssociateIds.length ? [{ buyerAssociateId: { $in: buyerAssociateIds } }] : []),
       ],
     };
+  }
+
+  private async getDirectAssignedCompanyIds(userId: string): Promise<Types.ObjectId[]> {
+    if (!Types.ObjectId.isValid(String(userId || ""))) return [];
+    const operatorObjectId = new Types.ObjectId(String(userId));
+    const rows = await AssociateCompanyModel.find({ assignedOperator: operatorObjectId })
+      .select("_id")
+      .lean();
+    return rows
+      .map((row: any) => row?._id)
+      .filter(Boolean) as Types.ObjectId[];
   }
 
   private getPopulateQuery() {
@@ -242,8 +253,12 @@ export class SampleRequestController {
 
       const request = await SampleRequestModel.findById(id)
         .populate(this.getPopulateQuery())
-        .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone associateCompany")
+        .populate("supplierCompanyId", "name email phone assignedOperator")
+        .populate({
+          path: "buyerAssociateId",
+          select: "name email phone associateCompany",
+          populate: { path: "associateCompany", select: "assignedOperator name" },
+        })
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -257,11 +272,12 @@ export class SampleRequestController {
       }
 
       if (isOperatorRole(role)) {
-        const { companyIdSet } = await getOperatorCompanyScope(userId);
-        if (!companyIdSet.size) {
+        const companyIds = await this.getDirectAssignedCompanyIds(userId);
+        if (!companyIds.length) {
           return res.status(403).json({ success: false, message: "Access denied." });
         }
 
+        const companyIdSet = new Set(companyIds.map((cid) => String(cid)));
         const supplierCompanyId = normalizeEntityId((request as any)?.supplierCompanyId);
         const buyerCompanyId = normalizeEntityId((request as any)?.buyerAssociateId?.associateCompany);
         const canAccess = companyIdSet.has(supplierCompanyId) || (buyerCompanyId ? companyIdSet.has(buyerCompanyId) : false);

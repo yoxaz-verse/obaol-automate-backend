@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { SampleRequestModel } from "../database/models/sampleRequest";
 import { VariantRateModel } from "../database/models/variantRate";
 import { AssociateModel } from "../database/models/associate";
+import { getOperatorCompanyScope } from "../core/hooks/operatorScope";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -36,6 +37,31 @@ export class SampleRequestController {
       .select("_id associateCompany")
       .lean();
     return associate?.associateCompany ? String(associate.associateCompany) : null;
+  }
+
+  private async buildOperatorScopeQuery(userId: string): Promise<any> {
+    const { companyIds } = await getOperatorCompanyScope(userId);
+    if (!companyIds.length) {
+      return { _id: { $in: [] } };
+    }
+
+    const buyerRows = await AssociateModel.find({
+      associateCompany: { $in: companyIds },
+      isDeleted: { $ne: true },
+    })
+      .select("_id")
+      .lean();
+
+    const buyerAssociateIds = buyerRows
+      .map((row: any) => row?._id)
+      .filter(Boolean);
+
+    return {
+      $or: [
+        { supplierCompanyId: { $in: companyIds } },
+        ...(buyerAssociateIds.length ? [{ buyerAssociateId: { $in: buyerAssociateIds } }] : []),
+      ],
+    };
   }
 
   private getPopulateQuery() {
@@ -131,7 +157,7 @@ export class SampleRequestController {
           populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } },
         })
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -158,8 +184,13 @@ export class SampleRequestController {
       if (status) query.status = status;
       if (variantRateId) query.variantRateId = variantRateId;
 
-      if (isAdminRole(role) || isOperatorRole(role)) {
+      if (isAdminRole(role)) {
         if (requestedBuyerId) query.buyerAssociateId = requestedBuyerId;
+      } else if (isOperatorRole(role)) {
+        const scopeQuery = await this.buildOperatorScopeQuery(userId);
+        query.$and = requestedBuyerId
+          ? [scopeQuery, { buyerAssociateId: requestedBuyerId }]
+          : [scopeQuery];
       } else if (isAssociateRole(role)) {
         const companyId = await this.resolveAssociateCompany(userId);
         query.$or = [{ buyerAssociateId: userId }];
@@ -177,7 +208,7 @@ export class SampleRequestController {
           .limit(limit)
           .populate(this.getPopulateQuery())
           .populate("supplierCompanyId", "name email phone")
-          .populate("buyerAssociateId", "name email phone")
+          .populate("buyerAssociateId", "name email phone associateCompany")
           .populate("requestState", "name")
           .populate("requestDistrict", "name")
           .populate("requestDivision", "name")
@@ -212,7 +243,7 @@ export class SampleRequestController {
       const request = await SampleRequestModel.findById(id)
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -221,7 +252,22 @@ export class SampleRequestController {
         .lean();
       if (!request) return res.status(404).json({ success: false, message: "Sample request not found." });
 
-      if (isAdminLikeRole(role)) {
+      if (isAdminRole(role)) {
+        return res.status(200).json({ success: true, data: request });
+      }
+
+      if (isOperatorRole(role)) {
+        const { companyIdSet } = await getOperatorCompanyScope(userId);
+        if (!companyIdSet.size) {
+          return res.status(403).json({ success: false, message: "Access denied." });
+        }
+
+        const supplierCompanyId = normalizeEntityId((request as any)?.supplierCompanyId);
+        const buyerCompanyId = normalizeEntityId((request as any)?.buyerAssociateId?.associateCompany);
+        const canAccess = companyIdSet.has(supplierCompanyId) || (buyerCompanyId ? companyIdSet.has(buyerCompanyId) : false);
+        if (!canAccess) {
+          return res.status(403).json({ success: false, message: "Access denied." });
+        }
         return res.status(200).json({ success: true, data: request });
       }
 
@@ -309,7 +355,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -359,7 +405,7 @@ export class SampleRequestController {
       const updated = await SampleRequestModel.findByIdAndUpdate(id, updatePayload, { new: true })
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -401,7 +447,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -463,7 +509,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -508,7 +554,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -553,7 +599,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -609,7 +655,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -654,7 +700,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")
@@ -702,7 +748,7 @@ export class SampleRequestController {
       )
         .populate(this.getPopulateQuery())
         .populate("supplierCompanyId", "name email phone")
-        .populate("buyerAssociateId", "name email phone")
+        .populate("buyerAssociateId", "name email phone associateCompany")
         .populate("requestState", "name")
         .populate("requestDistrict", "name")
         .populate("requestDivision", "name")

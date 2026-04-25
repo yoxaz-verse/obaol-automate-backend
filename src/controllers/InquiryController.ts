@@ -13,6 +13,7 @@ import {
 } from "../core/inquiry/inquiryStateMachine";
 import {
     canAccessInquiry,
+    canOperatorActOnPerspective,
     filterInquiryFields,
     buildInquiryAccessFilter,
     InquiryAccessContext,
@@ -83,6 +84,20 @@ export class InquiryController {
             associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null),
             associateCompanyId: (req.user as any)?.associateCompany || null,
         };
+    }
+
+    private isOperatorUser(req: Request): boolean {
+        const roleLower = String(req.user?.role || "").toLowerCase();
+        return roleLower === "operator" || roleLower === "team";
+    }
+
+    private canOperatorAct(
+        req: Request,
+        inquiry: any,
+        required: "buyer" | "supplier" | "any"
+    ): boolean {
+        if (!this.isOperatorUser(req)) return false;
+        return canOperatorActOnPerspective(inquiry, req.user!.id, required);
     }
 
     private async getCapabilityMatchedProviderIds(type: string): Promise<string[]> {
@@ -198,6 +213,15 @@ export class InquiryController {
                 autoSupplierOperatorId = null;
             }
             const resolvedSupplierOperatorId = supplierOperatorId || autoSupplierOperatorId || null;
+            if (!resolvedSupplierOperatorId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Supplier ownership operator is required. Please assign an operator to the supplier company before creating this inquiry."
+                });
+            }
+            const roleLower = String(req.user?.role || "").toLowerCase();
+            const resolvedDealCloserOperatorId = dealCloserOperatorId
+                || ((roleLower === "operator" || roleLower === "team") ? req.user!.id : null);
 
             // Backend Rate & Commission Lookup
             if (catalogItemId) {
@@ -228,8 +252,8 @@ export class InquiryController {
                 sellerAssociateId,
                 mediatorAssociateId,
                 supplierOperatorId: resolvedSupplierOperatorId,
-                dealCloserOperatorId: dealCloserOperatorId || null,
-                handlerOperatorId: req.user?.role === "Admin" ? (handlerOperatorId || null) : null,
+                dealCloserOperatorId: resolvedDealCloserOperatorId,
+                handlerOperatorId: roleLower === "admin" ? (handlerOperatorId || null) : null,
                 variantRateId,
                 catalogItemId,
                 preferredIncoterm,
@@ -359,15 +383,9 @@ export class InquiryController {
                 });
             }
 
-            // Only seller associate, admin, or assigned operator can commit
+            // Only seller associate, supplier-side operator, or admin can commit
             const isAdmin = req.user!.role === UserRole.ADMIN;
-            const isAssignedOperator =
-                (req.user!.role === UserRole.OPERATOR || req.user!.role === "team") &&
-                (
-                    (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
-                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id ||
-                    (inquiry as any).handlerOperatorId?.toString() === req.user!.id
-                );
+            const canOperatorCommit = this.canOperatorAct(req, inquiry as any, "supplier");
 
             let isSeller = false;
             if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
@@ -375,10 +393,10 @@ export class InquiryController {
                 isSeller = role === "seller";
             }
 
-            if (!isAdmin && !isAssignedOperator && !isSeller) {
+            if (!isAdmin && !canOperatorCommit && !isSeller) {
                 return res.status(403).json({
                     success: false,
-                    message: "Only the supplier, assigned operator, or admin can commit this inquiry"
+                    message: "Only the supplier, supplier-side operator, or admin can commit this inquiry"
                 });
             }
 
@@ -450,11 +468,12 @@ export class InquiryController {
             }
 
             const isAdmin = req.user!.role === UserRole.ADMIN;
+            const canSupplierOperatorAccept = this.canOperatorAct(req, inquiry as any, "supplier");
 
-            if (!isSeller && !isAdmin) {
+            if (!isSeller && !isAdmin && !canSupplierOperatorAccept) {
                 return res.status(403).json({
                     success: false,
-                    message: "Only the supplier or admin can accept this inquiry"
+                    message: "Only the supplier, supplier-side operator, or admin can accept this inquiry"
                 });
             }
 
@@ -627,11 +646,12 @@ export class InquiryController {
             }
 
             const isAdmin = req.user!.role === UserRole.ADMIN;
+            const canBuyerOperatorConfirm = this.canOperatorAct(req, inquiry as any, "buyer");
 
-            if (!isBuyer && !isAdmin) {
+            if (!isBuyer && !isAdmin && !canBuyerOperatorConfirm) {
                 return res.status(403).json({
                     success: false,
-                    message: "Only the buyer or admin can confirm this inquiry"
+                    message: "Only the buyer, buyer-side operator, or admin can confirm this inquiry"
                 });
             }
 
@@ -704,11 +724,12 @@ export class InquiryController {
             }
 
             const isAdmin = req.user!.role === UserRole.ADMIN;
+            const canBuyerOperatorRequest = this.canOperatorAct(req, inquiry as any, "buyer");
 
-            if (!isBuyer && !isAdmin) {
+            if (!isBuyer && !isAdmin && !canBuyerOperatorRequest) {
                 return res.status(403).json({
                     success: false,
-                    message: "Only the buyer or admin can request clarification"
+                    message: "Only the buyer, buyer-side operator, or admin can request clarification"
                 });
             }
 
@@ -794,6 +815,37 @@ export class InquiryController {
             const inquiry = await InquiryModel.findById(id);
             if (!inquiry) {
                 return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+            const context: InquiryAccessContext = this.buildAccessContext(req);
+            if (!canAccessInquiry(inquiry as any, context)) {
+                return res.status(403).json({ success: false, message: "Access denied" });
+            }
+
+            if (this.isOperatorUser(req)) {
+                const actionPerspectiveMap: Record<string, "buyer" | "supplier" | "any"> = {
+                    LOI_SUBMITTED: "buyer",
+                    SUPPLIER_QTY_CONFIRMED: "supplier",
+                    REVISION_REQUESTED: "buyer",
+                    REVISION_SKIPPED: "buyer",
+                    REVISION_CONFIRMED: "buyer",
+                    QUOTATION_CREATED: "any",
+                    QUOTATION_ACCEPTED: "buyer",
+                    RETURN_TO_REVISION: "buyer",
+                    RESPONSIBILITIES_FINALIZED: "any",
+                    PROFORMA_CREATED: "any",
+                    OTHER_DOCS_UPLOADED: "any",
+                    OTHER_DOCS_SKIPPED: "any",
+                    PO_UPLOADED: "buyer",
+                    PO_SKIPPED: "buyer",
+                    CONVERT_TO_ORDER: "any",
+                };
+                const requiredPerspective = actionPerspectiveMap[actionKey];
+                if (!requiredPerspective || !this.canOperatorAct(req, inquiry as any, requiredPerspective)) {
+                    return res.status(403).json({
+                        success: false,
+                        message: "This action is not allowed for your operator assignment on this inquiry."
+                    });
+                }
             }
             const now = new Date();
             const reasons = Array.isArray(req.body?.reasons) ? req.body.reasons.map((r: any) => String(r).toUpperCase()) : [];
@@ -1073,13 +1125,7 @@ export class InquiryController {
             }
 
             const isAdmin = req.user?.role === UserRole.ADMIN || role === "admin";
-            const isAssignedOperator =
-                (req.user?.role === UserRole.OPERATOR || req.user?.role === "team" || role === "operator" || role === "team") &&
-                (
-                    (inquiry as any).supplierOperatorId?.toString() === req.user!.id ||
-                    (inquiry as any).dealCloserOperatorId?.toString() === req.user!.id ||
-                    (inquiry as any).handlerOperatorId?.toString() === req.user!.id
-                );
+            const isSupplierSideOperator = this.canOperatorAct(req, inquiry as any, "supplier");
             let isSeller = false;
             if (req.user?.role === UserRole.ASSOCIATE && context.associateId) {
                 const associationRole = getAssociateRole(inquiry as any, context.associateId);
@@ -1087,8 +1133,8 @@ export class InquiryController {
             }
             const isSupplier = String((inquiry as any)?.sellerAssociateId || "") === String(req.user?.id || "");
 
-            if (!isAdmin && !isAssignedOperator && !isSeller && !isSupplier) {
-                return res.status(403).json({ success: false, message: "Only the supplier, assigned operator, or admin can reply to revisions." });
+            if (!isAdmin && !isSupplierSideOperator && !isSeller && !isSupplier) {
+                return res.status(403).json({ success: false, message: "Only the supplier, supplier-side operator, or admin can reply to revisions." });
             }
 
             const replies = Array.isArray(req.body?.replies) ? req.body.replies : [];
@@ -1173,15 +1219,16 @@ export class InquiryController {
             }
 
             const isAdmin = req.user!.role === UserRole.ADMIN;
+            const canOperatorFinalize = this.canOperatorAct(req, inquiry as any, "any");
             let isBuyerOrSeller = false;
             if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
                 const role = getAssociateRole(inquiry as any, context.associateId);
                 isBuyerOrSeller = role === "buyer" || role === "seller";
             }
-            if (!isAdmin && !isBuyerOrSeller) {
+            if (!isAdmin && !isBuyerOrSeller && !canOperatorFinalize) {
                 return res.status(403).json({
                     success: false,
-                    message: "Only admin, buyer, or supplier can finalize responsibilities"
+                    message: "Only admin, buyer, supplier, or assigned operator can finalize responsibilities"
                 });
             }
 
@@ -1583,27 +1630,25 @@ export class InquiryController {
 
             const task = tasks[idx];
             const ownerBy = String(task.ownerBy || "").toLowerCase();
+            const requiredOperatorPerspective: "buyer" | "supplier" | "any" =
+                ownerBy === "buyer" ? "buyer" : ownerBy === "seller" ? "supplier" : "any";
             const associateCompanyId = String(context.associateCompanyId || "");
             const candidateProviders = Array.isArray(task?.candidateProviders) ? task.candidateProviders : [];
             const isProviderCandidate = Boolean(
                 associateCompanyId &&
                 candidateProviders.some((provider: any) => String(provider?._id || provider || "") === associateCompanyId)
             );
-            const supplierOperatorId = (inquiry as any).supplierOperatorId?.toString() || "";
-            const dealCloserOperatorId = (inquiry as any).dealCloserOperatorId?.toString() || "";
-            const handlerOperatorId = (inquiry as any).handlerOperatorId?.toString() || "";
-            const isAssignedOperator = Boolean(
-                isOperatorUser &&
-                (supplierOperatorId === req.user!.id || dealCloserOperatorId === req.user!.id || handlerOperatorId === req.user!.id)
+            const canOperatorHandleTask = Boolean(
+                isOperatorUser && this.canOperatorAct(req, inquiry as any, requiredOperatorPerspective)
             );
             const bidCompanyOverride = String(bidCompanyId || "").trim();
-            const isAdminBid = (isAdmin || isAssignedOperator) && bidCompanyOverride;
+            const isAdminBid = (isAdmin || canOperatorHandleTask) && bidCompanyOverride;
             const canBid =
                 isProviderCandidate ||
                 (ownerBy === "buyer" && associateRole === "buyer") ||
                 (ownerBy === "seller" && associateRole === "seller") ||
                 isAdminBid;
-            const canCommit = isAdmin || isAssignedOperator;
+            const canCommit = isAdmin || canOperatorHandleTask;
             const canUpdateStatus = isAdmin;
             const canAct = canBid || canCommit || canUpdateStatus;
 
@@ -1877,6 +1922,7 @@ export class InquiryController {
                     },
                 { path: "supplierOperatorId", select: "name email" },
                 { path: "dealCloserOperatorId", select: "name email" },
+                { path: "handlerOperatorId", select: "name email" },
                     { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }

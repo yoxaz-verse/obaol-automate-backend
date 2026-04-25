@@ -27,10 +27,39 @@ export interface InquiryDocument {
     [key: string]: any;
 }
 
+export type OperatorPerspective = "buyer" | "supplier" | "both" | "none";
+
 const getAttrId = (val: any) => {
     if (!val) return null;
     return (val._id || val).toString();
 };
+
+export function getOperatorPerspective(
+    inquiry: InquiryDocument,
+    userId: Types.ObjectId | string
+): OperatorPerspective {
+    const operatorId = userId.toString();
+    const isHandler = getAttrId((inquiry as any).handlerOperatorId) === operatorId;
+    const isBuyerOperator = getAttrId((inquiry as any).dealCloserOperatorId) === operatorId;
+    const isSupplierOperator = getAttrId((inquiry as any).supplierOperatorId) === operatorId;
+
+    if (isHandler || (isBuyerOperator && isSupplierOperator)) return "both";
+    if (isBuyerOperator) return "buyer";
+    if (isSupplierOperator) return "supplier";
+    return "none";
+}
+
+export function canOperatorActOnPerspective(
+    inquiry: InquiryDocument,
+    userId: Types.ObjectId | string,
+    required: "buyer" | "supplier" | "any"
+): boolean {
+    const perspective = getOperatorPerspective(inquiry, userId);
+    if (perspective === "none") return false;
+    if (required === "any") return true;
+    if (perspective === "both") return true;
+    return perspective === required;
+}
 
 export function isExecutionProviderForCompany(
     inquiry: InquiryDocument,
@@ -65,19 +94,13 @@ export function canAccessInquiry(
         return true;
     }
 
-    // Operator: can access if assigned
+    // Operator: can access if assigned to buyer/supplier/handler perspective
     if (
         userRole === UserRole.OPERATOR ||
         roleLower === "operator" ||
-        roleLower === "operator" ||
         roleLower === "team"
     ) {
-        return (
-            getAttrId((inquiry as any).supplierOperatorId) === userId.toString() ||
-            getAttrId((inquiry as any).dealCloserOperatorId) === userId.toString() ||
-            getAttrId((inquiry as any).handlerOperatorId) === userId.toString() ||
-            getAttrId((inquiry as any).createdBy) === userId.toString()
-        );
+        return getOperatorPerspective(inquiry, userId) !== "none";
     }
 
     // Associate: can access if involved (buyer, seller, or mediator)
@@ -139,10 +162,7 @@ export function filterInquiryFields(
         userRole === UserRole.ADMIN ||
         roleLower === "admin" ||
         ((userRole === UserRole.OPERATOR || roleLower === "operator" || roleLower === "team") &&
-            (getAttrId((inquiry as any).supplierOperatorId) === context.userId.toString() ||
-                getAttrId((inquiry as any).dealCloserOperatorId) === context.userId.toString() ||
-                getAttrId((inquiry as any).handlerOperatorId) === context.userId.toString() ||
-                getAttrId((inquiry as any).createdBy) === context.userId.toString()))
+            getOperatorPerspective(inquiry, context.userId) !== "none")
     ) {
         return inquiry;
     }
@@ -281,7 +301,6 @@ export function buildInquiryAccessFilter(
                 { supplierOperatorId: userId },
                 { dealCloserOperatorId: userId },
                 { handlerOperatorId: userId },
-                { createdBy: userId }
             ]
         };
     }

@@ -14,6 +14,7 @@ import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { sendTradeDocumentEmail } from "../utils/mailer";
 import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEmail";
 import { getCalculationConfig } from "../utils/calculationConfig";
+import { getOperatorPerspective, OperatorPerspective } from "../core/inquiry/inquiryAccessControl";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -102,6 +103,21 @@ const shouldAdvanceInquiryStage = (currentStage: string, nextStage: string, stag
   const nextOrder = stageOrder.get(String(nextStage || "").toUpperCase());
   if (currentOrder === undefined || nextOrder === undefined) return true;
   return nextOrder >= currentOrder;
+};
+
+const normalizeAudienceScope = (scope: any) => {
+  const normalized = String(scope || "SELLER_OBAOL").toUpperCase();
+  if (normalized === "BUYER_OBAOL") return "OBAOL_BUYER";
+  if (normalized === "OBAOL_BUYER") return "OBAOL_BUYER";
+  return "SELLER_OBAOL";
+};
+
+const canPerspectiveSeeAudience = (perspective: OperatorPerspective, scope: any) => {
+  if (perspective === "both") return true;
+  const normalizedScope = normalizeAudienceScope(scope);
+  if (perspective === "buyer") return normalizedScope === "OBAOL_BUYER";
+  if (perspective === "supplier") return normalizedScope === "SELLER_OBAOL";
+  return false;
 };
 
 const OBAOL_COMPANY_KEY = "OBAOL_COMPANY_ID";
@@ -473,18 +489,29 @@ export class TradeDocumentController {
       if (isAdminRole(role)) {
         // full access
       } else if (isOperatorRole(role)) {
-        const assignedCompanies = await AssociateCompanyModel.find({
-          assignedOperator: new Types.ObjectId(userId),
+        const assignedInquiries = await InquiryModel.find({
+          $or: [
+            { dealCloserOperatorId: new Types.ObjectId(userId) },
+            { supplierOperatorId: new Types.ObjectId(userId) },
+            { handlerOperatorId: new Types.ObjectId(userId) },
+          ],
           isDeleted: { $ne: true },
-        }).select("_id").lean();
-        const assignedIds = assignedCompanies.map((c: any) => c._id);
-        if (assignedIds.length === 0) {
+        })
+          .select("_id dealCloserOperatorId supplierOperatorId handlerOperatorId")
+          .lean();
+        const perspectiveByInquiryId = new Map<string, OperatorPerspective>();
+        for (const inquiry of assignedInquiries) {
+          const inquiryId = String((inquiry as any)?._id || "");
+          if (!inquiryId) continue;
+          perspectiveByInquiryId.set(inquiryId, getOperatorPerspective(inquiry as any, userId));
+        }
+        if (perspectiveByInquiryId.size === 0) {
           return res.status(200).json({
             success: true,
             data: { data: [], total: 0, page, limit },
           });
         }
-        query["seller.companyId"] = { $in: assignedIds };
+        query.enquiryId = { $in: Array.from(perspectiveByInquiryId.keys()).map((id) => new Types.ObjectId(id)) };
       } else if (isAssociateRole(role)) {
         query.$or = [
           { "buyer.associateId": new Types.ObjectId(userId) },
@@ -504,7 +531,28 @@ export class TradeDocumentController {
       ]);
 
       let filteredRows = rows;
-      if (isAssociateRole(role)) {
+      if (isOperatorRole(role)) {
+        const inquiryIds = Array.from(
+          new Set((rows || []).map((row: any) => String((row as any)?.enquiryId || "")).filter(Boolean))
+        );
+        const inquiries = await InquiryModel.find({
+          _id: { $in: inquiryIds.map((id) => new Types.ObjectId(id)) },
+        })
+          .select("_id dealCloserOperatorId supplierOperatorId handlerOperatorId")
+          .lean();
+        const perspectiveByInquiryId = new Map<string, OperatorPerspective>();
+        for (const inquiry of inquiries) {
+          const inquiryId = String((inquiry as any)?._id || "");
+          if (!inquiryId) continue;
+          perspectiveByInquiryId.set(inquiryId, getOperatorPerspective(inquiry as any, userId));
+        }
+        filteredRows = (rows || []).filter((row: any) => {
+          const inquiryId = String((row as any)?.enquiryId || "");
+          if (!inquiryId) return false;
+          const perspective = perspectiveByInquiryId.get(inquiryId) || "none";
+          return canPerspectiveSeeAudience(perspective, (row as any)?.audienceScope);
+        });
+      } else if (isAssociateRole(role)) {
         const docTypes = Array.from(new Set((rows || []).map((row: any) => String(row.type || ""))));
         const rules = await DocumentRuleModel.find({
           docType: { $in: docTypes },
@@ -558,13 +606,18 @@ export class TradeDocumentController {
       if (isAdminRole(role)) {
         // ok
       } else if (isOperatorRole(role)) {
-        const assignedCompanies = await AssociateCompanyModel.find({
-          assignedOperator: new Types.ObjectId(userId),
-          isDeleted: { $ne: true },
-        }).select("_id").lean();
-        const assignedIds = assignedCompanies.map((c: any) => c._id);
-        const sellerCompanyId = String((doc as any)?.seller?.companyId || "");
-        if (!assignedIds.some((id) => String(id) === sellerCompanyId)) {
+        const enquiryId = String((doc as any)?.enquiryId || "");
+        if (!enquiryId || !Types.ObjectId.isValid(enquiryId)) {
+          return res.status(403).json({ success: false, message: "Access denied." });
+        }
+        const inquiry = await InquiryModel.findById(enquiryId)
+          .select("_id dealCloserOperatorId supplierOperatorId handlerOperatorId")
+          .lean();
+        if (!inquiry) {
+          return res.status(403).json({ success: false, message: "Access denied." });
+        }
+        const perspective = getOperatorPerspective(inquiry as any, userId);
+        if (perspective === "none" || !canPerspectiveSeeAudience(perspective, (doc as any)?.audienceScope)) {
           return res.status(403).json({ success: false, message: "Access denied." });
         }
       } else if (isAssociateRole(role)) {

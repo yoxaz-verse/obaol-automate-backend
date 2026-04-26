@@ -154,17 +154,62 @@ export function filterInquiryFields(
     inquiry: InquiryDocument,
     context: InquiryAccessContext
 ): Partial<InquiryDocument> {
-    const { userRole, associateId, associateCompanyId } = context;
+    const { userRole, associateId, associateCompanyId, userId } = context;
     const roleLower = String(userRole || "").toLowerCase();
 
-    // Admin and assigned operators: full access
-    if (
-        userRole === UserRole.ADMIN ||
-        roleLower === "admin" ||
-        ((userRole === UserRole.OPERATOR || roleLower === "operator" || roleLower === "team") &&
-            getOperatorPerspective(inquiry, context.userId) !== "none")
-    ) {
+    // Admin: full access
+    if (userRole === UserRole.ADMIN || roleLower === "admin") {
         return inquiry;
+    }
+
+    // Operator/Team: perspective-aware redaction
+    if (userRole === UserRole.OPERATOR || roleLower === "operator" || roleLower === "team") {
+        const perspective = getOperatorPerspective(inquiry, userId);
+        if (perspective === "both") return inquiry;
+
+        if (perspective === "buyer") {
+            const {
+                sellerAssociateId,
+                supplierOperatorId,
+                sellerAssociateName,
+                sellerName,
+                sellerPhone,
+                sellerAssociateCompanyName,
+                importListingId,
+                ...safeFields
+            } = inquiry as any;
+            return {
+                ...safeFields,
+                sellerAssociateId: undefined,
+                supplierOperatorId: undefined,
+                sellerAssociateName: undefined,
+                sellerName: undefined,
+                sellerPhone: undefined,
+                sellerAssociateCompanyName: undefined,
+                importListingId: undefined,
+            };
+        }
+
+        if (perspective === "supplier") {
+            const {
+                buyerAssociateId,
+                dealCloserOperatorId,
+                buyerAssociateName,
+                buyerName,
+                buyerPhone,
+                buyerAssociateCompanyName,
+                ...safeFields
+            } = inquiry as any;
+            return {
+                ...safeFields,
+                buyerAssociateId: undefined,
+                dealCloserOperatorId: undefined,
+                buyerAssociateName: undefined,
+                buyerName: undefined,
+                buyerPhone: undefined,
+                buyerAssociateCompanyName: undefined,
+            };
+        }
     }
 
     // Associate: limited access based on role

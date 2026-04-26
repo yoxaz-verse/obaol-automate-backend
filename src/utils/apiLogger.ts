@@ -1,9 +1,30 @@
 import winston from "winston";
+import fs from "fs";
+import path from "path";
+
+const resolveLogDir = () => {
+  const preferredDir = process.env.LOG_DIR || "logs";
+  const absoluteDir = path.isAbsolute(preferredDir)
+    ? preferredDir
+    : path.join(process.cwd(), preferredDir);
+
+  try {
+    fs.mkdirSync(absoluteDir, { recursive: true });
+    return absoluteDir;
+  } catch {
+    return null;
+  }
+};
 
 // Define the log format
 const logFormat = winston.format.printf(({ level, message, timestamp }) => {
   return `${timestamp} [${level.toUpperCase()}]: ${message}`;
 });
+
+const logDir = resolveLogDir();
+const fileTransports = logDir
+  ? [new winston.transports.File({ filename: path.join(logDir, "api.log") })]
+  : [];
 
 // Create a winston logger
 const logger = winston.createLogger({
@@ -14,7 +35,7 @@ const logger = winston.createLogger({
   ),
   transports: [
     new winston.transports.Console(), // Log to the console
-    new winston.transports.File({ filename: "logs/api.log" }), // Log to a file
+    ...fileTransports, // Log to file when writable
   ],
 });
 

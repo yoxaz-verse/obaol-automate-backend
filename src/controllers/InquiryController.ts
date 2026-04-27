@@ -193,6 +193,21 @@ export class InquiryController {
                 notes
             } = req.body;
             let { rate, adminCommission, mediatorCommission } = req.body;
+            const normalizeId = (value: any): string => {
+                if (value === null || value === undefined) return "";
+                if (typeof value === "object") {
+                    return String((value as any)?._id || (value as any)?.id || "").trim();
+                }
+                return String(value).trim();
+            };
+            const isValidId = (value: any): boolean => Types.ObjectId.isValid(normalizeId(value));
+            const hasValue = (value: any): boolean => {
+                if (value === null || value === undefined) return false;
+                if (typeof value === "string") return value.trim().length > 0;
+                if (typeof value === "object") return Boolean((value as any)?._id || (value as any)?.id);
+                return true;
+            };
+
             // Validation
             if (!productId || !buyerAssociateId || !sellerAssociateId) {
                 return res.status(400).json({
@@ -200,10 +215,54 @@ export class InquiryController {
                     message: "productId, buyerAssociateId, and sellerAssociateId are required"
                 });
             }
+            if (!isValidId(productId)) {
+                return res.status(400).json({ success: false, message: "Invalid productId" });
+            }
+            if (!isValidId(buyerAssociateId)) {
+                return res.status(400).json({ success: false, message: "Invalid buyerAssociateId" });
+            }
+            if (!isValidId(sellerAssociateId)) {
+                return res.status(400).json({ success: false, message: "Invalid sellerAssociateId" });
+            }
+            if (hasValue(mediatorAssociateId) && !isValidId(mediatorAssociateId)) {
+                return res.status(400).json({ success: false, message: "Invalid mediatorAssociateId" });
+            }
+            if (hasValue(supplierOperatorId) && !isValidId(supplierOperatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid supplierOperatorId" });
+            }
+            if (hasValue(dealCloserOperatorId) && !isValidId(dealCloserOperatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid dealCloserOperatorId" });
+            }
+            if (hasValue(handlerOperatorId) && !isValidId(handlerOperatorId)) {
+                return res.status(400).json({ success: false, message: "Invalid handlerOperatorId" });
+            }
+            if (hasValue(variantRateId) && !isValidId(variantRateId)) {
+                return res.status(400).json({ success: false, message: "Invalid variantRateId" });
+            }
+            if (hasValue(catalogItemId) && !isValidId(catalogItemId)) {
+                return res.status(400).json({ success: false, message: "Invalid catalogItemId" });
+            }
+            if (hasValue(preferredIncoterm) && !isValidId(preferredIncoterm)) {
+                return res.status(400).json({ success: false, message: "Invalid preferredIncoterm" });
+            }
+            if (hasValue(paymentTermId) && !isValidId(paymentTermId)) {
+                return res.status(400).json({ success: false, message: "Invalid paymentTermId" });
+            }
+            const normalizedProductId = normalizeId(productId);
+            const normalizedBuyerAssociateId = normalizeId(buyerAssociateId);
+            const normalizedSellerAssociateId = normalizeId(sellerAssociateId);
+            const normalizedMediatorAssociateId = hasValue(mediatorAssociateId) ? normalizeId(mediatorAssociateId) : null;
+            const normalizedSupplierOperatorIdInput = hasValue(supplierOperatorId) ? normalizeId(supplierOperatorId) : null;
+            const normalizedDealCloserOperatorIdInput = hasValue(dealCloserOperatorId) ? normalizeId(dealCloserOperatorId) : null;
+            const normalizedHandlerOperatorIdInput = hasValue(handlerOperatorId) ? normalizeId(handlerOperatorId) : null;
+            const normalizedVariantRateId = hasValue(variantRateId) ? normalizeId(variantRateId) : null;
+            const normalizedCatalogItemId = hasValue(catalogItemId) ? normalizeId(catalogItemId) : null;
+            const normalizedPreferredIncoterm = hasValue(preferredIncoterm) ? normalizeId(preferredIncoterm) : null;
+            const normalizedPaymentTermId = hasValue(paymentTermId) ? normalizeId(paymentTermId) : null;
 
             let autoSupplierOperatorId: any = null;
             try {
-                const sellerAssociate = await AssociateModel.findById(sellerAssociateId).select("associateCompany").lean();
+                const sellerAssociate = await AssociateModel.findById(normalizedSellerAssociateId).select("associateCompany").lean();
                 const sellerCompanyId = sellerAssociate?.associateCompany || null;
                 if (sellerCompanyId) {
                     const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("assignedOperator").lean();
@@ -212,22 +271,22 @@ export class InquiryController {
             } catch (error) {
                 autoSupplierOperatorId = null;
             }
-            const resolvedSupplierOperatorId = supplierOperatorId || autoSupplierOperatorId || null;
+            const resolvedSupplierOperatorId = normalizedSupplierOperatorIdInput || autoSupplierOperatorId || null;
             const roleLower = String(req.user?.role || "").toLowerCase();
-            const resolvedDealCloserOperatorId = dealCloserOperatorId
+            const resolvedDealCloserOperatorId = normalizedDealCloserOperatorIdInput
                 || ((roleLower === "operator" || roleLower === "team") ? req.user!.id : null);
 
             // Backend Rate & Commission Lookup
-            if (catalogItemId) {
-                const catalogItem = await CatalogItemModel.findById(catalogItemId).populate("baseRateId");
+            if (normalizedCatalogItemId) {
+                const catalogItem = await CatalogItemModel.findById(normalizedCatalogItemId).populate("baseRateId");
                 if (catalogItem) {
                     const baseRate = catalogItem.baseRateId as any;
                     rate = baseRate?.rate || 0;
                     adminCommission = baseRate?.commission || 0;
                     mediatorCommission = catalogItem.margin || 0;
                 }
-            } else if (variantRateId) {
-                const variantRate = await VariantRateModel.findById(variantRateId);
+            } else if (normalizedVariantRateId) {
+                const variantRate = await VariantRateModel.findById(normalizedVariantRateId);
                 if (variantRate) {
                     rate = variantRate.rate || 0;
                     adminCommission = variantRate.commission || 0;
@@ -238,20 +297,20 @@ export class InquiryController {
             const isImport = String(req.body?.sourceType || "").toUpperCase() === "IMPORT" || Boolean(req.body?.importListingId);
             // Create inquiry
             const inquiry = await InquiryModel.create({
-                productId,
+                productId: normalizedProductId,
                 quantity,
                 specifications,
                 packagingSpecifications,
-                buyerAssociateId,
-                sellerAssociateId,
-                mediatorAssociateId,
+                buyerAssociateId: normalizedBuyerAssociateId,
+                sellerAssociateId: normalizedSellerAssociateId,
+                mediatorAssociateId: normalizedMediatorAssociateId,
                 supplierOperatorId: resolvedSupplierOperatorId,
                 dealCloserOperatorId: resolvedDealCloserOperatorId,
-                handlerOperatorId: roleLower === "admin" ? (handlerOperatorId || null) : null,
-                variantRateId,
-                catalogItemId,
-                preferredIncoterm,
-                paymentTermId,
+                handlerOperatorId: roleLower === "admin" ? (normalizedHandlerOperatorIdInput || null) : null,
+                variantRateId: normalizedVariantRateId,
+                catalogItemId: normalizedCatalogItemId,
+                preferredIncoterm: normalizedPreferredIncoterm,
+                paymentTermId: normalizedPaymentTermId,
                 supplierCommitUntil,
                 rate,
                 adminCommission,

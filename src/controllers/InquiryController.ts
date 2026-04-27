@@ -1498,12 +1498,13 @@ export class InquiryController {
                 },
                 { type: "QUALITY_TESTING", ownerBy: plan.qualityTestingBy, title: "Quality Testing & Assurance Inquiry", details: commonDetails },
             ];
+            const operatorExecutionSeed = executionInquirySeed.filter((task: any) => String(task?.ownerBy || "").toLowerCase() === "obaol");
 
             const candidateSets = await Promise.all(
-                executionInquirySeed.map((x: any) => this.getCapabilityMatchedProviderIds(x.type))
+                operatorExecutionSeed.map((x: any) => this.getCapabilityMatchedProviderIds(x.type))
             );
 
-            const executionInquiries = executionInquirySeed.map((x: any, index: number) => ({
+            const executionInquiries = operatorExecutionSeed.map((x: any, index: number) => ({
                 ...x,
                 status: "OPEN" as const,
                 candidateProviders: candidateSets[index] || [],
@@ -1533,6 +1534,13 @@ export class InquiryController {
             );
 
             try {
+                if (!executionInquiries.length) {
+                    return res.json({
+                        success: true,
+                        data: inquiry,
+                        message: "Responsibilities finalized."
+                    });
+                }
                 const recipients = await notificationService.buildInquiryRecipients(inquiry as any);
                 notificationService.removeActor(recipients, req.user?.id || null);
 
@@ -1959,7 +1967,7 @@ export class InquiryController {
      */
     async list(req: Request, res: Response, next: NextFunction) {
         try {
-            const { status, page = 1, limit = 20 } = req.query;
+            const { status, page = 1, limit = 20, hasExecution } = req.query;
 
             // Build access context
             const context: InquiryAccessContext = this.buildAccessContext(req);
@@ -1971,6 +1979,15 @@ export class InquiryController {
             const filters: any = { ...accessFilter };
             if (status && isValidInquiryStatus(status as string)) {
                 filters.status = status;
+            }
+            const hasExecutionFilter = String(hasExecution || "").toLowerCase();
+            if (hasExecutionFilter === "true") {
+                filters.executionInquiries = { $exists: true, $ne: [] };
+            } else if (hasExecutionFilter === "false") {
+                filters.$or = [
+                    { executionInquiries: { $exists: false } },
+                    { executionInquiries: { $size: 0 } },
+                ];
             }
 
             // Query with pagination

@@ -10,6 +10,7 @@ import { getCalculationConfig } from "../utils/calculationConfig";
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
 const isAssociateRole = (role: string) => role === "associate";
+const isOperatorRole = (role: string) => role === "operator" || role === "team";
 const isWarehouseOperatorRole = (role: string) =>
   role === "warehouse_operator" || role === "warehouse-operator" || role === "warehouseoperator";
 
@@ -141,7 +142,7 @@ export class WarehouseController {
     try {
       const role = normalizeRole(req.user?.role);
       const userId = String(req.user?.id || "").trim();
-      if (!isAdminRole(role) && !isWarehouseOperatorRole(role) && !isAssociateRole(role)) {
+      if (!isAdminRole(role) && !isWarehouseOperatorRole(role) && !isOperatorRole(role) && !isAssociateRole(role)) {
         return res.status(403).json({ success: false, message: "Access denied." });
       }
 

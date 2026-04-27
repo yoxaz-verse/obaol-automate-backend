@@ -14,6 +14,12 @@ router.get("/warehouses", authenticateToken, (req, res, next) =>
 router.patch("/warehouses/:id", authenticateToken, (req, res, next) =>
     controller.updateWarehouse(req, res, next)
 );
+router.post("/warehouse/assignments", authenticateToken, (req, res, next) =>
+    controller.createWarehouseAssignment(req, res, next)
+);
+router.get("/warehouse/assignments", authenticateToken, (req, res, next) =>
+    controller.listWarehouseAssignments(req, res, next)
+);
 
 router.post("/warehouse/inbound", authenticateToken, (req, res, next) =>
     controller.recordInbound(req, res, next)

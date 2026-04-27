@@ -5,6 +5,9 @@ import { InventoryModel } from "../database/models/inventory";
 import { WarehouseMovementLogModel } from "../database/models/warehouseMovementLog";
 import { StorageChargeModel } from "../database/models/storageCharge";
 import { AssociateModel } from "../database/models/associate";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { WarehouseAssignmentModel } from "../database/models/warehouseAssignment";
+import { getOperatorCompanyScope } from "../core/hooks/operatorScope";
 import { getCalculationConfig } from "../utils/calculationConfig";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
@@ -72,6 +75,39 @@ export class WarehouseController {
       .select("_id associateCompany")
       .lean();
     return associate?.associateCompany ? String(associate.associateCompany) : null;
+  }
+
+  private async resolveScopedCompanyId(
+    role: string,
+    userId: string,
+    requestedCompanyIdRaw: any
+  ): Promise<{ companyId: string | null; status?: number; message?: string }> {
+    if (isAssociateRole(role)) {
+      const associateCompanyId = await this.resolveAssociateCompany(userId);
+      if (!associateCompanyId) {
+        return { companyId: null, status: 400, message: "Associate company not found." };
+      }
+      return { companyId: associateCompanyId };
+    }
+
+    const requestedCompanyId = String(requestedCompanyIdRaw || "").trim();
+    if (!Types.ObjectId.isValid(requestedCompanyId)) {
+      return { companyId: null, status: 400, message: "Valid companyId is required." };
+    }
+
+    if (isOperatorRole(role)) {
+      const scope = await getOperatorCompanyScope(userId);
+      if (!scope.companyIdSet.has(requestedCompanyId)) {
+        return { companyId: null, status: 403, message: "Access denied." };
+      }
+    }
+
+    const companyExists = await AssociateCompanyModel.exists({ _id: requestedCompanyId });
+    if (!companyExists) {
+      return { companyId: null, status: 404, message: "Associate company not found." };
+    }
+
+    return { companyId: requestedCompanyId };
   }
 
   async createWarehouse(req: Request, res: Response, next: NextFunction) {
@@ -265,6 +301,120 @@ export class WarehouseController {
       }
 
       return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createWarehouseAssignment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
+      if (!isAdminRole(role) && !isAssociateRole(role) && !isOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const warehouseId = toObjectId(req.body?.warehouseId);
+      if (!warehouseId) {
+        return res.status(400).json({ success: false, message: "Valid warehouseId is required." });
+      }
+
+      const warehouse = await WarehouseModel.findById(warehouseId).select("_id isActive").lean();
+      if (!warehouse) {
+        return res.status(404).json({ success: false, message: "Warehouse not found." });
+      }
+
+      const scopedCompany = await this.resolveScopedCompanyId(role, userId, req.body?.companyId);
+      if (!scopedCompany.companyId) {
+        return res.status(scopedCompany.status || 400).json({
+          success: false,
+          message: scopedCompany.message || "Company resolution failed.",
+        });
+      }
+
+      const companyObjectId = new Types.ObjectId(scopedCompany.companyId);
+      const assignment = await WarehouseAssignmentModel.findOneAndUpdate(
+        { warehouseId, companyId: companyObjectId },
+        { $set: { status: "ACTIVE" } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      )
+        .populate("warehouseId", "name address category listingType isRentalActive isActive")
+        .populate("companyId", "name email assignedOperator")
+        .lean();
+
+      return res.status(200).json({ success: true, data: assignment });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listWarehouseAssignments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role);
+      const userId = String(req.user?.id || "").trim();
+      if (!userId) return res.status(401).json({ success: false, message: "Authentication required." });
+      if (!isAdminRole(role) && !isAssociateRole(role) && !isOperatorRole(role)) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
+      const query: any = {};
+      const warehouseIdRaw = String(req.query?.warehouseId || "").trim();
+      const companyIdRaw = String(req.query?.companyId || "").trim();
+      const statusRaw = String(req.query?.status || "").trim().toUpperCase();
+
+      if (warehouseIdRaw) {
+        if (!Types.ObjectId.isValid(warehouseIdRaw)) {
+          return res.status(400).json({ success: false, message: "Invalid warehouseId." });
+        }
+        query.warehouseId = new Types.ObjectId(warehouseIdRaw);
+      }
+
+      if (statusRaw) {
+        if (!["ACTIVE", "INACTIVE"].includes(statusRaw)) {
+          return res.status(400).json({ success: false, message: "Invalid status filter." });
+        }
+        query.status = statusRaw;
+      }
+
+      if (isAssociateRole(role)) {
+        const associateCompanyId = await this.resolveAssociateCompany(userId);
+        if (!associateCompanyId) {
+          return res.status(400).json({ success: false, message: "Associate company not found." });
+        }
+        query.companyId = new Types.ObjectId(associateCompanyId);
+      } else if (isOperatorRole(role)) {
+        const scope = await getOperatorCompanyScope(userId);
+        const scopedCompanyIds = Array.from(scope.companyIdSet);
+        if (!scopedCompanyIds.length) {
+          return res.status(200).json({ success: true, data: [] });
+        }
+
+        if (companyIdRaw) {
+          if (!Types.ObjectId.isValid(companyIdRaw)) {
+            return res.status(400).json({ success: false, message: "Invalid companyId." });
+          }
+          if (!scope.companyIdSet.has(companyIdRaw)) {
+            return res.status(403).json({ success: false, message: "Access denied." });
+          }
+          query.companyId = new Types.ObjectId(companyIdRaw);
+        } else {
+          query.companyId = { $in: scopedCompanyIds.map((id) => new Types.ObjectId(id)) };
+        }
+      } else if (companyIdRaw) {
+        if (!Types.ObjectId.isValid(companyIdRaw)) {
+          return res.status(400).json({ success: false, message: "Invalid companyId." });
+        }
+        query.companyId = new Types.ObjectId(companyIdRaw);
+      }
+
+      const assignments = await WarehouseAssignmentModel.find(query)
+        .populate("warehouseId", "name address category listingType isRentalActive isActive")
+        .populate("companyId", "name email assignedOperator")
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return res.status(200).json({ success: true, data: assignments });
     } catch (error) {
       next(error);
     }

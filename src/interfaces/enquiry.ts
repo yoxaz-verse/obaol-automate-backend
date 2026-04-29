@@ -90,6 +90,10 @@ export interface IInquiry extends Document {
   supplierOperatorId?: Types.ObjectId | null;
   dealCloserOperatorId?: Types.ObjectId | null;
   handlerOperatorId?: Types.ObjectId | null;
+  pendingHandlerOperatorId?: Types.ObjectId | null;
+  pendingHandlerRequestedAt?: Date | null;
+  pendingHandlerRequestedBy?: Types.ObjectId | null;
+  pendingHandlerStatus?: "NONE" | "PENDING" | "REJECTED";
   order?: Types.ObjectId | null;
   responsibilityPlan?: {
     procurementBy?: "buyer" | "seller" | "obaol";
@@ -190,6 +194,10 @@ export interface ICreateInquiry {
   supplierOperatorId?: Types.ObjectId | null;
   dealCloserOperatorId?: Types.ObjectId | null;
   handlerOperatorId?: Types.ObjectId | null;
+  pendingHandlerOperatorId?: Types.ObjectId | null;
+  pendingHandlerRequestedAt?: Date | null;
+  pendingHandlerRequestedBy?: Types.ObjectId | null;
+  pendingHandlerStatus?: "NONE" | "PENDING" | "REJECTED";
   preferredIncoterm?: Types.ObjectId | null;
   paymentTermId?: Types.ObjectId | null;
   supplierCommitUntil?: Date | null;

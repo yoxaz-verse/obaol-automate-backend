@@ -55,6 +55,18 @@ router.patch("/:id/status", inquiryController.updateStatus.bind(inquiryControlle
 router.patch("/:id/workflow-stage", inquiryController.updateWorkflowStage.bind(inquiryController));
 
 /**
+ * Request volunteer as handler (supplier owner/deal closer)
+ * POST /api/v1/web/inquiries/:id/handler-volunteer
+ */
+router.post("/:id/handler-volunteer", inquiryController.requestHandlerVolunteer.bind(inquiryController));
+
+/**
+ * Review volunteer request (admin only)
+ * PATCH /api/v1/web/inquiries/:id/handler-volunteer
+ */
+router.patch("/:id/handler-volunteer", inquiryController.reviewHandlerVolunteer.bind(inquiryController));
+
+/**
  * Assign operator to inquiry (admin only)
  * PATCH /api/v1/web/inquiries/:id/assign
  * Body: { operatorId: "..." }

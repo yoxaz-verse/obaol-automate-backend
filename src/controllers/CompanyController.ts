@@ -12,7 +12,7 @@ export class CompanyController {
             const { id } = req.params;
 
             // 1. Get all associates belonging to this company
-            const associates = await AssociateModel.find({ associateCompany: id, isDeleted: false });
+            const associates = await AssociateModel.find({ associateCompany: id });
 
             // 2. Fetch performance data for each associate
             const teamStats = await Promise.all(associates.map(async (associate) => {
@@ -68,7 +68,7 @@ export class CompanyController {
             const { id } = req.params;
             const limit = Math.max(1, Math.min(Number(req.query.limit || 10), 50));
 
-            const associates = await AssociateModel.find({ associateCompany: id, isDeleted: false })
+            const associates = await AssociateModel.find({ associateCompany: id })
                 .select("_id")
                 .lean();
             const associateIds = associates.map((a: any) => a._id);
@@ -110,7 +110,7 @@ export class CompanyController {
             const { id } = req.params;
             const limit = Math.max(1, Math.min(Number(req.query.limit || 20), 50));
 
-            const associates = await AssociateModel.find({ associateCompany: id, isDeleted: false })
+            const associates = await AssociateModel.find({ associateCompany: id })
                 .select("_id")
                 .lean();
             const associateIds = associates.map((a: any) => a._id);

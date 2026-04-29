@@ -343,6 +343,27 @@ const InquirySchema: Schema = new Schema(
             default: null,
             index: true
         },
+        pendingHandlerOperatorId: {
+            type: Schema.Types.ObjectId,
+            ref: "Operator",
+            default: null,
+            index: true
+        },
+        pendingHandlerRequestedAt: {
+            type: Date,
+            default: null
+        },
+        pendingHandlerRequestedBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            default: null
+        },
+        pendingHandlerStatus: {
+            type: String,
+            enum: ["NONE", "PENDING", "REJECTED"],
+            default: "NONE",
+            index: true
+        },
         order: {
             type: Schema.Types.ObjectId,
             ref: "Order",

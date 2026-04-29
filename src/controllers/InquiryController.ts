@@ -374,7 +374,8 @@ export class InquiryController {
                 },
                 { path: "supplierOperatorId", select: "name email" },
                 { path: "dealCloserOperatorId", select: "name email" },
-                { path: "handlerOperatorId", select: "name email" }
+                { path: "handlerOperatorId", select: "name email" },
+                { path: "pendingHandlerOperatorId", select: "name email" }
             ]);
 
             await this.notifyInquiryParticipants({
@@ -1984,6 +1985,7 @@ export class InquiryController {
                 { path: "supplierOperatorId", select: "name email" },
                 { path: "dealCloserOperatorId", select: "name email" },
                 { path: "handlerOperatorId", select: "name email" },
+                { path: "pendingHandlerOperatorId", select: "name email" },
                     { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -2097,6 +2099,7 @@ export class InquiryController {
                     { path: "supplierOperatorId", select: "name email" },
                     { path: "dealCloserOperatorId", select: "name email" },
                     { path: "handlerOperatorId", select: "name email" },
+                    { path: "pendingHandlerOperatorId", select: "name email" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -2227,6 +2230,11 @@ export class InquiryController {
             if (!canAccessInquiry(inquiry as any, context)) {
                 return res.status(403).json({ success: false, message: "Access denied" });
             }
+            const roleLower = String(req.user?.role || "").toLowerCase();
+            const isAdminUser = roleLower === "admin";
+            const previousSupplierOperatorId = String((inquiry as any).supplierOperatorId || "");
+            const previousDealCloserOperatorId = String((inquiry as any).dealCloserOperatorId || "");
+            const previousHandlerOperatorId = String((inquiry as any).handlerOperatorId || "");
 
             if (typeof req.body?.specifications !== "undefined") {
                 (inquiry as any).specifications = req.body.specifications;
@@ -2249,31 +2257,28 @@ export class InquiryController {
                 (inquiry as any).packagingSpecifications = String(req.body.packagingSpecifications || "");
             }
             if (typeof req.body?.supplierOperatorId !== "undefined") {
+                if (!isAdminUser) {
+                    return res.status(403).json({ success: false, message: "Only admins can change supplier operator assignment." });
+                }
                 (inquiry as any).supplierOperatorId = req.body.supplierOperatorId || null;
             }
             if (typeof req.body?.dealCloserOperatorId !== "undefined") {
+                if (!isAdminUser) {
+                    return res.status(403).json({ success: false, message: "Only admins can change deal closer assignment." });
+                }
                 (inquiry as any).dealCloserOperatorId = req.body.dealCloserOperatorId || null;
             }
             if (typeof req.body?.handlerOperatorId !== "undefined") {
-                const roleLower = String(req.user?.role || "").toLowerCase();
+                if (!isAdminUser) {
+                    return res.status(403).json({ success: false, message: "Only admins can change handler assignment." });
+                }
                 const handlerId = req.body.handlerOperatorId || null;
-                if (roleLower === "admin") {
-                    (inquiry as any).handlerOperatorId = handlerId;
-                } else {
-                    const supplierId = String((inquiry as any).supplierOperatorId || "");
-                    const closerId = String((inquiry as any).dealCloserOperatorId || "");
-                    const actorId = String(req.user?.id || "");
-                    const existingHandlerId = String((inquiry as any).handlerOperatorId || "");
-                    if (existingHandlerId && existingHandlerId !== actorId) {
-                        return res.status(403).json({ success: false, message: "Only admins can override the current handler." });
-                    }
-                    if (handlerId && String(handlerId) !== actorId) {
-                        return res.status(403).json({ success: false, message: "Only admins can assign other operators as handler." });
-                    }
-                    if (actorId !== supplierId && actorId !== closerId) {
-                        return res.status(403).json({ success: false, message: "Only the supplier owner or deal closer can volunteer as handler." });
-                    }
-                    (inquiry as any).handlerOperatorId = actorId || null;
+                (inquiry as any).handlerOperatorId = handlerId;
+                if (handlerId) {
+                    (inquiry as any).pendingHandlerStatus = "NONE";
+                    (inquiry as any).pendingHandlerOperatorId = null;
+                    (inquiry as any).pendingHandlerRequestedAt = null;
+                    (inquiry as any).pendingHandlerRequestedBy = null;
                 }
             }
             if (typeof req.body?.importDeliveryMode !== "undefined") {
@@ -2292,6 +2297,49 @@ export class InquiryController {
             }
 
             await inquiry.save();
+
+            const nextSupplierOperatorId = String((inquiry as any).supplierOperatorId || "");
+            const nextDealCloserOperatorId = String((inquiry as any).dealCloserOperatorId || "");
+            const nextHandlerOperatorId = String((inquiry as any).handlerOperatorId || "");
+            if (
+                isAdminUser &&
+                (
+                    previousSupplierOperatorId !== nextSupplierOperatorId ||
+                    previousDealCloserOperatorId !== nextDealCloserOperatorId ||
+                    previousHandlerOperatorId !== nextHandlerOperatorId
+                )
+            ) {
+                await createInquiryEvent(
+                    inquiry._id,
+                    InquiryEventType.UPDATED,
+                    req.user!.id,
+                    {
+                        metadata: {
+                            action: "OPERATOR_ASSIGNMENTS_UPDATED",
+                            previousSupplierOperatorId,
+                            previousDealCloserOperatorId,
+                            previousHandlerOperatorId,
+                            nextSupplierOperatorId,
+                            nextDealCloserOperatorId,
+                            nextHandlerOperatorId,
+                        }
+                    }
+                );
+                await this.notifyInquiryParticipants({
+                    inquiry,
+                    actorId: req.user!.id,
+                    type: NotificationTypes.INQUIRY_ASSIGNED,
+                    title: "Operator assignments updated",
+                    message: "Admin updated operator assignments for this inquiry.",
+                    payload: {
+                        inquiryId: inquiry._id,
+                        nextSupplierOperatorId,
+                        nextDealCloserOperatorId,
+                        nextHandlerOperatorId,
+                    },
+                    priority: "high",
+                });
+            }
             return res.status(200).json({ success: true, data: inquiry, message: "Inquiry updated" });
         } catch (error: any) {
             next(error);
@@ -2484,6 +2532,141 @@ export class InquiryController {
             await inquiry.save();
 
             return res.json({ success: true, data: inquiry, message: "Workflow stage updated" });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Request volunteer as handler (supplier owner/deal closer only)
+     * POST /api/v1/web/inquiries/:id/handler-volunteer
+     */
+    async requestHandlerVolunteer(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+
+            const roleLower = String(req.user?.role || "").toLowerCase();
+            if (!(roleLower === "operator" || roleLower === "team")) {
+                return res.status(403).json({ success: false, message: "Only operators can volunteer as handler." });
+            }
+
+            const actorId = String(req.user?.id || "");
+            const supplierId = String((inquiry as any).supplierOperatorId || "");
+            const closerId = String((inquiry as any).dealCloserOperatorId || "");
+            if (actorId !== supplierId && actorId !== closerId) {
+                return res.status(403).json({ success: false, message: "Only current supplier owner or deal closer can volunteer as handler." });
+            }
+
+            (inquiry as any).pendingHandlerOperatorId = req.user!.id;
+            (inquiry as any).pendingHandlerRequestedBy = req.user!.id;
+            (inquiry as any).pendingHandlerRequestedAt = new Date();
+            (inquiry as any).pendingHandlerStatus = "PENDING";
+            await inquiry.save();
+
+            await createInquiryEvent(
+                inquiry._id,
+                InquiryEventType.UPDATED,
+                req.user!.id,
+                {
+                    metadata: { action: "HANDLER_VOLUNTEER_REQUESTED", operatorId: req.user!.id }
+                }
+            );
+
+            await this.notifyInquiryParticipants({
+                inquiry,
+                actorId: req.user!.id,
+                type: NotificationTypes.GENERAL_MESSAGE,
+                title: "Handler volunteer request",
+                message: "A handler volunteer request is pending admin approval.",
+                payload: { inquiryId: inquiry._id, volunteerOperatorId: req.user!.id },
+                priority: "medium",
+            });
+
+            return res.status(200).json({ success: true, data: inquiry, message: "Handler volunteer request submitted for admin approval." });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Approve/reject handler volunteer request (admin only)
+     * PATCH /api/v1/web/inquiries/:id/handler-volunteer
+     */
+    async reviewHandlerVolunteer(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const action = String(req.body?.action || "").trim().toLowerCase();
+            if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            }
+            const roleLower = String(req.user?.role || "").toLowerCase();
+            if (roleLower !== "admin") {
+                return res.status(403).json({ success: false, message: "Only admins can review handler volunteer requests." });
+            }
+            if (!["approve", "reject"].includes(action)) {
+                return res.status(400).json({ success: false, message: "Invalid action. Use approve or reject." });
+            }
+
+            const inquiry = await InquiryModel.findById(id);
+            if (!inquiry) {
+                return res.status(404).json({ success: false, message: "Inquiry not found" });
+            }
+
+            const pendingOperatorId = (inquiry as any).pendingHandlerOperatorId;
+            const pendingStatus = String((inquiry as any).pendingHandlerStatus || "NONE").toUpperCase();
+            if (!pendingOperatorId || pendingStatus !== "PENDING") {
+                return res.status(400).json({ success: false, message: "No pending handler volunteer request to review." });
+            }
+
+            if (action === "approve") {
+                (inquiry as any).handlerOperatorId = pendingOperatorId;
+                (inquiry as any).pendingHandlerStatus = "NONE";
+                (inquiry as any).pendingHandlerOperatorId = null;
+                (inquiry as any).pendingHandlerRequestedAt = null;
+                (inquiry as any).pendingHandlerRequestedBy = null;
+
+                await createInquiryEvent(
+                    inquiry._id,
+                    InquiryEventType.UPDATED,
+                    req.user!.id,
+                    {
+                        metadata: { action: "HANDLER_VOLUNTEER_APPROVED", operatorId: String(pendingOperatorId) }
+                    }
+                );
+                await this.notifyInquiryParticipants({
+                    inquiry,
+                    actorId: req.user!.id,
+                    type: NotificationTypes.GENERAL_MESSAGE,
+                    title: "Handler request approved",
+                    message: "Admin approved the handler volunteer request.",
+                    payload: { inquiryId: inquiry._id, operatorId: String(pendingOperatorId) },
+                    priority: "high",
+                });
+            } else {
+                (inquiry as any).pendingHandlerStatus = "REJECTED";
+                (inquiry as any).pendingHandlerOperatorId = null;
+                (inquiry as any).pendingHandlerRequestedAt = null;
+                (inquiry as any).pendingHandlerRequestedBy = null;
+                await createInquiryEvent(
+                    inquiry._id,
+                    InquiryEventType.UPDATED,
+                    req.user!.id,
+                    {
+                        metadata: { action: "HANDLER_VOLUNTEER_REJECTED" }
+                    }
+                );
+            }
+
+            await inquiry.save();
+            return res.status(200).json({ success: true, data: inquiry, message: action === "approve" ? "Volunteer request approved." : "Volunteer request rejected." });
         } catch (error: any) {
             next(error);
         }

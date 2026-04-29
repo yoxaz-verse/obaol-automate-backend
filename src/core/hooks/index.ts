@@ -29,10 +29,14 @@ import { variantRateInventoryLinkHook } from "./variantRateInventoryLinkHook";
 import { inventoryReservationPreReadHook, inventoryReservationPreWriteHook } from "./inventoryReservationHooks";
 import { orderInventoryReservationHook } from "./orderInventoryReservationHook";
 import { enquiryInventoryReservationHook } from "./enquiryInventoryReservationHook";
+import { associateCompanyDirectoryFiltersHook } from "./associateCompanyDirectoryFiltersHook";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Operators (Overseers)
-    HookDispatcher.registerPreRead("associate-companies", operatorFilterHook);
+    HookDispatcher.registerPreRead("associate-companies", async (query, mode, id, req) => {
+        let q = await operatorFilterHook(query, mode, id, req);
+        return await associateCompanyDirectoryFiltersHook(q, mode, id, req);
+    });
 
     // Composite hook for variant-rates:
     // Marketplace normalization -> Category Filter -> Operator Filter -> Associate Filter

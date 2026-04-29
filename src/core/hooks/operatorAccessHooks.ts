@@ -16,6 +16,8 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
         delete cleaned.limit;
         delete cleaned.sort;
         delete cleaned.search;
+        delete cleaned.assignmentStatus;
+        delete cleaned.liveProductStatus;
         return cleaned;
     };
     // Both 'operator' and 'team' refer to the overseer role

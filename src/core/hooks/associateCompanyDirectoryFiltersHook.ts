@@ -13,10 +13,8 @@ export const associateCompanyDirectoryFiltersHook = async (
   query: any,
   _mode: string,
   _id: string | undefined,
-  req: any
+  _req: any
 ): Promise<any> => {
-  if (req?.params?.entity !== "associate-companies") return query;
-
   const nextQuery = { ...(query || {}) };
   const assignmentStatus = String(nextQuery.assignmentStatus || "all").toLowerCase();
   const liveProductStatus = String(nextQuery.liveProductStatus || "all").toLowerCase();
@@ -55,4 +53,3 @@ export const associateCompanyDirectoryFiltersHook = async (
 
   return filteredQuery;
 };
-

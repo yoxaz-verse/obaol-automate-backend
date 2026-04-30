@@ -127,6 +127,8 @@ export class CrudEngine extends BaseService {
         // 3. Handling Filters
         delete query.page;
         delete query.limit;
+        delete query.assignmentStatus;
+        delete query.liveProductStatus;
 
         // Cast boolean strings to actual booleans and handle arrays with $in
         Object.keys(query).forEach(key => {

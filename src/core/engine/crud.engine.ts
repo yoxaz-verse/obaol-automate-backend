@@ -6,6 +6,7 @@ import { HookDispatcher } from "../hooks/hook.dispatcher";
 import { ExecutionMode } from "../types";
 import { getEntityConfig } from "../registry/entities";
 import { buildRegexSearchTerms } from "./searchableFields";
+import { VariantRateModel } from "../../database/models/variantRate";
 
 export class CrudEngine extends BaseService {
     private repository: GenericRepository<any>;
@@ -61,6 +62,12 @@ export class CrudEngine extends BaseService {
 
     public async findAll(req: Request, pagination: { page: number; limit: number }, query: any) {
         const config = getEntityConfig(this.entityName);
+        const assignmentStatus = String(
+            (query as any)?.assignmentStatus ?? (req as any)?.query?.assignmentStatus ?? "all"
+        ).toLowerCase();
+        const liveProductStatus = String(
+            (query as any)?.liveProductStatus ?? (req as any)?.query?.liveProductStatus ?? "all"
+        ).toLowerCase();
 
         // Run Pre-Read Hook (e.g. for RBAC)
         query = await HookDispatcher.runBeforeRead(this.entityName, query, req);
@@ -142,6 +149,48 @@ export class CrudEngine extends BaseService {
         });
 
         const filterQuery = { ...query, ...searchQuery };
+
+        if (this.entityName === "associate-companies") {
+            const addAndCondition = (baseQuery: any, condition: any) => {
+                if (!condition) return baseQuery;
+                if (!baseQuery || !Object.keys(baseQuery).length) return condition;
+                if (Array.isArray(baseQuery?.$and)) {
+                    return { ...baseQuery, $and: [...baseQuery.$and, condition] };
+                }
+                return { $and: [baseQuery, condition] };
+            };
+
+            if (assignmentStatus === "assigned") {
+                Object.assign(filterQuery, addAndCondition(filterQuery, {
+                    assignedOperator: { $exists: true, $nin: [null, ""] },
+                }));
+            } else if (assignmentStatus === "unassigned") {
+                Object.assign(filterQuery, addAndCondition(filterQuery, {
+                    $or: [{ assignedOperator: null }, { assignedOperator: { $exists: false } }],
+                }));
+            }
+
+            if (liveProductStatus === "live" || liveProductStatus === "not_live") {
+                const liveCompanyIds = await VariantRateModel.distinct("associateCompany", {
+                    isLive: true,
+                    associateCompany: { $exists: true, $ne: null },
+                });
+                const sanitizedLiveCompanyIds = Array.isArray(liveCompanyIds)
+                    ? liveCompanyIds.filter((candidate: any) => Boolean(candidate))
+                    : [];
+
+                if (liveProductStatus === "live") {
+                    Object.assign(filterQuery, addAndCondition(filterQuery, {
+                        _id: { $in: sanitizedLiveCompanyIds },
+                    }));
+                } else if (sanitizedLiveCompanyIds.length > 0) {
+                    Object.assign(filterQuery, addAndCondition(filterQuery, {
+                        _id: { $nin: sanitizedLiveCompanyIds },
+                    }));
+                }
+            }
+        }
+
         console.log(`[CrudEngine] findAll [${this.entityName}] Final Filter Query:`, JSON.stringify(filterQuery));
 
         // 4. Handling Population

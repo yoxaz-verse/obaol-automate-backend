@@ -156,10 +156,18 @@ export function filterInquiryFields(
 ): Partial<InquiryDocument> {
     const { userRole, associateId, associateCompanyId, userId } = context;
     const roleLower = String(userRole || "").toLowerCase();
+    const assignmentVisibility = {
+        supplierOperatorAssigned: Boolean(getAttrId((inquiry as any)?.supplierOperatorId)),
+        dealCloserOperatorAssigned: Boolean(getAttrId((inquiry as any)?.dealCloserOperatorId)),
+        handlerOperatorAssigned: Boolean(getAttrId((inquiry as any)?.handlerOperatorId)),
+    };
 
     // Admin: full access
     if (userRole === UserRole.ADMIN || roleLower === "admin") {
-        return inquiry;
+        return {
+            ...(inquiry as any),
+            ...assignmentVisibility,
+        };
     }
 
     // Operator/Team: perspective-aware redaction
@@ -180,6 +188,7 @@ export function filterInquiryFields(
             } = inquiry as any;
             return {
                 ...safeFields,
+                ...assignmentVisibility,
                 sellerAssociateId: undefined,
                 supplierOperatorId: undefined,
                 sellerAssociateName: undefined,
@@ -202,6 +211,7 @@ export function filterInquiryFields(
             } = inquiry as any;
             return {
                 ...safeFields,
+                ...assignmentVisibility,
                 buyerAssociateId: undefined,
                 dealCloserOperatorId: undefined,
                 buyerAssociateName: undefined,
@@ -229,6 +239,7 @@ export function filterInquiryFields(
             } = inquiry;
             return {
                 ...safeFields,
+                ...assignmentVisibility,
                 // Explicitly exclude sensitive fields and counterparties
                 notes: undefined,
                 supplierOperatorId: undefined,
@@ -253,6 +264,7 @@ export function filterInquiryFields(
             } = inquiry;
             return {
                 ...safeFields,
+                ...assignmentVisibility,
                 notes: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
@@ -277,6 +289,7 @@ export function filterInquiryFields(
             } = inquiry;
             return {
                 ...safeFields,
+                ...assignmentVisibility,
                 notes: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
@@ -300,6 +313,7 @@ export function filterInquiryFields(
             } = inquiry;
             return {
                 ...safeFields,
+                ...assignmentVisibility,
                 notes: undefined,
                 buyerAssociateId: undefined,
                 sellerAssociateId: undefined,
@@ -315,7 +329,8 @@ export function filterInquiryFields(
         _id: inquiry._id,
         status: inquiry.status,
         createdAt: inquiry.createdAt,
-        updatedAt: inquiry.updatedAt
+        updatedAt: inquiry.updatedAt,
+        ...assignmentVisibility,
     };
 }
 

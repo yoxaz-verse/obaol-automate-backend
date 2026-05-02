@@ -372,10 +372,10 @@ export class InquiryController {
                     select: "name email phone associateCompany",
                     populate: { path: "associateCompany", select: "name" }
                 },
-                { path: "supplierOperatorId", select: "name email" },
-                { path: "dealCloserOperatorId", select: "name email" },
-                { path: "handlerOperatorId", select: "name email" },
-                { path: "pendingHandlerOperatorId", select: "name email" }
+                { path: "supplierOperatorId", select: "name email phone" },
+                { path: "dealCloserOperatorId", select: "name email phone" },
+                { path: "handlerOperatorId", select: "name email phone" },
+                { path: "pendingHandlerOperatorId", select: "name email phone" }
             ]);
 
             await this.notifyInquiryParticipants({
@@ -1982,10 +1982,10 @@ export class InquiryController {
                             }
                         ]
                     },
-                { path: "supplierOperatorId", select: "name email" },
-                { path: "dealCloserOperatorId", select: "name email" },
-                { path: "handlerOperatorId", select: "name email" },
-                { path: "pendingHandlerOperatorId", select: "name email" },
+                { path: "supplierOperatorId", select: "name email phone" },
+                { path: "dealCloserOperatorId", select: "name email phone" },
+                { path: "handlerOperatorId", select: "name email phone" },
+                { path: "pendingHandlerOperatorId", select: "name email phone" },
                     { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                     { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
@@ -2096,10 +2096,10 @@ export class InquiryController {
                             select: "name email phone associateCompany",
                             populate: { path: "associateCompany", select: "name" }
                         },
-                    { path: "supplierOperatorId", select: "name email" },
-                    { path: "dealCloserOperatorId", select: "name email" },
-                    { path: "handlerOperatorId", select: "name email" },
-                    { path: "pendingHandlerOperatorId", select: "name email" },
+                    { path: "supplierOperatorId", select: "name email phone" },
+                    { path: "dealCloserOperatorId", select: "name email phone" },
+                    { path: "handlerOperatorId", select: "name email phone" },
+                    { path: "pendingHandlerOperatorId", select: "name email phone" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
                         { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }

@@ -27,6 +27,7 @@ router.get("/", inquiryController.list.bind(inquiryController));
  * GET /api/v1/web/inquiries/sea-ports?country=...
  */
 router.get("/sea-ports", inquiryController.listSeaPorts.bind(inquiryController));
+router.get("/buyer-options", inquiryController.listBuyerOptions.bind(inquiryController));
 
 /**
  * Get inquiry by ID

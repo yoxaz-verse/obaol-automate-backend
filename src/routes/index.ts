@@ -28,6 +28,10 @@ router.use(`${prefix}/orders`, orderRoutes);
 import inquiryRoutes from "./v1/inquiryRoutes";
 router.use(`${prefix}/inquiries`, inquiryRoutes);
 
+// Variant-rates specialized endpoints
+import variantRateRoutes from "./v1/variantRateRoutes";
+router.use(`${prefix}/variant-rates`, variantRateRoutes);
+
 // Sample requests
 import sampleRequestRoutes from "./v1/sampleRequestRoutes";
 router.use(`${prefix}/sample-requests`, sampleRequestRoutes);

@@ -37,6 +37,7 @@ import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
 import { FlowRuleModel } from "../database/models/flowRule";
 import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
+import { PaymentTermModel } from "../database/models/paymentTerm";
 import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { notificationService } from "../services/notificationService";
@@ -162,6 +163,48 @@ export class InquiryController {
                     total,
                     pages: Math.ceil(total / limit),
                 },
+            });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * Buyer options for admin/operator enquiry creation.
+     * GET /api/v1/web/inquiries/buyer-options
+     */
+    async listBuyerOptions(req: Request, res: Response, next: NextFunction) {
+        try {
+            const roleLower = String(req.user?.role || "").toLowerCase();
+            if (!["admin", "operator", "team"].includes(roleLower)) {
+                return res.status(403).json({ success: false, message: "Forbidden" });
+            }
+
+            const search = String(req.query.search || "").trim();
+            const limit = Math.min(Math.max(parseInt(String(req.query.limit || "1000"), 10), 1), 5000);
+            const searchRegex = search ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") : null;
+
+            const query: any = {
+                isDeleted: { $ne: true },
+                isActive: true,
+                registrationStatus: "APPROVED",
+                associateCompany: { $exists: true, $ne: null },
+            };
+
+            if (searchRegex) {
+                query.$or = [{ name: searchRegex }, { email: searchRegex }, { phone: searchRegex }];
+            }
+
+            const rows = await AssociateModel.find(query)
+                .select("_id name email phone associateCompany")
+                .populate("associateCompany", "name")
+                .sort({ name: 1, createdAt: -1 })
+                .limit(limit)
+                .lean();
+
+            return res.json({
+                success: true,
+                data: rows,
             });
         } catch (error: any) {
             next(error);
@@ -929,8 +972,21 @@ export class InquiryController {
                         return res.status(400).json({ success: false, message: "Revision rate is required when Rate is selected." });
                     }
                     const wantsDelivery = reasons.includes("DELIVERY_TIMELINE");
+                    const wantsPaymentTerms = reasons.includes("PAYMENT_TERMS");
                     const deliveryMode = String(req.body?.deliveryMode || "").trim().toUpperCase();
                     const deliveryDate = req.body?.deliveryDate ? new Date(req.body.deliveryDate) : null;
+                    const revisionPaymentTermIdRaw = String(req.body?.revisionPaymentTermId || "").trim();
+                    let revisionPaymentTermId: Types.ObjectId | null = null;
+                    if (wantsPaymentTerms) {
+                        if (!Types.ObjectId.isValid(revisionPaymentTermIdRaw)) {
+                            return res.status(400).json({ success: false, message: "Valid payment term is required when Payment Terms is selected." });
+                        }
+                        const paymentTermExists = await PaymentTermModel.exists({ _id: revisionPaymentTermIdRaw });
+                        if (!paymentTermExists) {
+                            return res.status(400).json({ success: false, message: "Selected payment term was not found." });
+                        }
+                        revisionPaymentTermId = new Types.ObjectId(revisionPaymentTermIdRaw);
+                    }
                     if (wantsDelivery) {
                         if (!["DELIVER_TO_LOCATION", "PRODUCT_READY"].includes(deliveryMode)) {
                             return res.status(400).json({ success: false, message: "Delivery mode is required when Delivery Timeline is selected." });
@@ -943,10 +999,15 @@ export class InquiryController {
                         key,
                         buyerRequested: true,
                         buyerRate: key === "RATE" ? parsedRate : null,
+                        buyerPaymentTermId: key === "PAYMENT_TERMS" ? revisionPaymentTermId : null,
                         buyerDeliveryMode: key === "DELIVERY_TIMELINE" ? deliveryMode || null : null,
                         buyerDeliveryDate: key === "DELIVERY_TIMELINE" ? deliveryDate : null,
                         supplierAcknowledged: false,
+                        supplierReplyStatus: null,
                         supplierCounterRate: null,
+                        supplierCounterPaymentTermId: null,
+                        supplierCounterDeliveryMode: null,
+                        supplierCounterDeliveryDate: null,
                         repliedAt: null,
                     }));
                     const rounds = Array.isArray((inquiry as any).revisionRounds)
@@ -1017,9 +1078,12 @@ export class InquiryController {
                     if (!items.length) {
                         return res.status(400).json({ success: false, message: "No revision request found to confirm." });
                     }
-                const allAcknowledged = items.every((item: any) =>
-                    Boolean(item?.supplierAcknowledged) || (item?.supplierCounterRate !== null && item?.supplierCounterRate !== undefined)
-                );
+                const allAcknowledged = items.every((item: any) => {
+                    const hasRateCounter = item?.supplierCounterRate !== null && item?.supplierCounterRate !== undefined;
+                    const hasPaymentCounter = Boolean(item?.supplierCounterPaymentTermId);
+                    const hasTimelineCounter = Boolean(item?.supplierCounterDeliveryMode) && Boolean(item?.supplierCounterDeliveryDate);
+                    return Boolean(item?.supplierAcknowledged) || hasRateCounter || hasPaymentCounter || hasTimelineCounter;
+                });
                 if (!allAcknowledged) {
                     return res.status(400).json({ success: false, message: "Supplier reply is required for all revision items before confirming." });
                 }
@@ -1206,6 +1270,43 @@ export class InquiryController {
                 return res.status(400).json({ success: false, message: "No revision request found to reply to." });
             }
 
+            for (const rawReply of replies) {
+                const replyKey = String(rawReply?.key || "").toUpperCase();
+                const hasPaymentCounterField =
+                    rawReply?.counterPaymentTermId !== undefined &&
+                    rawReply?.counterPaymentTermId !== null &&
+                    String(rawReply?.counterPaymentTermId).trim() !== "";
+                if (replyKey === "PAYMENT_TERMS" && hasPaymentCounterField) {
+                    const paymentId = String(rawReply?.counterPaymentTermId || "").trim();
+                    if (!Types.ObjectId.isValid(paymentId)) {
+                        return res.status(400).json({ success: false, message: "Valid counter payment term is required for payment-term counter." });
+                    }
+                    const exists = await PaymentTermModel.exists({ _id: paymentId });
+                    if (!exists) {
+                        return res.status(400).json({ success: false, message: "Counter payment term not found." });
+                    }
+                }
+
+                const hasCounterDeliveryMode =
+                    rawReply?.counterDeliveryMode !== undefined &&
+                    rawReply?.counterDeliveryMode !== null &&
+                    String(rawReply?.counterDeliveryMode).trim() !== "";
+                const hasCounterDeliveryDate =
+                    rawReply?.counterDeliveryDate !== undefined &&
+                    rawReply?.counterDeliveryDate !== null &&
+                    String(rawReply?.counterDeliveryDate).trim() !== "";
+                if (replyKey === "DELIVERY_TIMELINE" && (hasCounterDeliveryMode || hasCounterDeliveryDate)) {
+                    const mode = String(rawReply?.counterDeliveryMode || "").trim().toUpperCase();
+                    const parsedDate = new Date(rawReply?.counterDeliveryDate);
+                    if (!hasCounterDeliveryMode || !["DELIVER_TO_LOCATION", "PRODUCT_READY"].includes(mode)) {
+                        return res.status(400).json({ success: false, message: "Valid counter delivery mode is required for timeline counter." });
+                    }
+                    if (!hasCounterDeliveryDate || Number.isNaN(parsedDate.getTime())) {
+                        return res.status(400).json({ success: false, message: "Valid counter delivery date is required for timeline counter." });
+                    }
+                }
+            }
+
             const now = new Date();
             const updatedItems = items.map((item: any) => {
                 const normalizedKey = String(item?.key || "").toUpperCase();
@@ -1215,14 +1316,58 @@ export class InquiryController {
                 }
                 if (!reply) return item;
                 const hasAck = typeof reply?.acknowledged !== "undefined";
-                const hasCounter = reply?.counterRate !== undefined && reply?.counterRate !== null && String(reply?.counterRate).trim() !== "";
+                const hasRateCounter = reply?.counterRate !== undefined && reply?.counterRate !== null && String(reply?.counterRate).trim() !== "";
+                const hasPaymentCounter = reply?.counterPaymentTermId !== undefined && reply?.counterPaymentTermId !== null && String(reply?.counterPaymentTermId).trim() !== "";
+                const hasTimelineCounter =
+                    reply?.counterDeliveryMode !== undefined &&
+                    reply?.counterDeliveryMode !== null &&
+                    String(reply?.counterDeliveryMode).trim() !== "" &&
+                    reply?.counterDeliveryDate !== undefined &&
+                    reply?.counterDeliveryDate !== null &&
+                    String(reply?.counterDeliveryDate).trim() !== "";
                 let acknowledged = hasAck ? Boolean(reply?.acknowledged) : Boolean(item?.supplierAcknowledged);
-                if (hasCounter) acknowledged = true;
-                const counterRate = hasCounter ? Number(reply.counterRate) : item?.supplierCounterRate ?? null;
+                if (hasRateCounter || hasPaymentCounter || hasTimelineCounter) acknowledged = true;
+                const counterRate = hasRateCounter ? Number(reply.counterRate) : item?.supplierCounterRate ?? null;
+                const counterPaymentTermIdRaw = hasPaymentCounter ? String(reply.counterPaymentTermId).trim() : "";
+                const counterDeliveryModeRaw = hasTimelineCounter ? String(reply.counterDeliveryMode || "").trim().toUpperCase() : "";
+                const counterDeliveryDateRaw = hasTimelineCounter ? new Date(reply.counterDeliveryDate) : null;
+
+                if (normalizedKey === "PAYMENT_TERMS" && hasPaymentCounter) {
+                    if (!Types.ObjectId.isValid(counterPaymentTermIdRaw)) {
+                        throw new Error("Valid counter payment term is required for payment-term counter.");
+                    }
+                }
+                if (normalizedKey === "DELIVERY_TIMELINE" && hasTimelineCounter) {
+                    if (!["DELIVER_TO_LOCATION", "PRODUCT_READY"].includes(counterDeliveryModeRaw)) {
+                        throw new Error("Valid counter delivery mode is required for timeline counter.");
+                    }
+                    if (!counterDeliveryDateRaw || Number.isNaN(counterDeliveryDateRaw.getTime())) {
+                        throw new Error("Valid counter delivery date is required for timeline counter.");
+                    }
+                }
+
+                const supplierReplyStatus = hasRateCounter || hasPaymentCounter || hasTimelineCounter
+                    ? "COUNTERED"
+                    : acknowledged
+                        ? "ACCEPTED"
+                        : item?.supplierReplyStatus ?? null;
                 return {
                     ...item,
                     supplierAcknowledged: acknowledged,
+                    supplierReplyStatus,
                     supplierCounterRate: normalizedKey === "RATE" ? counterRate : item?.supplierCounterRate ?? null,
+                    supplierCounterPaymentTermId:
+                        normalizedKey === "PAYMENT_TERMS" && hasPaymentCounter
+                            ? new Types.ObjectId(counterPaymentTermIdRaw)
+                            : item?.supplierCounterPaymentTermId ?? null,
+                    supplierCounterDeliveryMode:
+                        normalizedKey === "DELIVERY_TIMELINE" && hasTimelineCounter
+                            ? counterDeliveryModeRaw
+                            : item?.supplierCounterDeliveryMode ?? null,
+                    supplierCounterDeliveryDate:
+                        normalizedKey === "DELIVERY_TIMELINE" && hasTimelineCounter
+                            ? counterDeliveryDateRaw
+                            : item?.supplierCounterDeliveryDate ?? null,
                     repliedAt: acknowledged ? now : item?.repliedAt || null,
                 };
             });
@@ -1244,7 +1389,15 @@ export class InquiryController {
             await inquiry.save();
 
             return res.status(200).json({ success: true, data: inquiry, message: "Revision reply saved." });
-        } catch (error) {
+        } catch (error: any) {
+            const message = String(error?.message || "");
+            if (
+                message.includes("Valid counter payment term is required") ||
+                message.includes("Valid counter delivery mode is required") ||
+                message.includes("Valid counter delivery date is required")
+            ) {
+                return res.status(400).json({ success: false, message });
+            }
             next(error);
         }
     }

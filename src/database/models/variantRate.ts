@@ -52,6 +52,11 @@ const VariantRateSchema: Schema = new Schema({
   unit: { type: String, default: 'KG', enum: ['KG', 'MT', 'Quintal'] },
 }, { timestamps: true });
 
+// Marketplace query acceleration indexes
+VariantRateSchema.index({ isDeleted: 1, associate: 1, isLive: 1, createdAt: -1 });
+VariantRateSchema.index({ isDeleted: 1, associateCompany: 1, isLive: 1 });
+VariantRateSchema.index({ isDeleted: 1, productVariant: 1, isLive: 1 });
+
 /**
  * Pre-save hook to auto-populate associateCompany
  */

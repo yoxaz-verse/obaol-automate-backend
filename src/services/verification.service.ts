@@ -1,13 +1,23 @@
 import { BaseService } from "../core/services/base.service";
 import { VerificationModel } from "../database/models/verification";
 import { sendOtpEmail } from "../utils/mailer";
+import { AuthEmailTemplateType } from "../utils/authEmailTemplates";
 
 class VerificationService extends BaseService {
     constructor() {
         super();
     }
 
-    public async initiateVerification(userId: string, userType: any, method: "email" | "phone", ip: string, userAgent: string, email?: string, lang: string = "en") {
+    public async initiateVerification(
+      userId: string,
+      userType: any,
+      method: "email" | "phone",
+      ip: string,
+      userAgent: string,
+      email?: string,
+      lang: string = "en",
+      context?: { authEmailType?: AuthEmailTemplateType }
+    ) {
         // Generate 6-digit OTP
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes expiry
@@ -26,7 +36,7 @@ class VerificationService extends BaseService {
 
         // Send Email if method is email
         if (method === "email" && email) {
-            await sendOtpEmail(email, code, lang, userType);
+            await sendOtpEmail(email, code, lang, userType, context?.authEmailType || "verification_otp");
         }
 
         return { success: true, message: `OTP sent to ${method}` };

@@ -1,27 +1,80 @@
 // utils/mailer.ts
 
-import mailjet from "node-mailjet";
+import nodemailer from "nodemailer";
 import { t } from "./i18n";
+import {
+  AuthEmailTemplateType,
+  getPublishedAuthEmailTemplate,
+  renderAuthEmailTemplate,
+} from "./authEmailTemplates";
 
-const safeStringify = (value: any) => {
-  const seen = new WeakSet();
-  return JSON.stringify(
-    value,
-    (_key, val) => {
-      if (typeof val === "object" && val !== null) {
-        if (seen.has(val)) return "[Circular]";
-        seen.add(val);
-      }
-      return val;
-    },
-    2
-  );
+type MailPurpose = "auth" | "notify" | "support";
+
+const resolveSmtpSecure = (): boolean => {
+  const raw = String(process.env.SMTP_SECURE || "").trim().toLowerCase();
+  if (!raw) return false;
+  return raw === "true" || raw === "1" || raw === "yes";
 };
 
-const mailjetClient = mailjet.apiConnect(
-  process.env.MAILJET_API_KEY || "1232159e0de6174b723725c726be4ac8",
-  process.env.MAILJET_SECRET_KEY || "30ba632a67b1f1b305ccbe70155ab9a0"
-);
+const resolveSmtpPort = (): number => {
+  const parsed = Number(process.env.SMTP_PORT || 587);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 587;
+};
+
+const senderByPurpose = (purpose: MailPurpose) => {
+  const authUser = String(process.env.SMTP_AUTH_USER || "").trim();
+  const notifyUser = String(process.env.SMTP_NOTIFY_USER || "").trim();
+  const supportUser = String(process.env.SMTP_SUPPORT_USER || "").trim();
+  const authName = String(process.env.SMTP_AUTH_FROM_NAME || "OBAOL Verification").trim();
+  const notifyName = String(process.env.SMTP_NOTIFY_FROM_NAME || "OBAOL Notifications").trim();
+  const supportName = String(process.env.SMTP_SUPPORT_FROM_NAME || "OBAOL Support").trim();
+
+  if (purpose === "auth") return { user: authUser, name: authName };
+  if (purpose === "notify") return { user: notifyUser, name: notifyName };
+  return { user: supportUser, name: supportName };
+};
+
+const transporterByPurpose = new Map<MailPurpose, nodemailer.Transporter>();
+
+const getTransporter = (purpose: MailPurpose): nodemailer.Transporter => {
+  const existing = transporterByPurpose.get(purpose);
+  if (existing) return existing;
+
+  const smtpHost = String(process.env.SMTP_HOST || "").trim();
+  const smtpPassword = String(process.env.SMTP_AUTH_PASSWORD || "").trim();
+  const { user } = senderByPurpose(purpose);
+
+  if (!smtpHost || !smtpPassword || !user) {
+    throw new Error(`SMTP configuration missing for purpose "${purpose}"`);
+  }
+
+  const created = nodemailer.createTransport({
+    host: smtpHost,
+    port: resolveSmtpPort(),
+    secure: resolveSmtpSecure(),
+    auth: {
+      user,
+      pass: smtpPassword,
+    },
+  });
+
+  transporterByPurpose.set(purpose, created);
+  return created;
+};
+
+const sendEmail = async (purpose: MailPurpose, payload: { toEmail: string; subject: string; textPart: string; htmlPart: string; fromNameOverride?: string }) => {
+  const { user, name } = senderByPurpose(purpose);
+  const transporter = getTransporter(purpose);
+  const fromName = String(payload.fromNameOverride || name || "").trim();
+
+  return transporter.sendMail({
+    from: fromName ? `"${fromName}" <${user}>` : user,
+    to: payload.toEmail,
+    subject: payload.subject,
+    text: payload.textPart,
+    html: payload.htmlPart,
+  });
+};
 
 const normalizeSignupRole = (userType?: string) => {
   const role = String(userType || "").trim().toLowerCase();
@@ -96,45 +149,81 @@ const buildOtpHtml = (subject: string, code: string, roleLabel: string, lang: st
   `;
 };
 
-export async function sendOtpEmail(toEmail: string, code: string, lang: string = "en", userType?: string) {
+export async function sendOtpEmail(
+  toEmail: string,
+  code: string,
+  lang: string = "en",
+  userType?: string,
+  authEmailType: AuthEmailTemplateType = "verification_otp"
+) {
   console.log(`📧 Attempting to send OTP email to: ${toEmail} with code: ${code} (Lang: ${lang})`);
   try {
     const roleLabel = normalizeSignupRole(userType);
-    const subject = roleLabel === "Account"
-      ? `OBAOL OTP Code`
-      : `OBAOL ${roleLabel} Signup OTP`;
+    const template = await getPublishedAuthEmailTemplate(authEmailType);
+    const rendered = renderAuthEmailTemplate(template, {
+      code,
+      roleLabel,
+      expiresIn: "3 minutes",
+      supportEmail: "info@support.obaol.com",
+      appName: "OBAOL",
+    });
+    const subject = rendered.subject || (roleLabel === "Account" ? "OBAOL OTP Code" : `OBAOL ${roleLabel} Signup OTP`);
     const textPart =
-      roleLabel === "Account"
+      rendered.text ||
+      (roleLabel === "Account"
         ? `Your OBAOL verification code is ${code}. This code expires in 3 minutes. Do not share this code.`
-        : `Your OBAOL ${roleLabel} signup verification code is ${code}. This code expires in 3 minutes. Do not share this code.`;
-    const htmlPart = buildOtpHtml(subject, code, roleLabel, lang);
+        : `Your OBAOL ${roleLabel} signup verification code is ${code}. This code expires in 3 minutes. Do not share this code.`);
+    const htmlPart = rendered.html || buildOtpHtml(subject, code, roleLabel, lang);
 
-    const result = await mailjetClient
-      .post("send", { version: "v3.1" })
-      .request({
-        Messages: [
-          {
-            From: {
-              Email: process.env.MAILJET_SENDER_EMAIL || "obaol.biz@gmail.com",
-              Name: t("Obaol Verification", lang),
-            },
-            To: [{ Email: toEmail }],
-            Subject: subject,
-            TextPart: textPart,
-            HTMLPart: htmlPart,
-          },
-        ],
-      });
-
-    console.log("✅ Email sent successfully to:", toEmail, "Result:", JSON.stringify(result.body, null, 2));
+    const result = await sendEmail("auth", {
+      toEmail,
+      subject,
+      textPart,
+      htmlPart,
+      fromNameOverride: t("Obaol Verification", lang),
+    });
+    console.log("✅ Email sent successfully to:", toEmail, "MessageId:", result.messageId);
   } catch (error: any) {
     console.error(
-      "❌ Failed to send Mailjet email to:", toEmail,
-      "Error:", error.response?.data || error.message,
-      "Full Error Object:", safeStringify(error)
+      "❌ Failed to send SMTP email to:", toEmail,
+      "Error:", error.message
     );
     throw new Error(`Email sending failed: ${error.message}`);
   }
+}
+
+export async function sendAuthTemplateTestEmail(
+  toEmail: string,
+  templateType: AuthEmailTemplateType,
+  content: { subject: string; html: string; text: string },
+  context: { code?: string; roleLabel?: string; expiresIn?: string; supportEmail?: string; appName?: string } = {}
+) {
+  const rendered = renderAuthEmailTemplate(
+    {
+      templateType,
+      subject: String(content.subject || ""),
+      html: String(content.html || ""),
+      text: String(content.text || ""),
+      status: "draft",
+      version: 1,
+      updatedBy: null,
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      code: String(context.code || "123456"),
+      roleLabel: String(context.roleLabel || "Account"),
+      expiresIn: String(context.expiresIn || "3 minutes"),
+      supportEmail: String(context.supportEmail || "info@support.obaol.com"),
+      appName: String(context.appName || "OBAOL"),
+    }
+  );
+
+  return sendEmail("auth", {
+    toEmail,
+    subject: rendered.subject,
+    textPart: rendered.text,
+    htmlPart: rendered.html,
+  });
 }
 
 export async function sendTradeDocumentEmail(
@@ -145,37 +234,20 @@ export async function sendTradeDocumentEmail(
 ) {
   console.log(`📧 Sending trade document email to: ${toEmail}`);
   try {
-    const result = await mailjetClient
-      .post("send", { version: "v3.1" })
-      .request({
-        Messages: [
-          {
-            From: {
-              Email: process.env.MAILJET_SENDER_EMAIL || "obaol.biz@gmail.com",
-              Name: "OBAOL Trade Desk",
-            },
-            To: [{ Email: toEmail }],
-            Subject: subject,
-            TextPart: textPart,
-            HTMLPart: htmlPart,
-          },
-        ],
-      });
-
-    console.log("✅ Trade doc email sent:", JSON.stringify(result.body, null, 2));
+    const result = await sendEmail("notify", {
+      toEmail,
+      subject,
+      textPart,
+      htmlPart,
+      fromNameOverride: "OBAOL Trade Desk",
+    });
+    console.log("✅ Trade doc email sent. MessageId:", result.messageId);
   } catch (error: any) {
     console.error(
-      "❌ Failed to send trade document email to:",
+      "❌ Failed to send trade document SMTP email to:",
       toEmail,
-      "Error:",
-      error.response?.data || error.message
+      "Error:", error.message
     );
     throw new Error(`Email sending failed: ${error.message}`);
   }
 }
-
-// API Key
-// 1232159e0de6174b723725c726be4ac8
-
-// Secret Key
-// 30ba632a67b1f1b305ccbe70155ab9a0

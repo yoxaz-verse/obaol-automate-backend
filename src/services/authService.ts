@@ -311,7 +311,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
                 return sendRejectedAccountResponse(res, user);
             }
             if (registrationStatus === "APPROVED" && user.isActive === false) {
-                return res.status(401).json({ message: "Account is inactive. Please contact support." });
+                return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
             }
         } else if (roleLower === "operator" || roleLower === "team" || roleLower === "warehouse_operator" || roleLower === "warehouse-operator" || roleLower === "warehouseoperator") {
             const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
@@ -319,10 +319,10 @@ export const authenticateUser = async (req: Request, res: Response) => {
                 return sendRejectedAccountResponse(res, user);
             }
             if (registrationStatus === "APPROVED" && user.isActive === false) {
-                return res.status(401).json({ message: "Account is inactive. Please contact support." });
+                return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
             }
         } else if (user.isActive === false) {
-            return res.status(401).json({ message: "Account is inactive. Please contact support." });
+            return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
         }
 
         const isMatch = await user.comparePassword(password);
@@ -416,7 +416,8 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
             ip.toString(),
             userAgent,
             email,
-            req.language
+            req.language,
+            { authEmailType: "forgot_password_otp" }
         );
 
         res.json({ success: true, message: "OTP sent to your email" });
@@ -556,7 +557,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                     return sendRejectedAccountResponse(res, user);
                 }
                 if (registrationStatus === "APPROVED" && user.isActive === false) {
-                    return res.status(401).json({ message: "Account is inactive. Please contact support." });
+                    return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
                 }
             } else {
                 const registrationStatus = String((user as any).registrationStatus || "APPROVED").toUpperCase();
@@ -564,7 +565,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                     return sendRejectedAccountResponse(res, user);
                 }
                 if (registrationStatus === "APPROVED" && user.isActive === false) {
-                    return res.status(401).json({ message: "Account is inactive. Please contact support." });
+                    return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
                 }
             }
 

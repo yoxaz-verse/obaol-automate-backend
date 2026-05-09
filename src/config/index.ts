@@ -1,6 +1,9 @@
 import dotenv from "dotenv";
+import path from "path";
 
-dotenv.config();
+// Always resolve .env from the backend project root to avoid cwd-dependent loading.
+const envPath = path.resolve(__dirname, "../../.env");
+dotenv.config({ path: envPath });
 
 export const PORT = process.env.PORT || 5001;
 export const BASE_URL = process.env.BASE_URL || "http://localhost:5001";

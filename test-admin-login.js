@@ -2,7 +2,7 @@ const axios = require('axios');
 async function test() {
     try {
         const res = await axios.post('http://localhost:5001/api/v1/web/login', {
-            email: "exports@obaol.com",
+            email: "info@support.obaol.com",
             password: "12345",
             role: "Admin"
         }, {

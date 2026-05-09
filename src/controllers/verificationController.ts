@@ -30,7 +30,8 @@ export const sendOTP = async (req: Request, res: Response) => {
       ip?.toString() ?? "unknown",
       userAgent?.toString() ?? "unknown",
       email,
-      req.language
+      req.language,
+      { authEmailType: "signup_otp" }
     );
     res.status(200).json({ message: `OTP sent to ${userType}` });
   } catch (error: any) {
@@ -153,7 +154,8 @@ export const sendOtpForExistingEmail = async (req: Request, res: Response) => {
         ip?.toString() ?? "unknown",
         userAgent?.toString() ?? "unknown",
         found.email,
-        req.language
+        req.language,
+        { authEmailType: "signin_otp" }
       );
     }
     return res.status(200).json(safeResponse);

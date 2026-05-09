@@ -7,6 +7,14 @@ import {
   setCalculationConfig,
   CalculationConfig,
 } from "../utils/calculationConfig";
+import {
+  AuthEmailTemplateType,
+  getAuthTemplateTypes,
+  listAuthEmailTemplates,
+  publishAuthEmailTemplate,
+  saveAuthEmailTemplateDraft,
+} from "../utils/authEmailTemplates";
+import { sendAuthTemplateTestEmail } from "../utils/mailer";
 
 const OBAOL_COMPANY_KEY = "OBAOL_COMPANY_ID";
 
@@ -14,6 +22,11 @@ const isAdmin = (role: unknown) => String(role || "").toLowerCase() === "admin";
 const isFiniteNonNegative = (value: any) => Number.isFinite(Number(value)) && Number(value) >= 0;
 
 class SystemConfigController {
+  private normalizeTemplateType(input: unknown): AuthEmailTemplateType | null {
+    const value = String(input || "").trim() as AuthEmailTemplateType;
+    return getAuthTemplateTypes().includes(value) ? value : null;
+  }
+
   async getObaolCompany(req: Request, res: Response, next: NextFunction) {
     try {
       if (!isAdmin(req.user?.role)) {
@@ -122,6 +135,81 @@ class SystemConfigController {
 
       const updated = await setCalculationConfig(nextConfig, String(req.user?.id || ""));
       return res.json({ success: true, data: updated, message: "Calculation configuration updated." });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listEmailTemplates(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!isAdmin(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Admin access required." });
+      }
+      const templates = await listAuthEmailTemplates();
+      return res.json({ success: true, data: templates });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async saveEmailTemplateDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!isAdmin(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Admin access required." });
+      }
+      const templateType = this.normalizeTemplateType(req.body?.templateType);
+      const subject = String(req.body?.subject || "").trim();
+      const html = String(req.body?.html || "").trim();
+      const text = String(req.body?.text || "").trim();
+      if (!templateType) {
+        return res.status(400).json({ success: false, message: "Valid templateType is required." });
+      }
+      if (!subject || !html || !text) {
+        return res.status(400).json({ success: false, message: "subject, html and text are required." });
+      }
+      const draft = await saveAuthEmailTemplateDraft(templateType, {
+        subject,
+        html,
+        text,
+        updatedBy: String(req.user?.id || ""),
+      });
+      return res.json({ success: true, data: draft, message: "Draft saved." });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async publishEmailTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!isAdmin(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Admin access required." });
+      }
+      const templateType = this.normalizeTemplateType(req.body?.templateType);
+      if (!templateType) {
+        return res.status(400).json({ success: false, message: "Valid templateType is required." });
+      }
+      const published = await publishAuthEmailTemplate(templateType, String(req.user?.id || ""));
+      return res.json({ success: true, data: published, message: "Template published." });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async testEmailTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!isAdmin(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Admin access required." });
+      }
+      const templateType = this.normalizeTemplateType(req.body?.templateType);
+      const toEmail = String(req.body?.toEmail || "").trim();
+      const subject = String(req.body?.subject || "").trim();
+      const html = String(req.body?.html || "").trim();
+      const text = String(req.body?.text || "").trim();
+      if (!templateType || !toEmail || !subject || !html || !text) {
+        return res.status(400).json({ success: false, message: "templateType, toEmail, subject, html and text are required." });
+      }
+      await sendAuthTemplateTestEmail(toEmail, templateType, { subject, html, text });
+      return res.json({ success: true, message: "Test email sent." });
     } catch (error) {
       next(error);
     }

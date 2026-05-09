@@ -15,6 +15,14 @@ beforeAll(async () => {
   process.env.MONGODB_URI = uri;
   process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
   process.env.NODE_ENV = "test";
+  process.env.BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+  process.env.SMTP_HOST = process.env.SMTP_HOST || "smtp.test.local";
+  process.env.SMTP_PORT = process.env.SMTP_PORT || "587";
+  process.env.SMTP_SECURE = process.env.SMTP_SECURE || "false";
+  process.env.SMTP_AUTH_PASSWORD = process.env.SMTP_AUTH_PASSWORD || "test-password";
+  process.env.SMTP_AUTH_USER = process.env.SMTP_AUTH_USER || "no-reply@auth.obaol.com";
+  process.env.SMTP_NOTIFY_USER = process.env.SMTP_NOTIFY_USER || "no-reply@notify.obaol.com";
+  process.env.SMTP_SUPPORT_USER = process.env.SMTP_SUPPORT_USER || "info@support.obaol.com";
 
   await mongoose.connect(uri);
 });

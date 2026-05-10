@@ -58,6 +58,16 @@ console.info(`[routes] mounted ${prefix}/trade-documents`);
 import documentRuleRoutes from "./v1/documentRuleRoutes";
 router.use(`${prefix}/document-rules`, documentRuleRoutes);
 console.info(`[routes] mounted ${prefix}/document-rules`);
+// Document templates
+import documentTemplateRoutes from "./v1/documentTemplateRoutes";
+router.use(`${prefix}/document-templates`, documentTemplateRoutes);
+console.info(`[routes] mounted ${prefix}/document-templates`);
+import documentTypeRoutes from "./v1/documentTypeRoutes";
+router.use(`${prefix}/document-types`, documentTypeRoutes);
+console.info(`[routes] mounted ${prefix}/document-types`);
+import letterheadPresetRoutes from "./v1/letterheadPresetRoutes";
+router.use(`${prefix}/letterhead-presets`, letterheadPresetRoutes);
+console.info(`[routes] mounted ${prefix}/letterhead-presets`);
 // Order subflow configs
 import orderSubflowConfigRoutes from "./v1/orderSubflowConfigRoutes";
 router.use(`${prefix}/flow-rules/subflows`, orderSubflowConfigRoutes);

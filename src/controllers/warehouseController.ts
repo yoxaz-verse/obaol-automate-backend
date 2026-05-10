@@ -35,6 +35,12 @@ const toNumber = (value: any) => {
   return num;
 };
 
+const toPositiveNumber = (value: any, fallback: number) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return fallback;
+  return num;
+};
+
 const normalizeUnit = (value: any, fallback: "KG" | "MT") => {
   const unit = String(value || fallback).toUpperCase();
   return unit === "KG" ? "KG" : "MT";
@@ -67,6 +73,29 @@ const diffDaysCeil = (fromDate: Date, toDate: Date) => {
   const ms = toDate.getTime() - fromDate.getTime();
   if (ms <= 0) return 0;
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
+};
+
+const computeWarehouseEstimate = (input: {
+  requiredMT: number;
+  durationMonths: number;
+  ratePerUnit: number;
+  taxPercent: number;
+  handlingPercent: number;
+}) => {
+  const requiredMT = toPositiveNumber(input.requiredMT, 0);
+  const durationMonths = Math.max(1, Math.floor(toPositiveNumber(input.durationMonths, 1)));
+  const ratePerUnit = toPositiveNumber(input.ratePerUnit, 0);
+  const taxPercent = toPositiveNumber(input.taxPercent, 0);
+  const handlingPercent = toPositiveNumber(input.handlingPercent, 0);
+  const base = requiredMT * durationMonths * ratePerUnit;
+  const tax = (base * taxPercent) / 100;
+  const handling = (base * handlingPercent) / 100;
+  return {
+    base: Number(base.toFixed(2)),
+    tax: Number(tax.toFixed(2)),
+    handling: Number(handling.toFixed(2)),
+    total: Number((base + tax + handling).toFixed(2)),
+  };
 };
 
 export class WarehouseController {
@@ -320,7 +349,7 @@ export class WarehouseController {
         return res.status(400).json({ success: false, message: "Valid warehouseId is required." });
       }
 
-      const warehouse = await WarehouseModel.findById(warehouseId).select("_id isActive").lean();
+      const warehouse = await WarehouseModel.findById(warehouseId).select("_id isActive storageRatePerUnit").lean();
       if (!warehouse) {
         return res.status(404).json({ success: false, message: "Warehouse not found." });
       }
@@ -334,9 +363,61 @@ export class WarehouseController {
       }
 
       const companyObjectId = new Types.ObjectId(scopedCompany.companyId);
+      const requiredMT = toNumber(req.body?.requiredMT);
+      if (requiredMT === null || requiredMT <= 0) {
+        return res.status(400).json({ success: false, message: "requiredMT must be greater than zero." });
+      }
+
+      const durationMonthsRaw = toNumber(req.body?.durationMonths ?? req.body?.months ?? 1);
+      const durationMonths = durationMonthsRaw === null ? 1 : Math.floor(durationMonthsRaw);
+      if (durationMonths <= 0) {
+        return res.status(400).json({ success: false, message: "durationMonths must be greater than zero." });
+      }
+
+      const requestTypeRaw = String(req.body?.requestType || "DIRECT_BOOKING").trim().toUpperCase();
+      const requestType = requestTypeRaw === "QUOTE_REQUEST" ? "QUOTE_REQUEST" : "DIRECT_BOOKING";
+      const bookingStatus = requestType === "QUOTE_REQUEST" ? "PENDING_QUOTE" : "BOOKED";
+      const requirementNotes = String(req.body?.requirementNotes || "").trim();
+      const expectedStartDateRaw = String(req.body?.expectedStartDate || "").trim();
+      const expectedStartDate =
+        expectedStartDateRaw && !Number.isNaN(new Date(expectedStartDateRaw).getTime())
+          ? new Date(expectedStartDateRaw)
+          : null;
+
+      const cfg = await getCalculationConfig();
+      const ratePerUnit = toPositiveNumber(req.body?.ratePerUnit ?? warehouse.storageRatePerUnit, 0);
+      const taxPercent = toPositiveNumber(req.body?.taxPercent, Number((cfg as any).warehouseTaxPercent ?? cfg.gstPercent ?? 0));
+      const handlingPercent = toPositiveNumber(
+        req.body?.handlingPercent,
+        Number((cfg as any).warehouseHandlingPercent ?? cfg.importAdminCommissionDefault ?? 0)
+      );
+      const estimate = computeWarehouseEstimate({
+        requiredMT,
+        durationMonths,
+        ratePerUnit,
+        taxPercent,
+        handlingPercent,
+      });
+      const estimateCurrency = String(req.body?.estimateCurrency || "INR").trim().toUpperCase() || "INR";
+
       const assignment = await WarehouseAssignmentModel.findOneAndUpdate(
         { warehouseId, companyId: companyObjectId },
-        { $set: { status: "ACTIVE" } },
+        {
+          $set: {
+            status: "ACTIVE",
+            requiredMT: Number(requiredMT.toFixed(3)),
+            durationMonths,
+            requirementNotes,
+            expectedStartDate,
+            estimateBaseAmount: estimate.base,
+            estimateTaxAmount: estimate.tax,
+            estimateHandlingAmount: estimate.handling,
+            estimateTotalAmount: estimate.total,
+            estimateCurrency,
+            requestType,
+            bookingStatus,
+          },
+        },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       )
         .populate("warehouseId", "name address category listingType isRentalActive isActive")
@@ -362,6 +443,7 @@ export class WarehouseController {
       const warehouseIdRaw = String(req.query?.warehouseId || "").trim();
       const companyIdRaw = String(req.query?.companyId || "").trim();
       const statusRaw = String(req.query?.status || "").trim().toUpperCase();
+      const bookingStatusRaw = String(req.query?.bookingStatus || "").trim().toUpperCase();
 
       if (warehouseIdRaw) {
         if (!Types.ObjectId.isValid(warehouseIdRaw)) {
@@ -375,6 +457,12 @@ export class WarehouseController {
           return res.status(400).json({ success: false, message: "Invalid status filter." });
         }
         query.status = statusRaw;
+      }
+      if (bookingStatusRaw) {
+        if (!["PENDING_QUOTE", "BOOKED", "REJECTED", "CANCELLED"].includes(bookingStatusRaw)) {
+          return res.status(400).json({ success: false, message: "Invalid bookingStatus filter." });
+        }
+        query.bookingStatus = bookingStatusRaw;
       }
 
       if (isAssociateRole(role)) {

@@ -5,6 +5,8 @@ export type CalculationConfig = {
   gstPercent: number;
   importAdminCommissionDefault: number;
   warehouseStorageRateDefault: number;
+  warehouseTaxPercent: number;
+  warehouseHandlingPercent: number;
 };
 
 export const CALCULATION_CONFIG_KEY = "CALCULATION_CONFIG";
@@ -14,6 +16,8 @@ const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
   gstPercent: 0,
   importAdminCommissionDefault: 0,
   warehouseStorageRateDefault: 0,
+  warehouseTaxPercent: 0,
+  warehouseHandlingPercent: 0,
 };
 
 const CACHE_TTL_MS = 2 * 60 * 1000;
@@ -46,6 +50,17 @@ const normalizeConfig = (raw: any): CalculationConfig => {
     warehouseStorageRateDefault: toSafeNumber(
       (source as any).warehouseStorageRateDefault,
       DEFAULT_CALCULATION_CONFIG.warehouseStorageRateDefault
+    ),
+    warehouseTaxPercent: toSafeNumber(
+      (source as any).warehouseTaxPercent,
+      toSafeNumber((source as any).gstPercent, DEFAULT_CALCULATION_CONFIG.warehouseTaxPercent)
+    ),
+    warehouseHandlingPercent: toSafeNumber(
+      (source as any).warehouseHandlingPercent,
+      toSafeNumber(
+        (source as any).importAdminCommissionDefault,
+        DEFAULT_CALCULATION_CONFIG.warehouseHandlingPercent
+      )
     ),
   };
 };

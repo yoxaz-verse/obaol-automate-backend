@@ -5229,3 +5229,6 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij
 2026-05-10T21:19:43.917Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
 2026-05-10T21:19:50.168Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
 2026-05-10T21:21:14.861Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T07:35:39.066Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-05-11T09:28:55.094Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ECONNREFUSED _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-05-11T09:29:17.603Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ECONNREFUSED _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}

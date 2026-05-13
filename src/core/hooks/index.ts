@@ -30,6 +30,7 @@ import { inventoryReservationPreReadHook, inventoryReservationPreWriteHook } fro
 import { orderInventoryReservationHook } from "./orderInventoryReservationHook";
 import { enquiryInventoryReservationHook } from "./enquiryInventoryReservationHook";
 import { associateCompanyDirectoryFiltersHook } from "./associateCompanyDirectoryFiltersHook";
+import { productClassificationPreReadHook, productClassificationPreWriteHook } from "./productClassificationHook";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Operators (Overseers)
@@ -49,6 +50,7 @@ export const registerAllHooks = () => {
 
     HookDispatcher.registerPreRead("enquiries", operatorFilterHook);
     HookDispatcher.registerPreRead("inventories", operatorFilterHook);
+    HookDispatcher.registerPreRead("products", productClassificationPreReadHook);
     HookDispatcher.registerPostWrite("enquiries", enquiryInventoryReservationHook);
     HookDispatcher.registerPreRead("associates", async (query, mode, id, req) => {
         let q = await operatorFilterHook(query, mode, id, req);
@@ -95,6 +97,7 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreWrite("associate-companies", operatorCompanyCreatePreWriteHook);
     HookDispatcher.registerPreWrite("operators", operatorMentorValidationHook);
     HookDispatcher.registerPreWrite("orders", orderCommissionPreWriteHook);
+    HookDispatcher.registerPreWrite("products", productClassificationPreWriteHook);
     HookDispatcher.registerPreRead("organization-reports", organizationReportPreReadHook);
     HookDispatcher.registerPreWrite("organization-reports", organizationReportPreWriteHook);
     HookDispatcher.registerPostWrite("orders", async (entityName: any, result: any, mode: any) => {

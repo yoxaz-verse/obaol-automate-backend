@@ -166,7 +166,7 @@ export class CrudEngine extends BaseService {
                 }));
             } else if (assignmentStatus === "unassigned") {
                 Object.assign(filterQuery, addAndCondition(filterQuery, {
-                    $or: [{ assignedOperator: null }, { assignedOperator: { $exists: false } }],
+                    $or: [{ assignedOperator: null }, { assignedOperator: { $exists: false } }, { assignedOperator: "" }],
                 }));
             }
 

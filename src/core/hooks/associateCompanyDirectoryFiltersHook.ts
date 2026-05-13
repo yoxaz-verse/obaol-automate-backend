@@ -30,7 +30,7 @@ export const associateCompanyDirectoryFiltersHook = async (
     });
   } else if (assignmentStatus === "unassigned") {
     filteredQuery = addAndCondition(filteredQuery, {
-      $or: [{ assignedOperator: null }, { assignedOperator: { $exists: false } }],
+      $or: [{ assignedOperator: null }, { assignedOperator: { $exists: false } }, { assignedOperator: "" }],
     });
   }
 

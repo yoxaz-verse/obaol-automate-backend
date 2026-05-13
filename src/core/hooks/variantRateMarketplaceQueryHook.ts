@@ -9,6 +9,17 @@ const toFiniteNumber = (value: any): number | null => {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 };
+const normalizeClassificationInput = (value: any): string[] => {
+  const raw = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      raw
+        .flatMap((entry) => String(entry || "").split(","))
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+};
 const addAndCondition = (baseQuery: GenericQuery, condition: GenericQuery): GenericQuery => {
   if (!condition || !Object.keys(condition).length) return baseQuery;
   if (!baseQuery || !Object.keys(baseQuery).length) return condition;
@@ -56,12 +67,19 @@ export const variantRateMarketplaceQueryHook = async (
     const minQty = toFiniteNumber(nextQuery.minQty ?? req?.query?.minQty);
     const maxQty = toFiniteNumber(nextQuery.maxQty ?? req?.query?.maxQty);
     const rawLocation = String(nextQuery.location ?? req?.query?.location ?? "").trim();
+    const normalizedClassifications = normalizeClassificationInput(
+      nextQuery.classifications ?? nextQuery.classification ?? req?.query?.classifications ?? req?.query?.classification
+    );
 
     delete nextQuery.minRate;
     delete nextQuery.maxRate;
     delete nextQuery.minQty;
     delete nextQuery.maxQty;
     delete nextQuery.location;
+    if (normalizedClassifications.length > 0) {
+      nextQuery.classifications = normalizedClassifications;
+      delete nextQuery.classification;
+    }
 
     if (minRate !== null || maxRate !== null) {
       const rateQuery: GenericQuery = {};

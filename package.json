@@ -14,6 +14,7 @@
     "deactivate:legacy-company-functions": "ts-node src/scripts/deactivateLegacyCompanyFunctions.ts",
     "backfill:approval-status": "ts-node src/scripts/backfillApprovalStatus.ts",
     "backfill:product-slugs": "ts-node src/scripts/backfill-product-slugs.ts",
+    "backfill:product-classification": "ts-node src/scripts/backfill-product-classification.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
     "normalize:company-capabilities": "ts-node src/scripts/normalize-company-capabilities.ts"
   },

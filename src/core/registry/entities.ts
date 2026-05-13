@@ -121,7 +121,18 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     // --- Catalog (Products & Rates) ---
     "products": {
         model: ProductModel,
-        searchableFields: ["name", "slug", "description", "code"],
+        searchableFields: [
+            "name",
+            "slug",
+            "description",
+            "code",
+            "giName",
+            "giCertificateNumber",
+            "isConventional",
+            "isNatural",
+            "isOrganic",
+            "isGiTagged",
+        ],
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: { subCategory: "sub-categories" },

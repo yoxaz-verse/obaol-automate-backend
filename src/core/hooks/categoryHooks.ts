@@ -8,10 +8,31 @@ import { VariantRateModel } from "../../database/models/variantRate";
  * Translates these high-level filters into appropriate IDs for each entity.
  */
 export const categoryFilterHook = async (query: any, mode: string, id: string | undefined, req: any): Promise<any> => {
-    const { category, subCategory, product, ...restQuery } = query;
+    const { category, subCategory, product, classification, classifications, ...restQuery } = query;
+
+    const rawClassifications = [
+        ...(Array.isArray(classification) ? classification : [classification]),
+        ...(Array.isArray(classifications) ? classifications : [classifications]),
+    ].filter(Boolean);
+
+    const normalizedClassifications = Array.from(
+        new Set(
+            rawClassifications
+                .map((item: any) => String(item || "").trim().toLowerCase())
+                .filter(Boolean)
+        )
+    );
+
+    const fieldForClassification = (label: string): string | null => {
+        if (label === "conventional") return "isConventional";
+        if (label === "natural") return "isNatural";
+        if (label === "organic") return "isOrganic";
+        if (label === "gi" || label === "gitag" || label === "gi_tag" || label === "gi-tag") return "isGiTagged";
+        return null;
+    };
 
     // If none of the hierarchical filters are present, return original query
-    if (!category && !subCategory && !product) {
+    if (!category && !subCategory && !product && normalizedClassifications.length === 0) {
         return query;
     }
 
@@ -19,17 +40,54 @@ export const categoryFilterHook = async (query: any, mode: string, id: string | 
         let currentTargetIds: any[] = [];
         let hasFilter = false;
 
+        // 0. Handle classification-only filter on products
+        if (normalizedClassifications.length > 0) {
+            const productQuery: any = {};
+            const mappedFields = normalizedClassifications
+                .map(fieldForClassification)
+                .filter((f): f is string => Boolean(f));
+
+            if (mappedFields.length > 0) {
+                productQuery.$or = mappedFields.map((field) => {
+                    if (field === "isConventional") {
+                        return {
+                            $or: [
+                                { isConventional: true },
+                                {
+                                    $and: [
+                                        { $or: [{ isNatural: { $exists: false } }, { isNatural: false }] },
+                                        { $or: [{ isOrganic: { $exists: false } }, { isOrganic: false }] },
+                                        { $or: [{ isGiTagged: { $exists: false } }, { isGiTagged: false }] },
+                                    ],
+                                },
+                            ],
+                        };
+                    }
+                    return { [field]: true };
+                });
+            }
+            const productsByClass = await ProductModel.find(productQuery).select("_id");
+            currentTargetIds = productsByClass.map((p) => p._id);
+            hasFilter = true;
+        }
+
         // 1. Handle Product Filter (Direct parent of ProductVariant)
         if (product) {
             hasFilter = true;
-            currentTargetIds = Array.isArray(product) ? product : [product];
+            const explicitProductIds = Array.isArray(product) ? product : [product];
+            currentTargetIds = currentTargetIds.length
+                ? currentTargetIds.filter((id) => explicitProductIds.map(String).includes(String(id)))
+                : explicitProductIds;
         }
         // 2. Handle SubCategory Filter
         else if (subCategory) {
             hasFilter = true;
             const subCategoryIds = Array.isArray(subCategory) ? subCategory : [subCategory];
             const products = await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id");
-            currentTargetIds = products.map(p => p._id);
+            const subCategoryProductIds = products.map(p => p._id);
+            currentTargetIds = currentTargetIds.length
+                ? currentTargetIds.filter((id) => subCategoryProductIds.map(String).includes(String(id)))
+                : subCategoryProductIds;
         }
         // 3. Handle Category Filter
         else if (category) {
@@ -38,7 +96,10 @@ export const categoryFilterHook = async (query: any, mode: string, id: string | 
             const subCategories = await SubCategoryModel.find({ category: { $in: categoryIds } }).select("_id");
             const subCategoryIds = subCategories.map(sc => sc._id);
             const products = await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id");
-            currentTargetIds = products.map(p => p._id);
+            const categoryProductIds = products.map(p => p._id);
+            currentTargetIds = currentTargetIds.length
+                ? currentTargetIds.filter((id) => categoryProductIds.map(String).includes(String(id)))
+                : categoryProductIds;
         }
 
         if (hasFilter) {

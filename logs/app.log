@@ -5232,3 +5232,29 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij
 2026-05-11T07:35:39.066Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
 2026-05-11T09:28:55.094Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ECONNREFUSED _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
 2026-05-11T09:29:17.603Z [ERROR]: MongoDB Connection Error: {"error":"querySrv ECONNREFUSED _mongodb._tcp.obaol-cluster.oq0ij.mongodb.net"}
+2026-05-11T09:40:47.961Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T09:56:35.876Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-05-11T09:56:52.868Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-05-11T11:52:41.823Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-05-11T13:07:56.017Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T13:08:06.890Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-05-11T13:08:21.287Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T13:08:35.315Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-05-11T13:08:44.829Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T13:08:56.232Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-05-11T13:09:22.575Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T13:09:41.137Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-05-11T13:10:02.430Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T13:10:16.008Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-05-11T13:13:46.028Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T13:13:53.413Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-01.oq0ij.mongodb.net 
+2026-05-11T18:30:00.250Z [INFO]: Running daily variant rate reset cron job... 
+2026-05-11T18:35:15.686Z [ERROR]: ❌ Cron error: read EHOSTUNREACH {"errorLabelSet":{},"beforeHandshake":false,"stack":"MongoNetworkError: read EHOSTUNREACH\n    at Connection.onSocketError (/Users/jacoob/Documents/Dev/OBAOL CORE/Obaol-Web-App/obaol-automate-backend/node_modules/mongodb/src/cmap/connection.ts:308:18)\n    at TLSSocket.emit (node:events:520:35)\n    at TLSSocket.emit (node:domain:489:12)\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)","cause":{"errno":-65,"code":"EHOSTUNREACH","syscall":"read"}}
+2026-05-11T19:29:46.466Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T19:30:00.536Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T19:30:24.066Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T19:50:49.519Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-11T20:33:22.647Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 
+2026-05-11T20:44:50.692Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-00.oq0ij.mongodb.net 
+2026-05-12T18:30:00.194Z [INFO]: Running daily variant rate reset cron job... 
+2026-05-12T18:30:00.316Z [INFO]: Successfully offlined 0 variant rates. 

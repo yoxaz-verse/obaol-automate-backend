@@ -27,11 +27,28 @@ describe("CrudEngine associate-companies filters", () => {
     } as any);
   };
 
+  const createLegacyCompanyWithEmptyAssignedOperator = async () => {
+    const rand = Math.random().toString(36).slice(2, 8);
+    const payload = {
+      name: `Legacy Company ${rand}`,
+      email: `legacy.company.${rand}@example.com`,
+      phone: "+919900000003",
+      phoneSecondary: "+919900000004",
+      assignedOperator: "",
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const inserted = await AssociateCompanyModel.collection.insertOne(payload as any);
+    return inserted.insertedId;
+  };
+
   it("supports all/assigned/unassigned and live/not_live filters", async () => {
     const assignedLive = await createCompany({ assignedOperator: operatorA });
     const assignedNotLive = await createCompany({ assignedOperator: operatorA });
     const unassignedNoRate = await createCompany({});
     const unassignedLive = await createCompany({});
+    const unassignedEmptyStringId = await createLegacyCompanyWithEmptyAssignedOperator();
 
     await createRate(assignedLive._id, true);
     await createRate(assignedNotLive._id, false);
@@ -41,7 +58,7 @@ describe("CrudEngine associate-companies filters", () => {
     const req = { params: { entity: "associate-companies" }, query: {} } as any;
 
     const all = await engine.findAll(req, { page: 1, limit: 50 }, { page: 1, limit: 50 });
-    expect(all.totalCount).toBe(4);
+    expect(all.totalCount).toBe(5);
 
     const assigned = await engine.findAll(req, { page: 1, limit: 50 }, {
       page: 1,
@@ -55,7 +72,9 @@ describe("CrudEngine associate-companies filters", () => {
       limit: 50,
       assignmentStatus: "unassigned",
     });
-    expect(unassigned.totalCount).toBe(2);
+    expect(unassigned.totalCount).toBe(3);
+    const unassignedIds = unassigned.data.map((row: any) => String(row?._id));
+    expect(unassignedIds).toContain(String(unassignedEmptyStringId));
 
     const live = await engine.findAll(req, { page: 1, limit: 50 }, {
       page: 1,
@@ -69,7 +88,7 @@ describe("CrudEngine associate-companies filters", () => {
       limit: 50,
       liveProductStatus: "not_live",
     });
-    expect(notLive.totalCount).toBe(2);
+    expect(notLive.totalCount).toBe(3);
 
     const assignedLiveOnly = await engine.findAll(req, { page: 1, limit: 50 }, {
       page: 1,
@@ -122,4 +141,3 @@ describe("CrudEngine associate-companies filters", () => {
     expect(String(scopedNotLive.data[0]?._id)).toBe(String(opA_notLive._id));
   });
 });
-

@@ -9,7 +9,7 @@ export interface ILocation extends mongoose.Document {
   description?: string;
   latitude?: string;
   longitude?: string;
-  managerCodes: any;
+  managerCodes: string[];
   map: string;
   nation: string;
   street?: string;

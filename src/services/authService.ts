@@ -1966,8 +1966,22 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
             const associate = await AgentModel.findById(userId).select("associateCompany").lean();
             associateCompanyId = String((associate as any)?.associateCompany || "");
         } else if (roleLower === "operator" || roleLower === "team") {
-            const companies = await AssociateCompanyModel.find({ assignedOperator: userId }).select("_id").limit(2).lean();
-            if (companies.length === 1) associateCompanyId = String(companies[0]._id);
+            if (requestedCompanyId) {
+                if (!mongoose.Types.ObjectId.isValid(requestedCompanyId)) {
+                    return res.status(400).json({ success: false, message: "Valid associateCompanyId is required for operator request." });
+                }
+                const requestedCompany = await AssociateCompanyModel.findById(requestedCompanyId).select("_id assignedOperator").lean();
+                if (!requestedCompany) {
+                    return res.status(404).json({ success: false, message: "Associate company not found." });
+                }
+                if (String((requestedCompany as any)?.assignedOperator || "") !== userId) {
+                    return res.status(403).json({ success: false, message: "You can only access interests for your assigned companies." });
+                }
+                associateCompanyId = requestedCompanyId;
+            } else {
+                const companies = await AssociateCompanyModel.find({ assignedOperator: userId }).select("_id").limit(2).lean();
+                if (companies.length === 1) associateCompanyId = String(companies[0]._id);
+            }
         }
 
         if (!associateCompanyId || !mongoose.Types.ObjectId.isValid(associateCompanyId)) {
@@ -2017,14 +2031,20 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
             const associate = await AgentModel.findById(userId).select("associateCompany").lean();
             associateCompanyId = String((associate as any)?.associateCompany || "");
         } else if (roleLower === "operator" || roleLower === "team") {
-            const companies = await AssociateCompanyModel.find({ assignedOperator: userId }).select("_id").limit(2).lean();
-            if (companies.length !== 1) {
+            if (!requestedCompanyId || !mongoose.Types.ObjectId.isValid(requestedCompanyId)) {
                 return res.status(400).json({
                     success: false,
-                    message: "Operator interests setup requires exactly one assigned company context.",
+                    message: "associateCompanyId is required for operator update.",
                 });
             }
-            associateCompanyId = String(companies[0]._id);
+            const requestedCompany = await AssociateCompanyModel.findById(requestedCompanyId).select("_id assignedOperator").lean();
+            if (!requestedCompany) {
+                return res.status(404).json({ success: false, message: "Associate company not found." });
+            }
+            if (String((requestedCompany as any)?.assignedOperator || "") !== userId) {
+                return res.status(403).json({ success: false, message: "You can only update interests for your assigned companies." });
+            }
+            associateCompanyId = requestedCompanyId;
         } else {
             return res.status(403).json({ success: false, message: "Not allowed to update company interests." });
         }

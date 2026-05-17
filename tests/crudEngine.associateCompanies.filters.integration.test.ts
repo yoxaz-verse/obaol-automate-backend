@@ -1,11 +1,29 @@
 import mongoose from "mongoose";
 import { CrudEngine } from "../src/core/engine/crud.engine";
+import { registerAllHooks } from "../src/core/hooks";
+import { getEntityConfig } from "../src/core/registry/entities";
 import { AssociateCompanyModel } from "../src/database/models/associateCompany";
 import { VariantRateModel } from "../src/database/models/variantRate";
 
 describe("CrudEngine associate-companies filters", () => {
   const operatorA = new mongoose.Types.ObjectId();
   const operatorB = new mongoose.Types.ObjectId();
+  let originalAssociateCompanyRelations: Record<string, string> | null = null;
+
+  beforeAll(() => {
+    registerAllHooks();
+    const cfg = getEntityConfig("associate-companies");
+    originalAssociateCompanyRelations = { ...(cfg.relations || {}) };
+    const nextRelations = { ...(cfg.relations || {}) };
+    delete (nextRelations as any).assignedOperator;
+    cfg.relations = nextRelations;
+  });
+
+  afterAll(() => {
+    if (!originalAssociateCompanyRelations) return;
+    const cfg = getEntityConfig("associate-companies");
+    cfg.relations = originalAssociateCompanyRelations;
+  });
 
   const createCompany = async (overrides: Record<string, any> = {}) => {
     const rand = Math.random().toString(36).slice(2, 8);
@@ -43,12 +61,47 @@ describe("CrudEngine associate-companies filters", () => {
     return inserted.insertedId;
   };
 
+
+  const createLegacyCompanyWithInvalidAssignedOperator = async () => {
+    const rand = Math.random().toString(36).slice(2, 8);
+    const payload = {
+      name: `Legacy Invalid Company ${rand}`,
+      email: `legacy.invalid.company.${rand}@example.com`,
+      phone: "+919900000005",
+      phoneSecondary: "+919900000006",
+      assignedOperator: "legacy-invalid-operator",
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const inserted = await AssociateCompanyModel.collection.insertOne(payload as any);
+    return inserted.insertedId;
+  };
+
+  const createLegacyCompanyWithValidAssignedOperatorString = async () => {
+    const rand = Math.random().toString(36).slice(2, 8);
+    const payload = {
+      name: `Legacy Valid Company ${rand}`,
+      email: `legacy.valid.company.${rand}@example.com`,
+      phone: "+919900000007",
+      phoneSecondary: "+919900000008",
+      assignedOperator: new mongoose.Types.ObjectId().toHexString(),
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const inserted = await AssociateCompanyModel.collection.insertOne(payload as any);
+    return inserted.insertedId;
+  };
+
   it("supports all/assigned/unassigned and live/not_live filters", async () => {
     const assignedLive = await createCompany({ assignedOperator: operatorA });
     const assignedNotLive = await createCompany({ assignedOperator: operatorA });
     const unassignedNoRate = await createCompany({});
     const unassignedLive = await createCompany({});
     const unassignedEmptyStringId = await createLegacyCompanyWithEmptyAssignedOperator();
+    const unassignedInvalidStringId = await createLegacyCompanyWithInvalidAssignedOperator();
+    const assignedLegacyStringId = await createLegacyCompanyWithValidAssignedOperatorString();
 
     await createRate(assignedLive._id, true);
     await createRate(assignedNotLive._id, false);
@@ -57,56 +110,59 @@ describe("CrudEngine associate-companies filters", () => {
     const engine = new CrudEngine(AssociateCompanyModel as any, "associate-companies");
     const req = { params: { entity: "associate-companies" }, query: {} } as any;
 
-    const all = await engine.findAll(req, { page: 1, limit: 50 }, { page: 1, limit: 50 });
-    expect(all.totalCount).toBe(5);
+    const all = await engine.findAll(req, { page: 1, limit: 50 }, {});
+    expect(all.totalCount).toBe(7);
 
     const assigned = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       assignmentStatus: "assigned",
     });
-    expect(assigned.totalCount).toBe(2);
+    expect(assigned.totalCount).toBe(3);
+    const assignedIds = assigned.data.map((row: any) => String(row?._id));
+    expect(assignedIds).toContain(String(assignedLegacyStringId));
 
     const unassigned = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       assignmentStatus: "unassigned",
     });
-    expect(unassigned.totalCount).toBe(3);
+    expect(unassigned.totalCount).toBe(4);
     const unassignedIds = unassigned.data.map((row: any) => String(row?._id));
     expect(unassignedIds).toContain(String(unassignedEmptyStringId));
+    expect(unassignedIds).toContain(String(unassignedInvalidStringId));
 
     const live = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       liveProductStatus: "live",
     });
     expect(live.totalCount).toBe(2);
 
     const notLive = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       liveProductStatus: "not_live",
     });
-    expect(notLive.totalCount).toBe(3);
+    expect(notLive.totalCount).toBe(5);
 
     const assignedLiveOnly = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       assignmentStatus: "assigned",
       liveProductStatus: "live",
     });
     expect(assignedLiveOnly.totalCount).toBe(1);
     expect(String(assignedLiveOnly.data[0]?._id)).toBe(String(assignedLive._id));
 
+    const assignedNotLiveOnly = await engine.findAll(req, { page: 1, limit: 50 }, {
+      assignmentStatus: "assigned",
+      liveProductStatus: "not_live",
+    });
+    expect(assignedNotLiveOnly.totalCount).toBe(2);
+    const assignedNotLiveIds = assignedNotLiveOnly.data.map((row: any) => String(row?._id));
+    expect(assignedNotLiveIds).toContain(String(assignedNotLive._id));
+    expect(assignedNotLiveIds).toContain(String(assignedLegacyStringId));
+
     const unassignedNoLive = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       assignmentStatus: "unassigned",
       liveProductStatus: "not_live",
     });
-    expect(unassignedNoLive.totalCount).toBe(1);
-    expect(String(unassignedNoLive.data[0]?._id)).toBe(String(unassignedNoRate._id));
+    expect(unassignedNoLive.totalCount).toBe(3);
+    const unassignedNoLiveIds = unassignedNoLive.data.map((row: any) => String(row?._id));
+    expect(unassignedNoLiveIds).toContain(String(unassignedNoRate._id));
+    expect(unassignedNoLiveIds).toContain(String(unassignedEmptyStringId));
+    expect(unassignedNoLiveIds).toContain(String(unassignedInvalidStringId));
   });
 
   it("applies live/not_live on top of pre-scoped company ids", async () => {
@@ -123,8 +179,6 @@ describe("CrudEngine associate-companies filters", () => {
     const scopedIds = [opA_live._id, opA_notLive._id];
 
     const scopedLive = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       _id: { $in: scopedIds },
       liveProductStatus: "live",
     });
@@ -132,12 +186,31 @@ describe("CrudEngine associate-companies filters", () => {
     expect(String(scopedLive.data[0]?._id)).toBe(String(opA_live._id));
 
     const scopedNotLive = await engine.findAll(req, { page: 1, limit: 50 }, {
-      page: 1,
-      limit: 50,
       _id: { $in: scopedIds },
       liveProductStatus: "not_live",
     });
     expect(scopedNotLive.totalCount).toBe(1);
     expect(String(scopedNotLive.data[0]?._id)).toBe(String(opA_notLive._id));
+  });
+
+  it("returns non-zero for assigned + not_live when matching records exist", async () => {
+    const assignedLive = await createCompany({ assignedOperator: operatorA });
+    const assignedNotLiveA = await createCompany({ assignedOperator: operatorA });
+    const assignedNotLiveB = await createCompany({ assignedOperator: operatorB });
+
+    await createRate(assignedLive._id, true);
+    await createRate(assignedNotLiveA._id, false);
+    await createRate(assignedNotLiveB._id, false);
+
+    const engine = new CrudEngine(AssociateCompanyModel as any, "associate-companies");
+    const req = { params: { entity: "associate-companies" }, query: {} } as any;
+
+    const assignedNotLive = await engine.findAll(req, { page: 1, limit: 50 }, {
+      assignmentStatus: "assigned",
+      liveProductStatus: "not_live",
+    });
+
+    expect(assignedNotLive.totalCount).toBeGreaterThan(0);
+    expect(assignedNotLive.totalCount).toBe(2);
   });
 });

@@ -160,7 +160,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     "variant-rates": {
         model: VariantRateModel,
         searchableFields: ["customId", "rate"],
-        sortableFields: ["createdAt", "rate"],
+        sortableFields: ["createdAt", "rate", "lastLiveDate"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
             productVariant: "product-variants",

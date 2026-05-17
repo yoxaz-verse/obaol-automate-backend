@@ -2,6 +2,12 @@ import { Document, Schema } from "mongoose";
 
 export interface IWarehouse extends Document {
     name: string;
+    contactPhone: string;
+    contactPhoneCountryCode?: string;
+    contactPhoneNational?: string;
+    contactPhoneSecondary?: string;
+    contactPhoneSecondaryCountryCode?: string;
+    contactPhoneSecondaryNational?: string;
     address?: string;
     location?: {
         latitude?: number;

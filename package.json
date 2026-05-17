@@ -16,6 +16,7 @@
     "backfill:product-slugs": "ts-node src/scripts/backfill-product-slugs.ts",
     "backfill:product-classification": "ts-node src/scripts/backfill-product-classification.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
+    "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
     "normalize:company-capabilities": "ts-node src/scripts/normalize-company-capabilities.ts"
   },
   "keywords": [],

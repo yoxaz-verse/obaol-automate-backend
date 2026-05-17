@@ -149,6 +149,12 @@ export class WarehouseController {
       }
 
       const name = String(req.body?.name || "").trim();
+      const contactPhone = String(req.body?.contactPhone || "").trim();
+      const contactPhoneCountryCode = String(req.body?.contactPhoneCountryCode || "").trim();
+      const contactPhoneNational = String(req.body?.contactPhoneNational || "").trim();
+      const contactPhoneSecondary = String(req.body?.contactPhoneSecondary || "").trim();
+      const contactPhoneSecondaryCountryCode = String(req.body?.contactPhoneSecondaryCountryCode || "").trim();
+      const contactPhoneSecondaryNational = String(req.body?.contactPhoneSecondaryNational || "").trim();
       const address = String(req.body?.address || "").trim();
       const category = String(req.body?.category || "GENERAL").trim().toUpperCase();
       let storageRatePerUnit = toNumber(req.body?.storageRatePerUnit);
@@ -163,6 +169,9 @@ export class WarehouseController {
 
       if (!name) {
         return res.status(400).json({ success: false, message: "Warehouse name is required." });
+      }
+      if (!contactPhone && !contactPhoneNational) {
+        return res.status(400).json({ success: false, message: "Warehouse contact phone is required." });
       }
       const normalizedStorageRate = storageRatePerUnit === null || storageRatePerUnit < 0 ? 0 : storageRatePerUnit;
       const normalizedCapacity = totalCapacity === null || totalCapacity < 0 ? 0 : totalCapacity;
@@ -183,6 +192,12 @@ export class WarehouseController {
 
       const warehouse = await WarehouseModel.create({
         name,
+        contactPhone,
+        ...(contactPhoneCountryCode ? { contactPhoneCountryCode } : {}),
+        ...(contactPhoneNational ? { contactPhoneNational } : {}),
+        ...(contactPhoneSecondary ? { contactPhoneSecondary } : {}),
+        ...(contactPhoneSecondaryCountryCode ? { contactPhoneSecondaryCountryCode } : {}),
+        ...(contactPhoneSecondaryNational ? { contactPhoneSecondaryNational } : {}),
         address,
         ...(location ? { location } : {}),
         category: allowedCategories.includes(category) ? category : "GENERAL",
@@ -271,6 +286,29 @@ export class WarehouseController {
 
       const payload: any = {};
       if (req.body?.name !== undefined) payload.name = String(req.body?.name || "").trim();
+      if (req.body?.contactPhone !== undefined) payload.contactPhone = String(req.body?.contactPhone || "").trim();
+      if (req.body?.contactPhoneCountryCode !== undefined) {
+        payload.contactPhoneCountryCode = String(req.body?.contactPhoneCountryCode || "").trim();
+      }
+      if (req.body?.contactPhoneNational !== undefined) {
+        payload.contactPhoneNational = String(req.body?.contactPhoneNational || "").trim();
+      }
+      if (
+        req.body?.contactPhone !== undefined &&
+        !String(req.body?.contactPhone || "").trim() &&
+        !String(req.body?.contactPhoneNational || "").trim()
+      ) {
+        return res.status(400).json({ success: false, message: "Warehouse contact phone is required." });
+      }
+      if (req.body?.contactPhoneSecondary !== undefined) {
+        payload.contactPhoneSecondary = String(req.body?.contactPhoneSecondary || "").trim();
+      }
+      if (req.body?.contactPhoneSecondaryCountryCode !== undefined) {
+        payload.contactPhoneSecondaryCountryCode = String(req.body?.contactPhoneSecondaryCountryCode || "").trim();
+      }
+      if (req.body?.contactPhoneSecondaryNational !== undefined) {
+        payload.contactPhoneSecondaryNational = String(req.body?.contactPhoneSecondaryNational || "").trim();
+      }
       if (req.body?.address !== undefined) payload.address = String(req.body?.address || "").trim();
       if (req.body?.location !== undefined) {
         if (req.body.location === null) {

@@ -23,17 +23,93 @@ export abstract class MongoRepository<T extends Document, CreateDTO = any, Updat
     }> {
         const finalQuery = { ...query, isDeleted: { $ne: true } } as FilterQuery<T>;
 
-        let queryBuilder = this.model.find(finalQuery)
-            .sort(sort || { createdAt: -1 })
-            .limit(pagination.limit)
-            .skip((pagination.page - 1) * pagination.limit)
-            .lean();
+        const isLastLiveDateNullLastSort =
+            sort?.__strategy === "lastLiveDateAscNullsLast" &&
+            String(sort?.field || "") === "lastLiveDate";
 
-        if (populate) {
-            queryBuilder = queryBuilder.populate(populate);
+        let docs: any[] = [];
+
+        if (isLastLiveDateNullLastSort) {
+            const field = String(sort.field);
+            const tieBreaker = sort.tieBreaker || { createdAt: -1 };
+            const pageLimit = Number(pagination.limit || 10);
+            const pageSkip = Math.max(0, (Number(pagination.page || 1) - 1) * pageLimit);
+
+            const nonNullQuery = {
+                $and: [
+                    finalQuery,
+                    { [field]: { $ne: null, $exists: true } },
+                ],
+            } as FilterQuery<T>;
+            const nullOrMissingQuery = {
+                $and: [
+                    finalQuery,
+                    {
+                        $or: [{ [field]: null }, { [field]: { $exists: false } }],
+                    },
+                ],
+            } as FilterQuery<T>;
+
+            const nonNullTotal = await this.model.countDocuments(nonNullQuery);
+            const rows: any[] = [];
+
+            const fetchRows = async (
+                q: FilterQuery<T>,
+                s: any,
+                skip: number,
+                limit: number
+            ) => {
+                if (limit <= 0) return [] as any[];
+                let qb = this.model.find(q).sort(s).skip(skip).limit(limit).lean();
+                if (populate) qb = qb.populate(populate);
+                return qb;
+            };
+
+            if (pageSkip < nonNullTotal) {
+                const fromNonNull = Math.min(pageLimit, nonNullTotal - pageSkip);
+                const nonNullRows = await fetchRows(
+                    nonNullQuery,
+                    { [field]: 1, ...tieBreaker },
+                    pageSkip,
+                    fromNonNull
+                );
+                rows.push(...nonNullRows);
+
+                const remaining = pageLimit - nonNullRows.length;
+                if (remaining > 0) {
+                    const nullRows = await fetchRows(
+                        nullOrMissingQuery,
+                        tieBreaker,
+                        0,
+                        remaining
+                    );
+                    rows.push(...nullRows);
+                }
+            } else {
+                const nullSkip = pageSkip - nonNullTotal;
+                const nullRows = await fetchRows(
+                    nullOrMissingQuery,
+                    tieBreaker,
+                    nullSkip,
+                    pageLimit
+                );
+                rows.push(...nullRows);
+            }
+
+            docs = rows;
+        } else {
+            let queryBuilder = this.model.find(finalQuery)
+                .sort(sort || { createdAt: -1 })
+                .limit(pagination.limit)
+                .skip((pagination.page - 1) * pagination.limit)
+                .lean();
+
+            if (populate) {
+                queryBuilder = queryBuilder.populate(populate);
+            }
+
+            docs = await queryBuilder;
         }
-
-        const docs = await queryBuilder;
 
         const totalCount = await this.model.countDocuments(finalQuery);
         const totalPages = Math.ceil(totalCount / pagination.limit);

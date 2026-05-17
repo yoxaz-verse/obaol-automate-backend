@@ -450,6 +450,9 @@ export class ImportController {
 
       const listing = await ImportListingModel.findById(id);
       if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
+      if (listing.status === "CLOSED") {
+        return res.status(400).json({ success: false, message: "Listing is already closed." });
+      }
 
       if (isOperatorRole(role)) {
         const company = await AssociateCompanyModel.findById(listing.importerCompanyId).select("assignedOperator").lean();
@@ -464,6 +467,7 @@ export class ImportController {
       }
 
       listing.status = "CLOSED";
+      listing.importStatus = "DRAFT";
       await listing.save();
       return res.json({ success: true, data: listing });
     } catch (error) {
@@ -498,17 +502,6 @@ export class ImportController {
       if (listing.status === "CLOSED" || listing.status === "FULL") {
         return res.status(400).json({ success: false, message: "Listing is closed or fully reserved." });
       }
-      const activeStatuses = ["PENDING", "APPROVED", "LOCKED", "ACCEPTED"];
-      const existingReserved = await ImportReservationModel.aggregate([
-        { $match: { listingId: new Types.ObjectId(listingId), isDeleted: { $ne: true }, status: { $in: activeStatuses } } },
-        { $group: { _id: "$listingId", qty: { $sum: "$quantityRequested" } } },
-      ]);
-      const reservedQty = existingReserved?.[0]?.qty || 0;
-      const available = Math.max(0, Number(listing.totalQuantity || 0) - reservedQty);
-      if (available < quantityRequested) {
-        return res.status(400).json({ success: false, message: "Requested quantity exceeds availability." });
-      }
-
       let companyId: any = null;
       let buyerAssociateId: any = userId;
       if (isAdminUser || isOperatorUser) {
@@ -546,19 +539,53 @@ export class ImportController {
         });
       }
 
-      const created = await ImportReservationModel.create({
-        listingId,
-        buyerAssociateId,
-        buyerCompanyId: companyId,
-        quantityRequested,
-        status: "PENDING",
-        reservationStatus: "PENDING",
-        requestedAt: new Date(),
-      });
+      const activeStatuses = ["PENDING", "APPROVED", "LOCKED", "ACCEPTED"];
+      const existingActiveReservation = await ImportReservationModel.findOne({
+        listingId: new Types.ObjectId(listingId),
+        buyerAssociateId: new Types.ObjectId(String(buyerAssociateId)),
+        isDeleted: { $ne: true },
+        $or: [
+          { status: { $in: activeStatuses } },
+          { reservationStatus: { $in: activeStatuses } },
+        ],
+      }).sort({ createdAt: -1 });
+
+      const reservedAgg = await ImportReservationModel.aggregate([
+        { $match: { listingId: new Types.ObjectId(listingId), isDeleted: { $ne: true }, status: { $in: activeStatuses } } },
+        { $group: { _id: "$listingId", qty: { $sum: "$quantityRequested" } } },
+      ]);
+      const totalReservedQty = Number(reservedAgg?.[0]?.qty || 0);
+      const existingQty = existingActiveReservation ? Number(existingActiveReservation.quantityRequested || 0) : 0;
+      const reservedWithoutExisting = Math.max(0, totalReservedQty - existingQty);
+      const availableForBuyer = Math.max(0, Number(listing.totalQuantity || 0) - reservedWithoutExisting);
+      if (availableForBuyer < quantityRequested) {
+        return res.status(400).json({ success: false, message: "Requested quantity exceeds availability." });
+      }
+
+      let reservationId: Types.ObjectId;
+      let wasUpdatedExisting = false;
+      if (existingActiveReservation) {
+        existingActiveReservation.quantityRequested = quantityRequested;
+        existingActiveReservation.buyerCompanyId = companyId;
+        await existingActiveReservation.save();
+        reservationId = existingActiveReservation._id as Types.ObjectId;
+        wasUpdatedExisting = true;
+      } else {
+        const created = await ImportReservationModel.create({
+          listingId,
+          buyerAssociateId,
+          buyerCompanyId: companyId,
+          quantityRequested,
+          status: "PENDING",
+          reservationStatus: "PENDING",
+          requestedAt: new Date(),
+        });
+        reservationId = created._id as Types.ObjectId;
+      }
 
       await this.recomputeListingState(new Types.ObjectId(listingId));
 
-      const populated = await ImportReservationModel.findById(created._id)
+      const populated = await ImportReservationModel.findById(reservationId)
         .populate({
           path: "listingId",
           populate: [
@@ -570,7 +597,11 @@ export class ImportController {
         .populate("buyerCompanyId", "name")
         .lean();
 
-      return res.status(201).json({ success: true, data: populated });
+      return res.status(wasUpdatedExisting ? 200 : 201).json({
+        success: true,
+        data: populated,
+        meta: { updatedExisting: wasUpdatedExisting },
+      });
     } catch (error) {
       next(error);
     }

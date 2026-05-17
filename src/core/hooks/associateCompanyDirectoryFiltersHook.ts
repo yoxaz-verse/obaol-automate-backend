@@ -16,8 +16,16 @@ export const associateCompanyDirectoryFiltersHook = async (
   _req: any
 ): Promise<any> => {
   const nextQuery = { ...(query || {}) };
-  const assignmentStatus = String(nextQuery.assignmentStatus || "all").toLowerCase();
-  const liveProductStatus = String(nextQuery.liveProductStatus || "all").toLowerCase();
+  const assignmentStatusRaw = String(nextQuery.assignmentStatus || "all").trim().toLowerCase();
+  const liveProductStatusRaw = String(nextQuery.liveProductStatus || "all").trim().toLowerCase();
+  const assignmentStatus =
+    assignmentStatusRaw === "assigned" || assignmentStatusRaw === "unassigned"
+      ? assignmentStatusRaw
+      : "all";
+  const liveProductStatus =
+    liveProductStatusRaw === "live" || liveProductStatusRaw === "not_live"
+      ? liveProductStatusRaw
+      : "all";
 
   delete nextQuery.assignmentStatus;
   delete nextQuery.liveProductStatus;
@@ -26,16 +34,35 @@ export const associateCompanyDirectoryFiltersHook = async (
 
   if (assignmentStatus === "assigned") {
     filteredQuery = addAndCondition(filteredQuery, {
-      assignedOperator: { $exists: true, $nin: [null, ""] },
+      $or: [
+        { assignedOperator: { $type: "objectId" } },
+        { assignedOperator: { $regex: /^[a-fA-F0-9]{24}$/ } },
+      ],
     });
   } else if (assignmentStatus === "unassigned") {
     filteredQuery = addAndCondition(filteredQuery, {
-      $or: [{ assignedOperator: null }, { assignedOperator: { $exists: false } }, { assignedOperator: "" }],
+      $or: [
+        { assignedOperator: null },
+        { assignedOperator: { $exists: false } },
+        { assignedOperator: "" },
+        { assignedOperator: { $not: /^[a-fA-F0-9]{24}$/ } },
+        {
+          $expr: {
+            $and: [
+              { $ne: [{ $type: "$assignedOperator" }, "objectId"] },
+              { $ne: [{ $type: "$assignedOperator" }, "string"] },
+            ],
+          },
+        },
+      ],
     });
   }
 
   if (liveProductStatus === "live" || liveProductStatus === "not_live") {
-    const liveCompanyIds = await VariantRateModel.distinct("associateCompany", { isLive: true });
+    const liveCompanyIds = await VariantRateModel.distinct("associateCompany", {
+      isLive: true,
+      associateCompany: { $exists: true, $ne: null },
+    });
     const sanitizedLiveCompanyIds = Array.isArray(liveCompanyIds)
       ? liveCompanyIds.filter((candidate: any) => Boolean(candidate))
       : [];
@@ -49,6 +76,15 @@ export const associateCompanyDirectoryFiltersHook = async (
         _id: { $nin: sanitizedLiveCompanyIds },
       });
     }
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[associate-companies] directory filters", {
+      assignmentStatus,
+      liveProductStatus,
+      incomingQuery: nextQuery,
+      finalQuery: filteredQuery,
+    });
   }
 
   return filteredQuery;

@@ -24,6 +24,9 @@ export interface IAssociateCompany {
   labSpecifications?: string[];
   labAcceptedItems?: string[];
   labNotes?: string;
+  labListingState?: "DRAFT" | "LIVE";
+  labActivatedAt?: Date | null;
+  labActivatedBy?: string;
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;
@@ -78,6 +81,9 @@ export interface ICreateAssociateCompany {
   labSpecifications?: string[];
   labAcceptedItems?: string[];
   labNotes?: string;
+  labListingState?: "DRAFT" | "LIVE";
+  labActivatedAt?: Date | null;
+  labActivatedBy?: string;
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;
@@ -132,6 +138,9 @@ export interface IUpdateAssociateCompany {
   labSpecifications?: string[];
   labAcceptedItems?: string[];
   labNotes?: string;
+  labListingState?: "DRAFT" | "LIVE";
+  labActivatedAt?: Date | null;
+  labActivatedBy?: string;
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;

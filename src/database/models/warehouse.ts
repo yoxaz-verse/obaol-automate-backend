@@ -42,6 +42,14 @@ const WarehouseSchema = new Schema(
         storageRatePerUnit: { type: Number, required: true, default: 0, min: 0 },
         unit: { type: String, enum: ["KG", "MT"], default: "MT" },
         isActive: { type: Boolean, default: true, index: true },
+        listingState: {
+            type: String,
+            enum: ["DRAFT", "LIVE"],
+            default: "LIVE",
+            index: true,
+        },
+        activatedAt: { type: Date, default: null },
+        activatedBy: { type: Schema.Types.ObjectId, ref: "Admin", default: null },
     },
     { timestamps: true }
 );

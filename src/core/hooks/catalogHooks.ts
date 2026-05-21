@@ -27,6 +27,8 @@ export const syncVariantRateToCatalog = async (
             // Get associate's company
             const associate = await AssociateModel.findById(associateId);
             if (!associate?.associateCompany) return;
+            const associateIsApproved =
+                String((associate as any)?.registrationStatus || "").toUpperCase() === "APPROVED";
 
             // Check if already exists (defensive)
             const exists = await CatalogItemModel.findOne({
@@ -42,7 +44,10 @@ export const syncVariantRateToCatalog = async (
                     baseRateId: variantRate._id,
                     margin: 0,
                     finalPrice: variantRate.rate, // No markup for self
-                    isLive: variantRate.isLive,
+                    isLive: associateIsApproved ? variantRate.isLive : false,
+                    listingState: associateIsApproved ? "LIVE" : "DRAFT",
+                    activatedAt: associateIsApproved ? new Date() : null,
+                    activatedBy: null,
                     customTitle: undefined,
                     customDescription: undefined
                 });

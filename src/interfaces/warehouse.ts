@@ -29,6 +29,9 @@ export interface IWarehouse extends Document {
     storageRatePerUnit: number;
     unit: "KG" | "MT";
     isActive: boolean;
+    listingState?: "DRAFT" | "LIVE";
+    activatedAt?: Date | null;
+    activatedBy?: Schema.Types.ObjectId | null;
     createdAt: Date;
     updatedAt: Date;
 }

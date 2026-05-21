@@ -122,6 +122,161 @@ export class AnalyticsService {
         };
     }
 
+    static async getDashboardSummary({
+        userId,
+        role,
+    }: {
+        userId: string;
+        role: string;
+    }) {
+        const roleLower = String(role || "").toLowerCase();
+        const objectId = userId ? new mongoose.Types.ObjectId(userId) : null;
+        const isAdmin = roleLower === "admin";
+        const isAssociate = roleLower === "associate";
+        const isOperatorUser = roleLower === "operator" || roleLower === "team";
+
+        const enquiryBaseFilter: Record<string, any> = {};
+        const orderBaseFilter: Record<string, any> = {};
+        if (objectId && isAssociate) {
+            enquiryBaseFilter.$or = [
+                { buyerAssociateId: objectId },
+                { sellerAssociateId: objectId },
+                { mediatorAssociateId: objectId },
+            ];
+            orderBaseFilter.$or = [
+                { buyerAssociateId: objectId },
+                { sellerAssociateId: objectId },
+                { mediatorAssociateId: objectId },
+            ];
+        } else if (objectId && isOperatorUser) {
+            enquiryBaseFilter.$or = [
+                { supplierOperatorId: objectId },
+                { dealCloserOperatorId: objectId },
+                { createdBy: objectId },
+            ];
+            orderBaseFilter.$or = [
+                { supplierOperatorId: objectId },
+                { dealCloserOperatorId: objectId },
+                { createdBy: objectId },
+            ];
+        }
+
+        const inquiryClosedStatuses = ["COMPLETED", "CLOSED", "CANCELLED", "CONVERTED"];
+        const orderClosedStatuses = ["COMPLETED", "CANCELLED"];
+
+        const [
+            totalEnquiries,
+            pendingEnquiries,
+            convertedEnquiries,
+            totalOrders,
+            activeOrders,
+            completedOrders,
+            recentEnquiries,
+            recentOrders,
+            associateBuyingCount,
+            associateSellingCount,
+            associateActionRequired,
+            adminActionRequired,
+        ] = await Promise.all([
+            EnquiryModel.countDocuments(enquiryBaseFilter),
+            EnquiryModel.countDocuments({
+                ...enquiryBaseFilter,
+                status: { $nin: inquiryClosedStatuses },
+            }),
+            EnquiryModel.countDocuments({
+                ...enquiryBaseFilter,
+                status: "CONVERTED",
+            }),
+            OrderModel.countDocuments(orderBaseFilter),
+            OrderModel.countDocuments({
+                ...orderBaseFilter,
+                status: { $nin: orderClosedStatuses },
+            }),
+            OrderModel.countDocuments({
+                ...orderBaseFilter,
+                status: "COMPLETED",
+            }),
+            EnquiryModel.find(enquiryBaseFilter)
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .limit(4)
+                .select("_id status updatedAt createdAt")
+                .lean(),
+            OrderModel.find(orderBaseFilter)
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .limit(4)
+                .select("_id status updatedAt createdAt")
+                .lean(),
+            objectId && isAssociate
+                ? EnquiryModel.countDocuments({
+                    ...enquiryBaseFilter,
+                    buyerAssociateId: objectId,
+                })
+                : Promise.resolve(0),
+            objectId && isAssociate
+                ? EnquiryModel.countDocuments({
+                    ...enquiryBaseFilter,
+                    sellerAssociateId: objectId,
+                })
+                : Promise.resolve(0),
+            objectId && isAssociate
+                ? EnquiryModel.countDocuments({
+                    ...enquiryBaseFilter,
+                    $or: [
+                        { sellerAssociateId: objectId, sellerAcceptedAt: null },
+                        {
+                            buyerAssociateId: objectId,
+                            sellerAcceptedAt: { $ne: null },
+                            buyerConfirmedAt: null,
+                        },
+                    ],
+                })
+                : Promise.resolve(0),
+            isAdmin
+                ? EnquiryModel.countDocuments({
+                    ...enquiryBaseFilter,
+                    $or: [
+                        { sellerAcceptedAt: null },
+                        { buyerConfirmedAt: null },
+                        { status: { $ne: "CONVERTED" } },
+                    ],
+                })
+                : Promise.resolve(0),
+        ]);
+
+        const recentActivity = [
+            ...(recentEnquiries || []).map((row: any) => ({
+                type: "Enquiry",
+                id: row?._id,
+                status: row?.status || "Pending",
+                at: row?.updatedAt || row?.createdAt,
+            })),
+            ...(recentOrders || []).map((row: any) => ({
+                type: "Order",
+                id: row?._id,
+                status: row?.status || "Procuring",
+                at: row?.updatedAt || row?.createdAt,
+            })),
+        ]
+            .filter((item) => item.id && item.at)
+            .sort((a, b) => new Date(String(b.at)).getTime() - new Date(String(a.at)).getTime())
+            .slice(0, 6);
+
+        return {
+            totalEnquiries,
+            pendingEnquiries,
+            convertedEnquiries,
+            totalOrders,
+            activeOrders,
+            completedOrders,
+            orderCompletionPct: totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0,
+            associateBuyingCount,
+            associateSellingCount,
+            associateActionRequired,
+            adminActionRequired,
+            recentActivity,
+        };
+    }
+
     /**
      * Get specific metrics for an associate
      */

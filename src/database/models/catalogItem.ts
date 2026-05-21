@@ -13,6 +13,9 @@ export interface ICatalogItem extends Document {
     lastLiveAt?: Date | null;
     lastLiveDate?: Date | null;
     unit?: string;
+    listingState?: "DRAFT" | "LIVE";
+    activatedAt?: Date | null;
+    activatedBy?: mongoose.Types.ObjectId | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -66,6 +69,14 @@ const CatalogItemSchema: Schema = new Schema(
         lastLiveAt: { type: Date, default: null },
         lastLiveDate: { type: Date, default: null },
         unit: { type: String, default: 'KG' },
+        listingState: {
+            type: String,
+            enum: ["DRAFT", "LIVE"],
+            default: "LIVE",
+            index: true,
+        },
+        activatedAt: { type: Date, default: null },
+        activatedBy: { type: Schema.Types.ObjectId, ref: "Admin", default: null },
     },
     {
         timestamps: true,

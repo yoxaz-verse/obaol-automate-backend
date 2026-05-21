@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { OperatorModel } from "../database/models/operator";
+import { CatalogItemModel } from "../database/models/catalogItem";
+import { WarehouseModel } from "../database/models/warehouse";
 
 const ALLOWED_STATUSES = new Set(["PENDING_REVIEW", "APPROVED", "REJECTED"]);
 
@@ -19,6 +21,65 @@ const buildSearch = (search: any, fields: string[]) => {
 };
 
 export class ApprovalController {
+  private async activateDraftListings(params: {
+    adminId?: string;
+    associateId?: string | null;
+    associateCompanyId?: string | null;
+  }) {
+    const hasAssociateTarget = Boolean(params.associateId && mongoose.Types.ObjectId.isValid(String(params.associateId)));
+    const hasCompanyTarget = Boolean(params.associateCompanyId && mongoose.Types.ObjectId.isValid(String(params.associateCompanyId)));
+    if (!hasAssociateTarget && !hasCompanyTarget) return;
+
+    const now = new Date();
+    const approvedByObjectId =
+      mongoose.Types.ObjectId.isValid(String(params.adminId || ""))
+        ? new mongoose.Types.ObjectId(String(params.adminId))
+        : null;
+
+    const catalogFilter: any = { listingState: "DRAFT" };
+    const warehouseFilter: any = { listingState: "DRAFT" };
+    const companyFilter: any = { labListingState: "DRAFT" };
+
+    if (hasAssociateTarget && params.associateId) {
+      const associateObjectId = new mongoose.Types.ObjectId(params.associateId);
+      catalogFilter.associateId = associateObjectId;
+      warehouseFilter.ownerAssociateId = associateObjectId;
+    }
+    if (hasCompanyTarget && params.associateCompanyId) {
+      const companyObjectId = new mongoose.Types.ObjectId(params.associateCompanyId);
+      catalogFilter.associateCompanyId = companyObjectId;
+      warehouseFilter.ownerCompanyId = companyObjectId;
+      companyFilter._id = companyObjectId;
+    }
+
+    await Promise.all([
+      CatalogItemModel.updateMany(catalogFilter, {
+        $set: {
+          listingState: "LIVE",
+          isLive: true,
+          activatedAt: now,
+          ...(approvedByObjectId ? { activatedBy: approvedByObjectId } : {}),
+        },
+      }),
+      WarehouseModel.updateMany(warehouseFilter, {
+        $set: {
+          listingState: "LIVE",
+          isActive: true,
+          activatedAt: now,
+          ...(approvedByObjectId ? { activatedBy: approvedByObjectId } : {}),
+        },
+      }),
+      hasCompanyTarget ? AssociateCompanyModel.updateMany(companyFilter, {
+        $set: {
+          labListingState: "LIVE",
+          isQualityLabListed: true,
+          labActivatedAt: now,
+          ...(approvedByObjectId ? { labActivatedBy: approvedByObjectId } : {}),
+        },
+      }) : Promise.resolve(),
+    ]);
+  }
+
   async approveExistingPending(req: Request, res: Response) {
     try {
       const notes = String(req.body?.notes || "Approved in bulk from existing records.").trim();
@@ -50,6 +111,11 @@ export class ApprovalController {
         ],
       };
 
+      const [pendingAssociates, pendingCompanies] = await Promise.all([
+        AssociateModel.find(associateFilter).select("_id associateCompany").lean(),
+        AssociateCompanyModel.find(companyFilter).select("_id").lean(),
+      ]);
+
       const [associateResult, companyResult] = await Promise.all([
         AssociateModel.updateMany(
           associateFilter,
@@ -73,6 +139,22 @@ export class ApprovalController {
               reviewNotes: notes,
             },
           }
+        ),
+      ]);
+
+      await Promise.all([
+        ...pendingAssociates.map((row: any) =>
+          this.activateDraftListings({
+            adminId,
+            associateId: String(row?._id || ""),
+            associateCompanyId: row?.associateCompany ? String(row.associateCompany) : null,
+          })
+        ),
+        ...pendingCompanies.map((row: any) =>
+          this.activateDraftListings({
+            adminId,
+            associateCompanyId: String(row?._id || ""),
+          })
         ),
       ]);
 
@@ -190,6 +272,14 @@ export class ApprovalController {
 
       if (!updated) {
         return res.status(404).json({ success: false, message: "Associate not found." });
+      }
+      if (action === "APPROVE") {
+        const associateRow = await AssociateModel.findById(id).select("_id associateCompany").lean();
+        await this.activateDraftListings({
+          adminId: String(req.user?.id || ""),
+          associateId: id,
+          associateCompanyId: associateRow?.associateCompany ? String(associateRow.associateCompany) : null,
+        });
       }
       return res.json({ success: true, data: updated });
     } catch (error: any) {
@@ -319,6 +409,13 @@ export class ApprovalController {
 
       if (!updated) {
         return res.status(404).json({ success: false, message: "Company not found." });
+      }
+
+      if (action === "APPROVE") {
+        await this.activateDraftListings({
+          adminId,
+          associateCompanyId: id,
+        });
       }
 
       return res.json({ success: true, data: updated });

@@ -106,6 +106,13 @@ export class WarehouseController {
     return associate?.associateCompany ? String(associate.associateCompany) : null;
   }
 
+  private async resolveAssociateApprovalStatus(userId: string): Promise<boolean> {
+    const associate = await AssociateModel.findById(userId)
+      .select("registrationStatus")
+      .lean();
+    return String((associate as any)?.registrationStatus || "").toUpperCase() === "APPROVED";
+  }
+
   private async resolveScopedCompanyId(
     role: string,
     userId: string,
@@ -186,6 +193,9 @@ export class WarehouseController {
         }
         ownerAssociateId = userId;
       }
+      const associateIsApproved = isAssociateRole(role)
+        ? await this.resolveAssociateApprovalStatus(userId)
+        : true;
 
       const listingType = String(req.body?.listingType || "PRIVATE").trim().toUpperCase();
       const isRentalActive = Boolean(req.body?.isRentalActive);
@@ -204,7 +214,12 @@ export class WarehouseController {
         storageRatePerUnit: normalizedStorageRate,
         unit,
         totalCapacity: normalizedCapacity,
-        isActive: req.body?.isActive !== undefined ? Boolean(req.body?.isActive) : true,
+        isActive: associateIsApproved
+          ? (req.body?.isActive !== undefined ? Boolean(req.body?.isActive) : true)
+          : false,
+        listingState: associateIsApproved ? "LIVE" : "DRAFT",
+        activatedAt: associateIsApproved ? new Date() : null,
+        activatedBy: null,
         ownerCompanyId: ownerCompanyId || req.body?.ownerCompanyId || null,
         ownerAssociateId: ownerAssociateId || req.body?.ownerAssociateId || null,
         listingType: listingType === "RENTAL" ? "RENTAL" : "PRIVATE",
@@ -355,6 +370,13 @@ export class WarehouseController {
         }
         if (!companyId || String(warehouse.ownerCompanyId || "") !== String(companyId)) {
           return res.status(403).json({ success: false, message: "You can only update your own warehouses." });
+        }
+        const associateIsApproved = await this.resolveAssociateApprovalStatus(userId);
+        if (!associateIsApproved) {
+          payload.isActive = false;
+          payload.listingState = "DRAFT";
+          payload.activatedAt = null;
+          payload.activatedBy = null;
         }
       }
 

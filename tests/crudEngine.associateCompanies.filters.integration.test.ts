@@ -213,4 +213,69 @@ describe("CrudEngine associate-companies filters", () => {
     expect(assignedNotLive.totalCount).toBeGreaterThan(0);
     expect(assignedNotLive.totalCount).toBe(2);
   });
+
+  it("supports pagination and search with combined assignment + live filters", async () => {
+    const assignedLiveAlpha = await createCompany({
+      name: "Alpha Filter Target",
+      assignedOperator: operatorA,
+    });
+    const assignedLiveAlpine = await createCompany({
+      name: "Alpine Filter Target",
+      assignedOperator: operatorA,
+    });
+    const assignedLiveBeta = await createCompany({
+      name: "Beta Filter Target",
+      assignedOperator: operatorA,
+    });
+    const assignedNotLiveAlpha = await createCompany({
+      name: "Alpha Not Live Target",
+      assignedOperator: operatorA,
+    });
+    const unassignedLiveAlpha = await createCompany({
+      name: "Alpha Unassigned Live Target",
+    });
+
+    await createRate(assignedLiveAlpha._id, true);
+    await createRate(assignedLiveAlpine._id, true);
+    await createRate(assignedLiveBeta._id, true);
+    await createRate(unassignedLiveAlpha._id, true);
+    await createRate(assignedNotLiveAlpha._id, false);
+
+    const engine = new CrudEngine(AssociateCompanyModel as any, "associate-companies");
+    const req = { params: { entity: "associate-companies" }, query: {} } as any;
+
+    const pageOne = await engine.findAll(
+      req,
+      { page: 1, limit: 1 },
+      {
+        search: "Alpha",
+        assignmentStatus: "assigned",
+        liveProductStatus: "live",
+        sort: "name:asc",
+      }
+    );
+
+    expect(pageOne.totalCount).toBe(1);
+    expect(pageOne.currentPage).toBe(1);
+    expect(pageOne.totalPages).toBe(1);
+    expect(pageOne.data).toHaveLength(1);
+    expect(String(pageOne.data[0]?.name || "")).toContain("Alpha");
+    expect(String(pageOne.data[0]?._id)).toBe(String(assignedLiveAlpha._id));
+
+    const pageTwo = await engine.findAll(
+      req,
+      { page: 2, limit: 1 },
+      {
+        search: "Alpha",
+        assignmentStatus: "assigned",
+        liveProductStatus: "live",
+        sort: "name:asc",
+      }
+    );
+
+    expect(pageTwo.totalCount).toBe(1);
+    expect(pageTwo.currentPage).toBe(2);
+    expect(pageTwo.totalPages).toBe(1);
+    expect(pageTwo.data).toHaveLength(0);
+  });
 });

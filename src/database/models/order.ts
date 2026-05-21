@@ -159,5 +159,8 @@ OrderSchema.index({ externalCreatedBy: 1 });
 OrderSchema.index({ commissionProcessedAt: 1 });
 OrderSchema.index({ closedByOperator: 1 });
 OrderSchema.index({ associateCompanyId: 1 });
+OrderSchema.index({ supplierOperatorId: 1, status: 1, updatedAt: -1 });
+OrderSchema.index({ dealCloserOperatorId: 1, status: 1, updatedAt: -1 });
+OrderSchema.index({ createdBy: 1, status: 1, updatedAt: -1 });
 
 export const OrderModel = mongoose.model<IOrder>("Order", OrderSchema);

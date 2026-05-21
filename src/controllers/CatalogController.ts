@@ -34,6 +34,8 @@ export class CatalogController {
             }
 
             const hasLinkedCompany = Boolean((associate as any)?.associateCompany);
+            const associateIsApproved =
+                String((associate as any)?.registrationStatus || "").toUpperCase() === "APPROVED";
             const isOwnRate = String((baseRate as any)?.associate || "") === String(associateId);
             if (!hasLinkedCompany && isOwnRate) {
                 const guardedError: any = new Error(
@@ -68,7 +70,10 @@ export class CatalogController {
                 finalPrice,
                 customTitle,
                 customDescription,
-                isLive: baseRate.isLive ?? true
+                isLive: associateIsApproved ? (baseRate.isLive ?? true) : false,
+                listingState: associateIsApproved ? "LIVE" : "DRAFT",
+                activatedAt: associateIsApproved ? new Date() : null,
+                activatedBy: null,
             }], { session });
 
             // 6. Sync with DisplayedRate (Personal Markup)
@@ -110,6 +115,9 @@ export class CatalogController {
             const { id } = req.params;
             const { margin, isLive, customTitle, customDescription } = req.body;
             const associateId = (req.user as any)?.id;
+            const associate = await AssociateModel.findById(associateId).select("registrationStatus").lean();
+            const associateIsApproved =
+                String((associate as any)?.registrationStatus || "").toUpperCase() === "APPROVED";
 
             const item = await CatalogItemModel.findOne({ _id: id, associateId });
 
@@ -126,11 +134,22 @@ export class CatalogController {
                 }
             }
 
-            if (isLive !== undefined) item.isLive = isLive;
+            if (isLive !== undefined) item.isLive = associateIsApproved ? Boolean(isLive) : false;
             if (customTitle !== undefined) item.customTitle = customTitle;
             if (customDescription !== undefined) item.customDescription = customDescription;
 
             await item.save();
+            if (!associateIsApproved) {
+                item.listingState = "DRAFT" as any;
+                item.activatedAt = null as any;
+                item.activatedBy = null as any;
+                item.isLive = false;
+                await item.save();
+            } else if (item.isLive) {
+                item.listingState = "LIVE" as any;
+                if (!item.activatedAt) item.activatedAt = new Date();
+                await item.save();
+            }
 
             // Sync with DisplayedRate if needed
             if (margin !== undefined || isLive !== undefined) {

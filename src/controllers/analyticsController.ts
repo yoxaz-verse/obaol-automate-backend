@@ -31,6 +31,27 @@ export const getSystemMetrics = async (req: Request, res: Response, next: NextFu
     }
 };
 
+export const getDashboardSummary = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = String((req.user as any)?.id || "");
+        const role = String((req.user as any)?.role || "");
+        if (!userId) {
+            return res.status(400).json({ status: 400, message: "User context is missing." });
+        }
+        const startedAt = Date.now();
+        const data = await AnalyticsService.getDashboardSummary({ userId, role });
+        if (process.env.NODE_ENV !== "production") {
+            console.info(`[analytics] dashboard summary served in ${Date.now() - startedAt}ms`, {
+                userId,
+                role: role.toLowerCase(),
+            });
+        }
+        res.sendFormatted(data, "Dashboard summary retrieved successfully");
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const getAssociateMetrics = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const associateId = (req.user as any)?.id;

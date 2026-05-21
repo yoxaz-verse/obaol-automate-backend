@@ -31,6 +31,7 @@ import { orderInventoryReservationHook } from "./orderInventoryReservationHook";
 import { enquiryInventoryReservationHook } from "./enquiryInventoryReservationHook";
 import { associateCompanyDirectoryFiltersHook } from "./associateCompanyDirectoryFiltersHook";
 import { productClassificationPreReadHook, productClassificationPreWriteHook } from "./productClassificationHook";
+import { associateCompanyPendingLabPreWriteHook } from "./pendingListingHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Operators (Overseers)
@@ -94,7 +95,11 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreWrite("company-sub-functions", companySubFunctionMasterWriteHook);
     HookDispatcher.registerPreWrite("company-function-mappings", companyFunctionMappingWriteHook);
     HookDispatcher.registerPreWrite("associates", operatorAssociateCreatePreWriteHook);
-    HookDispatcher.registerPreWrite("associate-companies", operatorCompanyCreatePreWriteHook);
+    HookDispatcher.registerPreWrite("associate-companies", async (payload, mode, id, req) => {
+        let nextPayload = await operatorCompanyCreatePreWriteHook(payload, mode, id, req);
+        nextPayload = await associateCompanyPendingLabPreWriteHook(nextPayload, mode, id, req);
+        return nextPayload;
+    });
     HookDispatcher.registerPreWrite("operators", operatorMentorValidationHook);
     HookDispatcher.registerPreWrite("orders", orderCommissionPreWriteHook);
     HookDispatcher.registerPreWrite("products", productClassificationPreWriteHook);

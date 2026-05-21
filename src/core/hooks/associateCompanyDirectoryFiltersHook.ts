@@ -71,7 +71,7 @@ export const associateCompanyDirectoryFiltersHook = async (
       filteredQuery = addAndCondition(filteredQuery, {
         _id: { $in: sanitizedLiveCompanyIds },
       });
-    } else if (sanitizedLiveCompanyIds.length > 0) {
+    } else {
       filteredQuery = addAndCondition(filteredQuery, {
         _id: { $nin: sanitizedLiveCompanyIds },
       });

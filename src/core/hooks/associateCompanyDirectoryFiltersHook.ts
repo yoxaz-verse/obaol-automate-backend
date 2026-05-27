@@ -2,11 +2,11 @@ import { VariantRateModel } from "../../database/models/variantRate";
 
 const addAndCondition = (baseQuery: any, condition: any) => {
   if (!condition) return baseQuery;
-  if (!baseQuery || !Object.keys(baseQuery).length) return condition;
-  if (Array.isArray(baseQuery?.$and)) {
-    return { ...baseQuery, $and: [...baseQuery.$and, condition] };
+  if (!baseQuery || !Object.keys(baseQuery).length) {
+    return { $and: [condition] };
   }
-  return { $and: [baseQuery, condition] };
+  const existingAnd = Array.isArray(baseQuery?.$and) ? baseQuery.$and : [];
+  return { ...baseQuery, $and: [...existingAnd, condition] };
 };
 
 export const associateCompanyDirectoryFiltersHook = async (
@@ -31,30 +31,43 @@ export const associateCompanyDirectoryFiltersHook = async (
   delete nextQuery.liveProductStatus;
 
   let filteredQuery: any = nextQuery;
+  const assignedOperatorIsValidCondition = {
+    $or: [
+      {
+        $expr: {
+          $eq: [{ $type: "$assignedOperator" }, "objectId"],
+        },
+      },
+      {
+        $expr: {
+          $and: [
+            { $eq: [{ $type: "$assignedOperator" }, "string"] },
+            { $regexMatch: { input: "$assignedOperator", regex: /^[a-fA-F0-9]{24}$/ } },
+          ],
+        },
+      },
+    ],
+  };
 
   if (assignmentStatus === "assigned") {
-    filteredQuery = addAndCondition(filteredQuery, {
-      $or: [
-        { assignedOperator: { $type: "objectId" } },
-        { assignedOperator: { $regex: /^[a-fA-F0-9]{24}$/ } },
-      ],
-    });
+    filteredQuery = addAndCondition(filteredQuery, assignedOperatorIsValidCondition);
   } else if (assignmentStatus === "unassigned") {
     filteredQuery = addAndCondition(filteredQuery, {
-      $or: [
-        { assignedOperator: null },
-        { assignedOperator: { $exists: false } },
-        { assignedOperator: "" },
-        { assignedOperator: { $not: /^[a-fA-F0-9]{24}$/ } },
-        {
-          $expr: {
-            $and: [
-              { $ne: [{ $type: "$assignedOperator" }, "objectId"] },
-              { $ne: [{ $type: "$assignedOperator" }, "string"] },
+      $expr: {
+        $not: [
+          {
+            $or: [
+              { $eq: [{ $type: "$assignedOperator" }, "objectId"] },
+              {
+                $and: [
+                  { $eq: [{ $type: "$assignedOperator" }, "string"] },
+                  { $regexMatch: { input: "$assignedOperator", regex: /^[a-fA-F0-9]{24}$/ } },
+                ],
+              },
             ],
           },
-        },
-      ],
+        ],
+      },
     });
   }
 

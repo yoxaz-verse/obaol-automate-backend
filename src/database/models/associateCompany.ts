@@ -91,6 +91,13 @@ const AssociateCompanySchema = new mongoose.Schema(
   }
 );
 
+AssociateCompanySchema.index({ isQualityLabListed: 1, labListingState: 1, isDeleted: 1 });
+AssociateCompanySchema.index({
+  isQualityLabListed: 1,
+  labListingState: 1,
+  updatedAt: -1,
+});
+
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 const inferCapabilitiesFromCompanyTypeName = (name: string): string[] => {

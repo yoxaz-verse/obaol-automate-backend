@@ -40,6 +40,6 @@ const NotificationSchema = new Schema<INotification>(
 
 NotificationSchema.index({ recipientUserId: 1, isRead: 1, createdAt: -1 });
 NotificationSchema.index({ recipientRole: 1, createdAt: -1 });
+NotificationSchema.index({ recipientUserId: 1, recipientRole: 1, type: 1, createdAt: -1 });
 
 export const NotificationModel = mongoose.model<INotification>("Notification", NotificationSchema);
-

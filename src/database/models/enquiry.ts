@@ -436,9 +436,13 @@ const InquirySchema: Schema = new Schema(
 
 // Compound indexes for efficient querying
 InquirySchema.index({ status: 1, createdAt: -1 });
+InquirySchema.index({ status: 1, updatedAt: -1, createdAt: -1 });
 InquirySchema.index({ assignedOperatorId: 1, status: 1 });
 InquirySchema.index({ buyerAssociateId: 1, createdAt: -1 });
 InquirySchema.index({ sellerAssociateId: 1, createdAt: -1 });
+InquirySchema.index({ buyerAssociateId: 1, status: 1, updatedAt: -1, createdAt: -1 });
+InquirySchema.index({ sellerAssociateId: 1, status: 1, updatedAt: -1, createdAt: -1 });
+InquirySchema.index({ mediatorAssociateId: 1, status: 1, updatedAt: -1, createdAt: -1 });
 InquirySchema.index({ supplierOperatorId: 1, status: 1, updatedAt: -1 });
 InquirySchema.index({ dealCloserOperatorId: 1, status: 1, updatedAt: -1 });
 InquirySchema.index({ createdBy: 1, status: 1, updatedAt: -1 });

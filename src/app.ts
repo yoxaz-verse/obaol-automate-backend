@@ -56,7 +56,10 @@ app.use((req, res, next) => {
 
 // Logger
 app.use(apiLogger);
-app.use(morgan("common"));
+const shouldUseMorgan = process.env.NODE_ENV !== "production" || process.env.ENABLE_HTTP_ACCESS_LOGS === "true";
+if (shouldUseMorgan) {
+  app.use(morgan("common"));
+}
 
 // Cookie parsing
 app.use(cookieParser());

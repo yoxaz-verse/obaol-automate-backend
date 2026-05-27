@@ -7,8 +7,14 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CompanyFunctionModel } from "../database/models/companyFunction";
 import { OrderModel } from "../database/models/order";
 import mongoose from "mongoose";
+import { ttlCache } from "../utils/ttlCache";
 
 export class AnalyticsService {
+    private static readonly CACHE_TTL = {
+        systemMetrics: 30_000,
+        dashboardSummary: 15_000,
+        globalCompanyFunctionComponents: 30_000,
+    } as const;
     private static COMPANY_FUNCTION_TYPE_MAP: Record<string, string[]> = {
         "sourcing": ["PROCUREMENT"],
         "packaging": ["PACKAGING"],
@@ -80,46 +86,70 @@ export class AnalyticsService {
      * Get overall system health metrics
      */
     static async getSystemMetrics() {
-        const [
-            totalEnquiries,
-            totalLiveRates,
-            totalAssociates,
-            unassignedCompanies,
-            liveCompanyIds,
-        ] = await Promise.all([
-            EnquiryModel.countDocuments(),
-            VariantRateModel.countDocuments({ isLive: true }),
-            AssociateModel.countDocuments(),
-            AssociateCompanyModel.countDocuments({
-                isDeleted: { $ne: true },
-                $or: [
-                    { assignedOperator: null },
-                    { assignedOperator: { $exists: false } },
-                ],
-            }),
-            VariantRateModel.distinct("associateCompany", { isLive: true }),
-        ]);
+        return ttlCache.getOrSet("analytics:system-metrics", AnalyticsService.CACHE_TTL.systemMetrics, async () => {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
 
-        // Calculate growth (simple day-over-day for now, can be expanded)
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
+            const [
+                enquiryMetrics,
+                variantMetrics,
+                totalAssociates,
+                unassignedCompanies,
+            ] = await Promise.all([
+                EnquiryModel.aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            totalEnquiries: { $sum: 1 },
+                            newEnquiriesToday: {
+                                $sum: {
+                                    $cond: [{ $gte: ["$createdAt", yesterday] }, 1, 0],
+                                },
+                            },
+                        },
+                    },
+                ]),
+                VariantRateModel.aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            totalLiveRates: {
+                                $sum: { $cond: [{ $eq: ["$isLive", true] }, 1, 0] },
+                            },
+                            liveCompanyIds: {
+                                $addToSet: {
+                                    $cond: [{ $eq: ["$isLive", true] }, "$associateCompany", null],
+                                },
+                            },
+                        },
+                    },
+                ]),
+                AssociateModel.countDocuments(),
+                AssociateCompanyModel.countDocuments({
+                    isDeleted: { $ne: true },
+                    $or: [
+                        { assignedOperator: null },
+                        { assignedOperator: { $exists: false } },
+                    ],
+                }),
+            ]);
 
-        const newEnquiriesToday = await EnquiryModel.countDocuments({
-            createdAt: { $gte: yesterday }
+            const enquiryRow = enquiryMetrics[0] || {};
+            const variantRow = variantMetrics[0] || {};
+            const liveCompanyIds = Array.isArray((variantRow as any).liveCompanyIds)
+                ? (variantRow as any).liveCompanyIds
+                : [];
+            const companiesWithLiveProducts = liveCompanyIds.filter((id: any) => Boolean(id)).length;
+
+            return {
+                totalEnquiries: Number((enquiryRow as any).totalEnquiries || 0),
+                newEnquiriesToday: Number((enquiryRow as any).newEnquiriesToday || 0),
+                totalLiveRates: Number((variantRow as any).totalLiveRates || 0),
+                totalAssociates,
+                unassignedCompanies,
+                companiesWithLiveProducts,
+            };
         });
-
-        const companiesWithLiveProducts = Array.isArray(liveCompanyIds)
-            ? liveCompanyIds.filter((id: any) => Boolean(id)).length
-            : 0;
-
-        return {
-            totalEnquiries,
-            newEnquiriesToday,
-            totalLiveRates,
-            totalAssociates,
-            unassignedCompanies,
-            companiesWithLiveProducts,
-        };
     }
 
     static async getDashboardSummary({
@@ -130,6 +160,8 @@ export class AnalyticsService {
         role: string;
     }) {
         const roleLower = String(role || "").toLowerCase();
+        const cacheKey = `analytics:dashboard-summary:${roleLower}:${userId}`;
+        return ttlCache.getOrSet(cacheKey, AnalyticsService.CACHE_TTL.dashboardSummary, async () => {
         const objectId = userId ? new mongoose.Types.ObjectId(userId) : null;
         const isAdmin = roleLower === "admin";
         const isAssociate = roleLower === "associate";
@@ -261,20 +293,21 @@ export class AnalyticsService {
             .sort((a, b) => new Date(String(b.at)).getTime() - new Date(String(a.at)).getTime())
             .slice(0, 6);
 
-        return {
-            totalEnquiries,
-            pendingEnquiries,
-            convertedEnquiries,
-            totalOrders,
-            activeOrders,
-            completedOrders,
-            orderCompletionPct: totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0,
-            associateBuyingCount,
-            associateSellingCount,
-            associateActionRequired,
-            adminActionRequired,
-            recentActivity,
-        };
+            return {
+                totalEnquiries,
+                pendingEnquiries,
+                convertedEnquiries,
+                totalOrders,
+                activeOrders,
+                completedOrders,
+                orderCompletionPct: totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0,
+                associateBuyingCount,
+                associateSellingCount,
+                associateActionRequired,
+                adminActionRequired,
+                recentActivity,
+            };
+        });
     }
 
     /**
@@ -630,7 +663,11 @@ export class AnalyticsService {
     }
 
     static async getGlobalCompanyFunctionComponents() {
-        const functions = await CompanyFunctionModel.find({ isActive: true })
+        return ttlCache.getOrSet(
+            "analytics:global-company-function-components",
+            AnalyticsService.CACHE_TTL.globalCompanyFunctionComponents,
+            async () => {
+                const functions = await CompanyFunctionModel.find({ isActive: true })
             .select("_id slug name orderIndex")
             .lean();
 
@@ -705,46 +742,48 @@ export class AnalyticsService {
             .select("_id status createdAt externalProduct")
             .lean();
 
-        return functions.map((fn: any) => {
-            const slug = String(fn?.slug || "");
-            const mappedTypes = AnalyticsService.COMPANY_FUNCTION_TYPE_MAP[slug] || [];
-            const totals = { ...emptyMetrics };
-            mappedTypes.forEach((type) => {
-                const counters = byType.get(type);
-                if (!counters) return;
-                totals.open += Number(counters.OPEN || 0);
-                totals.inProgress += Number(counters.IN_PROGRESS || 0);
-                totals.completed += Number(counters.COMPLETED || 0);
-            });
-            totals.total = totals.open + totals.inProgress + totals.completed;
+                return functions.map((fn: any) => {
+                    const slug = String(fn?.slug || "");
+                    const mappedTypes = AnalyticsService.COMPANY_FUNCTION_TYPE_MAP[slug] || [];
+                    const totals = { ...emptyMetrics };
+                    mappedTypes.forEach((type) => {
+                        const counters = byType.get(type);
+                        if (!counters) return;
+                        totals.open += Number(counters.OPEN || 0);
+                        totals.inProgress += Number(counters.IN_PROGRESS || 0);
+                        totals.completed += Number(counters.COMPLETED || 0);
+                    });
+                    totals.total = totals.open + totals.inProgress + totals.completed;
 
-            const recentExecutionInquiries = mappedTypes.length
-                ? recentExecution
-                    .filter((item: any) => mappedTypes.includes(String(item?.type || "")))
-                    .slice(0, 5)
-                : [];
+                    const recentExecutionInquiries = mappedTypes.length
+                        ? recentExecution
+                            .filter((item: any) => mappedTypes.includes(String(item?.type || "")))
+                            .slice(0, 5)
+                        : [];
 
-            const recentOrders = orders.map((order: any) => ({
-                orderId: order?._id,
-                status: order?.status || "",
-                createdAt: order?.createdAt,
-                productName: order?.externalProduct?.name || "",
-            }));
+                    const recentOrders = orders.map((order: any) => ({
+                        orderId: order?._id,
+                        status: order?.status || "",
+                        createdAt: order?.createdAt,
+                        productName: order?.externalProduct?.name || "",
+                    }));
 
-            const placeholderRecommended = totals.total === 0
-                && recentExecutionInquiries.length === 0
-                && recentOrders.length === 0;
+                    const placeholderRecommended = totals.total === 0
+                        && recentExecutionInquiries.length === 0
+                        && recentOrders.length === 0;
 
-            return {
-                functionId: fn._id,
-                slug,
-                name: fn.name,
-                orderIndex: fn.orderIndex ?? 0,
-                metrics: totals,
-                recentExecutionInquiries,
-                recentOrders,
-                placeholderRecommended,
-            };
-        });
+                    return {
+                        functionId: fn._id,
+                        slug,
+                        name: fn.name,
+                        orderIndex: fn.orderIndex ?? 0,
+                        metrics: totals,
+                        recentExecutionInquiries,
+                        recentOrders,
+                        placeholderRecommended,
+                    };
+                });
+            }
+        );
     }
 }

@@ -278,4 +278,95 @@ describe("CrudEngine associate-companies filters", () => {
     expect(pageTwo.totalPages).toBe(1);
     expect(pageTwo.data).toHaveLength(0);
   });
+
+  it("applies live/not_live filters correctly for operator-scoped company directory reads", async () => {
+    const operatorUserId = new mongoose.Types.ObjectId();
+
+    const scopedLive = await createCompany({
+      name: "Scoped Live Company",
+      assignedOperator: operatorUserId,
+    });
+    const scopedNotLive = await createCompany({
+      name: "Scoped Not Live Company",
+      assignedOperator: operatorUserId,
+    });
+    const outsideLive = await createCompany({
+      name: "Outside Live Company",
+      assignedOperator: operatorB,
+    });
+
+    await createRate(scopedLive._id, true);
+    await createRate(scopedNotLive._id, false);
+    await createRate(outsideLive._id, true);
+
+    const engine = new CrudEngine(AssociateCompanyModel as any, "associate-companies");
+    const reqBase = {
+      params: { entity: "associate-companies" },
+      user: { id: String(operatorUserId), role: "operator" },
+      query: {},
+    } as any;
+
+    const operatorLive = await engine.findAll(
+      { ...reqBase, query: { liveProductStatus: "live" } },
+      { page: 1, limit: 50 },
+      { liveProductStatus: "live" }
+    );
+    expect(operatorLive.totalCount).toBe(1);
+    expect(String(operatorLive.data[0]?._id)).toBe(String(scopedLive._id));
+
+    const operatorNotLive = await engine.findAll(
+      { ...reqBase, query: { liveProductStatus: "not_live" } },
+      { page: 1, limit: 50 },
+      { liveProductStatus: "not_live" }
+    );
+    expect(operatorNotLive.totalCount).toBe(1);
+    expect(String(operatorNotLive.data[0]?._id)).toBe(String(scopedNotLive._id));
+  });
+
+  it("supports operator-scoped search + live filter + pagination", async () => {
+    const operatorUserId = new mongoose.Types.ObjectId();
+
+    const scopedAlphaLive = await createCompany({
+      name: "Alpha Scoped Live",
+      assignedOperator: operatorUserId,
+    });
+    await createCompany({
+      name: "Alpha Scoped Not Live",
+      assignedOperator: operatorUserId,
+    });
+    await createCompany({
+      name: "Alpha Outside Live",
+      assignedOperator: operatorB,
+    });
+
+    await createRate(scopedAlphaLive._id, true);
+
+    const engine = new CrudEngine(AssociateCompanyModel as any, "associate-companies");
+    const reqBase = {
+      params: { entity: "associate-companies" },
+      user: { id: String(operatorUserId), role: "team" },
+      query: {},
+    } as any;
+
+    const pageOne = await engine.findAll(
+      { ...reqBase, query: { search: "Alpha", liveProductStatus: "live", sort: "name:asc", page: "1", limit: "1" } },
+      { page: 1, limit: 1 },
+      { search: "Alpha", liveProductStatus: "live", sort: "name:asc" }
+    );
+    expect(pageOne.totalCount).toBe(1);
+    expect(pageOne.currentPage).toBe(1);
+    expect(pageOne.totalPages).toBe(1);
+    expect(pageOne.data).toHaveLength(1);
+    expect(String(pageOne.data[0]?._id)).toBe(String(scopedAlphaLive._id));
+
+    const pageTwo = await engine.findAll(
+      { ...reqBase, query: { search: "Alpha", liveProductStatus: "live", sort: "name:asc", page: "2", limit: "1" } },
+      { page: 2, limit: 1 },
+      { search: "Alpha", liveProductStatus: "live", sort: "name:asc" }
+    );
+    expect(pageTwo.totalCount).toBe(1);
+    expect(pageTwo.currentPage).toBe(2);
+    expect(pageTwo.totalPages).toBe(1);
+    expect(pageTwo.data).toHaveLength(0);
+  });
 });

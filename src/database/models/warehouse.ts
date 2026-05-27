@@ -54,6 +54,16 @@ const WarehouseSchema = new Schema(
     { timestamps: true }
 );
 
+WarehouseSchema.index({ listingType: 1, isRentalActive: 1, listingState: 1, isDeleted: 1 });
+WarehouseSchema.index({
+    listingType: 1,
+    isRentalActive: 1,
+    listingState: 1,
+    isActive: 1,
+    ownerCompanyId: 1,
+    createdAt: -1,
+});
+
 WarehouseSchema.pre("save", function (next) {
     const normalizedPrimary = normalizePhoneInput({
         rawPhone: (this as any).contactPhone,

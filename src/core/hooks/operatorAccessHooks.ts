@@ -16,8 +16,6 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
         delete cleaned.limit;
         delete cleaned.sort;
         delete cleaned.search;
-        delete cleaned.assignmentStatus;
-        delete cleaned.liveProductStatus;
         return cleaned;
     };
     // Both 'operator' and 'team' refer to the overseer role
@@ -26,12 +24,6 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
         const assignedIdSet = new Set(assignedIds.map((companyId: any) => String(companyId)));
 
         const emptyQuery = { _id: "000000000000000000000000" };
-
-        const mergeWithScope = (baseQuery: any, scopeQuery: any) => {
-            const base = { ...(baseQuery || {}) };
-            if (!Object.keys(base).length) return scopeQuery;
-            return { $and: [base, scopeQuery] };
-        };
 
         const mergeScopedCompanyQuery = (baseQuery: any, companyField: string) => {
             const scopedQuery = { ...(baseQuery || {}) };
@@ -74,7 +66,34 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
                 return emptyQuery;
             }
             const baseQuery = stripControlQueryKeys(query);
-            return mergeWithScope(baseQuery, { _id: { $in: assignedIds } });
+            const scopedQuery = { ...(baseQuery || {}) };
+            const explicitId = scopedQuery._id;
+
+            if (explicitId) {
+                if (typeof explicitId === "string") {
+                    if (!assignedIdSet.has(String(explicitId))) {
+                        return emptyQuery;
+                    }
+                } else if (explicitId && typeof explicitId === "object" && Array.isArray(explicitId.$in)) {
+                    const allowed = explicitId.$in.filter((candidate: any) =>
+                        assignedIdSet.has(String(candidate))
+                    );
+                    if (!allowed.length) {
+                        return emptyQuery;
+                    }
+                    scopedQuery._id = { ...explicitId, $in: allowed };
+                }
+            } else {
+                scopedQuery._id = { $in: assignedIds };
+            }
+
+            const assignmentStatus = query?.assignmentStatus;
+            const liveProductStatus = query?.liveProductStatus;
+            return {
+                ...(scopedQuery || {}),
+                ...(assignmentStatus !== undefined ? { assignmentStatus } : {}),
+                ...(liveProductStatus !== undefined ? { liveProductStatus } : {}),
+            };
         }
 
         // If we are looking at enquiries

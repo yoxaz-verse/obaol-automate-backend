@@ -10,8 +10,11 @@ import { seedCompanyFunctions } from "./seeds/companyFunctions.seed";
 import { seedIncoterms } from "./seeds/incoterms.seed";
 import { seedPaymentTerms } from "./seeds/paymentTerms.seed";
 const PORTD = Number(PORT) || 5001;
+const shouldRunStartupSeeds = process.env.RUN_STARTUP_SEEDS === "true";
+const shouldLogStartupDiagnostics = NODE_ENV !== "production" || process.env.STARTUP_DEBUG_LOGS === "true";
 
 const logSmtpConfigPresence = () => {
+  if (!shouldLogStartupDiagnostics) return;
   const fields = [
     "SMTP_HOST",
     "SMTP_PORT",
@@ -35,10 +38,12 @@ async function startServer() {
     void envVars;
     logSmtpConfigPresence();
     await connectDB();
-    await seedCompanyFunctions();
-    await seedIncoterms();
-    await seedPaymentTerms();
-    app.listen(PORTD, '0.0.0.0', () => {
+    if (shouldRunStartupSeeds) {
+      await seedCompanyFunctions();
+      await seedIncoterms();
+      await seedPaymentTerms();
+    }
+    app.listen(PORTD, "::", () => {
       console.log(`OBAOL Server is running on port ${PORTD}`);
       console.log(`Environment: ${NODE_ENV}`);
       console.log(`${BASE_URL}/api${prefix}`);

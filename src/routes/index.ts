@@ -10,6 +10,12 @@ const router = Router();
 const version = "v1";
 const webRoute = "web";
 export const prefix = `/${version}/${webRoute}`;
+const shouldLogRouteMounts = process.env.NODE_ENV !== "production" && process.env.ROUTE_MOUNT_LOGS !== "false";
+const logRouteMount = (message: string) => {
+  if (shouldLogRouteMounts) {
+    console.info(message);
+  }
+};
 
 
 // --- Specialized Routes (High Priority) ---
@@ -35,58 +41,63 @@ router.use(`${prefix}/variant-rates`, variantRateRoutes);
 // Sample requests
 import sampleRequestRoutes from "./v1/sampleRequestRoutes";
 router.use(`${prefix}/sample-requests`, sampleRequestRoutes);
-console.info(`[routes] mounted ${prefix}/sample-requests`);
+logRouteMount(`[routes] mounted ${prefix}/sample-requests`);
 
 // Imports (incoming loads)
 import importRoutes from "./v1/importRoutes";
 router.use(`${prefix}/imports`, importRoutes);
-console.info(`[routes] mounted ${prefix}/imports`);
+logRouteMount(`[routes] mounted ${prefix}/imports`);
 import importReservationRoutes from "./v1/importReservationRoutes";
 router.use(`${prefix}/import-reservations`, importReservationRoutes);
-console.info(`[routes] mounted ${prefix}/import-reservations`);
+logRouteMount(`[routes] mounted ${prefix}/import-reservations`);
 
 // Warehouses (operators + storage)
 import warehouseRoutes from "./v1/warehouseRoutes";
 router.use(`${prefix}`, warehouseRoutes);
-console.info(`[routes] mounted ${prefix}/warehouse`);
+logRouteMount(`[routes] mounted ${prefix}/warehouse`);
+
+// Fast directory endpoints (warehouses + quality labs)
+import directoryRoutes from "./v1/directoryRoutes";
+router.use(`${prefix}`, directoryRoutes);
+logRouteMount(`[routes] mounted ${prefix}/directory`);
 
 // Trade documents
 import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";
 router.use(`${prefix}/trade-documents`, tradeDocumentRoutes);
-console.info(`[routes] mounted ${prefix}/trade-documents`);
+logRouteMount(`[routes] mounted ${prefix}/trade-documents`);
 // Document rules
 import documentRuleRoutes from "./v1/documentRuleRoutes";
 router.use(`${prefix}/document-rules`, documentRuleRoutes);
-console.info(`[routes] mounted ${prefix}/document-rules`);
+logRouteMount(`[routes] mounted ${prefix}/document-rules`);
 // Document templates
 import documentTemplateRoutes from "./v1/documentTemplateRoutes";
 router.use(`${prefix}/document-templates`, documentTemplateRoutes);
-console.info(`[routes] mounted ${prefix}/document-templates`);
+logRouteMount(`[routes] mounted ${prefix}/document-templates`);
 import documentTypeRoutes from "./v1/documentTypeRoutes";
 router.use(`${prefix}/document-types`, documentTypeRoutes);
-console.info(`[routes] mounted ${prefix}/document-types`);
+logRouteMount(`[routes] mounted ${prefix}/document-types`);
 import letterheadPresetRoutes from "./v1/letterheadPresetRoutes";
 router.use(`${prefix}/letterhead-presets`, letterheadPresetRoutes);
-console.info(`[routes] mounted ${prefix}/letterhead-presets`);
+logRouteMount(`[routes] mounted ${prefix}/letterhead-presets`);
 // Order subflow configs
 import orderSubflowConfigRoutes from "./v1/orderSubflowConfigRoutes";
 router.use(`${prefix}/flow-rules/subflows`, orderSubflowConfigRoutes);
-console.info(`[routes] mounted ${prefix}/flow-rules/subflows`);
+logRouteMount(`[routes] mounted ${prefix}/flow-rules/subflows`);
 // System config (admin)
 import systemConfigRoutes from "./v1/systemConfigRoutes";
 router.use(`${prefix}/system-config`, systemConfigRoutes);
-console.info(`[routes] mounted ${prefix}/system-config`);
+logRouteMount(`[routes] mounted ${prefix}/system-config`);
 
 // Enquiry rules
 import enquiryRuleRoutes from "./v1/enquiryRuleRoutes";
 import orderRuleRoutes from "./v1/orderRuleRoutes";
 import flowRuleRoutes from "./v1/flowRuleRoutes";
 router.use(`${prefix}/enquiry-rules`, enquiryRuleRoutes);
-console.info(`[routes] mounted ${prefix}/enquiry-rules`);
+logRouteMount(`[routes] mounted ${prefix}/enquiry-rules`);
 router.use(`${prefix}/order-rules`, orderRuleRoutes);
-console.info(`[routes] mounted ${prefix}/order-rules`);
+logRouteMount(`[routes] mounted ${prefix}/order-rules`);
 router.use(`${prefix}/flow-rules`, flowRuleRoutes);
-console.info(`[routes] mounted ${prefix}/flow-rules`);
+logRouteMount(`[routes] mounted ${prefix}/flow-rules`);
 
 // Analytics
 import analyticsRoutes from "./analyticsRoutes";

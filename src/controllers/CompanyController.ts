@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import { AssociateModel } from "../database/models/associate";
+import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InquiryModel } from "../database/models/enquiry";
 import { OrderModel } from "../database/models/order";
+import { VariantRateModel } from "../database/models/variantRate";
 
 export class CompanyController {
     /**
@@ -10,9 +13,45 @@ export class CompanyController {
     static async getTeamStats(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
+            const companyId = new mongoose.Types.ObjectId(id);
 
             // 1. Get all associates belonging to this company
-            const associates = await AssociateModel.find({ associateCompany: id });
+            const [company, associates, liveProductSummary] = await Promise.all([
+                AssociateCompanyModel.findById(id)
+                    .select("_id createdAt updatedAt approvedAt")
+                    .lean(),
+                AssociateModel.find({ associateCompany: id }).lean(),
+                VariantRateModel.aggregate([
+                    {
+                        $match: {
+                            associateCompany: companyId,
+                            isLive: true,
+                            isDeleted: { $ne: true },
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: null,
+                            liveProductCount: { $sum: 1 },
+                            lastLiveAt: {
+                                $max: {
+                                    $ifNull: [
+                                        "$lastLiveAt",
+                                        {
+                                            $ifNull: [
+                                                "$lastLiveDate",
+                                                {
+                                                    $ifNull: ["$updatedAt", "$createdAt"],
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ]),
+            ]);
 
             // 2. Fetch performance data for each associate
             const teamStats = await Promise.all(associates.map(async (associate) => {
@@ -50,9 +89,22 @@ export class CompanyController {
                 };
             }));
 
+            const liveSummary = Array.isArray(liveProductSummary) ? liveProductSummary[0] || null : null;
+
             res.status(200).json({
                 success: true,
-                data: teamStats
+                data: teamStats,
+                meta: {
+                    company: {
+                        id,
+                        createdAt: company?.createdAt || null,
+                        updatedAt: company?.updatedAt || null,
+                        approvedAt: company?.approvedAt || null,
+                        associateCount: teamStats.length,
+                        liveProductCount: Number(liveSummary?.liveProductCount || 0),
+                        lastLiveAt: liveSummary?.lastLiveAt || null,
+                    },
+                },
             });
 
         } catch (error) {

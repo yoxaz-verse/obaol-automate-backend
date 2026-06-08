@@ -14,7 +14,8 @@ export abstract class MongoRepository<T extends Document, CreateDTO = any, Updat
         query: FilterQuery<T> = {},
         pagination: IPagination,
         sort?: any,
-        populate?: any
+        populate?: any,
+        select?: any
     ): Promise<{
         data: any[];
         totalCount: number;
@@ -61,6 +62,7 @@ export abstract class MongoRepository<T extends Document, CreateDTO = any, Updat
             ) => {
                 if (limit <= 0) return [] as any[];
                 let qb = this.model.find(q).sort(s).skip(skip).limit(limit).lean();
+                if (select) qb = qb.select(select);
                 if (populate) qb = qb.populate(populate);
                 return qb;
             };
@@ -103,6 +105,10 @@ export abstract class MongoRepository<T extends Document, CreateDTO = any, Updat
                 .limit(pagination.limit)
                 .skip((pagination.page - 1) * pagination.limit)
                 .lean();
+
+            if (select) {
+                queryBuilder = queryBuilder.select(select);
+            }
 
             if (populate) {
                 queryBuilder = queryBuilder.populate(populate);

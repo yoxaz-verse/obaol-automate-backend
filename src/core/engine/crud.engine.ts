@@ -59,6 +59,67 @@ export class CrudEngine extends BaseService {
         return convertToMongooseFormat(populatePaths);
     }
 
+    private resolveListReadOptions(view: string, populate: any, sortOption: any) {
+        let select: any = undefined;
+
+        if (this.entityName === "associate-companies" && view === "picker") {
+            select = "_id name assignedOperator";
+            populate = undefined;
+            if (!sortOption || Object.keys(sortOption).length === 0) {
+                sortOption = { name: 1 };
+            }
+        }
+
+        if (this.entityName === "variant-rates" && view === "product-table") {
+            select = [
+                "_id",
+                "productVariant",
+                "associate",
+                "associateCompany",
+                "warehouseId",
+                "rate",
+                "quantity",
+                "quantityUnit",
+                "commission",
+                "isLive",
+                "lastLiveDate",
+                "updatedAt",
+                "createdAt",
+                "locationDisplay",
+                "locationSource",
+                "officeAddress",
+                "coolingStartTime",
+                "mediatorAssociateId",
+                "sourceInventory",
+              ].join(" ");
+            populate = [
+                {
+                    path: "productVariant",
+                    select: "_id name product",
+                    populate: [{ path: "product", select: "_id name isNatural isOrganic isGiTagged" }],
+                },
+                {
+                    path: "associate",
+                    select: "_id associateCompany",
+                },
+                {
+                    path: "associateCompany",
+                    select: "_id name address assignedOperator",
+                },
+                {
+                    path: "warehouseId",
+                    select: "_id name address",
+                },
+            ];
+        }
+
+        return {
+            populate,
+            select,
+            sortOption,
+        };
+    }
+
     public async findAll(req: Request, pagination: { page: number; limit: number }, query: any) {
         const config = getEntityConfig(this.entityName);
         // Run Pre-Read Hook (e.g. for RBAC)
@@ -139,6 +200,8 @@ export class CrudEngine extends BaseService {
         delete query._ts;
         delete query.assignmentStatus;
         delete query.liveProductStatus;
+        const requestedView = String(query.view || "").trim();
+        delete query.view;
 
         // Cast boolean strings to actual booleans and handle arrays with $in
         Object.keys(query).forEach(key => {
@@ -167,10 +230,12 @@ export class CrudEngine extends BaseService {
             });
         }
 
-        // 4. Handling Population
-        const populate = config?.relations ? this.buildPopulateArray(config.relations) : undefined;
+        // 4. Handling Population / Projection
+        let populate = config?.relations ? this.buildPopulateArray(config.relations) : undefined;
+        let select;
+        ({ populate, select, sortOption } = this.resolveListReadOptions(requestedView, populate, sortOption));
 
-        const result = await this.repository.findAll(filterQuery, pagination, sortOption, populate);
+        const result = await this.repository.findAll(filterQuery, pagination, sortOption, populate, select);
         result.data = await HookDispatcher.resolveAfterRead(this.entityName, result.data);
         return result;
     }

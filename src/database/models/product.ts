@@ -14,6 +14,7 @@ const ProductSchema = new Schema({
   isConventional: { type: Boolean, default: true, index: true },
   isNatural: { type: Boolean, default: false, index: true },
   isOrganic: { type: Boolean, default: false, index: true },
+  isIpmQuality: { type: Boolean, default: false, index: true },
   isOrganicCertified: { type: Boolean, default: false, index: true },
   organicCertificationBody: { type: String, default: "", trim: true },
   organicCertificationBodyOther: { type: String, default: "", trim: true },

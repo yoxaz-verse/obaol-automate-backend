@@ -22,18 +22,21 @@ export const productClassificationPreWriteHook: HookFunction = async (payload) =
 
   const hasNatural = Object.prototype.hasOwnProperty.call(nextPayload, "isNatural");
   const hasOrganic = Object.prototype.hasOwnProperty.call(nextPayload, "isOrganic");
+  const hasIpmQuality = Object.prototype.hasOwnProperty.call(nextPayload, "isIpmQuality");
   const hasGiTagged = Object.prototype.hasOwnProperty.call(nextPayload, "isGiTagged");
   const hasConventional = Object.prototype.hasOwnProperty.call(nextPayload, "isConventional");
-  const hasAnyClassification = hasNatural || hasOrganic || hasGiTagged || hasConventional;
+  const hasAnyClassification = hasNatural || hasOrganic || hasIpmQuality || hasGiTagged || hasConventional;
 
   if (hasAnyClassification) {
     const isNatural = toBool(nextPayload.isNatural);
     const isOrganic = toBool(nextPayload.isOrganic);
+    const isIpmQuality = toBool(nextPayload.isIpmQuality);
     const isGiTagged = toBool(nextPayload.isGiTagged);
     const isConventional = !(isNatural || isOrganic || isGiTagged);
 
     nextPayload.isNatural = isNatural;
     nextPayload.isOrganic = isOrganic;
+    nextPayload.isIpmQuality = isIpmQuality;
     nextPayload.isGiTagged = isGiTagged;
     nextPayload.isConventional = isConventional;
 

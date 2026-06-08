@@ -131,6 +131,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "isConventional",
             "isNatural",
             "isOrganic",
+            "isIpmQuality",
             "isGiTagged",
         ],
         sortableFields: ["createdAt", "name"],

@@ -18,6 +18,7 @@ const run = async () => {
         { isConventional: { $exists: false } },
         { isNatural: { $exists: false } },
         { isOrganic: { $exists: false } },
+        { isIpmQuality: { $exists: false } },
         { isGiTagged: { $exists: false } },
       ],
     },
@@ -26,6 +27,7 @@ const run = async () => {
         $set: {
           isNatural: { $ifNull: ["$isNatural", false] },
           isOrganic: { $ifNull: ["$isOrganic", false] },
+          isIpmQuality: { $ifNull: ["$isIpmQuality", false] },
           isGiTagged: { $ifNull: ["$isGiTagged", false] },
           giName: { $ifNull: ["$giName", ""] },
           giCertificateNumber: { $ifNull: ["$giCertificateNumber", ""] },
@@ -63,4 +65,3 @@ run().catch(async (error) => {
   }
   process.exit(1);
 });
-

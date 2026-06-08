@@ -10,6 +10,7 @@ export interface IProduct extends Document {
   isConventional?: boolean;
   isNatural?: boolean;
   isOrganic?: boolean;
+  isIpmQuality?: boolean;
   isOrganicCertified?: boolean;
   organicCertificationBody?: string;
   organicCertificationBodyOther?: string;
@@ -35,6 +36,7 @@ export interface ICreateProduct {
   isConventional?: boolean;
   isNatural?: boolean;
   isOrganic?: boolean;
+  isIpmQuality?: boolean;
   isOrganicCertified?: boolean;
   organicCertificationBody?: string;
   organicCertificationBodyOther?: string;
@@ -60,6 +62,7 @@ export interface IUpdateProduct {
   isConventional?: boolean;
   isNatural?: boolean;
   isOrganic?: boolean;
+  isIpmQuality?: boolean;
   isOrganicCertified?: boolean;
   organicCertificationBody?: string;
   organicCertificationBodyOther?: string;

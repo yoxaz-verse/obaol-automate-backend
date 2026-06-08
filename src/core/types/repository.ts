@@ -5,7 +5,8 @@ export interface IRepository<T, CreateDTO = any, UpdateDTO = any> {
         query: any,
         pagination: IPagination,
         sort?: any,
-        populate?: any
+        populate?: any,
+        select?: any
     ): Promise<{
         data: T[];
         totalCount: number;

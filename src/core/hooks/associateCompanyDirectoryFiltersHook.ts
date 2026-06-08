@@ -72,12 +72,24 @@ export const associateCompanyDirectoryFiltersHook = async (
   }
 
   if (liveProductStatus === "live" || liveProductStatus === "not_live") {
-    const liveCompanyIds = await VariantRateModel.distinct("associateCompany", {
-      isLive: true,
-      associateCompany: { $exists: true, $ne: null },
-    });
-    const sanitizedLiveCompanyIds = Array.isArray(liveCompanyIds)
-      ? liveCompanyIds.filter((candidate: any) => Boolean(candidate))
+    const liveCompanyRows = await VariantRateModel.aggregate([
+      {
+        $match: {
+          isLive: true,
+          isDeleted: { $ne: true },
+          associateCompany: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$associateCompany",
+        },
+      },
+    ]);
+    const sanitizedLiveCompanyIds = Array.isArray(liveCompanyRows)
+      ? liveCompanyRows
+          .map((row: any) => row?._id)
+          .filter((candidate: any) => Boolean(candidate))
       : [];
 
     if (liveProductStatus === "live") {

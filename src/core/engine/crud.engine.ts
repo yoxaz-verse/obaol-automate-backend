@@ -136,6 +136,7 @@ export class CrudEngine extends BaseService {
         // 3. Handling Filters
         delete query.page;
         delete query.limit;
+        delete query._ts;
         delete query.assignmentStatus;
         delete query.liveProductStatus;
 
@@ -157,6 +158,7 @@ export class CrudEngine extends BaseService {
                 incomingFilters: {
                     assignmentStatus: (req as any)?.query?.assignmentStatus,
                     liveProductStatus: (req as any)?.query?.liveProductStatus,
+                    _ts: (req as any)?.query?._ts,
                     page: (req as any)?.query?.page,
                     limit: (req as any)?.query?.limit,
                     search: (req as any)?.query?.search,

@@ -214,6 +214,59 @@ describe("CrudEngine associate-companies filters", () => {
     expect(assignedNotLive.totalCount).toBe(2);
   });
 
+  it("ignores cache-busting _ts params without breaking base or combined filters", async () => {
+    const assignedLive = await createCompany({
+      name: "Timestamp Assigned Live",
+      assignedOperator: operatorA,
+    });
+    const assignedNotLive = await createCompany({
+      name: "Timestamp Assigned Not Live",
+      assignedOperator: operatorA,
+    });
+    const unassignedNotLive = await createCompany({
+      name: "Timestamp Unassigned Not Live",
+    });
+
+    await createRate(assignedLive._id, true);
+    await createRate(assignedNotLive._id, false);
+
+    const engine = new CrudEngine(AssociateCompanyModel as any, "associate-companies");
+    const req = {
+      params: { entity: "associate-companies" },
+      query: { _ts: String(Date.now()) },
+    } as any;
+
+    const allWithTimestamp = await engine.findAll(
+      req,
+      { page: 1, limit: 50 },
+      { _ts: String(Date.now()) }
+    );
+    expect(allWithTimestamp.totalCount).toBe(3);
+
+    const assignedWithTimestamp = await engine.findAll(
+      { ...req, query: { _ts: "1710000000000", assignmentStatus: "assigned" } },
+      { page: 1, limit: 50 },
+      { _ts: "1710000000000", assignmentStatus: "assigned" }
+    );
+    expect(assignedWithTimestamp.totalCount).toBe(2);
+
+    const liveWithTimestamp = await engine.findAll(
+      { ...req, query: { _ts: "1710000000001", liveProductStatus: "live" } },
+      { page: 1, limit: 50 },
+      { _ts: "1710000000001", liveProductStatus: "live" }
+    );
+    expect(liveWithTimestamp.totalCount).toBe(1);
+    expect(String(liveWithTimestamp.data[0]?._id)).toBe(String(assignedLive._id));
+
+    const assignedNotLiveWithTimestamp = await engine.findAll(
+      { ...req, query: { _ts: "1710000000002", assignmentStatus: "assigned", liveProductStatus: "not_live" } },
+      { page: 1, limit: 50 },
+      { _ts: "1710000000002", assignmentStatus: "assigned", liveProductStatus: "not_live" }
+    );
+    expect(assignedNotLiveWithTimestamp.totalCount).toBe(1);
+    expect(String(assignedNotLiveWithTimestamp.data[0]?._id)).toBe(String(assignedNotLive._id));
+  });
+
   it("supports pagination and search with combined assignment + live filters", async () => {
     const assignedLiveAlpha = await createCompany({
       name: "Alpha Filter Target",

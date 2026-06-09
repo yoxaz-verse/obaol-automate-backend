@@ -32,7 +32,7 @@ export const productClassificationPreWriteHook: HookFunction = async (payload) =
     const isOrganic = toBool(nextPayload.isOrganic);
     const isIpmQuality = toBool(nextPayload.isIpmQuality);
     const isGiTagged = toBool(nextPayload.isGiTagged);
-    const isConventional = !(isNatural || isOrganic || isGiTagged);
+    const isConventional = !(isNatural || isOrganic || isIpmQuality);
 
     nextPayload.isNatural = isNatural;
     nextPayload.isOrganic = isOrganic;
@@ -138,6 +138,7 @@ export const productClassificationPreReadHook: HookFunction = async (query) => {
   const pushByLabel = (label: string) => {
     if (label === "natural") conditions.push({ isNatural: true });
     else if (label === "organic") conditions.push({ isOrganic: true });
+    else if (label === "ipm" || label === "ipm-quality" || label === "ipm_quality" || label === "ipmquality") conditions.push({ isIpmQuality: true });
     else if (label === "gi-tag" || label === "gi" || label === "gitag" || label === "gi_tag") conditions.push({ isGiTagged: true });
     else if (label === "conventional") {
       conditions.push({
@@ -147,7 +148,7 @@ export const productClassificationPreReadHook: HookFunction = async (query) => {
             $and: [
               { $or: [{ isNatural: { $exists: false } }, { isNatural: false }] },
               { $or: [{ isOrganic: { $exists: false } }, { isOrganic: false }] },
-              { $or: [{ isGiTagged: { $exists: false } }, { isGiTagged: false }] },
+              { $or: [{ isIpmQuality: { $exists: false } }, { isIpmQuality: false }] },
             ],
           },
         ],

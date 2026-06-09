@@ -38,7 +38,7 @@ const run = async () => {
         $set: {
           isConventional: {
             $cond: [
-              { $or: ["$isNatural", "$isOrganic", "$isGiTagged"] },
+              { $or: ["$isNatural", "$isOrganic", "$isIpmQuality"] },
               false,
               true,
             ],

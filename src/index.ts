@@ -9,6 +9,7 @@ import { prefix } from "./routes";
 import { seedCompanyFunctions } from "./seeds/companyFunctions.seed";
 import { seedIncoterms } from "./seeds/incoterms.seed";
 import { seedPaymentTerms } from "./seeds/paymentTerms.seed";
+import { verifySmtpTransport } from "./utils/mailer";
 const PORTD = Number(PORT) || 5001;
 const shouldRunStartupSeeds = process.env.RUN_STARTUP_SEEDS === "true";
 const shouldLogStartupDiagnostics = NODE_ENV !== "production" || process.env.STARTUP_DEBUG_LOGS === "true";
@@ -37,6 +38,9 @@ async function startServer() {
     // Fail-fast: validate required environment before accepting traffic.
     void envVars;
     logSmtpConfigPresence();
+    if (process.env.SMTP_VERIFY_ON_STARTUP === "true") {
+      await verifySmtpTransport("auth");
+    }
     await connectDB();
     if (shouldRunStartupSeeds) {
       await seedCompanyFunctions();

@@ -45,6 +45,5 @@ export const toBlockedResponsePayload = (userDoc: any) => {
         success: false,
         status: "blocked",
         message: PRE_AUTH_BLOCKED_MESSAGE,
-        ...(blockedState.rejectionReason ? { rejectionReason: blockedState.rejectionReason } : {}),
     };
 };

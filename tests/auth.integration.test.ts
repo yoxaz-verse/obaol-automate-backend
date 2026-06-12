@@ -1,6 +1,7 @@
 import request from "supertest";
 import app from "../src/app";
 import { createAssociate, createOperator } from "./helpers/authFixtures";
+import { generateJWTToken } from "../src/utils/tokenUtils";
 
 const api = request(app);
 
@@ -48,7 +49,7 @@ describe("Auth API", () => {
     expect(res.status).toBe(401);
   });
 
-  it("rejects associate pending approval", async () => {
+  it("allows associate pending approval login for pending-approval routing", async () => {
     const user = await createAssociate({
       onboardingComplete: true,
       registrationStatus: "PENDING_REVIEW",
@@ -58,10 +59,11 @@ describe("Auth API", () => {
       password: "Passw0rd!",
       role: "Associate",
     });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(res.body?.user?.registrationStatus).toBe("PENDING_REVIEW");
   });
 
-  it("rejects operator pending approval", async () => {
+  it("allows operator pending approval login for pending-approval routing", async () => {
     const user = await createOperator({
       onboardingComplete: true,
       registrationStatus: "PENDING_REVIEW",
@@ -71,7 +73,8 @@ describe("Auth API", () => {
       password: "Passw0rd!",
       role: "Operator",
     });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(res.body?.user?.registrationStatus).toBe("PENDING_REVIEW");
   });
 
   it("logs in associate and sets auth cookie", async () => {
@@ -163,5 +166,52 @@ describe("Auth API", () => {
 
     expect(res.status).toBe(200);
     expect(res.body?.user?.role).toBeDefined();
+  });
+
+  it("blocks associate onboarding completion until email OTP is verified", async () => {
+    const user = await createAssociate({
+      onboardingComplete: false,
+      registrationStatus: "PENDING_REVIEW",
+      isEmailVerified: false,
+      hasCompany: false,
+      companyMode: "none",
+    });
+    const token = generateJWTToken({ _id: user._id, email: user.email, role: "Associate" } as any, "2h");
+
+    const res = await api
+      .post("/api/v1/web/auth/onboarding")
+      .set("Cookie", `auth_token=${token}`)
+      .send({
+        role: "Associate",
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.message).toMatch(/verify your email OTP/i);
+  });
+
+  it("blocks operator onboarding completion until email OTP is verified", async () => {
+    const user = await createOperator({
+      onboardingComplete: false,
+      registrationStatus: "PENDING_REVIEW",
+      isEmailVerified: false,
+    });
+    const token = generateJWTToken({ _id: user._id, email: user.email, role: "Operator" } as any, "2h");
+
+    const res = await api
+      .post("/api/v1/web/auth/onboarding")
+      .set("Cookie", `auth_token=${token}`)
+      .send({
+        role: "Operator",
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.message).toMatch(/verify your email OTP/i);
   });
 });

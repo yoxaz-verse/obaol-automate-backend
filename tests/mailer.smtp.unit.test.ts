@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendMailMock = vi.fn();
-const createTransportMock = vi.fn(() => ({ sendMail: sendMailMock }));
+const verifyMock = vi.fn();
+const createTransportMock = vi.fn(() => ({ sendMail: sendMailMock, verify: verifyMock }));
 
 vi.mock("nodemailer", () => ({
   default: {
@@ -13,6 +14,7 @@ describe("mailer smtp sender mapping", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    verifyMock.mockResolvedValue(true);
 
     process.env.SMTP_HOST = "chocobo.mxrouting.net";
     process.env.SMTP_PORT = "587";
@@ -72,5 +74,14 @@ describe("mailer smtp sender mapping", () => {
         from: expect.stringContaining("<no-reply@notify.obaol.com>"),
       })
     );
+  });
+
+  it("verifies smtp transport without sending mail", async () => {
+    const { verifySmtpTransport } = await import("../src/utils/mailer");
+
+    await expect(verifySmtpTransport("auth")).resolves.toBe(true);
+
+    expect(verifyMock).toHaveBeenCalledTimes(1);
+    expect(sendMailMock).not.toHaveBeenCalled();
   });
 });

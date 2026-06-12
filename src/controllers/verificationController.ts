@@ -51,13 +51,15 @@ export const verifyOTP = async (req: Request, res: Response) => {
   try {
     await verificationService.verify(userId, userType, code, method);
 
-    // Sync verification status back to Associate model if applicable
     if (userType === "Associate") {
       const updatePayload: any = {};
       if (method === "email") updatePayload.isEmailVerified = true;
       if (method === "phone") updatePayload.isPhoneVerified = true;
 
       await AssociateModel.findByIdAndUpdate(userId, updatePayload);
+    }
+    if (userType === "Operator" && method === "email") {
+      await OperatorModel.findByIdAndUpdate(userId, { isEmailVerified: true });
     }
 
     res.status(200).json({ message: `${userType} verified successfully` });

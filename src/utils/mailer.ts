@@ -62,6 +62,13 @@ const getTransporter = (purpose: MailPurpose): nodemailer.Transporter => {
   return created;
 };
 
+export const verifySmtpTransport = async (purpose: MailPurpose = "auth") => {
+  const transporter = getTransporter(purpose);
+  if (typeof transporter.verify !== "function") return true;
+  await transporter.verify();
+  return true;
+};
+
 const sendEmail = async (purpose: MailPurpose, payload: { toEmail: string; subject: string; textPart: string; htmlPart: string; fromNameOverride?: string }) => {
   const { user, name } = senderByPurpose(purpose);
   const transporter = getTransporter(purpose);
@@ -156,7 +163,7 @@ export async function sendOtpEmail(
   userType?: string,
   authEmailType: AuthEmailTemplateType = "verification_otp"
 ) {
-  console.log(`📧 Attempting to send OTP email to: ${toEmail} with code: ${code} (Lang: ${lang})`);
+  console.log(`📧 Attempting to send OTP email to: ${toEmail} (Lang: ${lang})`);
   try {
     const roleLabel = normalizeSignupRole(userType);
     const template = await getPublishedAuthEmailTemplate(authEmailType);
@@ -188,7 +195,7 @@ export async function sendOtpEmail(
       "❌ Failed to send SMTP email to:", toEmail,
       "Error:", error.message
     );
-    throw new Error(`Email sending failed: ${error.message}`);
+    throw new Error("Unable to send verification email. Please try again.");
   }
 }
 

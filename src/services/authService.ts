@@ -77,14 +77,71 @@ const deriveDisplayName = (email: string) => {
 };
 
 const sendRejectedAccountResponse = (res: Response, userDoc?: any) => {
-    const notes = String(userDoc?.reviewNotes || "").trim();
     return res.status(403).json({
         success: false,
         status: "rejected",
         isRejected: true,
         message: BLOCKED_ACCOUNT_MESSAGE,
-        ...(notes ? { rejectionReason: notes } : {}),
     });
+};
+
+const isDuplicateKeyError = (error: any) => Number(error?.code) === 11000;
+const isValidationError = (error: any) => String(error?.name || "") === "ValidationError" || String(error?.name || "") === "CastError";
+
+const sendNormalizedAuthError = (
+    res: Response,
+    error: any,
+    fallbackMessage = "Request failed. Please check the details and try again."
+) => {
+    if (isDuplicateKeyError(error)) {
+        return res.status(400).json({
+            success: false,
+            message: "Registration failed. This email or company is already registered.",
+        });
+    }
+    if (isValidationError(error)) {
+        return res.status(400).json({
+            success: false,
+            message: error?.message || fallbackMessage,
+        });
+    }
+    return res.status(500).json({
+        success: false,
+        message: error?.message || fallbackMessage,
+    });
+};
+
+const hasVerifiedOnboardingEmail = async (userDoc: any, role: "Associate" | "Operator", requestedEmail: any) => {
+    const currentEmail = String(userDoc?.email || "").trim().toLowerCase();
+    const nextEmail = String(requestedEmail || "").trim().toLowerCase();
+    if (!currentEmail || !nextEmail || currentEmail !== nextEmail) {
+        return {
+            ok: false,
+            message: "Verified email cannot be changed during onboarding. Please restart verification for the new email.",
+        };
+    }
+
+    const authProvider = String(userDoc?.authProvider || "LOCAL").toUpperCase();
+    if (authProvider === "GOOGLE" && (userDoc?.googleEmailVerified === true || userDoc?.isEmailVerified === true)) {
+        return { ok: true };
+    }
+
+    if (userDoc?.isEmailVerified !== true) {
+        return { ok: false, message: "Please verify your email OTP before completing onboarding." };
+    }
+
+    const verifiedRecord = await VerificationModel.findOne({
+        userId: String(userDoc._id),
+        userType: role,
+        method: "email",
+        verified: true,
+    }).sort({ createdAt: -1, _id: -1 }).lean();
+
+    if (!verifiedRecord) {
+        return { ok: false, message: "Please verify your email OTP before completing onboarding." };
+    }
+
+    return { ok: true };
 };
 
 const issueAuthCookie = (res: Response, userForToken: any, rememberMe = false) => {
@@ -374,7 +431,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        res.status(500).json({ message: "Login failed", error: error.message });
+        res.status(500).json({ success: false, message: "Login failed. Please try again." });
     }
 };
 
@@ -422,7 +479,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
         res.json({ success: true, message: "OTP sent to your email" });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: error?.message || "Unable to send password reset OTP." });
     }
 };
 
@@ -459,7 +516,7 @@ export const completePasswordReset = async (req: Request, res: Response) => {
 
         res.json({ success: true, message: "Password reset successful" });
     } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: error?.message || "Password reset failed. Please retry." });
     }
 };
 
@@ -1221,18 +1278,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Registration error:", error);
 
-        // Handle duplicate key error (email already exists)
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: "Registration failed. The email or company name is already registered."
-            });
-        }
-
-        res.status(500).json({
-            success: false,
-            message: error?.message || "Registration failed. Please try again later."
-        });
+        return sendNormalizedAuthError(res, error, "Registration failed. Please try again later.");
     }
 };
 
@@ -1383,6 +1429,10 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             if (!name || !email || !phone) {
                 return res.status(400).json({ success: false, message: "Name, email, and phone are required." });
             }
+            const verifiedEmail = await hasVerifiedOnboardingEmail(associate, "Associate", email);
+            if (!verifiedEmail.ok) {
+                return res.status(400).json({ success: false, message: verifiedEmail.message });
+            }
 
             if (String(associate.authProvider || "LOCAL").toUpperCase() !== "GOOGLE") {
                 if (!password) {
@@ -1525,6 +1575,10 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             if (!name || !email || !phone || !address) {
                 return res.status(400).json({ success: false, message: "Name, email, phone, and address are required." });
             }
+            const verifiedEmail = await hasVerifiedOnboardingEmail(operator, "Operator", email);
+            if (!verifiedEmail.ok) {
+                return res.status(400).json({ success: false, message: verifiedEmail.message });
+            }
             const locationGeoType = String(geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
             if (locationGeoType === "INDIAN" && (!state || !district)) {
                 return res.status(400).json({ success: false, message: "State and district are required for Indian operators." });
@@ -1577,7 +1631,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 
         return res.status(400).json({ success: false, message: "Unsupported role." });
     } catch (error: any) {
-        return res.status(500).json({ success: false, message: error?.message || "Onboarding failed." });
+        return sendNormalizedAuthError(res, error, "Onboarding failed. Please check the details and try again.");
     }
 };
 
@@ -1869,10 +1923,7 @@ export const registerOperator = async (req: Request, res: Response) => {
             data: { id: operator._id },
         });
     } catch (error: any) {
-        if (error.code === 11000) {
-            return res.status(400).json({ success: false, message: "Registration failed. This email is already registered." });
-        }
-        return res.status(500).json({ success: false, message: error?.message || "Registration failed. Please try again later." });
+        return sendNormalizedAuthError(res, error, "Registration failed. Please try again later.");
     }
 };
 

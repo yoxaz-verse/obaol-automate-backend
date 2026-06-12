@@ -22,8 +22,7 @@ class VerificationService extends BaseService {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes expiry
 
-        // Save to DB
-        await VerificationModel.create({
+        const record = await VerificationModel.create({
             userId,
             userType,
             method,
@@ -36,7 +35,12 @@ class VerificationService extends BaseService {
 
         // Send Email if method is email
         if (method === "email" && email) {
-            await sendOtpEmail(email, code, lang, userType, context?.authEmailType || "verification_otp");
+            try {
+                await sendOtpEmail(email, code, lang, userType, context?.authEmailType || "verification_otp");
+            } catch (error) {
+                await VerificationModel.deleteOne({ _id: record._id }).catch(() => undefined);
+                throw error;
+            }
         }
 
         return { success: true, message: `OTP sent to ${method}` };

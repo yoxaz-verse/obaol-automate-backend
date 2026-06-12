@@ -10,8 +10,6 @@ const SystemConfigSchema: Schema = new Schema(
   { timestamps: true }
 );
 
-export const SystemConfigModel = mongoose.model<ISystemConfig>(
-  "SystemConfig",
-  SystemConfigSchema
-);
-
+export const SystemConfigModel =
+  (mongoose.models.SystemConfig as mongoose.Model<ISystemConfig>) ||
+  mongoose.model<ISystemConfig>("SystemConfig", SystemConfigSchema);

@@ -16,8 +16,12 @@ const app = express();
 // Register Hooks
 registerAllHooks();
 
-// Optional Helmet settings
-// app.use(helmet({ ... }));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false,
+  })
+);
 
 // Parse JSON
 app.use(express.json());

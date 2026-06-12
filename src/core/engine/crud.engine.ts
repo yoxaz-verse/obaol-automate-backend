@@ -70,7 +70,7 @@ export class CrudEngine extends BaseService {
             }
         }
 
-        if (this.entityName === "variant-rates" && view === "product-table") {
+        if (this.entityName === "variant-rates" && (view === "product-table" || view === "marketplace")) {
             select = [
                 "_id",
                 "productVariant",
@@ -96,7 +96,7 @@ export class CrudEngine extends BaseService {
                 {
                     path: "productVariant",
                     select: "_id name product",
-                    populate: [{ path: "product", select: "_id name isNatural isOrganic isGiTagged" }],
+                    populate: [{ path: "product", select: "_id name isConventional isNatural isOrganic isIpmQuality isGiTagged" }],
                 },
                 {
                     path: "associate",
@@ -200,7 +200,7 @@ export class CrudEngine extends BaseService {
         delete query._ts;
         delete query.assignmentStatus;
         delete query.liveProductStatus;
-        const requestedView = String(query.view || "").trim();
+        const requestedView = String((req as any)?.query?.view ?? query.view ?? "").trim();
         delete query.view;
 
         // Cast boolean strings to actual booleans and handle arrays with $in

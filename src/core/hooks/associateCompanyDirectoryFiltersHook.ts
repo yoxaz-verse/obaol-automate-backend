@@ -16,6 +16,10 @@ export const associateCompanyDirectoryFiltersHook = async (
   _req: any
 ): Promise<any> => {
   const nextQuery = { ...(query || {}) };
+  const includeExternalDirectoryListings =
+    String(nextQuery.includeExternalDirectoryListings || "").trim().toLowerCase() === "true" ||
+    String(nextQuery.isQualityLabListed || "").trim().toLowerCase() === "true" ||
+    nextQuery.isQualityLabListed === true;
   const assignmentStatusRaw = String(nextQuery.assignmentStatus || "all").trim().toLowerCase();
   const liveProductStatusRaw = String(nextQuery.liveProductStatus || "all").trim().toLowerCase();
   const assignmentStatus =
@@ -29,8 +33,14 @@ export const associateCompanyDirectoryFiltersHook = async (
 
   delete nextQuery.assignmentStatus;
   delete nextQuery.liveProductStatus;
+  delete nextQuery.includeExternalDirectoryListings;
 
   let filteredQuery: any = nextQuery;
+  if (!includeExternalDirectoryListings) {
+    filteredQuery = addAndCondition(filteredQuery, {
+      isExternalDirectoryListing: { $ne: true },
+    });
+  }
   const assignedOperatorIsValidCondition = {
     $or: [
       {

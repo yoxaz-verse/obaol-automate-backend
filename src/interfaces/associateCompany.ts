@@ -1,8 +1,8 @@
 export interface IAssociateCompany {
   _id: string;
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   phoneCountryCode?: string;
   phoneNational?: string;
   location?: {
@@ -10,7 +10,7 @@ export interface IAssociateCompany {
     longitude?: number;
     label?: string;
   };
-  phoneSecondary: string;
+  phoneSecondary?: string;
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
   serviceCapabilities?: string[];
@@ -27,6 +27,11 @@ export interface IAssociateCompany {
   labListingState?: "DRAFT" | "LIVE";
   labActivatedAt?: Date | null;
   labActivatedBy?: string;
+  isExternalDirectoryListing?: boolean;
+  externalListingSource?: "SPICES_BOARD_QEL" | "SPICES_BOARD_EMPANELLED" | "";
+  externalListingSourceUrl?: string;
+  externalListingReference?: string;
+  externalListingDate?: Date | null;
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;
@@ -58,8 +63,8 @@ export interface IAssociateCompany {
 
 export interface ICreateAssociateCompany {
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   phoneCountryCode?: string;
   phoneNational?: string;
   location?: {
@@ -67,7 +72,7 @@ export interface ICreateAssociateCompany {
     longitude?: number;
     label?: string;
   };
-  phoneSecondary: string;
+  phoneSecondary?: string;
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
   serviceCapabilities?: string[];
@@ -84,6 +89,11 @@ export interface ICreateAssociateCompany {
   labListingState?: "DRAFT" | "LIVE";
   labActivatedAt?: Date | null;
   labActivatedBy?: string;
+  isExternalDirectoryListing?: boolean;
+  externalListingSource?: "SPICES_BOARD_QEL" | "SPICES_BOARD_EMPANELLED" | "";
+  externalListingSourceUrl?: string;
+  externalListingReference?: string;
+  externalListingDate?: Date | null;
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;
@@ -141,6 +151,11 @@ export interface IUpdateAssociateCompany {
   labListingState?: "DRAFT" | "LIVE";
   labActivatedAt?: Date | null;
   labActivatedBy?: string;
+  isExternalDirectoryListing?: boolean;
+  externalListingSource?: "SPICES_BOARD_QEL" | "SPICES_BOARD_EMPANELLED" | "";
+  externalListingSourceUrl?: string;
+  externalListingReference?: string;
+  externalListingDate?: Date | null;
   isActive?: boolean;
   isDeleted?: boolean;
   supervisor?: string;

@@ -5,8 +5,20 @@ import { normalizeCapabilities } from "../../utils/companyCapabilities";
 const AssociateCompanySchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    phone: { type: String, required: true },
+    email: {
+      type: String,
+      required: function (this: any) {
+        return this.isExternalDirectoryListing !== true;
+      },
+      unique: true,
+      sparse: true,
+    },
+    phone: {
+      type: String,
+      required: function (this: any) {
+        return this.isExternalDirectoryListing !== true;
+      },
+    },
     phoneCountryCode: { type: String, default: "+91" },
     phoneNational: { type: String, default: "" },
     geoType: { type: String, enum: ["INDIAN", "INTERNATIONAL"], default: "INDIAN" },
@@ -27,7 +39,12 @@ const AssociateCompanySchema = new mongoose.Schema(
     gstin: { type: String, trim: true, uppercase: true },
     legalRegistrationNumber: { type: String, trim: true },
     legalComplianceInfo: { type: String, trim: true },
-    phoneSecondary: { type: String, required: true },
+    phoneSecondary: {
+      type: String,
+      required: function (this: any) {
+        return this.isExternalDirectoryListing !== true;
+      },
+    },
     phoneSecondaryCountryCode: { type: String, default: "+91" },
     phoneSecondaryNational: { type: String, default: "" },
     serviceCapabilities: [{ type: String, default: [] }],
@@ -49,6 +66,16 @@ const AssociateCompanySchema = new mongoose.Schema(
     },
     labActivatedAt: { type: Date, default: null },
     labActivatedBy: { type: mongoose.Types.ObjectId, ref: "Admin", default: null },
+    isExternalDirectoryListing: { type: Boolean, default: false, index: true },
+    externalListingSource: {
+      type: String,
+      enum: ["SPICES_BOARD_QEL", "SPICES_BOARD_EMPANELLED", ""],
+      default: "",
+      index: true,
+    },
+    externalListingSourceUrl: { type: String, trim: true, default: "" },
+    externalListingReference: { type: String, trim: true, default: "" },
+    externalListingDate: { type: Date, default: null },
     companyFunctionPriorities: [{ type: mongoose.Types.ObjectId, ref: "CompanyFunction" }],
     assignedOperator: { type: mongoose.Schema.Types.ObjectId, ref: "Operator" },
     supervisor: { type: mongoose.Schema.Types.ObjectId, ref: "Associate" },
@@ -92,6 +119,7 @@ const AssociateCompanySchema = new mongoose.Schema(
 );
 
 AssociateCompanySchema.index({ isQualityLabListed: 1, labListingState: 1, isDeleted: 1 });
+AssociateCompanySchema.index({ isExternalDirectoryListing: 1, externalListingSource: 1, externalListingReference: 1 });
 AssociateCompanySchema.index({
   isQualityLabListed: 1,
   labListingState: 1,

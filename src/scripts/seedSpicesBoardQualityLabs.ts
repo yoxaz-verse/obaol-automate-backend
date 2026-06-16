@@ -33,6 +33,9 @@ async function run() {
       const sourceDate = lab.sourceDate ? new Date(lab.sourceDate) : null;
       const pincodeEntry = await findPincodeEntry(lab.pincode);
       const externalKey = `${lab.source}:${normalizeKey(lab.name)}:${lab.pincode || normalizeKey(lab.address)}`;
+      const contactProvenance = lab.contactSourceUrl
+        ? ` Contact source: ${lab.contactSourceLabel || "Official source"} (${lab.contactSourceUrl}), verified ${lab.contactVerifiedAt || "unknown date"}.`
+        : "";
       const payload: any = {
         name: lab.name,
         email: `${externalKey}@external-directory.obaol.local`,
@@ -52,7 +55,7 @@ async function run() {
         labCertifications: lab.certifications || [],
         labSpecifications: lab.specifications || [],
         labAcceptedItems: lab.acceptedItems || [],
-        labNotes: lab.notes,
+        labNotes: `${lab.notes}${contactProvenance}`,
         labListingState: "LIVE",
         labActivatedAt: new Date(),
         address: lab.address,

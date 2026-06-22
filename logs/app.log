@@ -5332,3 +5332,5 @@ MongoServerSelectionError: getaddrinfo ENOTFOUND obaol-cluster-shard-00-02.oq0ij
 2026-06-13T18:30:00.959Z [INFO]: Successfully offlined 0 variant rates. 
 2026-06-15T18:30:00.905Z [INFO]: Running daily variant rate reset cron job... 
 2026-06-15T18:30:01.630Z [INFO]: Successfully offlined 0 variant rates. 
+2026-06-22T08:34:43.672Z [ERROR]: Env Missing :  {"error":"\"SMTP_HOST\" is required"}
+2026-06-22T13:36:09.189Z [INFO]: MongoDB Connected: obaol-cluster-shard-00-02.oq0ij.mongodb.net 

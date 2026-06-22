@@ -71,6 +71,8 @@ const associateSchema = new mongoose.Schema(
     }
 );
 
+associateSchema.index({ registrationStatus: 1, onboardingComplete: 1, isDeleted: 1, createdAt: -1 });
+
 associateSchema.pre("save", function (next) {
     const normalizedPrimary = normalizePhoneInput({
         rawPhone: (this as any).phone,

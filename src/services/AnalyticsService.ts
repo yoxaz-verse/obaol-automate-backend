@@ -11,8 +11,10 @@ import { ttlCache } from "../utils/ttlCache";
 
 export class AnalyticsService {
     private static readonly CACHE_TTL = {
-        systemMetrics: 30_000,
-        dashboardSummary: 15_000,
+        systemMetrics: 2 * 60_000,
+        dashboardSummary: 60_000,
+        enquiryTrends: 5 * 60_000,
+        topProducts: 5 * 60_000,
         globalCompanyFunctionComponents: 30_000,
     } as const;
     private static COMPANY_FUNCTION_TYPE_MAP: Record<string, string[]> = {
@@ -30,56 +32,151 @@ export class AnalyticsService {
      * Get enquiry trends for the last 30 days
      */
     static async getEnquiryTrends() {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        return ttlCache.getOrSet("analytics:enquiry-trends:30d", AnalyticsService.CACHE_TTL.enquiryTrends, async () => {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const trends = await EnquiryModel.aggregate([
-            {
-                $match: { createdAt: { $gte: thirtyDaysAgo } }
-            },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                    count: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
+            const trends = await EnquiryModel.aggregate([
+                {
+                    $match: { createdAt: { $gte: thirtyDaysAgo } }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ]);
 
-        return trends;
+            return trends;
+        });
     }
 
     /**
      * Get top performing products based on enquiry volume
      */
     static async getTopProducts(limit = 5) {
-        const topProducts = await EnquiryModel.aggregate([
-            {
-                $group: {
-                    _id: "$productVariant",
-                    enquiryCount: { $sum: 1 }
+        const normalizedLimit = Math.max(1, Math.min(Number(limit) || 5, 20));
+        return ttlCache.getOrSet(`analytics:top-products:${normalizedLimit}`, AnalyticsService.CACHE_TTL.topProducts, async () => {
+            const topProducts = await EnquiryModel.aggregate([
+                {
+                    $group: {
+                        _id: "$productVariant",
+                        enquiryCount: { $sum: 1 }
+                    }
+                },
+                { $sort: { enquiryCount: -1 } },
+                { $limit: normalizedLimit },
+                {
+                    $lookup: {
+                        from: "product-variants",
+                        localField: "_id",
+                        foreignField: "_id",
+                        as: "variantDetails"
+                    }
+                },
+                { $unwind: "$variantDetails" },
+                {
+                    $project: {
+                        name: "$variantDetails.name",
+                        enquiryCount: 1
+                    }
                 }
-            },
-            { $sort: { enquiryCount: -1 } },
-            { $limit: limit },
-            {
-                $lookup: {
-                    from: "product-variants", // Ensure this collection name matches MongoDB
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "variantDetails"
-                }
-            },
-            { $unwind: "$variantDetails" },
-            {
-                $project: {
-                    name: "$variantDetails.name", // Adjust field based on ProductVariant schema
-                    enquiryCount: 1
-                }
-            }
-        ]);
+            ]);
 
-        return topProducts;
+            return topProducts;
+        });
+    }
+
+    private static toDashboardActivity(row: any, type: "Enquiry" | "Order") {
+        const id = row?._id || row?.id;
+        const at = row?.updatedAt || row?.createdAt;
+        return {
+            _id: id,
+            id,
+            type,
+            status: row?.status || (type === "Order" ? "Procuring" : "Pending"),
+            at,
+            updatedAt: row?.updatedAt,
+            createdAt: row?.createdAt,
+        };
+    }
+
+    private static getPendingActionFilter(params: {
+        objectId: mongoose.Types.ObjectId | null;
+        isAdmin: boolean;
+        isAssociate: boolean;
+        isOperatorUser: boolean;
+    }) {
+        const { objectId, isAdmin, isAssociate, isOperatorUser } = params;
+        const incompleteStatuses = ["COMPLETED", "CLOSED", "CANCELLED", "CONVERTED"];
+        if (isAdmin) {
+            return {
+                $or: [
+                    { sellerAcceptedAt: null },
+                    { buyerConfirmedAt: null },
+                    { status: { $ne: "CONVERTED" } },
+                ],
+            };
+        }
+        if (objectId && isAssociate) {
+            return {
+                $or: [
+                    { sellerAssociateId: objectId, sellerAcceptedAt: null },
+                    {
+                        buyerAssociateId: objectId,
+                        sellerAcceptedAt: { $ne: null },
+                        buyerConfirmedAt: null,
+                    },
+                ],
+            };
+        }
+        if (objectId && isOperatorUser) {
+            return {
+                $or: [
+                    { supplierOperatorId: objectId },
+                    { dealCloserOperatorId: objectId },
+                    { createdBy: objectId },
+                ],
+                status: { $nin: incompleteStatuses },
+            };
+        }
+        return null;
+    }
+
+    private static getPendingActionLabel(row: any) {
+        if (!row?.sellerAcceptedAt) return "Awaiting supplier accept";
+        if (!row?.buyerConfirmedAt) return "Awaiting buyer confirm";
+        return "Awaiting conversion";
+    }
+
+    private static async getAdminApprovalCounts() {
+        return ttlCache.getOrSet("analytics:dashboard-approval-counts", AnalyticsService.CACHE_TTL.dashboardSummary, async () => {
+            const associateQuery = {
+                isDeleted: { $ne: true },
+                onboardingComplete: true,
+                registrationStatus: "PENDING_REVIEW",
+            };
+            const eligibleSupervisors = await AssociateModel.distinct("_id", {
+                isDeleted: { $ne: true },
+                onboardingComplete: true,
+            });
+            const companyQuery = {
+                isDeleted: { $ne: true },
+                registrationStatus: "PENDING_REVIEW",
+                supervisor: { $in: eligibleSupervisors },
+            };
+            const [associates, companies] = await Promise.all([
+                AssociateModel.countDocuments(associateQuery),
+                AssociateCompanyModel.countDocuments(companyQuery),
+            ]);
+            return {
+                associates,
+                companies,
+                total: associates + companies,
+            };
+        });
     }
 
     /**
@@ -209,6 +306,11 @@ export class AnalyticsService {
             associateSellingCount,
             associateActionRequired,
             adminActionRequired,
+            roleMetrics,
+            approvalCounts,
+            adminWidgets,
+            pendingActionRows,
+            ongoingEnquiryRows,
         ] = await Promise.all([
             EnquiryModel.countDocuments(enquiryBaseFilter),
             EnquiryModel.countDocuments({
@@ -273,25 +375,67 @@ export class AnalyticsService {
                     ],
                 })
                 : Promise.resolve(0),
+            isAdmin
+                ? AnalyticsService.getSystemMetrics()
+                : isAssociate && userId
+                    ? AnalyticsService.getAssociateMetrics(userId)
+                    : isOperatorUser && userId
+                        ? AnalyticsService.getOperatorMetrics(userId)
+                        : Promise.resolve({}),
+            isAdmin
+                ? AnalyticsService.getAdminApprovalCounts()
+                : Promise.resolve({ associates: 0, companies: 0, total: 0 }),
+            isAdmin
+                ? Promise.all([
+                    AnalyticsService.getEnquiryTrends(),
+                    AnalyticsService.getTopProducts(5),
+                ]).then(([enquiryTrends, topProducts]) => ({ enquiryTrends, topProducts }))
+                : Promise.resolve({ enquiryTrends: [], topProducts: [] }),
+            (() => {
+                const actionFilter = AnalyticsService.getPendingActionFilter({
+                    objectId,
+                    isAdmin,
+                    isAssociate,
+                    isOperatorUser,
+                });
+                return actionFilter
+                    ? EnquiryModel.find(actionFilter)
+                        .sort({ updatedAt: -1, createdAt: -1 })
+                        .limit(10)
+                        .select("_id status sellerAcceptedAt buyerConfirmedAt buyerAssociateId sellerAssociateId supplierOperatorId dealCloserOperatorId createdBy updatedAt createdAt")
+                        .lean()
+                    : Promise.resolve([]);
+            })(),
+            objectId && isOperatorUser
+                ? EnquiryModel.find({
+                    $or: [
+                        { supplierOperatorId: objectId },
+                        { dealCloserOperatorId: objectId },
+                        { createdBy: objectId },
+                    ],
+                    status: { $nin: ["COMPLETED", "CLOSED", "CANCELLED"] },
+                })
+                    .sort({ updatedAt: -1, createdAt: -1 })
+                    .limit(5)
+                    .select("_id status buyerAssociateId updatedAt createdAt")
+                    .populate("buyerAssociateId", "name")
+                    .lean()
+                : Promise.resolve([]),
         ]);
 
         const recentActivity = [
-            ...(recentEnquiries || []).map((row: any) => ({
-                type: "Enquiry",
-                id: row?._id,
-                status: row?.status || "Pending",
-                at: row?.updatedAt || row?.createdAt,
-            })),
-            ...(recentOrders || []).map((row: any) => ({
-                type: "Order",
-                id: row?._id,
-                status: row?.status || "Procuring",
-                at: row?.updatedAt || row?.createdAt,
-            })),
+            ...(recentEnquiries || []).map((row: any) => AnalyticsService.toDashboardActivity(row, "Enquiry")),
+            ...(recentOrders || []).map((row: any) => AnalyticsService.toDashboardActivity(row, "Order")),
         ]
             .filter((item) => item.id && item.at)
             .sort((a, b) => new Date(String(b.at)).getTime() - new Date(String(a.at)).getTime())
             .slice(0, 6);
+
+            const pendingActions = (pendingActionRows || []).map((row: any) => ({
+                ...row,
+                id: row?._id,
+                missingStep: AnalyticsService.getPendingActionLabel(row),
+            }));
 
             return {
                 totalEnquiries,
@@ -306,6 +450,11 @@ export class AnalyticsService {
                 associateActionRequired,
                 adminActionRequired,
                 recentActivity,
+                pendingActions,
+                ongoingEnquiries: ongoingEnquiryRows || [],
+                metrics: roleMetrics || {},
+                approvals: approvalCounts,
+                adminWidgets,
             };
         });
     }

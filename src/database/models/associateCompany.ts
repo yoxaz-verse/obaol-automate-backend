@@ -120,6 +120,7 @@ const AssociateCompanySchema = new mongoose.Schema(
 
 AssociateCompanySchema.index({ isQualityLabListed: 1, labListingState: 1, isDeleted: 1 });
 AssociateCompanySchema.index({ isExternalDirectoryListing: 1, externalListingSource: 1, externalListingReference: 1 });
+AssociateCompanySchema.index({ registrationStatus: 1, supervisor: 1, isDeleted: 1, createdAt: -1 });
 AssociateCompanySchema.index({
   isQualityLabListed: 1,
   labListingState: 1,

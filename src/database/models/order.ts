@@ -162,6 +162,9 @@ OrderSchema.index({ associateCompanyId: 1 });
 OrderSchema.index({ supplierOperatorId: 1, status: 1, updatedAt: -1 });
 OrderSchema.index({ dealCloserOperatorId: 1, status: 1, updatedAt: -1 });
 OrderSchema.index({ createdBy: 1, status: 1, updatedAt: -1 });
+OrderSchema.index({ supplierOperatorId: 1, updatedAt: -1, createdAt: -1 });
+OrderSchema.index({ dealCloserOperatorId: 1, updatedAt: -1, createdAt: -1 });
+OrderSchema.index({ createdBy: 1, updatedAt: -1, createdAt: -1 });
 OrderSchema.index({ status: 1, updatedAt: -1, createdAt: -1 });
 OrderSchema.index({ associateCompanyId: 1, status: 1, updatedAt: -1, createdAt: -1 });
 

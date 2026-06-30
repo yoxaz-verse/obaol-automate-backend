@@ -12,6 +12,7 @@ export interface IAssociate {
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
   associateInterests?: string[];
+  tradeMode?: "BUY" | "SELL" | "BOTH";
   associateCompany?: Types.ObjectId | string | null; // Assuming this is stored as the ID of the AssociateCompany
   hasCompany?: boolean;
   companyMode?: "existing" | "new" | "none";
@@ -57,6 +58,7 @@ export interface ICreateAssociate {
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
   associateInterests?: string[];
+  tradeMode?: "BUY" | "SELL" | "BOTH";
   associateCompany?: Types.ObjectId | string | null; // ID of the AssociateCompany
   designation?: Types.ObjectId | string | null;
   hasCompany?: boolean;
@@ -103,6 +105,7 @@ export interface IUpdateAssociate {
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
   associateInterests?: string[];
+  tradeMode?: "BUY" | "SELL" | "BOTH";
   designation?: Types.ObjectId | string | null;
   associateCompany?: Types.ObjectId | string | null; // ID of the AssociateCompany
   hasCompany?: boolean;

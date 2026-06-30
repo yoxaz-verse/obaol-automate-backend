@@ -16,6 +16,7 @@ import {
   getRegisterPincodes,
   getCompanyInterestsStatus,
   upsertCompanyInterests,
+  updateAssociateTradeMode,
   authenticateGoogle,
   getEmailStatus,
   startOnboarding,
@@ -46,6 +47,7 @@ authRoute.post("/onboarding/start", authOnboardingLimiter, startOnboarding);
 authRoute.post("/onboarding", authOnboardingLimiter, authenticateToken, completeOnboarding);
 authRoute.get("/company-interests/status", authenticateToken, getCompanyInterestsStatus);
 authRoute.put("/company-interests", authenticateToken, upsertCompanyInterests);
+authRoute.put("/trade-mode", authenticateToken, updateAssociateTradeMode);
 authRoute.post("/logout", logoutUser);
 authRoute.post("/forgot-password", passwordResetLimiter, requestPasswordReset);
 authRoute.post("/reset-password", passwordResetLimiter, completePasswordReset);

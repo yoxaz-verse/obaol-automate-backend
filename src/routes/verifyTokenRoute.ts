@@ -33,7 +33,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
 
   if (roleLower === "associate") {
     associate = await AssociateModel.findById(req.user.id)
-      .select("name email phone associateCompany dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt")
+      .select("name email phone associateCompany tradeMode dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt")
       .lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
     dashboardTutorialStatus = associate?.dashboardTutorialStatus || "PENDING";
@@ -77,6 +77,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       associateCompanyId,
       companyInterestsConfigured,
       companyInterests,
+      tradeMode: roleLower === "associate" ? (associate?.tradeMode || "BOTH") : undefined,
       dashboardTutorialStatus,
       onboardingComplete,
       registrationStatus,

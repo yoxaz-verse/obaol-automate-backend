@@ -21,6 +21,7 @@ const associateSchema = new mongoose.Schema(
         phoneSecondaryCountryCode: { type: String, default: "+91" },
         phoneSecondaryNational: { type: String, default: "" },
         associateInterests: [{ type: String, enum: ASSOCIATE_INTERESTS, default: [] }],
+        tradeMode: { type: String, enum: ["BUY", "SELL", "BOTH"], default: "BOTH", index: true },
         associateCompany: { type: mongoose.Schema.Types.ObjectId, ref: "AssociateCompany" },
         hasCompany: { type: Boolean, default: false },
         companyMode: { type: String, enum: ["existing", "new", "none"], default: "none" },

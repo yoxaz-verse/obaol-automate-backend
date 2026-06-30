@@ -69,6 +69,12 @@ const DRAFT_PHONE_NATIONAL = "0000000000";
 const DRAFT_OPERATOR_ADDRESS = "Pending";
 const BLOCKED_ACCOUNT_MESSAGE = PRE_AUTH_BLOCKED_MESSAGE;
 const PENDING_APPROVAL_MESSAGE = "Account pending admin approval.";
+const normalizeTradeMode = (value: unknown): "BUY" | "SELL" | "BOTH" => {
+    const normalized = String(value || "").trim().toUpperCase();
+    return normalized === "BUY" || normalized === "SELL" || normalized === "BOTH"
+        ? normalized
+        : "BOTH";
+};
 
 const deriveDisplayName = (email: string) => {
     const local = String(email || "").split("@")[0] || "New User";
@@ -713,6 +719,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                 onboardingComplete: false,
                 hasCompany: false,
                 companyMode: "none",
+                tradeMode: "BOTH",
             });
             await VerificationModel.create({
                 userId: String(associate._id),
@@ -769,6 +776,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
             associateDivision,
             associatePincodeEntry,
             referralCode,
+            tradeMode,
         } = req.body;
 
         // Input validation
@@ -1191,6 +1199,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
             phoneSecondaryCountryCode: normalizedPhoneSecondaryInput.countryCode || normalizedPrimaryPhone.countryCode,
             phoneSecondaryNational: normalizedPhoneSecondaryInput.national || normalizedPrimaryPhone.national,
             associateInterests: normalizedAssociateInterests,
+            tradeMode: normalizeTradeMode(tradeMode),
             designation: designationId || undefined,
             associateCompany: linkedCompanyId || null,
             hasCompany: shouldLinkCompany,
@@ -1375,6 +1384,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
             onboardingComplete: false,
             hasCompany: false,
             companyMode: "none",
+            tradeMode: "BOTH",
         });
         issueAuthCookie(res, { ...newAssociate.toObject(), role: "Associate" }, false);
         return res.json({ success: true, user: { id: newAssociate._id, email: newAssociate.email, name: newAssociate.name, role: "Associate" } });
@@ -1424,6 +1434,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 associatePincodeEntry,
                 referralCode,
                 password,
+                tradeMode,
             } = req.body || {};
 
             if (!name || !email || !phone) {
@@ -1463,6 +1474,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             associate.phoneSecondaryCountryCode = normalizedSecondary.countryCode || normalizedPrimary.countryCode;
             associate.phoneSecondaryNational = normalizedSecondary.national || normalizedPrimary.national;
             associate.designation = designation || null;
+            associate.tradeMode = normalizeTradeMode(tradeMode || associate.tradeMode);
             associate.onboardingContactPreference = String(contactPreference || "phone").toLowerCase() === "email" ? "email" : "phone";
             associate.onboardingContactNotes = String(contactNotes || "").trim();
             associate.address = String(associateAddress || "").trim();
@@ -2132,5 +2144,29 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Failed to update company interests." });
+    }
+};
+
+export const updateAssociateTradeMode = async (req: Request, res: Response) => {
+    try {
+        const roleLower = String(req.user?.role || "").toLowerCase();
+        if (roleLower !== "associate") {
+            return res.status(403).json({ success: false, message: "Only associates can update trading mode." });
+        }
+        const rawMode = String(req.body?.tradeMode || "").trim().toUpperCase();
+        if (!["BUY", "SELL", "BOTH"].includes(rawMode)) {
+            return res.status(400).json({ success: false, message: "tradeMode must be BUY, SELL, or BOTH." });
+        }
+        const associate = await AgentModel.findByIdAndUpdate(
+            req.user?.id,
+            { $set: { tradeMode: rawMode } },
+            { new: true, runValidators: true }
+        ).select("_id tradeMode").lean();
+        if (!associate) {
+            return res.status(404).json({ success: false, message: "Associate not found." });
+        }
+        return res.json({ success: true, data: { tradeMode: associate.tradeMode } });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: error?.message || "Failed to update trading mode." });
     }
 };

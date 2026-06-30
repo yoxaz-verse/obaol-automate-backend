@@ -17,6 +17,7 @@
     "backfill:product-classification": "ts-node src/scripts/backfill-product-classification.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
     "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
+    "backfill:associate-trade-mode": "ts-node src/scripts/backfillAssociateTradeMode.ts",
     "seed:spices-board-quality-labs": "ts-node src/scripts/seedSpicesBoardQualityLabs.ts",
     "normalize:company-capabilities": "ts-node src/scripts/normalize-company-capabilities.ts"
   },

@@ -9,7 +9,7 @@ const run = async () => {
   if (!mongoUri) throw new Error("MONGODB_URI is required.");
   await mongoose.connect(mongoUri);
   const result = await AssociateModel.updateMany(
-    { tradeMode: { $nin: ["BUY", "SELL", "BOTH"] } },
+    { tradeMode: { $nin: ["BUY", "SELL", "BOTH", "SERVICE"] } },
     { $set: { tradeMode: "BOTH" } }
   );
   console.log(`Backfilled trade mode for ${result.modifiedCount} associates.`);

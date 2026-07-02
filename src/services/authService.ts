@@ -69,10 +69,14 @@ const DRAFT_PHONE_NATIONAL = "0000000000";
 const DRAFT_OPERATOR_ADDRESS = "Pending";
 const BLOCKED_ACCOUNT_MESSAGE = PRE_AUTH_BLOCKED_MESSAGE;
 const PENDING_APPROVAL_MESSAGE = "Account pending admin approval.";
-const normalizeTradeMode = (value: unknown): "BUY" | "SELL" | "BOTH" => {
+const TRADE_MODES = ["BUY", "SELL", "BOTH", "SERVICE"] as const;
+type TradeMode = typeof TRADE_MODES[number];
+const isTradeMode = (value: unknown): value is TradeMode =>
+    TRADE_MODES.includes(String(value || "").trim().toUpperCase() as TradeMode);
+const normalizeTradeMode = (value: unknown): TradeMode => {
     const normalized = String(value || "").trim().toUpperCase();
-    return normalized === "BUY" || normalized === "SELL" || normalized === "BOTH"
-        ? normalized
+    return isTradeMode(normalized)
+        ? normalized as TradeMode
         : "BOTH";
 };
 
@@ -837,6 +841,19 @@ export const registerAssociate = async (req: Request, res: Response) => {
             String(hasCompany || "").toLowerCase() === "yes" ||
             String(hasCompany || "") === "1";
 
+        if (!shouldLinkCompany) {
+            return res.status(400).json({
+                success: false,
+                message: "Associate registration requires an existing or newly registered company. Individuals should register as Operators."
+            });
+        }
+        if (!isTradeMode(tradeMode)) {
+            return res.status(400).json({
+                success: false,
+                message: "Choose whether the company buys, sells, buys and sells, or provides trade services."
+            });
+        }
+
         if (!normalizedPhone) {
             return res.status(400).json({
                 success: false,
@@ -1436,6 +1453,19 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 password,
                 tradeMode,
             } = req.body || {};
+
+            if (!(hasCompany === true || String(hasCompany || "").toLowerCase() === "yes" || String(hasCompany || "").toLowerCase() === "true")) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Associate onboarding requires an existing or newly registered company. Individuals should register as Operators."
+                });
+            }
+            if (!isTradeMode(tradeMode)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Choose whether the company buys, sells, buys and sells, or provides trade services."
+                });
+            }
 
             if (!name || !email || !phone) {
                 return res.status(400).json({ success: false, message: "Name, email, and phone are required." });
@@ -2154,8 +2184,8 @@ export const updateAssociateTradeMode = async (req: Request, res: Response) => {
             return res.status(403).json({ success: false, message: "Only associates can update trading mode." });
         }
         const rawMode = String(req.body?.tradeMode || "").trim().toUpperCase();
-        if (!["BUY", "SELL", "BOTH"].includes(rawMode)) {
-            return res.status(400).json({ success: false, message: "tradeMode must be BUY, SELL, or BOTH." });
+        if (!isTradeMode(rawMode)) {
+            return res.status(400).json({ success: false, message: "tradeMode must be BUY, SELL, BOTH, or SERVICE." });
         }
         const associate = await AgentModel.findByIdAndUpdate(
             req.user?.id,

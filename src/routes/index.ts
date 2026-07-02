@@ -60,6 +60,9 @@ logRouteMount(`[routes] mounted ${prefix}/warehouse`);
 import directoryRoutes from "./v1/directoryRoutes";
 router.use(`${prefix}`, directoryRoutes);
 logRouteMount(`[routes] mounted ${prefix}/directory`);
+import tradeDirectoryRoutes from "./v1/tradeDirectoryRoutes";
+router.use(`${prefix}`, tradeDirectoryRoutes);
+logRouteMount(`[routes] mounted ${prefix}/trade-directory`);
 
 // Trade documents
 import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";

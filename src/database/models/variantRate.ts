@@ -57,6 +57,7 @@ VariantRateSchema.index({ isDeleted: 1, associate: 1, isLive: 1, createdAt: -1 }
 VariantRateSchema.index({ isDeleted: 1, associateCompany: 1, isLive: 1 });
 VariantRateSchema.index({ isDeleted: 1, productVariant: 1, isLive: 1 });
 VariantRateSchema.index({ isDeleted: 1, isLive: 1, lastLiveDate: 1, createdAt: -1 });
+VariantRateSchema.index({ isLive: 1, isDeleted: 1, isDemo: 1, productVariant: 1, associate: 1, associateCompany: 1 });
 
 /**
  * Pre-save hook to auto-populate associateCompany

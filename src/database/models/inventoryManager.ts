@@ -19,6 +19,10 @@ const InventoryManagerSchema = new mongoose.Schema(
       required: true,
     },
     role: { type: String, default: "InventoryManager" },
+    failedLoginAttempts: { type: Number, default: 0 },
+    loginLockedUntil: { type: Date, default: null },
+    lastFailedLoginAt: { type: Date, default: null },
+    loginLockoutLevel: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

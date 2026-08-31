@@ -5,6 +5,9 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { OperatorModel } from "../database/models/operator";
 import { CatalogItemModel } from "../database/models/catalogItem";
 import { WarehouseModel } from "../database/models/warehouse";
+import { notificationService } from "../services/notificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
+import { sendApprovalNotificationEmail } from "../utils/mailer";
 
 const ALLOWED_STATUSES = new Set(["PENDING_REVIEW", "APPROVED", "REJECTED"]);
 
@@ -20,7 +23,76 @@ const buildSearch = (search: any, fields: string[]) => {
   return { $or: fields.map((field) => ({ [field]: regex })) };
 };
 
+const approvalRequestSort = { approvalRequestedAt: -1, createdAt: -1 } as const;
+type ApprovalNotificationRole = "Associate" | "Operator" | "Associate Company";
+
+type ApprovalNotificationTarget = {
+  email?: string | null;
+  userId?: any;
+  recipientRole?: "Associate" | "Operator";
+  loginPath: "/auth" | "/auth/operator";
+};
+
 export class ApprovalController {
+  private async notifyApproval(params: {
+    roleLabel: ApprovalNotificationRole;
+    approvedName: string;
+    accountEmail: string;
+    entityId: any;
+    adminId?: string;
+    targets: ApprovalNotificationTarget[];
+  }) {
+    const warnings: string[] = [];
+    const seenEmails = new Set<string>();
+    const recipientMap = new Map<string, "Associate" | "Operator">();
+
+    for (const target of params.targets) {
+      const email = String(target.email || "").trim().toLowerCase();
+      if (!email || seenEmails.has(email)) continue;
+      seenEmails.add(email);
+      try {
+        await sendApprovalNotificationEmail({
+          toEmail: email,
+          approvedName: params.approvedName,
+          accountEmail: params.accountEmail,
+          roleLabel: params.roleLabel,
+          loginPath: target.loginPath,
+        });
+      } catch (error: any) {
+        warnings.push(`Failed to send approval email to ${email}: ${error?.message || "unknown error"}`);
+      }
+    }
+
+    for (const target of params.targets) {
+      if (!target.userId || !target.recipientRole) continue;
+      notificationService.addRecipient(recipientMap, target.userId, target.recipientRole);
+    }
+
+    if (recipientMap.size) {
+      try {
+        await notificationService.createNotifications({
+          recipientMap,
+          createdByUserId: params.adminId || null,
+          type: NotificationTypes.APPROVAL_APPROVED,
+          title: "Approval confirmed",
+          message: `${params.approvedName} has been approved on OBAOL Supreme.`,
+          entityType: NotificationEntityTypes.APPROVAL,
+          entityId: params.entityId,
+          route: "/dashboard/notifications",
+          payload: {
+            approvalType: params.roleLabel,
+            accountEmail: params.accountEmail,
+          },
+          priority: "high",
+        });
+      } catch (error: any) {
+        warnings.push(`Failed to create approval notification: ${error?.message || "unknown error"}`);
+      }
+    }
+
+    return warnings;
+  }
+
   private async activateDraftListings(params: {
     adminId?: string;
     associateId?: string | null;
@@ -112,8 +184,8 @@ export class ApprovalController {
       };
 
       const [pendingAssociates, pendingCompanies] = await Promise.all([
-        AssociateModel.find(associateFilter).select("_id associateCompany").lean(),
-        AssociateCompanyModel.find(companyFilter).select("_id").lean(),
+        AssociateModel.find(associateFilter).select("_id name email associateCompany").lean(),
+        AssociateCompanyModel.find(companyFilter).select("_id name email supervisor").populate("supervisor", "_id name email").lean(),
       ]);
 
       const [associateResult, companyResult] = await Promise.all([
@@ -158,6 +230,39 @@ export class ApprovalController {
         ),
       ]);
 
+      const notificationWarnings: string[] = [];
+      for (const row of pendingAssociates as any[]) {
+        const email = String(row?.email || "").trim();
+        if (!email) continue;
+        const warnings = await this.notifyApproval({
+          roleLabel: "Associate",
+          approvedName: String(row?.name || "Associate"),
+          accountEmail: email,
+          entityId: row?._id,
+          adminId,
+          targets: [{ email, userId: row?._id, recipientRole: "Associate", loginPath: "/auth" }],
+        });
+        notificationWarnings.push(...warnings);
+      }
+      for (const row of pendingCompanies as any[]) {
+        const companyEmail = String(row?.email || "").trim();
+        const supervisor: any = row?.supervisor || null;
+        const supervisorEmail = String(supervisor?.email || "").trim();
+        if (!companyEmail && !supervisorEmail) continue;
+        const warnings = await this.notifyApproval({
+          roleLabel: "Associate Company",
+          approvedName: String(row?.name || "Associate Company"),
+          accountEmail: companyEmail || supervisorEmail,
+          entityId: row?._id,
+          adminId,
+          targets: [
+            { email: companyEmail, loginPath: "/auth" },
+            { email: supervisorEmail, userId: supervisor?._id, recipientRole: "Associate", loginPath: "/auth" },
+          ],
+        });
+        notificationWarnings.push(...warnings);
+      }
+
       return res.json({
         success: true,
         message: "Existing pending associates and companies approved successfully.",
@@ -166,6 +271,7 @@ export class ApprovalController {
           associatesModified: associateResult.modifiedCount || 0,
           companiesMatched: companyResult.matchedCount || 0,
           companiesModified: companyResult.modifiedCount || 0,
+          ...(notificationWarnings.length ? { notificationWarnings } : {}),
         },
       });
     } catch (error: any) {
@@ -186,9 +292,9 @@ export class ApprovalController {
       const [total, rows] = await Promise.all([
         AssociateModel.countDocuments(query),
         AssociateModel.find(query)
-          .select("name email phone registrationStatus isActive associateCompany createdAt")
+          .select("name email phone registrationStatus isActive associateCompany approvalRequestedAt createdAt")
           .populate("associateCompany", "name email registrationStatus isApproved")
-          .sort({ createdAt: -1 })
+          .sort(approvalRequestSort)
           .skip((page - 1) * limit)
           .limit(limit)
           .lean(),
@@ -217,10 +323,10 @@ export class ApprovalController {
       const [total, rows] = await Promise.all([
         OperatorModel.countDocuments(query),
         OperatorModel.find(query)
-          .select("name email phone registrationStatus isActive jobRole jobType createdAt")
+          .select("name email phone registrationStatus isActive jobRole jobType approvalRequestedAt createdAt")
           .populate("jobRole", "name")
           .populate("jobType", "name")
-          .sort({ createdAt: -1 })
+          .sort(approvalRequestSort)
           .skip((page - 1) * limit)
           .limit(limit)
           .lean(),
@@ -267,7 +373,7 @@ export class ApprovalController {
         { $set: update },
         { new: true }
       )
-        .select("name email registrationStatus isActive")
+        .select("_id name email registrationStatus isActive")
         .lean();
 
       if (!updated) {
@@ -279,6 +385,19 @@ export class ApprovalController {
           adminId: String(req.user?.id || ""),
           associateId: id,
           associateCompanyId: associateRow?.associateCompany ? String(associateRow.associateCompany) : null,
+        });
+        const notificationWarnings = await this.notifyApproval({
+          roleLabel: "Associate",
+          approvedName: String(updated?.name || "Associate"),
+          accountEmail: String(updated?.email || ""),
+          entityId: updated?._id,
+          adminId: String(req.user?.id || ""),
+          targets: [{ email: updated?.email, userId: updated?._id, recipientRole: "Associate", loginPath: "/auth" }],
+        });
+        return res.json({
+          success: true,
+          data: updated,
+          ...(notificationWarnings.length ? { notificationWarnings } : {}),
         });
       }
       return res.json({ success: true, data: updated });
@@ -305,11 +424,27 @@ export class ApprovalController {
         : { registrationStatus: "REJECTED", isActive: false, reviewNotes: notes };
 
       const operator = await OperatorModel.findByIdAndUpdate(id, { $set: update }, { new: true })
-        .select("name email registrationStatus isActive")
+        .select("_id name email registrationStatus isActive")
         .lean();
 
       if (!operator) {
         return res.status(404).json({ success: false, message: "Operator not found." });
+      }
+
+      if (action === "APPROVE") {
+        const notificationWarnings = await this.notifyApproval({
+          roleLabel: "Operator",
+          approvedName: String(operator?.name || "Operator"),
+          accountEmail: String(operator?.email || ""),
+          entityId: operator?._id,
+          adminId: String(req.user?.id || ""),
+          targets: [{ email: operator?.email, userId: operator?._id, recipientRole: "Operator", loginPath: "/auth/operator" }],
+        });
+        return res.json({
+          success: true,
+          data: operator,
+          ...(notificationWarnings.length ? { notificationWarnings } : {}),
+        });
       }
 
       return res.json({ success: true, data: operator });
@@ -404,7 +539,8 @@ export class ApprovalController {
         { $set: update },
         { new: true }
       )
-        .select("name email registrationStatus isApproved approvedAt reviewNotes")
+        .select("_id name email supervisor registrationStatus isApproved approvedAt reviewNotes")
+        .populate("supervisor", "_id name email")
         .lean();
 
       if (!updated) {
@@ -415,6 +551,25 @@ export class ApprovalController {
         await this.activateDraftListings({
           adminId,
           associateCompanyId: id,
+        });
+        const supervisor: any = updated?.supervisor || null;
+        const companyEmail = String(updated?.email || "").trim();
+        const supervisorEmail = String(supervisor?.email || "").trim();
+        const notificationWarnings = await this.notifyApproval({
+          roleLabel: "Associate Company",
+          approvedName: String(updated?.name || "Associate Company"),
+          accountEmail: companyEmail || supervisorEmail,
+          entityId: updated?._id,
+          adminId,
+          targets: [
+            { email: companyEmail, loginPath: "/auth" },
+            { email: supervisorEmail, userId: supervisor?._id, recipientRole: "Associate", loginPath: "/auth" },
+          ],
+        });
+        return res.json({
+          success: true,
+          data: updated,
+          ...(notificationWarnings.length ? { notificationWarnings } : {}),
         });
       }
 

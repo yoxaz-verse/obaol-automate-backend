@@ -76,6 +76,7 @@ describe("warehouse assignments controller", () => {
       body: {
         warehouseId: "66d5e5f50a7e173e35db9699",
         companyId: "66d5e5f50a7e173e35db96a1",
+        requiredMT: 10,
       },
     };
     const res = buildRes();
@@ -90,7 +91,7 @@ describe("warehouse assignments controller", () => {
         warehouseId: expect.anything(),
         companyId: expect.anything(),
       }),
-      { $set: { status: "ACTIVE" } },
+      { $set: expect.objectContaining({ status: "ACTIVE", requiredMT: 10, bookingStatus: "BOOKED" }) },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   });
@@ -150,6 +151,7 @@ describe("warehouse assignments controller", () => {
       body: {
         warehouseId: "66d5e5f50a7e173e35db9699",
         companyId: "66d5e5f50a7e173e35db96ff",
+        requiredMT: 12,
       },
     };
     const res = buildRes();
@@ -164,7 +166,7 @@ describe("warehouse assignments controller", () => {
         warehouseId: expect.anything(),
         companyId: expect.anything(),
       }),
-      { $set: { status: "ACTIVE" } },
+      { $set: expect.objectContaining({ status: "ACTIVE", requiredMT: 12, bookingStatus: "BOOKED" }) },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   });

@@ -9,6 +9,10 @@ export interface IInventoryManager {
   password: string;
   admin: mongoose.Schema.Types.ObjectId; // Link to Admin
   role: string; // Assign default role
+  failedLoginAttempts?: number;
+  loginLockedUntil?: Date | null;
+  lastFailedLoginAt?: Date | null;
+  loginLockoutLevel?: number;
 }
 
 export interface ICreateInventoryManager {
@@ -24,4 +28,8 @@ export interface IUpdateInventoryManager {
   password?: string;
   admin?: mongoose.Types.ObjectId;
   isActive?: boolean;
+  failedLoginAttempts?: number;
+  loginLockedUntil?: Date | null;
+  lastFailedLoginAt?: Date | null;
+  loginLockoutLevel?: number;
 }

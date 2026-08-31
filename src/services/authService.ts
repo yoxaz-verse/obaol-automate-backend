@@ -69,6 +69,14 @@ const DRAFT_PHONE_NATIONAL = "0000000000";
 const DRAFT_OPERATOR_ADDRESS = "Pending";
 const BLOCKED_ACCOUNT_MESSAGE = PRE_AUTH_BLOCKED_MESSAGE;
 const PENDING_APPROVAL_MESSAGE = "Account pending admin approval.";
+const LOGIN_COOLDOWN_CODE = "LOGIN_COOLDOWN";
+export const LOGIN_COOLDOWN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_DURATIONS_MS = [
+    5 * 60 * 1000,
+    15 * 60 * 1000,
+    60 * 60 * 1000,
+    24 * 60 * 60 * 1000,
+];
 const TRADE_MODES = ["BUY", "SELL", "BOTH", "SERVICE"] as const;
 type TradeMode = typeof TRADE_MODES[number];
 const isTradeMode = (value: unknown): value is TradeMode =>
@@ -93,6 +101,105 @@ const sendRejectedAccountResponse = (res: Response, userDoc?: any) => {
         isRejected: true,
         message: BLOCKED_ACCOUNT_MESSAGE,
     });
+};
+
+const isCooldownRole = (role: any) => {
+    const normalized = String(role || "").toLowerCase();
+    return [
+        "admin",
+        "projectmanager",
+        "project_manager",
+        "operator",
+        "team",
+        "warehouse_operator",
+        "warehouse-operator",
+        "warehouseoperator",
+        "associate",
+        "activitymanager",
+        "inventorymanager",
+        "worker",
+    ].includes(normalized);
+};
+
+const getLoginCooldownPayload = (userDoc: any, now = new Date()) => {
+    const lockedUntilValue = userDoc?.loginLockedUntil ? new Date(userDoc.loginLockedUntil) : null;
+    if (!lockedUntilValue || Number.isNaN(lockedUntilValue.getTime()) || lockedUntilValue.getTime() <= now.getTime()) {
+        return null;
+    }
+    return {
+        success: false,
+        code: LOGIN_COOLDOWN_CODE,
+        message: "Too many incorrect password attempts. Please wait before trying again.",
+        retryAfterSeconds: Math.max(1, Math.ceil((lockedUntilValue.getTime() - now.getTime()) / 1000)),
+        lockedUntil: lockedUntilValue.toISOString(),
+        failedAttempts: Number(userDoc?.failedLoginAttempts || 0),
+        maxAttempts: LOGIN_COOLDOWN_MAX_ATTEMPTS,
+        lockoutLevel: Number(userDoc?.loginLockoutLevel || 0),
+    };
+};
+
+const sendLoginCooldownResponse = (res: Response, userDoc: any) => {
+    const lockedUntil = userDoc?.loginLockedUntil ? new Date(userDoc.loginLockedUntil) : new Date(Date.now() + LOGIN_LOCKOUT_DURATIONS_MS[0]);
+    const payload = getLoginCooldownPayload(userDoc) || {
+        success: false,
+        code: LOGIN_COOLDOWN_CODE,
+        message: "Too many incorrect password attempts. Please wait before trying again.",
+        retryAfterSeconds: Math.max(1, Math.ceil((lockedUntil.getTime() - Date.now()) / 1000)),
+        lockedUntil: lockedUntil.toISOString(),
+        failedAttempts: Number(userDoc?.failedLoginAttempts || LOGIN_COOLDOWN_MAX_ATTEMPTS),
+        maxAttempts: LOGIN_COOLDOWN_MAX_ATTEMPTS,
+        lockoutLevel: Number(userDoc?.loginLockoutLevel || 1),
+    };
+    res.setHeader("Retry-After", String(payload.retryAfterSeconds));
+    return res.status(429).json(payload);
+};
+
+const recordFailedPasswordAttempt = async (userDoc: any) => {
+    const nextAttempts = Number(userDoc?.failedLoginAttempts || 0) + 1;
+    userDoc.failedLoginAttempts = nextAttempts;
+    userDoc.lastFailedLoginAt = new Date();
+    if (nextAttempts >= LOGIN_COOLDOWN_MAX_ATTEMPTS) {
+        const nextLevel = Math.max(1, Number(userDoc?.loginLockoutLevel || 0) + 1);
+        const duration = LOGIN_LOCKOUT_DURATIONS_MS[Math.min(nextLevel - 1, LOGIN_LOCKOUT_DURATIONS_MS.length - 1)];
+        userDoc.loginLockoutLevel = nextLevel;
+        userDoc.loginLockedUntil = new Date(Date.now() + duration);
+    }
+    await userDoc.save();
+    return nextAttempts >= LOGIN_COOLDOWN_MAX_ATTEMPTS;
+};
+
+const resetLoginCooldown = async (userDoc: any) => {
+    if (!userDoc) return;
+    const hasFailedAttempts = Number(userDoc.failedLoginAttempts || 0) > 0;
+    const hasLock = Boolean(userDoc.loginLockedUntil || userDoc.lastFailedLoginAt);
+    if (!hasFailedAttempts && !hasLock) return;
+    userDoc.failedLoginAttempts = 0;
+    userDoc.loginLockedUntil = null;
+    userDoc.lastFailedLoginAt = null;
+    userDoc.loginLockoutLevel = 0;
+    await userDoc.save();
+};
+
+export const normalizeAuthRole = (role: any) => {
+    const normalized = String(role || "").trim().toLowerCase();
+    if (normalized === "admin") return "Admin";
+    if (normalized === "projectmanager" || normalized === "project_manager" || normalized === "project-manager") return "ProjectManager";
+    if (normalized === "activitymanager" || normalized === "inventorymanager" || normalized === "inventory_manager") return "InventoryManager";
+    if (normalized === "operator" || normalized === "team" || normalized === "warehouse_operator" || normalized === "warehouse-operator" || normalized === "warehouseoperator" || normalized === "worker") return "Operator";
+    if (normalized === "associate") return "Associate";
+    return "";
+};
+
+export const getAuthModelForRole = (role: any) => {
+    const canonicalRole = normalizeAuthRole(role);
+    const models: Record<string, any> = {
+        Admin: AdminModel,
+        ProjectManager: ProjectManagerModel,
+        InventoryManager: InventoryManagerModel,
+        Operator: OperatorModel,
+        Associate: AgentModel,
+    };
+    return { canonicalRole, model: models[canonicalRole] || null };
 };
 
 const isDuplicateKeyError = (error: any) => Number(error?.code) === 11000;
@@ -154,7 +261,7 @@ const hasVerifiedOnboardingEmail = async (userDoc: any, role: "Associate" | "Ope
     return { ok: true };
 };
 
-const issueAuthCookie = (res: Response, userForToken: any, rememberMe = false) => {
+export const issueAuthCookie = (res: Response, userForToken: any, rememberMe = false) => {
     const jwtExpiresIn = rememberMe ? "24h" : "2h";
     const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
     const token = generateJWTToken(userForToken, jwtExpiresIn);
@@ -335,29 +442,12 @@ export const authenticateUser = async (req: Request, res: Response) => {
         }
 
         let user: any = null;
-        let finalRole = role;
+        let finalRole = normalizeAuthRole(role);
+        const { canonicalRole, model } = getAuthModelForRole(role);
 
-        const models: Record<string, any> = {
-            "Admin": AdminModel,
-            "admin": AdminModel,
-            "ProjectManager": ProjectManagerModel,
-            "projectmanager": ProjectManagerModel,
-            "Operator": OperatorModel,
-            "operator": OperatorModel,
-            "WarehouseOperator": OperatorModel,
-            "warehouse_operator": OperatorModel,
-            "warehouse-operator": OperatorModel,
-            "warehouseoperator": OperatorModel,
-            "Associate": AgentModel,
-            "associate": AgentModel,
-            "ActivityManager": InventoryManagerModel,
-            "activitymanager": InventoryManagerModel,
-            "Worker": OperatorModel,
-            "worker": OperatorModel,
-        };
-
-        if (role && models[role]) {
-            user = await models[role].findOne({ email });
+        if (role && model) {
+            user = await model.findOne({ email });
+            finalRole = canonicalRole;
         } else {
             user = await AdminModel.findOne({ email });
             if (user) finalRole = "Admin";
@@ -392,33 +482,43 @@ export const authenticateUser = async (req: Request, res: Response) => {
             return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
         }
 
+        if (isCooldownRole(roleLower)) {
+            const cooldownPayload = getLoginCooldownPayload(user);
+            if (cooldownPayload) {
+                res.setHeader("Retry-After", String(cooldownPayload.retryAfterSeconds));
+                return res.status(429).json(cooldownPayload);
+            }
+        }
+
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
+            if (isCooldownRole(roleLower)) {
+                const isLocked = await recordFailedPasswordAttempt(user);
+                if (isLocked) {
+                    return sendLoginCooldownResponse(res, user);
+                }
+            }
             return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        if (isCooldownRole(roleLower)) {
+            await resetLoginCooldown(user);
         }
 
         const rememberMe = Boolean(req.body.rememberMe);
         const jwtExpiresIn = rememberMe ? "24h" : "2h";
         const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
 
-        const normalizedRole =
-            roleLower === "operator"
-                ? "Operator"
-                : roleLower === "warehouse_operator" || roleLower === "warehouse-operator" || roleLower === "warehouseoperator"
-                    ? "warehouse_operator"
-                    : finalRole;
+        const normalizedRole = normalizeAuthRole(finalRole) || finalRole;
         const userForToken = {
             ...user.toObject(),
             role: normalizedRole,
             // Ensure associateCompany is included if present (for AssociateCompany scope)
             associateCompany: user.associateCompany
         };
-        const token = generateJWTToken(userForToken, jwtExpiresIn);
+        issueAuthCookie(res, userForToken, rememberMe);
         const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
         const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
-
-        res.setHeader("Cache-Control", "no-store");
-        res.cookie("auth_token", token, cookieOptions);
         logger.info("Auth cookie set", {
             route: "login",
             origin: String(req.headers.origin || ""),

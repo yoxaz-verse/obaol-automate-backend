@@ -28,13 +28,28 @@ import {
   authOnboardingLimiter,
   authRegisterLimiter,
   passwordResetLimiter,
+  passkeyLimiter,
 } from "../middlewares/rateLimiter";
+import {
+  deletePasskey,
+  generatePasskeyAuthenticationOptions,
+  generatePasskeyRegistrationOptions,
+  listPasskeys,
+  verifyPasskeyAuthentication,
+  verifyPasskeyRegistration,
+} from "../services/passkeyService";
 
 const authRoute = Router();
 
 authRoute.post("/", authLoginLimiter, authenticateUser);
 authRoute.post("/register", authRegisterLimiter, registerAssociate);
 authRoute.post("/google", authRegisterLimiter, authenticateGoogle);
+authRoute.get("/passkeys", authenticateToken, listPasskeys);
+authRoute.post("/passkeys/registration/options", passkeyLimiter, authenticateToken, generatePasskeyRegistrationOptions);
+authRoute.post("/passkeys/registration/verify", passkeyLimiter, authenticateToken, verifyPasskeyRegistration);
+authRoute.post("/passkeys/authentication/options", passkeyLimiter, generatePasskeyAuthenticationOptions);
+authRoute.post("/passkeys/authentication/verify", passkeyLimiter, verifyPasskeyAuthentication);
+authRoute.delete("/passkeys/:credentialId", passkeyLimiter, authenticateToken, deletePasskey);
 authRoute.get("/email-status", getEmailStatus);
 authRoute.get("/register/options", getRegisterOptions);
 authRoute.get("/register/companies", getRegisterCompanies);

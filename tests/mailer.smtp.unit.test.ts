@@ -76,6 +76,37 @@ describe("mailer smtp sender mapping", () => {
     );
   });
 
+  it("uses notify sender for approval notification emails", async () => {
+    process.env.BASE_URL = "https://obaol.example";
+    sendMailMock.mockResolvedValueOnce({ messageId: "approval-msg-1" });
+    const { sendApprovalNotificationEmail } = await import("../src/utils/mailer");
+
+    await sendApprovalNotificationEmail({
+      toEmail: "associate@example.com",
+      approvedName: "Approved Associate",
+      accountEmail: "associate@example.com",
+      roleLabel: "Associate",
+      loginPath: "/auth",
+    });
+
+    expect(createTransportMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: expect.objectContaining({
+          user: "no-reply@notify.obaol.com",
+        }),
+      })
+    );
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "associate@example.com",
+        from: expect.stringContaining("<no-reply@notify.obaol.com>"),
+        subject: expect.stringContaining("OBAOL Supreme"),
+        text: expect.stringContaining("https://obaol.example/auth"),
+        html: expect.stringContaining("Username / Email ID"),
+      })
+    );
+  });
+
   it("verifies smtp transport without sending mail", async () => {
     const { verifySmtpTransport } = await import("../src/utils/mailer");
 

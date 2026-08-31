@@ -50,6 +50,10 @@ export interface IOperator extends mongoose.Document {
     presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
     referralCode?: string;
     onboardingComplete?: boolean;
+    failedLoginAttempts?: number;
+    loginLockedUntil?: Date | null;
+    lastFailedLoginAt?: Date | null;
+    loginLockoutLevel?: number;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -118,6 +122,10 @@ const operatorSchema = new mongoose.Schema(
             uppercase: true,
             trim: true,
         },
+        failedLoginAttempts: { type: Number, default: 0 },
+        loginLockedUntil: { type: Date, default: null },
+        lastFailedLoginAt: { type: Date, default: null },
+        loginLockoutLevel: { type: Number, default: 0 },
     },
     {
         timestamps: true,

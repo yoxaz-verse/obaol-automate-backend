@@ -8,6 +8,10 @@ export interface IProjectManager {
   password: string;
   admin: mongoose.Schema.Types.ObjectId; // Link to Admin
   role: string; // Role of the project manager
+  failedLoginAttempts?: number;
+  loginLockedUntil?: Date | null;
+  lastFailedLoginAt?: Date | null;
+  loginLockoutLevel?: number;
 }
 
 export interface ICreateProjectManager {
@@ -23,4 +27,8 @@ export interface IUpdateProjectManager {
   password?: string;
   admin?: mongoose.Types.ObjectId;
   isActive?: boolean;
+  failedLoginAttempts?: number;
+  loginLockedUntil?: Date | null;
+  lastFailedLoginAt?: Date | null;
+  loginLockoutLevel?: number;
 }

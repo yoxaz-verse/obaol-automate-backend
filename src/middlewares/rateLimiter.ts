@@ -58,4 +58,12 @@ export const passwordResetLimiter = rateLimit({
   message: { success: false, message: "Too many password reset attempts. Please wait and try again." },
 });
 
+export const passkeyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: toPositiveInt(process.env.AUTH_PASSKEY_RATE_LIMIT_MAX, 20),
+  standardHeaders,
+  legacyHeaders,
+  message: { success: false, message: "Too many passkey attempts. Please wait and try again." },
+});
+
 export default uploadLimiter;

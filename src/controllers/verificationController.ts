@@ -8,13 +8,14 @@ import { AdminModel } from "../database/models/admin";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
 import verificationService from "../services/verification.service";
 import { toBlockedResponsePayload } from "../utils/preAuthGuard";
+import { normalizeAuthRole } from "../services/authService";
 
 export const sendOTP = async (req: Request, res: Response) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   const userAgent = req.headers["user-agent"] || "unknown";
 
   const userId = req.user?.id;
-  const userType = req.user?.role;
+  const userType = normalizeAuthRole(req.user?.role);
   const email = req.user?.email;
   const { method } = req.body;
 
@@ -41,7 +42,7 @@ export const sendOTP = async (req: Request, res: Response) => {
 
 export const verifyOTP = async (req: Request, res: Response) => {
   const userId = req.user?.id;
-  const userType = req.user?.role;
+  const userType = normalizeAuthRole(req.user?.role);
   const { code, method } = req.body;
 
   if (!userId || !userType || !method || !code) {
@@ -70,7 +71,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
 export const checkVerificationStatus = async (req: Request, res: Response) => {
   const userId = req.user?.id;
-  const userType = req.user?.role;
+  const userType = normalizeAuthRole(req.user?.role);
   const { method } = req.body;
 
   if (!userId || !method || !userType) {

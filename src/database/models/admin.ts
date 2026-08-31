@@ -9,6 +9,10 @@ interface IAdmin extends mongoose.Document {
   isActive: boolean;
   isDeleted: boolean;
   role: string;
+  failedLoginAttempts?: number;
+  loginLockedUntil?: Date | null;
+  lastFailedLoginAt?: Date | null;
+  loginLockoutLevel?: number;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -21,6 +25,10 @@ const adminSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
     role: { type: String, default: "admin" },
+    failedLoginAttempts: { type: Number, default: 0 },
+    loginLockedUntil: { type: Date, default: null },
+    lastFailedLoginAt: { type: Date, default: null },
+    loginLockoutLevel: { type: Number, default: 0 },
   },
   {
     timestamps: true,

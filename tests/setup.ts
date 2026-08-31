@@ -4,6 +4,9 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 
 let mongo: MongoMemoryServer | null = null;
 
+process.env.AUTH_LOGIN_RATE_LIMIT_MAX = process.env.AUTH_LOGIN_RATE_LIMIT_MAX || "500";
+process.env.AUTH_PASSKEY_RATE_LIMIT_MAX = process.env.AUTH_PASSKEY_RATE_LIMIT_MAX || "500";
+
 beforeAll(async () => {
   process.env.MONGOMS_IP = "127.0.0.1";
   mongo = await MongoMemoryServer.create({

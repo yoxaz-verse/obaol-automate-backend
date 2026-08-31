@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { AssociateModel } from "../../src/database/models/associate";
 import { OperatorModel } from "../../src/database/models/operator";
+import { AdminModel } from "../../src/database/models/admin";
 
 const uniqueSuffix = () => new mongoose.Types.ObjectId().toHexString();
 
@@ -40,4 +41,19 @@ export const createOperator = async (overrides: Record<string, any> = {}) => {
   };
 
   return OperatorModel.create(data);
+};
+
+export const createAdmin = async (overrides: Record<string, any> = {}) => {
+  const suffix = uniqueSuffix();
+  const data = {
+    name: `Admin ${suffix}`,
+    email: `admin.${suffix}@example.com`,
+    password: "Passw0rd!",
+    isActive: true,
+    isDeleted: false,
+    role: "admin",
+    ...overrides,
+  };
+
+  return AdminModel.create(data);
 };

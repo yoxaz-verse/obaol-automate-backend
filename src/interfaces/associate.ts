@@ -27,6 +27,10 @@ export interface IAssociate {
   authProvider?: "LOCAL" | "GOOGLE";
   googleSub?: string | null;
   googleEmailVerified?: boolean;
+  failedLoginAttempts?: number;
+  loginLockedUntil?: Date | null;
+  lastFailedLoginAt?: Date | null;
+  loginLockoutLevel?: number;
   isActive?: boolean;
   isDeleted?: boolean;
   isEmailVerified?: boolean;
@@ -74,6 +78,10 @@ export interface ICreateAssociate {
   authProvider?: "LOCAL" | "GOOGLE";
   googleSub?: string | null;
   googleEmailVerified?: boolean;
+  failedLoginAttempts?: number;
+  loginLockedUntil?: Date | null;
+  lastFailedLoginAt?: Date | null;
+  loginLockoutLevel?: number;
   isActive?: boolean;
   isDeleted?: boolean;
   isEmailVerified?: boolean;

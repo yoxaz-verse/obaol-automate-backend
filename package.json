@@ -26,6 +26,7 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/s3-request-presigner": "^3.658.1",
+    "@simplewebauthn/server": "^13.3.3",
     "argon2": "^0.41.1",
     "bcryptjs": "^2.4.3",
     "build": "^0.1.4",

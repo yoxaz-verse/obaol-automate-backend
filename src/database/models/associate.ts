@@ -66,6 +66,10 @@ const associateSchema = new mongoose.Schema(
         lastSeenAt: { type: Date, default: null, index: true },
         presenceUpdatedAt: { type: Date, default: null },
         presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
+        failedLoginAttempts: { type: Number, default: 0 },
+        loginLockedUntil: { type: Date, default: null },
+        lastFailedLoginAt: { type: Date, default: null },
+        loginLockoutLevel: { type: Number, default: 0 },
     },
     {
         timestamps: true,

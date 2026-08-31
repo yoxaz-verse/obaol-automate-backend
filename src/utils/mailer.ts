@@ -9,6 +9,7 @@ import {
 } from "./authEmailTemplates";
 
 type MailPurpose = "auth" | "notify" | "support";
+type ApprovalEmailRole = "Associate" | "Operator" | "Associate Company";
 
 const resolveSmtpSecure = (): boolean => {
   const raw = String(process.env.SMTP_SECURE || "").trim().toLowerCase();
@@ -256,5 +257,134 @@ export async function sendTradeDocumentEmail(
       "Error:", error.message
     );
     throw new Error(`Email sending failed: ${error.message}`);
+  }
+}
+
+const escapeHtml = (value: string) =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const normalizeBaseUrl = () => String(process.env.BASE_URL || "http://localhost:3000").trim().replace(/\/+$/, "");
+
+const buildApprovalHtml = (params: {
+  brandName: string;
+  roleLabel: ApprovalEmailRole;
+  approvedName: string;
+  accountEmail: string;
+  loginUrl: string;
+  supportEmail: string;
+}) => {
+  const safeBrand = escapeHtml(params.brandName);
+  const safeRole = escapeHtml(params.roleLabel);
+  const safeName = escapeHtml(params.approvedName);
+  const safeEmail = escapeHtml(params.accountEmail);
+  const safeLoginUrl = escapeHtml(params.loginUrl);
+  const safeSupport = escapeHtml(params.supportEmail);
+
+  return `
+  <div style="margin:0;padding:0;background-color:#0f1115;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f1115;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="width:100%;max-width:600px;background:#141821;border-radius:24px;overflow:hidden;border:1px solid #202534;">
+            <tr>
+              <td style="padding:28px 28px 10px 28px;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:18px;letter-spacing:2px;color:#f59e0b;">
+                  ${safeBrand}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 20px 28px;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:22px;color:#f5f7fb;margin:0 0 10px 0;">
+                  Your ${safeRole} profile has been approved
+                </div>
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#cbd5e1;">
+                  ${safeName} has been approved on ${safeBrand}. You can now sign in and continue your work from the dashboard.
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 18px 28px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#0b0e14;border:1px solid #2b3444;border-radius:16px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;margin-bottom:6px;">Username / Email ID</div>
+                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#f8fafc;font-weight:700;">${safeEmail}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:0 28px 24px 28px;">
+                <a href="${safeLoginUrl}" style="display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px;">
+                  Check out and login
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 28px 26px 28px;border-top:1px solid #202534;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#64748b;line-height:1.6;">
+                  If you have trouble signing in, contact ${safeSupport}.
+                </div>
+              </td>
+            </tr>
+          </table>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#475569;margin-top:14px;">
+            © ${safeBrand}
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+  `;
+};
+
+export async function sendApprovalNotificationEmail(params: {
+  toEmail: string;
+  approvedName: string;
+  accountEmail: string;
+  roleLabel: ApprovalEmailRole;
+  loginPath?: string;
+}) {
+  const brandName = "OBAOL Supreme";
+  const supportEmail = "info@support.obaol.com";
+  const baseUrl = normalizeBaseUrl();
+  const loginPath = String(params.loginPath || "/auth").startsWith("/")
+    ? String(params.loginPath || "/auth")
+    : `/${params.loginPath}`;
+  const loginUrl = `${baseUrl}${loginPath}`;
+  const subject = `${brandName} ${params.roleLabel} approval confirmed`;
+  const textPart = [
+    `${params.approvedName} has been approved on ${brandName}.`,
+    `Username / Email ID: ${params.accountEmail}`,
+    `Check out and login: ${loginUrl}`,
+    `Support: ${supportEmail}`,
+  ].join("\n");
+
+  try {
+    const result = await sendEmail("notify", {
+      toEmail: params.toEmail,
+      subject,
+      textPart,
+      htmlPart: buildApprovalHtml({
+        brandName,
+        roleLabel: params.roleLabel,
+        approvedName: params.approvedName,
+        accountEmail: params.accountEmail,
+        loginUrl,
+        supportEmail,
+      }),
+      fromNameOverride: `${brandName} Notifications`,
+    });
+    console.log("✅ Approval notification email sent. MessageId:", result.messageId);
+  } catch (error: any) {
+    console.error("❌ Failed to send approval notification email to:", params.toEmail, "Error:", error.message);
+    throw new Error(`Approval notification email failed: ${error.message}`);
   }
 }

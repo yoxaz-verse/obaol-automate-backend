@@ -388,3 +388,115 @@ export async function sendApprovalNotificationEmail(params: {
     throw new Error(`Approval notification email failed: ${error.message}`);
   }
 }
+
+const buildOperationalHtml = (params: {
+  brandName: string;
+  title: string;
+  moduleLabel: string;
+  summary: string;
+  reference?: string;
+  dashboardUrl: string;
+  supportEmail: string;
+}) => {
+  const safeBrand = escapeHtml(params.brandName);
+  const safeTitle = escapeHtml(params.title);
+  const safeModule = escapeHtml(params.moduleLabel);
+  const safeSummary = escapeHtml(params.summary);
+  const safeReference = escapeHtml(params.reference || "");
+  const safeDashboardUrl = escapeHtml(params.dashboardUrl);
+  const safeSupport = escapeHtml(params.supportEmail);
+
+  return `
+  <div style="margin:0;padding:0;background-color:#0f1115;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f1115;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="width:100%;max-width:600px;background:#141821;border-radius:20px;overflow:hidden;border:1px solid #202534;">
+            <tr>
+              <td style="padding:26px 28px 8px 28px;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:16px;letter-spacing:2px;color:#f59e0b;">${safeBrand}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 20px 28px;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:21px;color:#f5f7fb;margin:0 0 10px 0;">${safeTitle}</div>
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#cbd5e1;">${safeSummary}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 18px 28px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#0b0e14;border:1px solid #2b3444;border-radius:14px;">
+                  <tr>
+                    <td style="padding:14px 16px;">
+                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;margin-bottom:5px;">Module</div>
+                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#f8fafc;font-weight:700;">${safeModule}</div>
+                      ${safeReference ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;margin-top:10px;">Reference: ${safeReference}</div>` : ""}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:0 28px 24px 28px;">
+                <a href="${safeDashboardUrl}" style="display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px;">Open dashboard</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 28px 24px 28px;border-top:1px solid #202534;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#64748b;line-height:1.6;">Support: ${safeSupport}</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+  `;
+};
+
+export async function sendOperationalNotificationEmail(params: {
+  toEmail: string;
+  title: string;
+  moduleLabel: string;
+  summary: string;
+  route: string;
+  reference?: string;
+}) {
+  const brandName = "OBAOL Supreme";
+  const supportEmail = "info@support.obaol.com";
+  const baseUrl = normalizeBaseUrl();
+  const route = String(params.route || "/dashboard/notifications").startsWith("/")
+    ? String(params.route || "/dashboard/notifications")
+    : `/${params.route}`;
+  const dashboardUrl = `${baseUrl}${route}`;
+  const subject = `${brandName}: ${params.title}`;
+  const textPart = [
+    params.summary,
+    `Module: ${params.moduleLabel}`,
+    params.reference ? `Reference: ${params.reference}` : "",
+    `Open dashboard: ${dashboardUrl}`,
+    `Support: ${supportEmail}`,
+  ].filter(Boolean).join("\n");
+
+  try {
+    const result = await sendEmail("notify", {
+      toEmail: params.toEmail,
+      subject,
+      textPart,
+      htmlPart: buildOperationalHtml({
+        brandName,
+        title: params.title,
+        moduleLabel: params.moduleLabel,
+        summary: params.summary,
+        reference: params.reference,
+        dashboardUrl,
+        supportEmail,
+      }),
+      fromNameOverride: `${brandName} Notifications`,
+    });
+    console.log("✅ Operational notification email sent. MessageId:", result.messageId);
+  } catch (error: any) {
+    console.error("❌ Failed to send operational notification email to:", params.toEmail, "Error:", error.message);
+    throw new Error(`Operational notification email failed: ${error.message}`);
+  }
+}

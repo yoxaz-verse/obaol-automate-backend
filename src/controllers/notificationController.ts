@@ -14,7 +14,9 @@ export class NotificationController {
     approvals: "/dashboard/approvals",
     enquiries: "/dashboard/enquiries",
     orders: "/dashboard/orders",
+    inventory: "/dashboard/inventory",
     execution: "/dashboard/execution-enquiries",
+    bidding: "/dashboard/execution-enquiries",
   };
 
   async list(req: Request, res: Response) {
@@ -66,7 +68,7 @@ export class NotificationController {
         recipientUserId: new mongoose.Types.ObjectId(userId),
         isRead: false,
       })
-        .select("route")
+        .select("route type")
         .lean();
 
       const summary = {
@@ -74,14 +76,19 @@ export class NotificationController {
         approvals: 0,
         enquiries: 0,
         orders: 0,
+        inventory: 0,
         execution: 0,
+        bidding: 0,
       };
 
       unreadRows.forEach((row: any) => {
         const route = String(row?.route || "");
+        const type = String(row?.type || "");
         if (route.startsWith(this.sectionPrefixes.approvals)) summary.approvals += 1;
         else if (route.startsWith(this.sectionPrefixes.enquiries)) summary.enquiries += 1;
         else if (route.startsWith(this.sectionPrefixes.orders)) summary.orders += 1;
+        else if (route.startsWith(this.sectionPrefixes.inventory)) summary.inventory += 1;
+        else if (route.startsWith(this.sectionPrefixes.execution) && type.startsWith("BID_")) summary.bidding += 1;
         else if (route.startsWith(this.sectionPrefixes.execution)) summary.execution += 1;
         else summary.notifications += 1;
       });
@@ -109,7 +116,10 @@ export class NotificationController {
         isRead: false,
       };
 
-      if (section !== "notifications") {
+      if (section === "bidding") {
+        query.type = { $regex: "^BID_" };
+        query.route = { $regex: `^${this.sectionPrefixes.bidding}` };
+      } else if (section !== "notifications") {
         const prefix = this.sectionPrefixes[section];
         query.route = { $regex: `^${prefix}` };
       }

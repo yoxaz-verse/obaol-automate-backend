@@ -154,8 +154,6 @@ const OrderSchema: Schema = new Schema(
 );
 
 OrderSchema.index({ status: 1 });
-OrderSchema.index({ isExternal: 1 });
-OrderSchema.index({ externalCreatedBy: 1 });
 OrderSchema.index({ commissionProcessedAt: 1 });
 OrderSchema.index({ closedByOperator: 1 });
 OrderSchema.index({ associateCompanyId: 1 });

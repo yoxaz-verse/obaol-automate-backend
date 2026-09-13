@@ -4,6 +4,9 @@ import { InventoryReservationModel } from "../../database/models/inventoryReserv
 import { InventoryModel } from "../../database/models/inventory";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { AssociateModel } from "../../database/models/associate";
+import { notificationService } from "../../services/notificationService";
+import { operationalNotificationService } from "../../services/operationalNotificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../../constants/notificationTypes";
 
 const EMPTY_QUERY = { _id: "000000000000000000000000" };
 
@@ -114,6 +117,13 @@ export const inventoryReservationPreWriteHook: HookFunction = async (payload, mo
     }
 
     if (mode === ExecutionMode.UPDATE) {
+        if (_id && Types.ObjectId.isValid(String(_id))) {
+            const previous = await InventoryReservationModel.findById(_id)
+                .select("_id status inventoryId orderId enquiryId associateCompany quantity")
+                .lean();
+            req.__notificationCtx = req.__notificationCtx || {};
+            req.__notificationCtx.inventoryReservationPrev = previous || null;
+        }
         const nextPayload = { ...(payload || {}) };
         if (nextPayload.status === "RELEASED") {
             nextPayload.releasedAt = new Date();
@@ -125,4 +135,60 @@ export const inventoryReservationPreWriteHook: HookFunction = async (payload, mo
     }
 
     return payload;
+};
+
+export const inventoryReservationNotificationPostWriteHook = async (
+    entityName: string,
+    result: any,
+    mode: ExecutionMode,
+    req?: any
+) => {
+    if (entityName !== "inventory-reservations" || !result?._id) return;
+
+    const previousStatus = String(req?.__notificationCtx?.inventoryReservationPrev?.status || "").toUpperCase();
+    const currentStatus = String(result?.status || "").toUpperCase();
+    if (!currentStatus) return;
+    if (mode === ExecutionMode.UPDATE && previousStatus === currentStatus) return;
+    if (mode !== ExecutionMode.CREATE && mode !== ExecutionMode.UPDATE) return;
+
+    const typeByStatus: Record<string, string> = {
+        RESERVED: NotificationTypes.INVENTORY_RESERVED,
+        RELEASED: NotificationTypes.INVENTORY_RELEASED,
+        CONSUMED: NotificationTypes.INVENTORY_CONSUMED,
+    };
+    const titleByStatus: Record<string, string> = {
+        RESERVED: "Inventory reserved",
+        RELEASED: "Inventory released",
+        CONSUMED: "Inventory consumed",
+    };
+    const messageByStatus: Record<string, string> = {
+        RESERVED: `Inventory quantity ${Number(result?.quantity || 0)} ${result?.unit || "MT"} has been reserved for an inquiry.`,
+        RELEASED: `Reserved inventory quantity ${Number(result?.quantity || 0)} ${result?.unit || "MT"} has been released.`,
+        CONSUMED: `Reserved inventory quantity ${Number(result?.quantity || 0)} ${result?.unit || "MT"} has been consumed for an order.`,
+    };
+
+    const notificationType = typeByStatus[currentStatus];
+    if (!notificationType) return;
+
+    const recipients = await notificationService.buildInventoryRecipients(result);
+    await operationalNotificationService.dispatch({
+        recipientMap: recipients,
+        actorId: req?.user?.id || null,
+        type: notificationType,
+        title: titleByStatus[currentStatus],
+        message: messageByStatus[currentStatus],
+        entityType: NotificationEntityTypes.INVENTORY,
+        entityId: result.inventoryId || result._id,
+        route: "/dashboard/inventory",
+        payload: {
+            inventoryReservationId: result._id,
+            inventoryId: result.inventoryId,
+            orderId: result.orderId || null,
+            enquiryId: result.enquiryId || null,
+            status: currentStatus,
+        },
+        priority: currentStatus === "CONSUMED" ? "high" : "medium",
+        moduleLabel: "Inventory",
+        reference: String(result?._id || ""),
+    });
 };

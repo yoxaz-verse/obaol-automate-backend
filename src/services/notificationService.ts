@@ -1,7 +1,11 @@
 import mongoose from "mongoose";
 import { AdminModel } from "../database/models/admin";
+import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { InventoryModel } from "../database/models/inventory";
 import { NotificationModel } from "../database/models/notification";
+import { OperatorModel } from "../database/models/operator";
+import { OrderModel } from "../database/models/order";
 
 type RecipientRole = "Admin" | "Operator" | "Associate";
 
@@ -11,7 +15,7 @@ type CreateNotificationParams = {
   type: string;
   title: string;
   message: string;
-  entityType: "INQUIRY" | "ORDER" | "VARIANT_RATE" | "APPROVAL" | "SYSTEM";
+  entityType: "INQUIRY" | "ORDER" | "INVENTORY" | "VARIANT_RATE" | "APPROVAL" | "SYSTEM";
   entityId: any;
   route: string;
   payload?: Record<string, any>;
@@ -48,12 +52,89 @@ class NotificationService {
 
   async buildInquiryRecipients(inquiry: any) {
     const map = new Map<string, RecipientRole>();
+    await this.addInquiryRelatedRecipients(map, inquiry);
+    await this.addAdmins(map);
+    return map;
+  }
+
+  async buildInquiryRelatedRecipients(inquiry: any) {
+    const map = new Map<string, RecipientRole>();
+    await this.addInquiryRelatedRecipients(map, inquiry);
+    return map;
+  }
+
+  private async addInquiryRelatedRecipients(map: Map<string, RecipientRole>, inquiry: any) {
     this.addRecipient(map, inquiry?.buyerAssociateId, "Associate");
     this.addRecipient(map, inquiry?.sellerAssociateId, "Associate");
     this.addRecipient(map, inquiry?.mediatorAssociateId, "Associate");
     this.addRecipient(map, inquiry?.supplierOperatorId, "Operator");
     this.addRecipient(map, inquiry?.dealCloserOperatorId, "Operator");
-    await this.addAdmins(map);
+    this.addRecipient(map, inquiry?.handlerOperatorId, "Operator");
+    this.addRecipient(map, inquiry?.pendingHandlerOperatorId, "Operator");
+  }
+
+  async buildInventoryRecipients(inventoryOrReservation: any) {
+    const map = new Map<string, RecipientRole>();
+    const inventory = inventoryOrReservation?.inventoryId?._id
+      ? inventoryOrReservation.inventoryId
+      : inventoryOrReservation?.inventoryId
+      ? await InventoryModel.findById(inventoryOrReservation.inventoryId).select("associate associateCompany").lean()
+        : inventoryOrReservation;
+
+    this.addRecipient(map, inventory?.associate, "Associate");
+
+    const companyId = this.normalizeId(inventoryOrReservation?.associateCompany || inventory?.associateCompany);
+    if (companyId) {
+      const company = await AssociateCompanyModel.findById(companyId).select("supervisor assignedOperator").lean();
+      this.addRecipient(map, (company as any)?.supervisor, "Associate");
+      this.addRecipient(map, (company as any)?.assignedOperator, "Operator");
+    }
+    return map;
+  }
+
+  async buildOrderRecipients(orderInput: any) {
+    const map = new Map<string, RecipientRole>();
+    const orderId = this.normalizeId(orderInput?._id || orderInput);
+    const order = orderId
+      ? await OrderModel.findById(orderId).populate("enquiry").lean()
+      : orderInput;
+
+    if (order?.enquiry) {
+      await this.addInquiryRelatedRecipients(map, order.enquiry);
+    }
+    this.addRecipient(map, order?.supplierOperatorId, "Operator");
+    this.addRecipient(map, order?.dealCloserOperatorId, "Operator");
+    this.addRecipient(map, order?.procurementOperatorId, "Operator");
+    this.addRecipient(map, order?.handlerOperatorId, "Operator");
+
+    const companyId = this.normalizeId(order?.associateCompanyId);
+    if (companyId) {
+      const company = await AssociateCompanyModel.findById(companyId).select("supervisor assignedOperator").lean();
+      this.addRecipient(map, (company as any)?.supervisor, "Associate");
+      this.addRecipient(map, (company as any)?.assignedOperator, "Operator");
+    }
+    return map;
+  }
+
+  async buildExecutionBidRecipients(inquiry: any, task: any, bidCompanyId?: any, committedProviderId?: any) {
+    const map = await this.buildInquiryRelatedRecipients(inquiry);
+    const companyIds = Array.from(
+      new Set(
+        [bidCompanyId, committedProviderId, task?.committedProvider, ...(Array.isArray(task?.candidateProviders) ? task.candidateProviders : [])]
+          .map((id: any) => this.normalizeId(id))
+          .filter(Boolean) as string[]
+      )
+    );
+
+    if (companyIds.length) {
+      const companies = await AssociateCompanyModel.find({ _id: { $in: companyIds } })
+        .select("supervisor assignedOperator")
+        .lean();
+      companies.forEach((company: any) => {
+        this.addRecipient(map, company.supervisor, "Associate");
+        this.addRecipient(map, company.assignedOperator, "Operator");
+      });
+    }
     return map;
   }
 
@@ -86,6 +167,39 @@ class NotificationService {
     }));
     if (!docs.length) return [];
     return NotificationModel.insertMany(docs);
+  }
+
+  async getRecipientEmails(recipientMap: Map<string, RecipientRole>) {
+    const rows = Array.from(recipientMap.entries());
+    const idsByRole = rows.reduce<Record<RecipientRole, string[]>>(
+      (acc, [id, role]) => {
+        acc[role].push(id);
+        return acc;
+      },
+      { Admin: [], Associate: [], Operator: [] }
+    );
+
+    const [admins, associates, operators] = await Promise.all([
+      idsByRole.Admin.length
+        ? AdminModel.find({ _id: { $in: idsByRole.Admin } }).select("_id email").lean()
+        : Promise.resolve([]),
+      idsByRole.Associate.length
+        ? AssociateModel.find({ _id: { $in: idsByRole.Associate } }).select("_id email").lean()
+        : Promise.resolve([]),
+      idsByRole.Operator.length
+        ? OperatorModel.find({ _id: { $in: idsByRole.Operator } }).select("_id email").lean()
+        : Promise.resolve([]),
+    ]);
+
+    const emailById = new Map<string, string>();
+    [...admins, ...associates, ...operators].forEach((row: any) => {
+      const email = String(row?.email || "").trim();
+      if (email) emailById.set(String(row._id), email);
+    });
+
+    return rows
+      .map(([id, role]) => ({ id, role, email: emailById.get(id) || "" }))
+      .filter((row) => row.email);
   }
 
   async listForUser(

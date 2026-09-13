@@ -41,6 +41,7 @@ import { PaymentTermModel } from "../database/models/paymentTerm";
 import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { notificationService } from "../services/notificationService";
+import { operationalNotificationService } from "../services/operationalNotificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { TradeDocumentController } from "./tradeDocumentController";
 
@@ -1844,6 +1845,9 @@ export class InquiryController {
             }
 
             const task = tasks[idx];
+            let bidNotificationType: string | null = null;
+            let bidNotificationCompanyId: string | null = null;
+            let awardedProviderId: string | null = null;
             const ownerBy = String(task.ownerBy || "").toLowerCase();
             const requiredOperatorPerspective: "buyer" | "supplier" | "any" =
                 ownerBy === "buyer" ? "buyer" : ownerBy === "seller" ? "supplier" : "any";
@@ -1955,6 +1959,8 @@ export class InquiryController {
                 const existingBidIndex = bidRows.findIndex(
                     (bid: any) => String(bid?.company?._id || bid?.company || "") === biddingCompanyId
                 );
+                bidNotificationType = existingBidIndex >= 0 ? NotificationTypes.BID_UPDATED : NotificationTypes.BID_SUBMITTED;
+                bidNotificationCompanyId = biddingCompanyId;
                 const now = new Date();
                 const bidPayload = {
                     company: biddingCompanyId,
@@ -2007,6 +2013,7 @@ export class InquiryController {
                 }
 
                 task.committedProvider = committedProviderId;
+                awardedProviderId = committedProviderId;
                 const bidRows = Array.isArray(task.bids) ? task.bids : [];
                 task.bids = bidRows.map((bid: any) => {
                     const bidCompanyId = String(bid?.company?._id || bid?.company || "");
@@ -2050,6 +2057,54 @@ export class InquiryController {
                     }
                 }
             );
+
+            try {
+                if (bidNotificationType && bidNotificationCompanyId) {
+                    const recipients = await notificationService.buildExecutionBidRecipients(inquiry as any, task, bidNotificationCompanyId);
+                    await operationalNotificationService.dispatch({
+                        recipientMap: recipients,
+                        actorId: req.user?.id || null,
+                        type: bidNotificationType,
+                        title: bidNotificationType === NotificationTypes.BID_SUBMITTED ? "Bid submitted" : "Bid updated",
+                        message: `${normalizedType} bid has been ${bidNotificationType === NotificationTypes.BID_SUBMITTED ? "submitted" : "updated"}.`,
+                        entityType: NotificationEntityTypes.INQUIRY,
+                        entityId: inquiry._id,
+                        route: "/dashboard/execution-enquiries",
+                        payload: {
+                            inquiryId: inquiry._id,
+                            executionType: normalizedType,
+                            bidCompanyId: bidNotificationCompanyId,
+                        },
+                        priority: "medium",
+                        moduleLabel: "Bidding",
+                        reference: String(inquiry._id || ""),
+                    });
+                }
+
+                if (awardedProviderId) {
+                    const recipients = await notificationService.buildExecutionBidRecipients(inquiry as any, task, awardedProviderId, awardedProviderId);
+                    await operationalNotificationService.dispatch({
+                        recipientMap: recipients,
+                        actorId: req.user?.id || null,
+                        type: NotificationTypes.BID_AWARDED,
+                        title: "Bid awarded",
+                        message: `${normalizedType} bid has been awarded to a provider.`,
+                        entityType: NotificationEntityTypes.INQUIRY,
+                        entityId: inquiry._id,
+                        route: "/dashboard/execution-enquiries",
+                        payload: {
+                            inquiryId: inquiry._id,
+                            executionType: normalizedType,
+                            bidCompanyId: awardedProviderId,
+                        },
+                        priority: "high",
+                        moduleLabel: "Bidding",
+                        reference: String(inquiry._id || ""),
+                    });
+                }
+            } catch (error: any) {
+                console.warn("[operational-notification] Failed to notify execution bidding update:", error?.message || error);
+            }
 
             return res.json({
                 success: true,

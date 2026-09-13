@@ -26,12 +26,18 @@ import { variantRateMarketplaceQueryHook } from "./variantRateMarketplaceQueryHo
 import { inventoryVariantRateSyncHook } from "./inventoryVariantRateSyncHook";
 import { inventoryWarehouseSelectionHook } from "./inventoryWarehouseSelectionHook";
 import { variantRateInventoryLinkHook } from "./variantRateInventoryLinkHook";
-import { inventoryReservationPreReadHook, inventoryReservationPreWriteHook } from "./inventoryReservationHooks";
+import { inventoryReservationNotificationPostWriteHook, inventoryReservationPreReadHook, inventoryReservationPreWriteHook } from "./inventoryReservationHooks";
 import { orderInventoryReservationHook } from "./orderInventoryReservationHook";
 import { enquiryInventoryReservationHook } from "./enquiryInventoryReservationHook";
 import { associateCompanyDirectoryFiltersHook } from "./associateCompanyDirectoryFiltersHook";
 import { productClassificationPreReadHook, productClassificationPreWriteHook } from "./productClassificationHook";
 import { associateCompanyPendingLabPreWriteHook } from "./pendingListingHooks";
+import {
+    inventoryNotificationPostWriteHook,
+    inventoryNotificationPreWriteHook,
+    orderNotificationPostWriteHook,
+    orderNotificationPreWriteHook,
+} from "./operationalNotificationHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Operators (Overseers)
@@ -101,17 +107,30 @@ export const registerAllHooks = () => {
         return nextPayload;
     });
     HookDispatcher.registerPreWrite("operators", operatorMentorValidationHook);
-    HookDispatcher.registerPreWrite("orders", orderCommissionPreWriteHook);
+    HookDispatcher.registerPreWrite("orders", async (payload, mode, id, req) => {
+        let nextPayload = await orderNotificationPreWriteHook(payload, mode, id, req);
+        nextPayload = await orderCommissionPreWriteHook(nextPayload, mode, id, req);
+        return nextPayload;
+    });
     HookDispatcher.registerPreWrite("products", productClassificationPreWriteHook);
     HookDispatcher.registerPreRead("organization-reports", organizationReportPreReadHook);
     HookDispatcher.registerPreWrite("organization-reports", organizationReportPreWriteHook);
-    HookDispatcher.registerPostWrite("orders", async (entityName: any, result: any, mode: any) => {
+    HookDispatcher.registerPostWrite("orders", async (entityName: any, result: any, mode: any, req: any) => {
+        await orderNotificationPostWriteHook(entityName, result, mode, req);
         await orderCommissionPostWriteHook(entityName, result, mode);
-        await orderInventoryReservationHook(entityName, result, mode);
+        await orderInventoryReservationHook(entityName, result, mode, req);
     });
     HookDispatcher.registerPostRead("company-functions", companyFunctionReadHook);
-    HookDispatcher.registerPreWrite("inventories", inventoryWarehouseSelectionHook);
-    HookDispatcher.registerPostWrite("inventories", inventoryVariantRateSyncHook);
+    HookDispatcher.registerPreWrite("inventories", async (payload, mode, id, req) => {
+        let nextPayload = await inventoryNotificationPreWriteHook(payload, mode, id, req);
+        nextPayload = await inventoryWarehouseSelectionHook(nextPayload, mode, id, req);
+        return nextPayload;
+    });
+    HookDispatcher.registerPostWrite("inventories", async (entityName: any, result: any, mode: any, req: any) => {
+        await inventoryNotificationPostWriteHook(entityName, result, mode, req);
+        await inventoryVariantRateSyncHook(entityName, result, mode);
+    });
     HookDispatcher.registerPreRead("inventory-reservations", inventoryReservationPreReadHook);
     HookDispatcher.registerPreWrite("inventory-reservations", inventoryReservationPreWriteHook);
+    HookDispatcher.registerPostWrite("inventory-reservations", inventoryReservationNotificationPostWriteHook);
 };

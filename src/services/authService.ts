@@ -1444,7 +1444,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
         let operatorDoc: any = operator;
         let associateDoc: any = associate;
 
-        if (operatorDoc && isDraftWithinWindow(operatorDoc, false)) {
+        if (role === "Operator" && operatorDoc && isDraftWithinWindow(operatorDoc, false)) {
             await Promise.all([
                 OperatorModel.deleteOne({ _id: operatorDoc._id }),
                 VerificationModel.deleteMany({ userId: String(operatorDoc._id) }),
@@ -1452,7 +1452,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
             operatorDoc = null;
         }
 
-        if (associateDoc && isDraftWithinWindow(associateDoc, true)) {
+        if (role === "Associate" && associateDoc && isDraftWithinWindow(associateDoc, true)) {
             await Promise.all([
                 AgentModel.deleteOne({ _id: associateDoc._id }),
                 VerificationModel.deleteMany({ userId: String(associateDoc._id) }),
@@ -1465,8 +1465,14 @@ export const startOnboarding = async (req: Request, res: Response) => {
             return res.status(403).json(blockedPayload);
         }
 
-        if (admin || projectManager || inventoryManager || operatorDoc || associateDoc) {
-            return res.status(409).json({ success: false, message: "Account already exists — sign in." });
+        const existingRole = admin ? "Admin"
+            : projectManager ? "ProjectManager"
+            : inventoryManager ? "InventoryManager"
+            : operatorDoc ? "Operator"
+            : associateDoc ? "Associate"
+            : null;
+        if (existingRole) {
+            return res.status(409).json({ success: false, message: "Account already exists — sign in.", role: existingRole });
         }
 
         const displayName = deriveDisplayName(emailRaw);

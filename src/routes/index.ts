@@ -64,6 +64,9 @@ import tradeDirectoryRoutes from "./v1/tradeDirectoryRoutes";
 router.use(`${prefix}`, tradeDirectoryRoutes);
 logRouteMount(`[routes] mounted ${prefix}/trade-directory`);
 
+import commercialDocumentRoutes from "./v1/commercialDocuments";
+router.use(`${prefix}/commercial-documents`, commercialDocumentRoutes);
+
 // Trade documents
 import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";
 router.use(`${prefix}/trade-documents`, tradeDocumentRoutes);

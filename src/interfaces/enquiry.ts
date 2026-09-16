@@ -137,7 +137,7 @@ export interface IInquiry extends Document {
   executionInquiries?: Array<{
     type: "PROCUREMENT" | "CERTIFICATION" | "TRANSPORTATION" | "SHIPPING" | "PACKAGING" | "QUALITY_TESTING" | "WAREHOUSE";
     ownerBy: "buyer" | "seller" | "obaol";
-    status: "OPEN" | "IN_PROGRESS" | "COMPLETED";
+    status: "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
     title: string;
     details?: {
       tradeType?: "DOMESTIC" | "INTERNATIONAL";
@@ -156,7 +156,7 @@ export interface IInquiry extends Document {
       company: Types.ObjectId | string;
       amount?: number;
       note?: string;
-      status?: "OPEN" | "SUBMITTED" | "WITHDRAWN" | "AWARDED";
+      status?: "OPEN" | "SUBMITTED" | "WITHDRAWN" | "AWARDED" | "NOT_SELECTED";
       createdBy?: Types.ObjectId | string | null;
       createdAt?: Date;
       updatedAt?: Date;
@@ -165,6 +165,7 @@ export interface IInquiry extends Document {
     bidAmount?: number;
     commitNote?: string;
     committedAt?: Date | null;
+    candidateMatchLevel?: "district" | "state" | "country" | "capability_fallback";
     createdAt: Date;
   }>;
 

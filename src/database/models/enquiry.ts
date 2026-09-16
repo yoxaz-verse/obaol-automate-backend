@@ -292,7 +292,7 @@ const InquirySchema: Schema = new Schema(
                 },
                 status: {
                     type: String,
-                    enum: ["OPEN", "IN_PROGRESS", "COMPLETED"],
+                    enum: ["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
                     default: "OPEN"
                 },
                 title: { type: String, required: true },
@@ -314,7 +314,7 @@ const InquirySchema: Schema = new Schema(
                         company: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true },
                         amount: { type: Number, default: null },
                         note: { type: String, default: null },
-                        status: { type: String, enum: ["OPEN", "SUBMITTED", "WITHDRAWN", "AWARDED"], default: "SUBMITTED" },
+                        status: { type: String, enum: ["OPEN", "SUBMITTED", "WITHDRAWN", "AWARDED", "NOT_SELECTED"], default: "SUBMITTED" },
                         createdBy: { type: Schema.Types.ObjectId, ref: "Associate", default: null },
                         createdAt: { type: Date, default: Date.now },
                         updatedAt: { type: Date, default: Date.now }
@@ -324,6 +324,11 @@ const InquirySchema: Schema = new Schema(
                 bidAmount: { type: Number, default: null },
                 commitNote: { type: String, default: null },
                 committedAt: { type: Date, default: null },
+                candidateMatchLevel: {
+                    type: String,
+                    enum: ["district", "state", "country", "capability_fallback"],
+                    default: "capability_fallback"
+                },
                 createdAt: { type: Date, default: Date.now }
             }
         ],
@@ -429,6 +434,7 @@ const InquirySchema: Schema = new Schema(
     },
     {
         timestamps: true,
+        optimisticConcurrency: true,
         toJSON: { virtuals: true },
         toObject: { virtuals: true },
     }

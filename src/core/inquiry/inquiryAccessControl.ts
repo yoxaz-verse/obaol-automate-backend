@@ -161,6 +161,18 @@ export function filterInquiryFields(
         dealCloserOperatorAssigned: Boolean(getAttrId((inquiry as any)?.dealCloserOperatorId)),
         handlerOperatorAssigned: Boolean(getAttrId((inquiry as any)?.handlerOperatorId)),
     };
+    const redactExecutionBids = (tasks: any[], ownCompanyId?: unknown, providerOnly = false) =>
+        (Array.isArray(tasks) ? tasks : [])
+            .filter((task: any) => !providerOnly || (task.candidateProviders || []).some(
+                (provider: any) => getAttrId(provider) === String(ownCompanyId || "")
+            ))
+            .map((task: any) => ({
+                ...task,
+                candidateProviders: undefined,
+                bids: (task.bids || []).filter(
+                    (bid: any) => ownCompanyId && getAttrId(bid?.company) === String(ownCompanyId)
+                ),
+            }));
 
     // Admin: full access
     if (userRole === UserRole.ADMIN || roleLower === "admin") {
@@ -240,6 +252,7 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 ...assignmentVisibility,
+                executionInquiries: redactExecutionBids((safeFields as any).executionInquiries),
                 // Explicitly exclude sensitive fields and counterparties
                 notes: undefined,
                 supplierOperatorId: undefined,
@@ -265,6 +278,7 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 ...assignmentVisibility,
+                executionInquiries: redactExecutionBids((safeFields as any).executionInquiries),
                 notes: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
@@ -290,6 +304,7 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 ...assignmentVisibility,
+                executionInquiries: redactExecutionBids((safeFields as any).executionInquiries),
                 notes: undefined,
                 supplierOperatorId: undefined,
                 dealCloserOperatorId: undefined,
@@ -314,6 +329,7 @@ export function filterInquiryFields(
             return {
                 ...safeFields,
                 ...assignmentVisibility,
+                executionInquiries: redactExecutionBids((safeFields as any).executionInquiries, associateCompanyId, true),
                 notes: undefined,
                 buyerAssociateId: undefined,
                 sellerAssociateId: undefined,

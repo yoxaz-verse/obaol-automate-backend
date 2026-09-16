@@ -28,6 +28,7 @@ router.get("/", inquiryController.list.bind(inquiryController));
  */
 router.get("/sea-ports", inquiryController.listSeaPorts.bind(inquiryController));
 router.get("/buyer-options", inquiryController.listBuyerOptions.bind(inquiryController));
+router.get("/execution-bids", inquiryController.listExecutionBids.bind(inquiryController));
 
 /**
  * Get inquiry by ID

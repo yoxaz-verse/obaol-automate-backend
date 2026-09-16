@@ -44,6 +44,14 @@ import { notificationService } from "../services/notificationService";
 import { operationalNotificationService } from "../services/operationalNotificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { TradeDocumentController } from "./tradeDocumentController";
+import { requestTypeToCapabilityAliases } from "../utils/companyCapabilities";
+import {
+    getExecutionSubflowType,
+    isPositiveFiniteBid,
+    MAX_BID_NOTE_LENGTH,
+    ProviderMatchLevel,
+    resolveBiddingPhase,
+} from "../utils/executionBidding";
 
 /**
  * Inquiry Controller
@@ -102,15 +110,31 @@ export class InquiryController {
         return canOperatorActOnPerspective(inquiry, req.user!.id, required);
     }
 
-    private async getCapabilityMatchedProviderIds(type: string): Promise<string[]> {
+    private async getCapabilityMatchedProviders(type: string, route: {
+        districtIds?: unknown[];
+        stateIds?: unknown[];
+        countryIds?: unknown[];
+    }): Promise<{ ids: string[]; matchLevel: ProviderMatchLevel }> {
+        const capabilities = requestTypeToCapabilityAliases(type);
         const rows = await AssociateCompanyModel.find({
             isDeleted: { $ne: true },
-            serviceCapabilities: { $in: [String(type || "").toUpperCase()] },
+            isApproved: true,
+            serviceCapabilities: { $in: capabilities.length ? capabilities : [String(type || "").toUpperCase()] },
         })
-            .select("_id")
+            .select("_id district state country")
             .limit(5000)
             .lean();
-        return rows.map((row: any) => String(row._id));
+        const match = (field: "district" | "state" | "country", targets: unknown[] = []) => {
+            const targetIds = new Set(targets.map((target) => String(target || "")).filter((id) => Types.ObjectId.isValid(id)));
+            return targetIds.size ? rows.filter((row: any) => targetIds.has(String(row?.[field] || ""))) : [];
+        };
+        const districtRows = match("district", route.districtIds);
+        if (districtRows.length) return { ids: districtRows.map((row: any) => String(row._id)), matchLevel: "district" };
+        const stateRows = match("state", route.stateIds);
+        if (stateRows.length) return { ids: stateRows.map((row: any) => String(row._id)), matchLevel: "state" };
+        const countryRows = match("country", route.countryIds);
+        if (countryRows.length) return { ids: countryRows.map((row: any) => String(row._id)), matchLevel: "country" };
+        return { ids: rows.map((row: any) => String(row._id)), matchLevel: "capability_fallback" };
     }
 
     /**
@@ -1715,13 +1739,18 @@ export class InquiryController {
             const operatorExecutionSeed = executionInquirySeed.filter((task: any) => String(task?.ownerBy || "").toLowerCase() === "obaol");
 
             const candidateSets = await Promise.all(
-                operatorExecutionSeed.map((x: any) => this.getCapabilityMatchedProviderIds(x.type))
+                operatorExecutionSeed.map((x: any) => this.getCapabilityMatchedProviders(x.type, {
+                    districtIds: [mergedContext.originDistrict, mergedContext.destinationDistrict],
+                    stateIds: [mergedContext.originState, mergedContext.destinationState],
+                    countryIds: [mergedContext.originCountry, mergedContext.destinationCountry],
+                }))
             );
 
             const executionInquiries = operatorExecutionSeed.map((x: any, index: number) => ({
                 ...x,
                 status: "OPEN" as const,
-                candidateProviders: candidateSets[index] || [],
+                candidateProviders: candidateSets[index]?.ids || [],
+                candidateMatchLevel: candidateSets[index]?.matchLevel || "capability_fallback",
                 bids: [],
                 committedProvider: null,
                 createdAt: new Date()
@@ -1813,7 +1842,7 @@ export class InquiryController {
     async updateExecutionInquiry(req: Request, res: Response, next: NextFunction) {
         try {
             const { id, type } = req.params;
-            const { bidAmount, commitNote, status, committedProvider, bidCompanyId } = req.body;
+            const { bidAmount, commitNote, status, committedProvider, bidCompanyId, taskId } = req.body;
 
             if (!Types.ObjectId.isValid(id)) {
                 return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
@@ -1839,12 +1868,25 @@ export class InquiryController {
 
             const normalizedType = String(type || "").toUpperCase();
             const tasks = ((inquiry as any).executionInquiries || []) as any[];
-            const idx = tasks.findIndex((t) => String(t?.type || "").toUpperCase() === normalizedType);
+            const idx = tasks.findIndex((t) =>
+                String(t?.type || "").toUpperCase() === normalizedType &&
+                (!taskId || String(t?._id || "") === String(taskId))
+            );
             if (idx < 0) {
                 return res.status(404).json({ success: false, message: "Execution inquiry item not found" });
             }
 
             const task = tasks[idx];
+            const taskStatus = String(task.status || "OPEN").toUpperCase();
+            if (["COMPLETED", "CANCELLED"].includes(taskStatus)) {
+                return res.status(409).json({ success: false, message: "This bidding task is already closed." });
+            }
+            if (bidAmount !== undefined && !isPositiveFiniteBid(bidAmount)) {
+                return res.status(400).json({ success: false, message: "Bid amount must be a positive finite number." });
+            }
+            if (typeof commitNote === "string" && commitNote.length > MAX_BID_NOTE_LENGTH) {
+                return res.status(400).json({ success: false, message: `Bid note cannot exceed ${MAX_BID_NOTE_LENGTH} characters.` });
+            }
             let bidNotificationType: string | null = null;
             let bidNotificationCompanyId: string | null = null;
             let awardedProviderId: string | null = null;
@@ -1878,18 +1920,14 @@ export class InquiryController {
                 });
             }
 
-            const isBidAttempt =
-                canBid &&
-                ((typeof bidAmount === "number" && !Number.isNaN(bidAmount)) || typeof commitNote === "string");
+            const isBidAttempt = canBid && (bidAmount !== undefined || typeof commitNote === "string");
+
+            if (isBidAttempt && !isPositiveFiniteBid(bidAmount)) {
+                return res.status(400).json({ success: false, message: "A valid bid amount is required." });
+            }
 
             if (isBidAttempt) {
-                const subflowMap: Record<string, string> = {
-                    PROCUREMENT: "PROCUREMENT",
-                    TRANSPORTATION: "INLAND_TRANSPORTATION",
-                    SHIPPING: "FREIGHT_FORWARDING",
-                    PACKAGING: "PACKAGING",
-                };
-                const subflowType = subflowMap[normalizedType];
+                const subflowType = getExecutionSubflowType(normalizedType);
                 if (subflowType) {
                     const order = await OrderModel.findOne({ enquiry: inquiry._id }).select("workflowStage").lean();
                     const orderStage = String(order?.workflowStage || "").toUpperCase();
@@ -1917,15 +1955,18 @@ export class InquiryController {
                             const currentOrder = orderStageMap.get(orderStage);
                             const startOrder = orderStageMap.get(startStage);
                             const endOrder = orderStageMap.get(endStage);
-                            if (
-                                currentOrder !== undefined &&
-                                startOrder !== undefined &&
-                                endOrder !== undefined &&
-                                (currentOrder < startOrder || currentOrder > endOrder)
-                            ) {
+                            const phase = resolveBiddingPhase({
+                                taskStatus: task.status,
+                                currentStageOrder: currentOrder,
+                                startStageOrder: startOrder,
+                                endStageOrder: endOrder,
+                            });
+                            if (phase !== "OPEN") {
                                 return res.status(400).json({
                                     success: false,
-                                    message: "Bidding is closed for this subflow at the current order stage.",
+                                    message: phase === "UPCOMING"
+                                        ? "Bidding has not opened for this service yet."
+                                        : "Bidding is closed for this service at the current order stage.",
                                 });
                             }
                         }
@@ -1933,13 +1974,13 @@ export class InquiryController {
                 }
             }
 
-            if ((canBid || canCommit) && typeof bidAmount === "number" && !Number.isNaN(bidAmount)) {
+            if ((canBid || canCommit) && isPositiveFiniteBid(bidAmount)) {
                 task.bidAmount = bidAmount;
             }
             if ((canBid || canCommit) && typeof commitNote === "string") {
                 task.commitNote = commitNote;
             }
-            if ((isProviderCandidate || isAdminBid) && (typeof bidAmount === "number" || typeof commitNote === "string")) {
+            if ((isProviderCandidate || isAdminBid) && isBidAttempt) {
                 const biddingCompanyId = isAdminBid ? bidCompanyOverride : associateCompanyId;
                 if (!Types.ObjectId.isValid(String(biddingCompanyId || ""))) {
                     return res.status(400).json({ success: false, message: "Invalid bid company id." });
@@ -1964,8 +2005,8 @@ export class InquiryController {
                 const now = new Date();
                 const bidPayload = {
                     company: biddingCompanyId,
-                    amount: typeof bidAmount === "number" && !Number.isNaN(bidAmount) ? bidAmount : null,
-                    note: typeof commitNote === "string" ? commitNote : "",
+                    amount: bidAmount,
+                    note: typeof commitNote === "string" ? commitNote.trim() : "",
                     status: "SUBMITTED",
                     createdBy: isAdminBid ? null : context.associateId || null,
                     createdAt: now,
@@ -2012,22 +2053,31 @@ export class InquiryController {
                     });
                 }
 
+                const bidRows = Array.isArray(task.bids) ? task.bids : [];
+                const winningBid = bidRows.find(
+                    (bid: any) => String(bid?.company?._id || bid?.company || "") === committedProviderId &&
+                        String(bid?.status || "SUBMITTED").toUpperCase() === "SUBMITTED" &&
+                        isPositiveFiniteBid(bid?.amount)
+                );
+                if (!winningBid) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "The selected provider must have a valid submitted bid."
+                    });
+                }
+
                 task.committedProvider = committedProviderId;
                 awardedProviderId = committedProviderId;
-                const bidRows = Array.isArray(task.bids) ? task.bids : [];
                 task.bids = bidRows.map((bid: any) => {
                     const bidCompanyId = String(bid?.company?._id || bid?.company || "");
                     return {
                         ...bid,
-                        status: bidCompanyId === committedProviderId ? "AWARDED" : (bid?.status || "SUBMITTED"),
+                        status: bidCompanyId === committedProviderId ? "AWARDED" : "NOT_SELECTED",
                         updatedAt: new Date(),
                     };
                 });
 
                 if (!(typeof task.bidAmount === "number" && !Number.isNaN(task.bidAmount))) {
-                    const winningBid = task.bids.find(
-                        (bid: any) => String(bid?.company?._id || bid?.company || "") === committedProviderId
-                    );
                     const winningAmount = Number(winningBid?.amount);
                     if (!Number.isNaN(winningAmount)) {
                         task.bidAmount = winningAmount;
@@ -2111,6 +2161,123 @@ export class InquiryController {
                 data: inquiry,
                 message: "Execution inquiry updated"
             });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    /**
+     * List role-scoped execution bidding opportunities.
+     * GET /api/v1/web/inquiries/execution-bids
+     */
+    async listExecutionBids(req: Request, res: Response, next: NextFunction) {
+        try {
+            const context = this.buildAccessContext(req);
+            const role = String(req.user?.role || "").toLowerCase();
+            const isAdmin = role === "admin";
+            const isOperator = role === "operator" || role === "team";
+            const companyId = String(context.associateCompanyId || "");
+            const userId = String(context.userId || "");
+            const stateFilter = String(req.query.state || "active").toLowerCase();
+            const serviceFilter = String(req.query.serviceType || "").toUpperCase();
+            const locationFilter = String(req.query.location || "").trim().toLowerCase();
+            const search = String(req.query.search || "").trim().toLowerCase();
+
+            const filters: any = { executionInquiries: { $exists: true, $ne: [] } };
+            if (!isAdmin && !isOperator) {
+                if (!companyId || !Types.ObjectId.isValid(companyId)) {
+                    return res.json({ success: true, data: [] });
+                }
+                filters["executionInquiries.candidateProviders"] = companyId;
+            } else if (isOperator && !isAdmin) {
+                filters.$or = [
+                    { supplierOperatorId: userId },
+                    { dealCloserOperatorId: userId },
+                    { handlerOperatorId: userId },
+                ];
+            }
+
+            const inquiries = await InquiryModel.find(filters)
+                .select("enquiryCode productId productVariant executionContext workflowStage status supplierOperatorId dealCloserOperatorId handlerOperatorId executionInquiries createdAt")
+                .populate([
+                    { path: "productId", select: "name" },
+                    { path: "executionInquiries.candidateProviders", select: "name serviceCapabilities district state country" },
+                    { path: "executionInquiries.committedProvider", select: "name" },
+                    { path: "executionInquiries.bids.company", select: "name" },
+                ])
+                .sort({ createdAt: -1 })
+                .lean();
+
+            const inquiryIds = inquiries.map((inquiry: any) => inquiry._id);
+            const [orders, configs, stages] = await Promise.all([
+                OrderModel.find({ enquiry: { $in: inquiryIds } }).select("enquiry workflowStage").lean(),
+                OrderSubflowConfigModel.find({ isDeleted: { $ne: true }, isActive: true }).lean(),
+                FlowRuleModel.find({ flowType: "TRADE_ORDER", isDeleted: { $ne: true } }).sort({ sortOrder: 1 }).lean(),
+            ]);
+            const orderByInquiry = new Map(orders.map((order: any) => [String(order.enquiry), String(order.workflowStage || "").toUpperCase()]));
+            const configByType = new Map(configs.map((config: any) => [String(config.subflowType).toUpperCase(), config]));
+            const stageOrder = new Map(stages.map((stage: any, index: number) => [String(stage.stageKey).toUpperCase(), Number(stage.sortOrder ?? index)]));
+
+            const opportunities: any[] = [];
+            for (const inquiry of inquiries as any[]) {
+                const currentStage = orderByInquiry.get(String(inquiry._id)) || String(inquiry.workflowStage || "").toUpperCase();
+                for (const task of inquiry.executionInquiries || []) {
+                    const type = String(task.type || "").toUpperCase();
+                    if (serviceFilter && type !== serviceFilter) continue;
+                    const candidates = Array.isArray(task.candidateProviders) ? task.candidateProviders : [];
+                    const isCandidate = candidates.some((provider: any) => String(provider?._id || provider) === companyId);
+                    if (!isAdmin && !isOperator && !isCandidate) continue;
+                    const config: any = configByType.get(getExecutionSubflowType(type));
+                    const startStage = String(config?.biddingStartAtOrderStage || "").toUpperCase();
+                    const endStage = String(config?.biddingEndAtOrderStage || "").toUpperCase();
+                    const phase = resolveBiddingPhase({
+                        taskStatus: task.status,
+                        currentStageOrder: stageOrder.get(currentStage),
+                        startStageOrder: stageOrder.get(startStage),
+                        endStageOrder: stageOrder.get(endStage),
+                    });
+                    const isActive = phase === "OPEN" || phase === "UPCOMING";
+                    if ((stateFilter === "active" && !isActive) || (stateFilter === "history" && isActive)) continue;
+                    const route = {
+                        from: String(task.details?.from || task.details?.fromDistrict || ""),
+                        to: String(task.details?.to || ""),
+                        notes: String(task.details?.routeNotes || ""),
+                    };
+                    const product = String((inquiry.productId as any)?.name || "Commodity");
+                    const haystack = [inquiry.enquiryCode, product, type, route.from, route.to, route.notes].join(" ").toLowerCase();
+                    if (search && !haystack.includes(search)) continue;
+                    if (locationFilter && ![route.from, route.to, route.notes].join(" ").toLowerCase().includes(locationFilter)) continue;
+                    const bids = Array.isArray(task.bids) ? task.bids : [];
+                    const ownBid = bids.find((bid: any) => String(bid?.company?._id || bid?.company || "") === companyId) || null;
+                    const operatorView = isAdmin || isOperator;
+                    opportunities.push({
+                        id: `${inquiry._id}:${type}:${task.details?.segmentKey || "default"}`,
+                        taskId: String(task._id || ""),
+                        enquiryId: String(inquiry._id),
+                        enquiryCode: inquiry.enquiryCode || String(inquiry._id).slice(-6).toUpperCase(),
+                        product,
+                        serviceType: type,
+                        title: task.title || type.split("_").join(" "),
+                        requirements: {
+                            packagingSpecifications: task.details?.packagingSpecifications || null,
+                            segmentLabel: task.details?.segmentLabel || null,
+                        },
+                        route,
+                        phase,
+                        status: task.status,
+                        currentStage,
+                        biddingStartsAtStage: startStage || null,
+                        biddingClosesAtStage: endStage || null,
+                        matchLevel: operatorView ? (task.candidateMatchLevel || "capability_fallback") : undefined,
+                        ownBid: operatorView ? undefined : ownBid,
+                        bids: operatorView ? bids : undefined,
+                        candidates: operatorView ? candidates : undefined,
+                        committedProvider: task.committedProvider || null,
+                    });
+                }
+            }
+
+            return res.json({ success: true, data: opportunities, meta: { state: stateFilter, count: opportunities.length } });
         } catch (error: any) {
             next(error);
         }

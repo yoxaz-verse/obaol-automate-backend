@@ -5,6 +5,7 @@ import { responseFormatter } from "./utils/responseFormatter";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import { localizationMiddleware } from "./middlewares/localizationMiddleware";
 import routes from "./routes";
 import path from "path";
@@ -22,6 +23,10 @@ app.use(
     contentSecurityPolicy: false,
   })
 );
+
+// Compress API payloads before they are written to the response. Registration
+// bootstrap data includes the location hierarchy and benefits significantly.
+app.use(compression());
 
 // Parse JSON
 app.use(express.json());

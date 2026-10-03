@@ -15,6 +15,7 @@
     "metrics:static": "node scripts/code-health.mjs",
     "load:auth": "node scripts/load-auth.js",
     "load:dashboard": "node scripts/load-dashboard.js",
+    "e2e:server": "ts-node -r tsconfig-paths/register scripts/e2e-server.ts",
     "seed:company-functions": "ts-node src/scripts/seedCompanyFunctions.ts",
     "deactivate:legacy-company-functions": "ts-node src/scripts/deactivateLegacyCompanyFunctions.ts",
     "backfill:approval-status": "ts-node src/scripts/backfillApprovalStatus.ts",

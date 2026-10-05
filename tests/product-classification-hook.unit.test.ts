@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { productClassificationPreWriteHook } from "../src/core/hooks/productClassificationHook";
+import { productClassificationPreReadHook, productClassificationPreWriteHook } from "../src/core/hooks/productClassificationHook";
 
 const methodPayloads = {
   conventional: { isConventional: true, isNatural: false, isOrganic: false, isIpmQuality: false },
@@ -68,5 +68,33 @@ describe("product classification write hook", () => {
       isOrganic: false,
       isIpmQuality: false,
     } as any, undefined as any, undefined, undefined as any)).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe("product classification read hook", () => {
+  it("keeps Natural results separate from conflicting legacy IPM rows", async () => {
+    const result = await productClassificationPreReadHook(
+      { classifications: ["natural"] } as any,
+      undefined as any,
+      undefined,
+      undefined as any,
+    );
+
+    expect(result).toEqual({
+      isNatural: true,
+      isOrganic: { $ne: true },
+      isIpmQuality: { $ne: true },
+    });
+  });
+
+  it("treats a conflicting legacy IPM row as IPM", async () => {
+    const result = await productClassificationPreReadHook(
+      { classifications: ["ipm"] } as any,
+      undefined as any,
+      undefined,
+      undefined as any,
+    );
+
+    expect(result).toEqual({ isIpmQuality: true });
   });
 });

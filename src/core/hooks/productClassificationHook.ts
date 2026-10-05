@@ -152,9 +152,20 @@ export const productClassificationPreReadHook: HookFunction = async (query) => {
   delete nextQuery.classifications;
 
   const conditions: any[] = [];
+  const isNotTrue = (field: string) => ({ [field]: { $ne: true } });
   const pushByLabel = (label: string) => {
-    if (label === "natural") conditions.push({ isNatural: true });
-    else if (label === "organic") conditions.push({ isOrganic: true });
+    // Legacy products can contain more than one method flag. Resolve those
+    // conflicts deterministically (IPM > Organic > Natural) so the tabs stay
+    // mutually exclusive while keeping the most specific classification.
+    if (label === "natural") conditions.push({
+      isNatural: true,
+      ...isNotTrue("isOrganic"),
+      ...isNotTrue("isIpmQuality"),
+    });
+    else if (label === "organic") conditions.push({
+      isOrganic: true,
+      ...isNotTrue("isIpmQuality"),
+    });
     else if (label === "ipm" || label === "ipm-quality" || label === "ipm_quality" || label === "ipmquality") conditions.push({ isIpmQuality: true });
     else if (label === "gi-tag" || label === "gi" || label === "gitag" || label === "gi_tag") conditions.push({ isGiTagged: true });
     else if (label === "conventional") {

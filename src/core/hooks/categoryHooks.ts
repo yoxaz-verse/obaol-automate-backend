@@ -64,6 +64,22 @@ export const categoryFilterHook = async (query: any, mode: string, id: string | 
                             ],
                         };
                     }
+                    // Some legacy rows have overlapping method flags. Apply a
+                    // stable specificity order so a row belongs to one method
+                    // tab only: IPM > Organic > Natural > Conventional.
+                    if (field === "isNatural") {
+                        return {
+                            isNatural: true,
+                            isOrganic: { $ne: true },
+                            isIpmQuality: { $ne: true },
+                        };
+                    }
+                    if (field === "isOrganic") {
+                        return {
+                            isOrganic: true,
+                            isIpmQuality: { $ne: true },
+                        };
+                    }
                     return { [field]: true };
                 });
             }

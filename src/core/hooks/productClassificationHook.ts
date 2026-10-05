@@ -25,6 +25,7 @@ export const productClassificationPreWriteHook: HookFunction = async (payload) =
   const hasIpmQuality = Object.prototype.hasOwnProperty.call(nextPayload, "isIpmQuality");
   const hasGiTagged = Object.prototype.hasOwnProperty.call(nextPayload, "isGiTagged");
   const hasConventional = Object.prototype.hasOwnProperty.call(nextPayload, "isConventional");
+  const hasAnyProductionMethod = hasConventional || hasNatural || hasOrganic || hasIpmQuality;
   const hasAnyClassification = hasNatural || hasOrganic || hasIpmQuality || hasGiTagged || hasConventional;
 
   if (hasAnyClassification) {
@@ -32,7 +33,23 @@ export const productClassificationPreWriteHook: HookFunction = async (payload) =
     const isOrganic = toBool(nextPayload.isOrganic);
     const isIpmQuality = toBool(nextPayload.isIpmQuality);
     const isGiTagged = toBool(nextPayload.isGiTagged);
-    const isConventional = !(isNatural || isOrganic || isIpmQuality);
+    // Older clients omit isConventional and represent conventional as all three
+    // legacy method flags being false. Continue accepting that wire shape.
+    const isConventional = hasConventional
+      ? toBool(nextPayload.isConventional)
+      : !(isNatural || isOrganic || isIpmQuality);
+
+    if (hasAnyProductionMethod) {
+      const selectedMethodCount = [isConventional, isNatural, isOrganic, isIpmQuality].filter(Boolean).length;
+      if (selectedMethodCount !== 1) {
+        throwBadRequestWithLog("Exactly one production / farming method is required.", {
+          isConventional,
+          isNatural,
+          isOrganic,
+          isIpmQuality,
+        });
+      }
+    }
 
     nextPayload.isNatural = isNatural;
     nextPayload.isOrganic = isOrganic;

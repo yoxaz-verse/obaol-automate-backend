@@ -1,6 +1,4 @@
 import { Request, Response } from "express";
-import { generateJWTToken } from "../utils/tokenUtils";
-import { getAuthCookieOptions } from "../utils/cookieOptions";
 import { VerificationModel } from "../database/models/verification";
 import { AssociateModel } from "../database/models/associate";
 import { OperatorModel } from "../database/models/operator";
@@ -8,7 +6,7 @@ import { AdminModel } from "../database/models/admin";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
 import verificationService from "../services/verification.service";
 import { toBlockedResponsePayload } from "../utils/preAuthGuard";
-import { normalizeAuthRole } from "../services/authService";
+import { issueAuthCookie, normalizeAuthRole } from "../services/authService";
 
 export const sendOTP = async (req: Request, res: Response) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
@@ -133,12 +131,13 @@ const findUserByEmail = async (email: string) => {
 export const sendOtpForExistingEmail = async (req: Request, res: Response) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   const userAgent = req.headers["user-agent"] || "unknown";
-  const { method, email } = req.body || {};
+  const { method, email, role } = req.body || {};
   const normalizedMethod = String(method || "email").toLowerCase();
+  const requestedRole = normalizeAuthRole(role);
   const safeResponse = { message: "If an account exists for this email, an OTP has been sent." };
 
-  if (!email || normalizedMethod !== "email") {
-    return res.status(200).json(safeResponse);
+  if (!email || normalizedMethod !== "email" || !["Associate", "Operator"].includes(String(requestedRole))) {
+    return res.status(400).json({ message: "Email and a valid role are required." });
   }
 
   try {
@@ -148,6 +147,13 @@ export const sendOtpForExistingEmail = async (req: Request, res: Response) => {
       if (blockedPayload) {
         return res.status(403).json(blockedPayload);
       }
+    }
+    if (found && found.userType !== requestedRole) {
+      return res.status(409).json({
+        success: false,
+        message: "Account exists under a different role.",
+        role: found.userType,
+      });
     }
     if (found) {
       await verificationService.initiateVerification(
@@ -168,9 +174,10 @@ export const sendOtpForExistingEmail = async (req: Request, res: Response) => {
 };
 
 export const verifyOtpForExistingEmail = async (req: Request, res: Response) => {
-  const { code, method, email } = req.body || {};
+  const { code, method, email, role, rememberMe } = req.body || {};
   const normalizedMethod = String(method || "email").toLowerCase();
-  if (!email || !code || normalizedMethod !== "email") {
+  const requestedRole = normalizeAuthRole(role);
+  if (!email || !code || normalizedMethod !== "email" || !["Associate", "Operator"].includes(String(requestedRole))) {
     return res.status(400).json({ message: "Invalid or expired OTP." });
   }
   try {
@@ -184,22 +191,28 @@ export const verifyOtpForExistingEmail = async (req: Request, res: Response) => 
         return res.status(403).json(blockedPayload);
       }
     }
+    if (found.userType !== requestedRole) {
+      return res.status(409).json({
+        success: false,
+        message: "Account exists under a different role.",
+        role: found.userType,
+      });
+    }
     await verificationService.verify(found.id, found.userType, String(code), "email");
     const normalizedRole = String(found.userType || "").trim();
     if (normalizedRole === "Associate" || normalizedRole === "Operator") {
-      if (found.onboardingComplete === false) {
-        const token = generateJWTToken(
-          { _id: found.id, email: found.email, role: normalizedRole } as any,
-          "2h"
-        );
-        const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
-        const cookieOptions = getAuthCookieOptions(host, 2 * 60 * 60 * 1000);
-        res.setHeader("Cache-Control", "no-store");
-        res.cookie("auth_token", token, cookieOptions);
-        return res.status(200).json({ success: true, next: "/dashboard/onboarding" });
-      }
-      const next = normalizedRole === "Operator" ? "/auth/operator" : "/auth";
-      return res.status(200).json({ success: true, next });
+      issueAuthCookie(res, { _id: found.id, email: found.email, role: normalizedRole }, Boolean(rememberMe));
+      const registrationStatus = String(found.registrationStatus || "APPROVED").toUpperCase();
+      const next = found.onboardingComplete === false
+        ? "/dashboard/onboarding"
+        : registrationStatus !== "APPROVED"
+          ? "/dashboard/pending-approval"
+          : "/dashboard";
+      return res.status(200).json({
+        success: true,
+        next,
+        user: { id: found.id, email: found.email, role: normalizedRole, registrationStatus },
+      });
     }
     return res.status(200).json({ success: true, next: "/auth" });
   } catch (error: any) {

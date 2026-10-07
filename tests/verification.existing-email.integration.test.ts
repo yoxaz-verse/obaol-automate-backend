@@ -13,6 +13,7 @@ describe("Verification existing-email flow", () => {
     const res = await api.post("/api/v1/web/verification/send-otp-existing").send({
       method: "email",
       email: associate.email,
+      role: "Associate",
     });
 
     expect(res.status).toBe(403);
@@ -24,6 +25,7 @@ describe("Verification existing-email flow", () => {
     const res = await api.post("/api/v1/web/verification/send-otp-existing").send({
       method: "email",
       email: operator.email,
+      role: "Operator",
     });
 
     expect(res.status).toBe(403);
@@ -35,6 +37,7 @@ describe("Verification existing-email flow", () => {
     const res = await api.post("/api/v1/web/verification/verify-otp-existing").send({
       method: "email",
       email: associate.email,
+      role: "Associate",
       code: "123456",
     });
 
@@ -47,6 +50,7 @@ describe("Verification existing-email flow", () => {
     const res = await api.post("/api/v1/web/verification/verify-otp-existing").send({
       method: "email",
       email: operator.email,
+      role: "Operator",
       code: "123456",
     });
 
@@ -54,7 +58,7 @@ describe("Verification existing-email flow", () => {
     expect(res.body?.status).toBe("blocked");
   });
 
-  it("routes approved associate to /auth after successful OTP verify", async () => {
+  it("signs an approved associate in after successful OTP verification", async () => {
     const associate = await createAssociate({
       onboardingComplete: true,
       registrationStatus: "APPROVED",
@@ -76,15 +80,17 @@ describe("Verification existing-email flow", () => {
     const res = await api.post("/api/v1/web/verification/verify-otp-existing").send({
       method: "email",
       email: associate.email,
+      role: "Associate",
       code: "654321",
     });
 
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
-    expect(res.body?.next).toBe("/auth");
+    expect(res.body?.next).toBe("/dashboard");
+    expect(res.headers["set-cookie"]?.join(";")).toContain("auth_token=");
   });
 
-  it("routes approved operator to /auth/operator after successful OTP verify", async () => {
+  it("signs an approved operator in with a remembered session after successful OTP verification", async () => {
     const operator = await createOperator({
       onboardingComplete: true,
       registrationStatus: "APPROVED",
@@ -106,12 +112,28 @@ describe("Verification existing-email flow", () => {
     const res = await api.post("/api/v1/web/verification/verify-otp-existing").send({
       method: "email",
       email: operator.email,
+      role: "Operator",
       code: "987654",
+      rememberMe: true,
     });
 
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
-    expect(res.body?.next).toBe("/auth/operator");
+    expect(res.body?.next).toBe("/dashboard");
+    expect(res.headers["set-cookie"]?.join(";")).toContain("auth_token=");
+    expect(res.headers["set-cookie"]?.join(";")).toMatch(/Max-Age=86400/i);
+  });
+
+  it("rejects an OTP request made through the wrong role portal", async () => {
+    const associate = await createAssociate({ isDeleted: false, isActive: true });
+    const res = await api.post("/api/v1/web/verification/send-otp-existing").send({
+      method: "email",
+      email: associate.email,
+      role: "Operator",
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body?.role).toBe("Associate");
   });
 
   it("persists operator email verification after authenticated OTP verify", async () => {

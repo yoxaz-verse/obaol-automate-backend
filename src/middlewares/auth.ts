@@ -5,6 +5,8 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { AssociateModel } from "../database/models/associate";
 import { OperatorModel } from "../database/models/operator";
+import { AdminModel } from "../database/models/admin";
+import { InventoryManagerModel } from "../database/models/inventoryManager";
 
 export interface DecodedToken {
   id: string;
@@ -73,6 +75,16 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
         // eslint-disable-next-line no-console
         console.debug("Presence update skipped (operator):", error?.message || error);
       });
+    } else if (roleLower === "admin") {
+      AdminModel.updateOne(
+        { _id: decoded.id, $or: [{ lastSeenAt: { $lt: throttleCutoff } }, { lastSeenAt: null }, { lastSeenAt: { $exists: false } }] },
+        updateDoc
+      ).catch((error: any) => console.debug("Presence update skipped (admin):", error?.message || error));
+    } else if (roleLower === "inventorymanager" || roleLower === "inventory-manager") {
+      InventoryManagerModel.updateOne(
+        { _id: decoded.id, $or: [{ lastSeenAt: { $lt: throttleCutoff } }, { lastSeenAt: null }, { lastSeenAt: { $exists: false } }] },
+        updateDoc
+      ).catch((error: any) => console.debug("Presence update skipped (inventory manager):", error?.message || error));
     }
 
     next();

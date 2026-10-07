@@ -48,6 +48,7 @@ export interface IAssociate {
   dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
   dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
+  lastLoginAt?: Date | null;
   presenceUpdatedAt?: Date | null;
   presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
 }
@@ -99,6 +100,7 @@ export interface ICreateAssociate {
   dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
   dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
+  lastLoginAt?: Date | null;
   presenceUpdatedAt?: Date | null;
   presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
 }
@@ -146,6 +148,7 @@ export interface IUpdateAssociate {
   dashboardTutorialStatus?: "PENDING" | "SKIPPED" | "COMPLETED";
   dashboardTutorialUpdatedAt?: Date | null;
   lastSeenAt?: Date | null;
+  lastLoginAt?: Date | null;
   presenceUpdatedAt?: Date | null;
   presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
 }

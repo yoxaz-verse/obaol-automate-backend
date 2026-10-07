@@ -517,6 +517,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
             // Ensure associateCompany is included if present (for AssociateCompany scope)
             associateCompany: user.associateCompany
         };
+        await user.updateOne({ $set: { lastLoginAt: new Date() } });
         issueAuthCookie(res, userForToken, rememberMe);
         const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
         const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
@@ -745,6 +746,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                 role: normalizedRole,
                 associateCompany: (user as any).associateCompany,
             };
+            await user.updateOne({ $set: { lastLoginAt: new Date() } });
             const token = generateJWTToken(userForToken, jwtExpiresIn);
             const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
             const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);

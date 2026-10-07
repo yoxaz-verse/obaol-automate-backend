@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { AssociateModel } from "../database/models/associate";
 import { OperatorModel } from "../database/models/operator";
+import { AdminModel } from "../database/models/admin";
+import { InventoryManagerModel } from "../database/models/inventoryManager";
 
 export class PresenceController {
   static async ping(req: Request, res: Response) {
@@ -24,6 +26,10 @@ export class PresenceController {
         await AssociateModel.updateOne({ _id: user.id }, updateDoc);
       } else if (roleLower === "operator" || roleLower === "team") {
         await OperatorModel.updateOne({ _id: user.id }, updateDoc);
+      } else if (roleLower === "admin") {
+        await AdminModel.updateOne({ _id: user.id }, updateDoc);
+      } else if (roleLower === "inventorymanager" || roleLower === "inventory-manager") {
+        await InventoryManagerModel.updateOne({ _id: user.id }, updateDoc);
       }
 
       return res.status(200).json({

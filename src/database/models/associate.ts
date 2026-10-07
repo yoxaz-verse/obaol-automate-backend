@@ -64,6 +64,7 @@ const associateSchema = new mongoose.Schema(
         },
         dashboardTutorialUpdatedAt: { type: Date, default: null },
         lastSeenAt: { type: Date, default: null, index: true },
+        lastLoginAt: { type: Date, default: null, index: true },
         presenceUpdatedAt: { type: Date, default: null },
         presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
         failedLoginAttempts: { type: Number, default: 0 },

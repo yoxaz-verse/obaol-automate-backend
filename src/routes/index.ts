@@ -264,6 +264,9 @@ router.get(`${prefix}/products/slug/:slug`, async (req, res) => {
 router.use(`${prefix}/brand`, brandRoutes);
 router.use(`${prefix}/demo`, demoRoutes);
 
+import userExportRoutes from "./v1/userExportRoutes";
+router.use(`${prefix}/users/export`, userExportRoutes);
+
 
 // --- Generic CRUD Route (Low Priority / Catch-All) ---
 // This will match /:entity and /:entity/:id

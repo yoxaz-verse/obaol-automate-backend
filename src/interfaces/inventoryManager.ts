@@ -13,6 +13,10 @@ export interface IInventoryManager {
   loginLockedUntil?: Date | null;
   lastFailedLoginAt?: Date | null;
   loginLockoutLevel?: number;
+  lastSeenAt?: Date | null;
+  lastLoginAt?: Date | null;
+  presenceUpdatedAt?: Date | null;
+  presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
 }
 
 export interface ICreateInventoryManager {

@@ -13,6 +13,10 @@ interface IAdmin extends mongoose.Document {
   loginLockedUntil?: Date | null;
   lastFailedLoginAt?: Date | null;
   loginLockoutLevel?: number;
+  lastSeenAt?: Date | null;
+  lastLoginAt?: Date | null;
+  presenceUpdatedAt?: Date | null;
+  presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -29,6 +33,10 @@ const adminSchema = new mongoose.Schema(
     loginLockedUntil: { type: Date, default: null },
     lastFailedLoginAt: { type: Date, default: null },
     loginLockoutLevel: { type: Number, default: 0 },
+    lastSeenAt: { type: Date, default: null, index: true },
+    lastLoginAt: { type: Date, default: null, index: true },
+    presenceUpdatedAt: { type: Date, default: null },
+    presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
   },
   {
     timestamps: true,

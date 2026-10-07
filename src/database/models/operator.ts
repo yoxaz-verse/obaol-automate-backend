@@ -46,6 +46,7 @@ export interface IOperator extends mongoose.Document {
     role: string;
     mentorOperator?: mongoose.Types.ObjectId | null;
     lastSeenAt?: Date | null;
+    lastLoginAt?: Date | null;
     presenceUpdatedAt?: Date | null;
     presenceSource?: "AUTH_REQUEST" | "HEARTBEAT" | null;
     referralCode?: string;
@@ -113,6 +114,7 @@ const operatorSchema = new mongoose.Schema(
         role: { type: String, default: "operator" },
         mentorOperator: { type: mongoose.Types.ObjectId, ref: "Operator", default: null, index: true },
         lastSeenAt: { type: Date, default: null, index: true },
+        lastLoginAt: { type: Date, default: null, index: true },
         presenceUpdatedAt: { type: Date, default: null },
         presenceSource: { type: String, enum: ["AUTH_REQUEST", "HEARTBEAT", null], default: null },
         referralCode: {

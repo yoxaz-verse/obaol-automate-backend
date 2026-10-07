@@ -261,6 +261,8 @@ export class InquiryController {
                 notes
             } = req.body;
             let { rate, adminCommission, mediatorCommission } = req.body;
+            let sourceListingWasPast = false;
+            let sourceProductVariantId: any = null;
             const normalizeId = (value: any): string => {
                 if (value === null || value === undefined) return "";
                 if (typeof value === "object") {
@@ -359,6 +361,8 @@ export class InquiryController {
                     rate = variantRate.rate || 0;
                     adminCommission = variantRate.commission || 0;
                     mediatorCommission = 0;
+                    sourceListingWasPast = variantRate.isLive !== true;
+                    sourceProductVariantId = variantRate.productVariant || null;
                 }
             }
 
@@ -383,10 +387,14 @@ export class InquiryController {
                 rate,
                 adminCommission,
                 mediatorCommission,
+                sourceListingWasPast,
+                pricingConfirmationRequired: sourceListingWasPast,
+                historicalListedPrice: sourceListingWasPast ? Number(rate || 0) + Number(adminCommission || 0) : null,
+                sourceProductVariantId,
                 notes,
                 status: InquiryStatus.NEW,
-                loiSubmittedAt: isImport ? null : new Date(),
-                workflowStage: isImport ? "QUOTATION_REVISION" : "LOI_ACCEPTED_QTY_CONFIRMED",
+                loiSubmittedAt: isImport || sourceListingWasPast ? null : new Date(),
+                workflowStage: isImport || sourceListingWasPast ? "QUOTATION_REVISION" : "LOI_ACCEPTED_QTY_CONFIRMED",
                 createdBy: req.user!.id
             });
 
@@ -455,6 +463,23 @@ export class InquiryController {
                 payload: { status: InquiryStatus.NEW },
                 priority: "high",
             });
+
+            if (sourceListingWasPast) {
+                const sellerRecipients = new Map<string, "Associate">();
+                notificationService.addRecipient(sellerRecipients, normalizedSellerAssociateId, "Associate");
+                await notificationService.createNotifications({
+                    recipientMap: sellerRecipients,
+                    createdByUserId: req.user!.id,
+                    type: NotificationTypes.INQUIRY_CREATED,
+                    title: "Past listing enquiry needs an update",
+                    message: "A buyer enquired about an older listing. Please confirm the latest price and product availability.",
+                    entityType: NotificationEntityTypes.INQUIRY,
+                    entityId: inquiry._id,
+                    route: `/dashboard/enquiries/${inquiry._id}`,
+                    payload: { inquiryId: String(inquiry._id), pricingConfirmationRequired: true },
+                    priority: "high",
+                });
+            }
 
             res.status(201).json({
                 success: true,

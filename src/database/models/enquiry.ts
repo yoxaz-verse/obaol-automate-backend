@@ -37,6 +37,10 @@ const InquirySchema: Schema = new Schema(
             default: null,
             index: true
         },
+        sourceListingWasPast: { type: Boolean, default: false, index: true },
+        pricingConfirmationRequired: { type: Boolean, default: false, index: true },
+        historicalListedPrice: { type: Number, default: null, min: 0 },
+        sourceProductVariantId: { type: Schema.Types.ObjectId, ref: "ProductVariant", default: null },
 
         // Associate roles (all reference Associate collection)
         buyerAssociateId: {

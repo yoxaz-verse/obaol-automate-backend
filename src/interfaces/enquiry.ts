@@ -12,6 +12,10 @@ export interface IInquiry extends Document {
   packagingSpecifications?: string;
   variantRateId?: Types.ObjectId | null;
   catalogItemId?: Types.ObjectId | null;
+  sourceListingWasPast?: boolean;
+  pricingConfirmationRequired?: boolean;
+  historicalListedPrice?: number | null;
+  sourceProductVariantId?: Types.ObjectId | null;
 
   // Associate roles
   buyerAssociateId: Types.ObjectId;

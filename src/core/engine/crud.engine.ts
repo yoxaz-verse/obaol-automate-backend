@@ -237,6 +237,27 @@ export class CrudEngine extends BaseService {
 
         const result = await this.repository.findAll(filterQuery, pagination, sortOption, populate, select);
         result.data = await HookDispatcher.resolveAfterRead(this.entityName, result.data);
+        const roleLower = String((req as any)?.user?.role || "").toLowerCase();
+        if (
+            this.entityName === "variant-rates" &&
+            requestedView === "marketplace" &&
+            (roleLower === "associate" || roleLower === "customer")
+        ) {
+            result.data = (result.data || []).map((row: any) => {
+                const source = typeof row?.toObject === "function" ? row.toObject() : { ...row };
+                delete source.rate;
+                delete source.commission;
+                delete source.locationDisplay;
+                delete source.locationSource;
+                delete source.officeAddress;
+                delete source.warehouseId;
+                delete source.state;
+                delete source.district;
+                delete source.division;
+                delete source.pincodeEntry;
+                return source;
+            });
+        }
         return result;
     }
 

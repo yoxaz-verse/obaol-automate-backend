@@ -125,6 +125,10 @@ router.use(`${prefix}/notifications`, notificationRoutes);
 import presenceRoutes from "./v1/presenceRoutes";
 router.use(`${prefix}/presence`, presenceRoutes);
 
+// Customer support contacts (admin managed, associate visible)
+import supportContactRoutes from "./v1/supportContactRoutes";
+router.use(`${prefix}/support-contacts`, supportContactRoutes);
+
 // Associate onboarding (dashboard tutorial)
 import associateOnboardingRoutes from "./v1/associateOnboardingRoutes";
 router.use(`${prefix}`, associateOnboardingRoutes);

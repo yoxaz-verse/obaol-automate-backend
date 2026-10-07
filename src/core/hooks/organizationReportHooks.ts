@@ -6,7 +6,8 @@ import {
   ORGANIZATION_REPORT_REASONS,
   OrganizationReportModel,
 } from "../../database/models/organizationReport";
-import { normalizeCompanyInterests } from "../../constants/companyInterests";
+import { CompanyFunctionModel } from "../../database/models/companyFunction";
+import { CANONICAL_COMPANY_FUNCTION_SLUGS } from "../../utils/companyCapabilities";
 import { ExecutionMode, HookFunction } from "../types";
 
 const EMPTY_QUERY = { _id: "000000000000000000000000" };
@@ -74,19 +75,11 @@ export const organizationReportPreReadHook: HookFunction = async (query, _mode, 
     return mergeWithScope(query, { ...notDeletedScope, ...EMPTY_QUERY });
   }
 
-  const company = await AssociateCompanyModel.findById(reporterCompanyId)
-    .select("_id supervisor")
-    .lean();
-  const isSupervisor = String((company as any)?.supervisor || "") === actorId;
-
-  const scopeQuery = isSupervisor
-    ? { ...notDeletedScope, reporterCompanyId }
-    : { ...notDeletedScope, reporterAssociateId: actorId };
+  const scopeQuery = { ...notDeletedScope, reporterCompanyId };
 
   const merged = mergeWithScope(query, scopeQuery);
   if (process.env.NODE_ENV !== "production") {
     console.debug("[organization-reports] preRead merged-associate", {
-      isSupervisor,
       merged,
     });
   }
@@ -135,35 +128,40 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
   }
 
   if (reasonCode === "COMPANY_INTEREST_UPDATE") {
-    const requestedInterests = normalizeCompanyInterests(nextPayload?.payload?.requestedInterests);
-    if (!requestedInterests.length) {
-      throw buildError("At least one valid requested interest is required for company interest update.");
+    const requestedFunctionIds: string[] = Array.from(new Set<string>(
+      (Array.isArray(nextPayload?.payload?.requestedCompanyFunctionIds)
+        ? nextPayload.payload.requestedCompanyFunctionIds
+        : []).map((value: unknown) => String(value || "").trim())
+    ));
+    if (requestedFunctionIds.length < 1 || requestedFunctionIds.length > 6 || requestedFunctionIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+      throw buildError("Select between 1 and 6 valid company categories.");
+    }
+    const requestedPriorityIds: string[] = Array.from(new Set<string>(
+      (Array.isArray(nextPayload?.payload?.requestedCompanyFunctionPriorities)
+        ? nextPayload.payload.requestedCompanyFunctionPriorities
+        : []).map((value: unknown) => String(value || "").trim())
+    ));
+    if (requestedPriorityIds.length > 3 || requestedPriorityIds.some((id) => !requestedFunctionIds.includes(id))) {
+      throw buildError("Priorities must contain up to 3 selected company categories.");
+    }
+    const activeFunctions = await CompanyFunctionModel.find({
+      _id: { $in: requestedFunctionIds },
+      isActive: true,
+      slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS },
+    }).select("_id slug").lean();
+    if (activeFunctions.length !== requestedFunctionIds.length) {
+      throw buildError("One or more selected company categories are unavailable.");
     }
 
-    // Keep only one active company-interest request per company.
-    const supersedeResult = await OrganizationReportModel.updateMany(
+    const activeRequest = await OrganizationReportModel.exists(
       {
         reasonCode: "COMPANY_INTEREST_UPDATE",
         reporterCompanyId,
         isDeleted: { $ne: true },
         status: { $in: ["PENDING_REVIEW", "UNDER_REVIEW"] },
-      },
-      {
-        $set: {
-          status: "REJECTED",
-          adminNotes: "Auto-cancelled: superseded by newer company interest request.",
-          actionType: "NONE",
-          reviewedAt: new Date(),
-          reviewedBy: null,
-        },
       }
     );
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("[organization-reports] superseded prior company-interest requests", {
-        reporterCompanyId,
-        modifiedCount: supersedeResult.modifiedCount,
-      });
-    }
+    if (activeRequest) throw buildError("A company capability request is already pending review.", 409);
 
     nextPayload.reasonCode = reasonCode;
     nextPayload.description = description;
@@ -171,7 +169,11 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
     nextPayload.reporterCompanyId = reporterCompanyId;
     nextPayload.targetAssociateId = actorId;
     nextPayload.targetCompanyId = reporterCompanyId;
-    nextPayload.payload = { requestedInterests };
+    nextPayload.payload = {
+      requestedCompanyFunctionIds: requestedFunctionIds,
+      requestedCompanyFunctionPriorities: requestedPriorityIds,
+      note: String(nextPayload?.payload?.note || "").trim(),
+    };
     nextPayload.status = "PENDING_REVIEW";
     nextPayload.actionType = "NONE";
     nextPayload.adminNotes = "";

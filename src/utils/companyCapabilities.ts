@@ -44,6 +44,59 @@ const normalizeToken = (value: unknown): string =>
     .replace(/[\s-]+/g, "_")
     .replace(/[^A-Z0-9_]/g, "");
 
+export const CANONICAL_COMPANY_FUNCTION_SLUGS = [
+  "sourcing",
+  "packaging",
+  "testing",
+  "warehouse-storage",
+  "finance-risk",
+  "importing-distribution",
+  "freight-forwarding",
+  "inland-logistics",
+] as const;
+
+const LEGACY_TO_COMPANY_FUNCTION: Record<string, string> = {
+  PROCUREMENT: "sourcing",
+  PROCUREMENT_PARTNER: "sourcing",
+  SOURCING: "sourcing",
+  PACKAGING: "packaging",
+  PACKAGING_PARTNER: "packaging",
+  CERTIFICATION: "testing",
+  QUALITY_TESTING: "testing",
+  QUALITY_TESTING_PARTNER: "testing",
+  TESTING: "testing",
+  WAREHOUSING: "warehouse-storage",
+  WAREHOUSE_STORAGE: "warehouse-storage",
+  FINANCE_RISK: "finance-risk",
+  IMPORTING_DISTRIBUTION: "importing-distribution",
+  TRANSPORTATION: "inland-logistics",
+  SHIPPING: "freight-forwarding",
+  OCEAN_FREIGHT: "freight-forwarding",
+  AIR_FREIGHT: "freight-forwarding",
+  SEA_FREIGHT_FORWARDING: "freight-forwarding",
+  AIR_FREIGHT_FORWARDING: "freight-forwarding",
+  FREIGHT_FORWARDING: "freight-forwarding",
+  INLAND_TRANSPORTATION: "inland-logistics",
+  INLAND_TRANSPORT: "inland-logistics",
+  INLAND_LOGISTICS: "inland-logistics",
+  CUSTOMS_CLEARANCE: "importing-distribution",
+  CONSOLIDATION_LCL: "freight-forwarding",
+  PROJECT_CARGO: "freight-forwarding",
+};
+
+export const normalizeCompanyFunctionSlug = (value: unknown): string => {
+  const token = normalizeToken(value);
+  if (!token) return "";
+  const direct = token.toLowerCase().replace(/_/g, "-");
+  if ((CANONICAL_COMPANY_FUNCTION_SLUGS as readonly string[]).includes(direct)) return direct;
+  return LEGACY_TO_COMPANY_FUNCTION[token] || "";
+};
+
+export const normalizeCompanyFunctionSlugs = (values: unknown): string[] => {
+  if (!Array.isArray(values)) return [];
+  return Array.from(new Set(values.map(normalizeCompanyFunctionSlug).filter(Boolean)));
+};
+
 export const normalizeCapability = (value: unknown): string => {
   const token = normalizeToken(value);
   if (!token) return "";

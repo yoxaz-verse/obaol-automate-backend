@@ -26,6 +26,7 @@ import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
 import { normalizePhoneInput } from "../utils/phone";
 import { getAuthCookieOptions } from "../utils/cookieOptions";
+import { CANONICAL_COMPANY_FUNCTION_SLUGS, normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import {
     COMPANY_INTERESTS,
     normalizeAssociateInterests,
@@ -2194,19 +2195,29 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
             });
         }
 
-        const [profile, company] = await Promise.all([
-            CompanyInterestProfileModel.findOne({ associateCompanyId }).select("interests isConfigured").lean(),
-            AssociateCompanyModel.findById(associateCompanyId).select("serviceCapabilities").lean(),
-        ]);
-        const interests = normalizeCompanyInterests(
-            profile?.interests?.length ? profile.interests : company?.serviceCapabilities
-        );
+        const company = await AssociateCompanyModel.findById(associateCompanyId)
+            .select("serviceCapabilities companyFunctionPriorities updatedAt")
+            .lean();
+        const capabilitySlugs = normalizeCompanyFunctionSlugs(company?.serviceCapabilities);
+        const functions = await CompanyFunctionModel.find({
+            isActive: true,
+            slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS },
+        }).select("_id name slug description orderIndex").sort({ orderIndex: 1, name: 1 }).lean();
+        const selectedFunctions = functions.filter((row: any) => capabilitySlugs.includes(String(row.slug)));
+        const selectedIds = selectedFunctions.map((row: any) => String(row._id));
+        const priorityIds = (Array.isArray((company as any)?.companyFunctionPriorities)
+            ? (company as any).companyFunctionPriorities
+            : []).map((id: any) => String(id)).filter((id: string) => selectedIds.includes(id)).slice(0, 3);
         return res.json({
             success: true,
             data: {
                 associateCompanyId,
-                companyInterestsConfigured: Boolean(interests.length),
-                companyInterests: interests,
+                companyInterestsConfigured: Boolean(selectedIds.length),
+                companyInterests: capabilitySlugs,
+                approvedCompanyFunctionIds: selectedIds,
+                approvedCompanyFunctionPriorities: priorityIds,
+                companyFunctions: selectedFunctions,
+                updatedAt: (company as any)?.updatedAt || null,
             },
         });
     } catch (error: any) {

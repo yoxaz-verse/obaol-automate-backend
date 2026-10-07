@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
-import { normalizeCompanyInterests } from "../constants/companyInterests";
+import { CompanyFunctionModel } from "../database/models/companyFunction";
+import { CANONICAL_COMPANY_FUNCTION_SLUGS, normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import { InquiryModel } from "../database/models/enquiry";
 import { VariantRateModel } from "../database/models/variantRate";
 import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
@@ -84,12 +85,25 @@ export class OrganizationReportController {
           : undefined;
 
       if (actionType === "APPLY_COMPANY_INTERESTS") {
-        const requestedInterests = normalizeCompanyInterests((report as any)?.payload?.requestedInterests);
-        if (!requestedInterests.length) {
+        let requestedFunctionIds: string[] = Array.from(new Set<string>(
+          ((report as any)?.payload?.requestedCompanyFunctionIds || []).map((value: any) => String(value || ""))
+        ));
+        const requestedPriorityIds: string[] = Array.from(new Set<string>(
+          ((report as any)?.payload?.requestedCompanyFunctionPriorities || []).map((value: any) => String(value || ""))
+        ));
+        const legacySlugs = normalizeCompanyFunctionSlugs((report as any)?.payload?.requestedInterests);
+        if (!requestedFunctionIds.length && legacySlugs.length) {
+          const legacyFunctions = await CompanyFunctionModel.find({ isActive: true, slug: { $in: legacySlugs } }).select("_id").lean();
+          requestedFunctionIds = legacyFunctions.map((row: any) => String(row._id));
+        }
+        if (requestedFunctionIds.length < 1 || requestedFunctionIds.length > 6) {
           return res.status(400).json({
             success: false,
-            message: "No valid requestedInterests found in report payload.",
+            message: "No valid company categories found in report payload.",
           });
+        }
+        if (requestedPriorityIds.length > 3 || requestedPriorityIds.some((id) => !requestedFunctionIds.includes(id))) {
+          return res.status(400).json({ success: false, message: "Invalid company category priority order." });
         }
 
         const targetCompanyId = String((report as any)?.targetCompanyId || "");
@@ -107,22 +121,24 @@ export class OrganizationReportController {
           return res.status(404).json({ success: false, message: "Target company not found." });
         }
 
-        await CompanyInterestProfileModel.findOneAndUpdate(
-          { associateCompanyId: targetCompanyId },
-          {
-            $set: {
-              interests: requestedInterests,
-              isConfigured: requestedInterests.length > 0,
-              updatedBy: reviewedBy || null,
-              updatedByRole: req.user?.role || null,
-            },
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
+        const functionRows = await CompanyFunctionModel.find({
+          _id: { $in: requestedFunctionIds },
+          isActive: true,
+          slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS },
+        }).select("_id slug").lean();
+        if (functionRows.length !== requestedFunctionIds.length) {
+          return res.status(400).json({ success: false, message: "One or more requested company categories are unavailable." });
+        }
+        const slugById = new Map(functionRows.map((row: any) => [String(row._id), String(row.slug)]));
+        const capabilitySlugs = requestedFunctionIds.map((id) => slugById.get(id)).filter(Boolean);
 
         await AssociateCompanyModel.findByIdAndUpdate(targetCompanyId, {
-          $set: { serviceCapabilities: requestedInterests },
+          $set: {
+            serviceCapabilities: capabilitySlugs,
+            companyFunctionPriorities: requestedPriorityIds,
+          },
         });
+        await CompanyInterestProfileModel.deleteOne({ associateCompanyId: targetCompanyId });
       }
 
       let reopenedInquiryId: string | null = null;

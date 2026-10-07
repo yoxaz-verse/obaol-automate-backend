@@ -68,6 +68,8 @@ const OrganizationReportSchema = new Schema(
     },
     payload: {
       requestedInterests: [{ type: String, trim: true }],
+      requestedCompanyFunctionIds: [{ type: Schema.Types.ObjectId, ref: "CompanyFunction" }],
+      requestedCompanyFunctionPriorities: [{ type: Schema.Types.ObjectId, ref: "CompanyFunction" }],
       inquiryId: { type: Schema.Types.ObjectId, ref: "Inquiry", default: null },
       requestedBy: { type: Schema.Types.ObjectId, ref: "Associate", default: null },
       note: { type: String, trim: true, maxlength: 1000, default: "" },

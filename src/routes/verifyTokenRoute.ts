@@ -3,8 +3,7 @@ import { Router } from "express";
 import { VerificationModel } from "../database/models/verification";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
-import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
-import { normalizeCompanyInterests } from "../constants/companyInterests";
+import { normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import { OperatorModel } from "../database/models/operator";
 
 const verifyTokenRoute = Router();
@@ -55,13 +54,8 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   }
 
   if (associateCompanyId) {
-    const [profile, company] = await Promise.all([
-      CompanyInterestProfileModel.findOne({ associateCompanyId }).select("interests isConfigured").lean(),
-      AssociateCompanyModel.findById(associateCompanyId).select("serviceCapabilities").lean(),
-    ]);
-    companyInterests = normalizeCompanyInterests(
-      profile?.interests?.length ? profile.interests : company?.serviceCapabilities
-    );
+    const company = await AssociateCompanyModel.findById(associateCompanyId).select("serviceCapabilities").lean();
+    companyInterests = normalizeCompanyFunctionSlugs(company?.serviceCapabilities);
     companyInterestsConfigured = companyInterests.length > 0;
   }
 

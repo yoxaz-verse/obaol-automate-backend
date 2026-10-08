@@ -13,7 +13,7 @@ const asDateTime = (value: any) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Never" : date.toISOString();
 };
-const asText = (value: any) => {
+const asText = (value: any): string => {
   if (value === null || value === undefined || value === "") return "N/A";
   if (Array.isArray(value)) return value.map(asText).join(", ");
   if (typeof value === "object") return value.name || value.label || value.title || "N/A";

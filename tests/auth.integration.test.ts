@@ -6,6 +6,7 @@ import { generateJWTToken } from "../src/utils/tokenUtils";
 import { verifyGoogleIdToken } from "../src/utils/googleAuth";
 import { VerificationModel } from "../src/database/models/verification";
 import { AuthPasskeyModel } from "../src/database/models/authPasskey";
+import { AssociateModel } from "../src/database/models/associate";
 
 const webAuthnMocks = vi.hoisted(() => ({
   generateRegistrationOptions: vi.fn(),
@@ -59,6 +60,21 @@ describe("Auth API", () => {
       role: "Associate",
     });
     expect(res.status).toBe(401);
+    expect((await AssociateModel.findById(user._id).lean())?.lastLoginAt).toBeFalsy();
+  });
+
+  it("records Last Login only after successful password authentication", async () => {
+    const user = await createAssociate();
+    const before = Date.now();
+    const res = await api.post("/api/v1/web/login").send({
+      email: user.email,
+      password: "Passw0rd!",
+      role: "Associate",
+    });
+    expect(res.status).toBe(200);
+    const refreshed = await AssociateModel.findById(user._id).lean();
+    expect(refreshed?.lastLoginAt).toBeTruthy();
+    expect(new Date(refreshed!.lastLoginAt!).getTime()).toBeGreaterThanOrEqual(before);
   });
 
   it("keeps associate password failures as 401 before cooldown threshold", async () => {

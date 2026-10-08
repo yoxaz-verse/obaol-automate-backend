@@ -128,28 +128,50 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
   }
 
   if (reasonCode === "COMPANY_INTEREST_UPDATE") {
+    const normalizeIds = (value: unknown): string[] => Array.from(new Set<string>(
+      (Array.isArray(value) ? value : []).map((item: unknown) => String(item || "").trim()).filter(Boolean)
+    ));
+    const validateProfile = (ids: string[], priorities: string[], label: string) => {
+      if (ids.length < 1 || ids.length > 6 || ids.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+        throw buildError(`Select between 1 and 6 valid ${label} categories.`);
+      }
+      if (priorities.length > 3 || priorities.some((id) => !ids.includes(id))) {
+        throw buildError(`${label} priorities must contain up to 3 selected categories.`);
+      }
+    };
+    const hasSplitProfiles = [
+      nextPayload?.payload?.requestedProvidedFunctionIds,
+      nextPayload?.payload?.requestedSoughtFunctionIds,
+    ].some(Array.isArray);
     const requestedFunctionIds: string[] = Array.from(new Set<string>(
       (Array.isArray(nextPayload?.payload?.requestedCompanyFunctionIds)
         ? nextPayload.payload.requestedCompanyFunctionIds
         : []).map((value: unknown) => String(value || "").trim())
     ));
-    if (requestedFunctionIds.length < 1 || requestedFunctionIds.length > 6 || requestedFunctionIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
-      throw buildError("Select between 1 and 6 valid company categories.");
-    }
     const requestedPriorityIds: string[] = Array.from(new Set<string>(
       (Array.isArray(nextPayload?.payload?.requestedCompanyFunctionPriorities)
         ? nextPayload.payload.requestedCompanyFunctionPriorities
         : []).map((value: unknown) => String(value || "").trim())
     ));
-    if (requestedPriorityIds.length > 3 || requestedPriorityIds.some((id) => !requestedFunctionIds.includes(id))) {
-      throw buildError("Priorities must contain up to 3 selected company categories.");
+    const requestedProvidedFunctionIds = normalizeIds(nextPayload?.payload?.requestedProvidedFunctionIds);
+    const requestedSoughtFunctionIds = normalizeIds(nextPayload?.payload?.requestedSoughtFunctionIds);
+    const requestedProvidedFunctionPriorities = normalizeIds(nextPayload?.payload?.requestedProvidedFunctionPriorities);
+    const requestedSoughtFunctionPriorities = normalizeIds(nextPayload?.payload?.requestedSoughtFunctionPriorities);
+    if (hasSplitProfiles) {
+      validateProfile(requestedProvidedFunctionIds, requestedProvidedFunctionPriorities, "provided");
+      validateProfile(requestedSoughtFunctionIds, requestedSoughtFunctionPriorities, "sought");
+    } else {
+      validateProfile(requestedFunctionIds, requestedPriorityIds, "company");
     }
+    const allRequestedIds = Array.from(new Set(hasSplitProfiles
+      ? [...requestedProvidedFunctionIds, ...requestedSoughtFunctionIds]
+      : requestedFunctionIds));
     const activeFunctions = await CompanyFunctionModel.find({
-      _id: { $in: requestedFunctionIds },
+      _id: { $in: allRequestedIds },
       isActive: true,
       slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS },
     }).select("_id slug").lean();
-    if (activeFunctions.length !== requestedFunctionIds.length) {
+    if (activeFunctions.length !== allRequestedIds.length) {
       throw buildError("One or more selected company categories are unavailable.");
     }
 
@@ -170,8 +192,15 @@ export const organizationReportPreWriteHook: HookFunction = async (payload, mode
     nextPayload.targetAssociateId = actorId;
     nextPayload.targetCompanyId = reporterCompanyId;
     nextPayload.payload = {
-      requestedCompanyFunctionIds: requestedFunctionIds,
-      requestedCompanyFunctionPriorities: requestedPriorityIds,
+      ...(hasSplitProfiles ? {
+        requestedProvidedFunctionIds,
+        requestedSoughtFunctionIds,
+        requestedProvidedFunctionPriorities,
+        requestedSoughtFunctionPriorities,
+      } : {
+        requestedCompanyFunctionIds: requestedFunctionIds,
+        requestedCompanyFunctionPriorities: requestedPriorityIds,
+      }),
       note: String(nextPayload?.payload?.note || "").trim(),
     };
     nextPayload.status = "PENDING_REVIEW";

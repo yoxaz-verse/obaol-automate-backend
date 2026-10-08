@@ -85,24 +85,39 @@ export class OrganizationReportController {
           : undefined;
 
       if (actionType === "APPLY_COMPANY_INTERESTS") {
+        const payload = (report as any)?.payload || {};
+        const normalizeIds = (value: unknown): string[] => Array.from(new Set<string>(
+          (Array.isArray(value) ? value : []).map((item: unknown) => String(item || "")).filter(Boolean)
+        ));
         let requestedFunctionIds: string[] = Array.from(new Set<string>(
-          ((report as any)?.payload?.requestedCompanyFunctionIds || []).map((value: any) => String(value || ""))
+          (payload.requestedCompanyFunctionIds || []).map((value: any) => String(value || ""))
         ));
         const requestedPriorityIds: string[] = Array.from(new Set<string>(
-          ((report as any)?.payload?.requestedCompanyFunctionPriorities || []).map((value: any) => String(value || ""))
+          (payload.requestedCompanyFunctionPriorities || []).map((value: any) => String(value || ""))
         ));
-        const legacySlugs = normalizeCompanyFunctionSlugs((report as any)?.payload?.requestedInterests);
+        const requestedProvidedIds = normalizeIds(payload.requestedProvidedFunctionIds);
+        const requestedSoughtIds = normalizeIds(payload.requestedSoughtFunctionIds);
+        const requestedProvidedPriorities = normalizeIds(payload.requestedProvidedFunctionPriorities);
+        const requestedSoughtPriorities = normalizeIds(payload.requestedSoughtFunctionPriorities);
+        const hasSplitProfiles = requestedProvidedIds.length > 0 || requestedSoughtIds.length > 0;
+        const legacySlugs = normalizeCompanyFunctionSlugs(payload.requestedInterests);
         if (!requestedFunctionIds.length && legacySlugs.length) {
           const legacyFunctions = await CompanyFunctionModel.find({ isActive: true, slug: { $in: legacySlugs } }).select("_id").lean();
           requestedFunctionIds = legacyFunctions.map((row: any) => String(row._id));
         }
-        if (requestedFunctionIds.length < 1 || requestedFunctionIds.length > 6) {
+        const profiles = hasSplitProfiles
+          ? [
+              { ids: requestedProvidedIds, priorities: requestedProvidedPriorities },
+              { ids: requestedSoughtIds, priorities: requestedSoughtPriorities },
+            ]
+          : [{ ids: requestedFunctionIds, priorities: requestedPriorityIds }];
+        if (profiles.some(({ ids }) => ids.length < 1 || ids.length > 6)) {
           return res.status(400).json({
             success: false,
             message: "No valid company categories found in report payload.",
           });
         }
-        if (requestedPriorityIds.length > 3 || requestedPriorityIds.some((id) => !requestedFunctionIds.includes(id))) {
+        if (profiles.some(({ ids, priorities }) => priorities.length > 3 || priorities.some((id) => !ids.includes(id)))) {
           return res.status(400).json({ success: false, message: "Invalid company category priority order." });
         }
 
@@ -121,19 +136,27 @@ export class OrganizationReportController {
           return res.status(404).json({ success: false, message: "Target company not found." });
         }
 
+        const allRequestedIds = Array.from(new Set(profiles.flatMap(({ ids }) => ids)));
         const functionRows = await CompanyFunctionModel.find({
-          _id: { $in: requestedFunctionIds },
+          _id: { $in: allRequestedIds },
           isActive: true,
           slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS },
         }).select("_id slug").lean();
-        if (functionRows.length !== requestedFunctionIds.length) {
+        if (functionRows.length !== allRequestedIds.length) {
           return res.status(400).json({ success: false, message: "One or more requested company categories are unavailable." });
         }
         const slugById = new Map(functionRows.map((row: any) => [String(row._id), String(row.slug)]));
         const capabilitySlugs = requestedFunctionIds.map((id) => slugById.get(id)).filter(Boolean);
+        const providedSlugs = requestedProvidedIds.map((id) => slugById.get(id)).filter(Boolean);
+        const soughtSlugs = requestedSoughtIds.map((id) => slugById.get(id)).filter(Boolean);
 
         await AssociateCompanyModel.findByIdAndUpdate(targetCompanyId, {
-          $set: {
+          $set: hasSplitProfiles ? {
+            providedCapabilities: providedSlugs,
+            soughtCapabilities: soughtSlugs,
+            providedCapabilityPriorities: requestedProvidedPriorities,
+            soughtCapabilityPriorities: requestedSoughtPriorities,
+          } : {
             providedCapabilities: capabilitySlugs,
             providedCapabilityPriorities: requestedPriorityIds,
           },

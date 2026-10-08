@@ -45,6 +45,8 @@ const normalizeToken = (value: unknown): string =>
     .replace(/[^A-Z0-9_]/g, "");
 
 export const CANONICAL_COMPANY_FUNCTION_SLUGS = [
+  "buying",
+  "selling",
   "sourcing",
   "packaging",
   "testing",
@@ -56,6 +58,10 @@ export const CANONICAL_COMPANY_FUNCTION_SLUGS = [
 ] as const;
 
 const LEGACY_TO_COMPANY_FUNCTION: Record<string, string> = {
+  BUY: "buying",
+  BUYING: "buying",
+  SELL: "selling",
+  SELLING: "selling",
   PROCUREMENT: "sourcing",
   PROCUREMENT_PARTNER: "sourcing",
   SOURCING: "sourcing",

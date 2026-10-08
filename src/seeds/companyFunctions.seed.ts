@@ -10,6 +10,18 @@ const slugify = (value: string) =>
 
 const COMPANY_FUNCTION_SEED = [
   {
+    name: "Buying",
+    slug: "buying",
+    description: "Buying or procuring commodities and products.",
+    subFunctions: [],
+  },
+  {
+    name: "Selling",
+    slug: "selling",
+    description: "Selling or supplying commodities and products.",
+    subFunctions: [],
+  },
+  {
     name: "Sourcing",
     slug: "sourcing",
     subFunctions: [],
@@ -60,7 +72,7 @@ export const seedCompanyFunctions = async () => {
       {
         $set: {
           name: fn.name,
-          description: "",
+          description: "description" in fn ? fn.description : "",
           isActive: true,
           orderIndex: i + 1,
           slug: fn.slug,

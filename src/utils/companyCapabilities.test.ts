@@ -6,12 +6,14 @@ import {
 } from "./companyCapabilities";
 
 describe("company capability normalization", () => {
-  it("keeps the eight onboarding categories canonical", () => {
-    expect(CANONICAL_COMPANY_FUNCTION_SLUGS).toHaveLength(8);
+  it("keeps the ten onboarding categories canonical", () => {
+    expect(CANONICAL_COMPANY_FUNCTION_SLUGS).toHaveLength(10);
     expect(normalizeCompanyFunctionSlugs(CANONICAL_COMPANY_FUNCTION_SLUGS)).toEqual(CANONICAL_COMPANY_FUNCTION_SLUGS);
   });
 
   it("maps legacy granular interests into onboarding categories", () => {
+    expect(normalizeCompanyFunctionSlug("BUY")).toBe("buying");
+    expect(normalizeCompanyFunctionSlug("SELLING")).toBe("selling");
     expect(normalizeCompanyFunctionSlug("PROCUREMENT")).toBe("sourcing");
     expect(normalizeCompanyFunctionSlug("QUALITY_TESTING")).toBe("testing");
     expect(normalizeCompanyFunctionSlug("WAREHOUSING")).toBe("warehouse-storage");

@@ -1773,6 +1773,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 export const getRegisterOptions = async (_req: Request, res: Response) => {
     try {
         const allowedCompanyFunctionSlugs = new Set([
+            "buying",
+            "selling",
             "sourcing",
             "packaging",
             "testing",
@@ -2182,6 +2184,11 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
         const priorityIds = (Array.isArray((company as any)?.soughtCapabilityPriorities)
             ? (company as any).soughtCapabilityPriorities
             : []).map((id: any) => String(id)).filter((id: string) => selectedIds.includes(id)).slice(0, 3);
+        const providedFunctions = functions.filter((row: any) => providedSlugs.includes(String(row.slug)));
+        const providedIds = providedFunctions.map((row: any) => String(row._id));
+        const providedPriorityIds = (Array.isArray((company as any)?.providedCapabilityPriorities)
+            ? (company as any).providedCapabilityPriorities
+            : []).map((id: any) => String(id)).filter((id: string) => providedIds.includes(id)).slice(0, 3);
         return res.json({
             success: true,
             data: {
@@ -2192,6 +2199,10 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
                 soughtCapabilities: soughtSlugs,
                 approvedCompanyFunctionIds: selectedIds,
                 approvedCompanyFunctionPriorities: priorityIds,
+                providedFunctionIds: providedIds,
+                soughtFunctionIds: selectedIds,
+                providedFunctionPriorities: providedPriorityIds,
+                soughtFunctionPriorities: priorityIds,
                 companyFunctions: selectedFunctions,
                 updatedAt: (company as any)?.updatedAt || null,
             },

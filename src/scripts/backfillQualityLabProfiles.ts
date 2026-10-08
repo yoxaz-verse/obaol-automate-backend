@@ -20,7 +20,7 @@ async function run() {
     await mongoose.connect(uri);
 
     const rows = await AssociateCompanyModel.find({ isDeleted: { $ne: true } }).select(
-      "_id name email phone phoneSecondary location serviceCapabilities labTests labCertifications labSpecifications labAcceptedItems labNotes isQualityLabListed labDisplayName labContactEmail labContactPhone labContactPhoneSecondary"
+      "_id name email phone phoneSecondary location providedCapabilities labTests labCertifications labSpecifications labAcceptedItems labNotes isQualityLabListed labDisplayName labContactEmail labContactPhone labContactPhoneSecondary"
     );
 
     let flaggedCount = 0;

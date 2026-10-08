@@ -474,8 +474,7 @@ export class ApprovalController {
       const [total, rows] = await Promise.all([
         AssociateCompanyModel.countDocuments(query),
         AssociateCompanyModel.find(query)
-          .select("name email phone gstin registrationStatus isApproved createdAt companyType")
-          .populate("companyType", "name")
+          .select("name email phone gstin registrationStatus isApproved createdAt")
           .sort({ createdAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit)

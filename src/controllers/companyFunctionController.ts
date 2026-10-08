@@ -258,7 +258,7 @@ export class CompanyFunctionController {
       const fnIds = Array.from(new Set(rows.map((x) => x.functionId))).map((id) => new mongoose.Types.ObjectId(id));
       const fnRows = await CompanyFunctionModel.find({ _id: { $in: fnIds } }).select("slug").lean();
       const capabilitySlugs = Array.from(new Set(fnRows.map((x: any) => String(x.slug || "").toUpperCase()).filter(Boolean)));
-      await AssociateCompanyModel.findByIdAndUpdate(companyId, { $set: { serviceCapabilities: capabilitySlugs } });
+      await AssociateCompanyModel.findByIdAndUpdate(companyId, { $set: { providedCapabilities: capabilitySlugs } });
 
       const saved = await CompanyFunctionMappingModel.find({ companyId })
         .select("_id companyId functionId subFunctionId isVerified createdAt updatedAt")

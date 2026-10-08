@@ -45,7 +45,7 @@ async function run() {
         externalListingReference: lab.reference,
         externalListingDate: sourceDate,
         geoType: "INDIAN",
-        serviceCapabilities: ["QUALITY_TESTING"],
+        providedCapabilities: ["QUALITY_TESTING"],
         isQualityLabListed: true,
         labDisplayName: lab.displayName,
         labContactEmail: lab.contactEmail || "",

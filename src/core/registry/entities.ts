@@ -95,7 +95,6 @@ export const EntityRegistry: Record<string, EntityConfig> = {
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {
             associateCompany: "associate-companies",
-            "associateCompany.companyType": "company-types",
             "associateCompany.state": "states",
             "associateCompany.district": "districts",
             "associateCompany.division": "divisions",
@@ -381,7 +380,6 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             district: "districts",
             division: "divisions",
             pincodeEntry: "pincode-entries",
-            companyType: "company-types",
             assignedOperator: "operators",
             supervisor: "associates"
         },

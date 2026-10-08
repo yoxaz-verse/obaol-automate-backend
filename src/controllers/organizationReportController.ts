@@ -134,8 +134,8 @@ export class OrganizationReportController {
 
         await AssociateCompanyModel.findByIdAndUpdate(targetCompanyId, {
           $set: {
-            serviceCapabilities: capabilitySlugs,
-            companyFunctionPriorities: requestedPriorityIds,
+            providedCapabilities: capabilitySlugs,
+            providedCapabilityPriorities: requestedPriorityIds,
           },
         });
         await CompanyInterestProfileModel.deleteOne({ associateCompanyId: targetCompanyId });

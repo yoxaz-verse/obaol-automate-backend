@@ -44,7 +44,7 @@ import { notificationService } from "../services/notificationService";
 import { operationalNotificationService } from "../services/operationalNotificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { TradeDocumentController } from "./tradeDocumentController";
-import { requestTypeToCapabilityAliases } from "../utils/companyCapabilities";
+import { normalizeCompanyFunctionSlugs, requestTypeToCapabilityAliases } from "../utils/companyCapabilities";
 import {
     getExecutionSubflowType,
     isPositiveFiniteBid,
@@ -116,10 +116,11 @@ export class InquiryController {
         countryIds?: unknown[];
     }): Promise<{ ids: string[]; matchLevel: ProviderMatchLevel }> {
         const capabilities = requestTypeToCapabilityAliases(type);
+        const canonicalCapabilities = normalizeCompanyFunctionSlugs([type, ...capabilities]);
         const rows = await AssociateCompanyModel.find({
             isDeleted: { $ne: true },
             isApproved: true,
-            serviceCapabilities: { $in: capabilities.length ? capabilities : [String(type || "").toUpperCase()] },
+            providedCapabilities: { $in: canonicalCapabilities.length ? canonicalCapabilities : [String(type || "").toLowerCase()] },
         })
             .select("_id district state country")
             .limit(5000)
@@ -2226,7 +2227,7 @@ export class InquiryController {
                 .select("enquiryCode productId productVariant executionContext workflowStage status supplierOperatorId dealCloserOperatorId handlerOperatorId executionInquiries createdAt")
                 .populate([
                     { path: "productId", select: "name" },
-                    { path: "executionInquiries.candidateProviders", select: "name serviceCapabilities district state country" },
+                    { path: "executionInquiries.candidateProviders", select: "name providedCapabilities district state country" },
                     { path: "executionInquiries.committedProvider", select: "name" },
                     { path: "executionInquiries.bids.company", select: "name" },
                 ])
@@ -2386,9 +2387,9 @@ export class InquiryController {
                 { path: "dealCloserOperatorId", select: "name email phone" },
                 { path: "handlerOperatorId", select: "name email phone" },
                 { path: "pendingHandlerOperatorId", select: "name email phone" },
-                    { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
-                    { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
-                    { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
+                    { path: "executionInquiries.candidateProviders", select: "name email phone providedCapabilities" },
+                    { path: "executionInquiries.committedProvider", select: "name email phone providedCapabilities" },
+                    { path: "executionInquiries.bids.company", select: "name email phone providedCapabilities" }
                 ])
                 .select("+notes"); // Include notes for access control filtering
 
@@ -2500,9 +2501,9 @@ export class InquiryController {
                     { path: "dealCloserOperatorId", select: "name email phone" },
                     { path: "handlerOperatorId", select: "name email phone" },
                     { path: "pendingHandlerOperatorId", select: "name email phone" },
-                        { path: "executionInquiries.candidateProviders", select: "name email phone serviceCapabilities" },
-                        { path: "executionInquiries.committedProvider", select: "name email phone serviceCapabilities" },
-                        { path: "executionInquiries.bids.company", select: "name email phone serviceCapabilities" }
+                        { path: "executionInquiries.candidateProviders", select: "name email phone providedCapabilities" },
+                        { path: "executionInquiries.committedProvider", select: "name email phone providedCapabilities" },
+                        { path: "executionInquiries.bids.company", select: "name email phone providedCapabilities" }
                     ])
                     .sort({ createdAt: -1 })
                     .skip(skip)

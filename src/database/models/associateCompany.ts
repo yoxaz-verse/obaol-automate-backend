@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { normalizePhoneInput } from "../../utils/phone";
-import { normalizeCapabilities } from "../../utils/companyCapabilities";
+import { normalizeCompanyFunctionSlugs } from "../../utils/companyCapabilities";
 
 const AssociateCompanySchema = new mongoose.Schema(
   {
@@ -25,7 +25,6 @@ const AssociateCompanySchema = new mongoose.Schema(
     country: { type: mongoose.Types.ObjectId, ref: "Country", required: false },
     state: { type: mongoose.Types.ObjectId, ref: "State" },
     district: { type: mongoose.Types.ObjectId, ref: "District" },
-    companyType: { type: mongoose.Types.ObjectId, ref: "CompanyType" },
     division: {
       type: mongoose.Types.ObjectId,
       ref: "Division",
@@ -47,7 +46,8 @@ const AssociateCompanySchema = new mongoose.Schema(
     },
     phoneSecondaryCountryCode: { type: String, default: "+91" },
     phoneSecondaryNational: { type: String, default: "" },
-    serviceCapabilities: [{ type: String, default: [] }],
+    providedCapabilities: [{ type: String, default: [] }],
+    soughtCapabilities: [{ type: String, default: [] }],
     isQualityLabListed: { type: Boolean, default: false },
     labDisplayName: { type: String, trim: true, default: "" },
     labContactEmail: { type: String, trim: true, lowercase: true, default: "" },
@@ -76,7 +76,8 @@ const AssociateCompanySchema = new mongoose.Schema(
     externalListingSourceUrl: { type: String, trim: true, default: "" },
     externalListingReference: { type: String, trim: true, default: "" },
     externalListingDate: { type: Date, default: null },
-    companyFunctionPriorities: [{ type: mongoose.Types.ObjectId, ref: "CompanyFunction" }],
+    providedCapabilityPriorities: [{ type: mongoose.Types.ObjectId, ref: "CompanyFunction" }],
+    soughtCapabilityPriorities: [{ type: mongoose.Types.ObjectId, ref: "CompanyFunction" }],
     assignedOperator: { type: mongoose.Schema.Types.ObjectId, ref: "Operator" },
     supervisor: { type: mongoose.Schema.Types.ObjectId, ref: "Associate" },
     slug: { type: String, unique: true, sparse: true, trim: true }, // For improved SEO & catalog URLs
@@ -129,18 +130,6 @@ AssociateCompanySchema.index({
 
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
-const inferCapabilitiesFromCompanyTypeName = (name: string): string[] => {
-  const n = String(name || "").toLowerCase();
-  const all = new Set<string>();
-  if (n.includes("logistics") || n.includes("transport")) all.add("TRANSPORTATION");
-  if (n.includes("shipping") || n.includes("freight") || n.includes("forward")) all.add("SHIPPING");
-  if (n.includes("pack")) all.add("PACKAGING");
-  if (n.includes("quality") || n.includes("lab") || n.includes("test")) all.add("QUALITY_TESTING");
-  if (n.includes("cert")) all.add("CERTIFICATION");
-  if (n.includes("procure") || n.includes("sourc") || n.includes("trader") || n.includes("supplier")) all.add("PROCUREMENT");
-  return Array.from(all);
-};
-
 // Automatic Subdomain & Slug Generation
 AssociateCompanySchema.pre("save", async function (next) {
   const self = this as any;
@@ -170,12 +159,8 @@ AssociateCompanySchema.pre("save", async function (next) {
     }
   }
 
-  if ((!Array.isArray(self.serviceCapabilities) || self.serviceCapabilities.length === 0) && self.companyType) {
-    const companyTypeDoc = await mongoose.models.CompanyType.findById(self.companyType).select("name");
-    const inferred = inferCapabilitiesFromCompanyTypeName(String(companyTypeDoc?.name || ""));
-    if (inferred.length) self.serviceCapabilities = inferred;
-  }
-  self.serviceCapabilities = normalizeCapabilities(self.serviceCapabilities);
+  self.providedCapabilities = normalizeCompanyFunctionSlugs(self.providedCapabilities);
+  self.soughtCapabilities = normalizeCompanyFunctionSlugs(self.soughtCapabilities);
 
   if (!self.subdomain || !self.slug) {
     const baseValue = self.name
@@ -249,8 +234,11 @@ AssociateCompanySchema.pre("findOneAndUpdate", function (next) {
     }
     payload.gstin = gstin || undefined;
   }
-  if (Object.prototype.hasOwnProperty.call(payload, "serviceCapabilities")) {
-    payload.serviceCapabilities = normalizeCapabilities(payload.serviceCapabilities);
+  if (Object.prototype.hasOwnProperty.call(payload, "providedCapabilities")) {
+    payload.providedCapabilities = normalizeCompanyFunctionSlugs(payload.providedCapabilities);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "soughtCapabilities")) {
+    payload.soughtCapabilities = normalizeCompanyFunctionSlugs(payload.soughtCapabilities);
   }
 
   if (update.$set) {

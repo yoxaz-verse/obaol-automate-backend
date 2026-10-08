@@ -54,8 +54,8 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   }
 
   if (associateCompanyId) {
-    const company = await AssociateCompanyModel.findById(associateCompanyId).select("serviceCapabilities").lean();
-    companyInterests = normalizeCompanyFunctionSlugs(company?.serviceCapabilities);
+    const company = await AssociateCompanyModel.findById(associateCompanyId).select("providedCapabilities").lean();
+    companyInterests = normalizeCompanyFunctionSlugs((company as any)?.providedCapabilities);
     companyInterestsConfigured = companyInterests.length > 0;
   }
 

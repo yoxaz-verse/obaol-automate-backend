@@ -6,7 +6,6 @@ import { OperatorModel } from "../database/models/operator";
 import { AssociateModel as AgentModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
-import { CompanyTypeModel } from "../database/models/companyType";
 import { DesignationModel } from "../database/models/designation";
 import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
 import { StateModel } from "../database/models/state";
@@ -341,7 +340,7 @@ const syncCompanyInterests = async (params: {
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     await AssociateCompanyModel.findByIdAndUpdate(associateCompanyId, {
-        $set: { serviceCapabilities: interests },
+        $set: { soughtCapabilities: interests },
     });
     return interests;
 };
@@ -388,7 +387,7 @@ const syncCompanyFunctionMappings = async (params: {
     );
 
     await AssociateCompanyModel.findByIdAndUpdate(companyId, {
-        $set: { serviceCapabilities: capabilitySlugs },
+        $set: { providedCapabilities: capabilitySlugs },
     });
 };
 
@@ -396,6 +395,7 @@ const syncCompanyFunctions = async (params: {
     companyId: any;
     selectedFunctionIds: any[];
     selectedFunctionPriorities?: any[];
+    kind?: "provided" | "sought";
 }) => {
     const companyId = params.companyId;
     const functionIds = Array.from(
@@ -422,14 +422,17 @@ const syncCompanyFunctions = async (params: {
         throw new Error("One or more selected company categories are invalid or inactive.");
     }
 
-    await CompanyFunctionMappingModel.deleteMany({ companyId });
+    if ((params.kind || "provided") === "provided") {
+        await CompanyFunctionMappingModel.deleteMany({ companyId });
+    }
 
-    const capabilitySlugs = Array.from(
-        new Set(functions.map((row: any) => String(row.slug || "").toUpperCase()).filter(Boolean))
-    );
+    const capabilitySlugs = normalizeCompanyFunctionSlugs(functions.map((row: any) => row.slug));
 
+    const isSought = params.kind === "sought";
     await AssociateCompanyModel.findByIdAndUpdate(companyId, {
-        $set: { serviceCapabilities: capabilitySlugs, companyFunctionPriorities: prioritySubset },
+        $set: isSought
+            ? { soughtCapabilities: capabilitySlugs, soughtCapabilityPriorities: prioritySubset }
+            : { providedCapabilities: capabilitySlugs, providedCapabilityPriorities: prioritySubset },
     });
 };
 
@@ -1053,16 +1056,20 @@ export const registerAssociate = async (req: Request, res: Response) => {
                     rawNational: typeof company?.phone === "object" ? company?.phone?.national : company?.phoneNational,
                 });
                 const companyPhone = normalizedCompanyPrimaryPhone.e164;
-                const companyType = company?.companyType || null;
-                const requestedInterests = normalizeCompanyInterests(company?.interests);
-                const selectedFunctionIdsRaw = Array.isArray(company?.functionIds) ? company.functionIds : [];
-                const selectedFunctionIds = selectedFunctionIdsRaw
+                const selectedFunctionIdsRaw = Array.isArray(company?.providedFunctionIds) ? company.providedFunctionIds : [];
+                const selectedFunctionIds: string[] = Array.from(new Set<string>(selectedFunctionIdsRaw
                     .map((id: any) => String(id || "").trim())
-                    .filter((id: string) => mongoose.Types.ObjectId.isValid(id));
-                const selectedFunctionPrioritiesRaw = Array.isArray(company?.functionPriorities) ? company.functionPriorities : [];
-                const selectedFunctionPriorities = selectedFunctionPrioritiesRaw
+                    .filter((id: string) => mongoose.Types.ObjectId.isValid(id))));
+                const selectedFunctionPrioritiesRaw = Array.isArray(company?.providedFunctionPriorities) ? company.providedFunctionPriorities : [];
+                const selectedFunctionPriorities: string[] = Array.from(new Set<string>(selectedFunctionPrioritiesRaw
                     .map((id: any) => String(id || "").trim())
-                    .filter((id: string) => mongoose.Types.ObjectId.isValid(id));
+                    .filter((id: string) => mongoose.Types.ObjectId.isValid(id))));
+                const soughtFunctionIds: string[] = Array.from(new Set<string>((Array.isArray(company?.soughtFunctionIds) ? company.soughtFunctionIds : [])
+                    .map((id: any) => String(id || "").trim())
+                    .filter((id: string) => mongoose.Types.ObjectId.isValid(id))));
+                const soughtFunctionPriorities: string[] = Array.from(new Set<string>((Array.isArray(company?.soughtFunctionPriorities) ? company.soughtFunctionPriorities : [])
+                    .map((id: any) => String(id || "").trim())
+                    .filter((id: string) => mongoose.Types.ObjectId.isValid(id))));
                 const selectedSubFunctionIdsRaw = Array.isArray(company?.subFunctionIds) ? company.subFunctionIds : [];
                 const selectedSubFunctionIds = selectedSubFunctionIdsRaw
                     .map((id: any) => String(id || "").trim())
@@ -1078,10 +1085,10 @@ export const registerAssociate = async (req: Request, res: Response) => {
                 const companyDivision = String(company?.division || "").trim();
                 const companyPincodeEntry = String(company?.pincodeEntry || "").trim();
 
-                if (!companyName || !companyEmail || !companyPhone || !companyType) {
+                if (!companyName || !companyEmail || !companyPhone) {
                     return res.status(400).json({
                         success: false,
-                        message: "Company name, company email, company phone, and company type are required."
+                        message: "Company name, company email, and company phone are required."
                     });
                 }
                 if (!companyAddress) {
@@ -1090,19 +1097,19 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         message: "Company address is required."
                     });
                 }
-                if (!selectedFunctionIds.length && !selectedSubFunctionIds.length) {
+                if (!selectedFunctionIds.length || !soughtFunctionIds.length) {
                     return res.status(400).json({
                         success: false,
-                        message: "Please select at least one company category."
+                        message: "Please select at least one provided and one sought capability."
                     });
                 }
-                if (selectedFunctionIds.length > 6 || selectedSubFunctionIds.length > 6) {
+                if (selectedFunctionIds.length > 6 || soughtFunctionIds.length > 6) {
                     return res.status(400).json({
                         success: false,
-                        message: "You can select up to 6 company categories."
+                        message: "You can select up to 6 capabilities in each section."
                     });
                 }
-                if (selectedFunctionPriorities.length > 3) {
+                if (selectedFunctionPriorities.length > 3 || soughtFunctionPriorities.length > 3) {
                     return res.status(400).json({
                         success: false,
                         message: "You can select up to 3 priorities."
@@ -1114,6 +1121,9 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         message: "Priorities must be part of selected categories."
                     });
                 }
+                if (soughtFunctionPriorities.length && !soughtFunctionPriorities.every((id: string) => soughtFunctionIds.includes(id))) {
+                    return res.status(400).json({ success: false, message: "Sought priorities must be part of sought capabilities." });
+                }
                 if (companyGstin && !GST_REGEX.test(companyGstin)) {
                     return res.status(400).json({
                         success: false,
@@ -1121,13 +1131,6 @@ export const registerAssociate = async (req: Request, res: Response) => {
                     });
                 }
 
-                const companyTypeExists = await CompanyTypeModel.findById(companyType).select("_id");
-                if (!companyTypeExists) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "Invalid company type."
-                    });
-                }
                 let resolvedCompanyCountryId: any = undefined;
                 if (companyGeoType === "INDIAN") {
                     if (!companyState || !companyDistrict || !companyDivision) {
@@ -1192,26 +1195,6 @@ export const registerAssociate = async (req: Request, res: Response) => {
                 const duplicateCompanyByEmail = await AssociateCompanyModel.findOne({ email: companyEmail }).select("_id");
                 if (duplicateCompanyByEmail) {
                     linkedCompanyId = duplicateCompanyByEmail._id;
-                    if (selectedFunctionIds.length) {
-                        await syncCompanyFunctions({
-                            companyId: linkedCompanyId,
-                            selectedFunctionIds,
-                            selectedFunctionPriorities,
-                        });
-                    } else {
-                        await syncCompanyFunctionMappings({
-                            companyId: linkedCompanyId,
-                            selectedSubFunctionIds,
-                        });
-                    }
-                    if (requestedInterests.length) {
-                        await syncCompanyInterests({
-                            associateCompanyId: linkedCompanyId,
-                            interests: requestedInterests,
-                            updatedBy: null,
-                            updatedByRole: "register",
-                        });
-                    }
                 } else {
                     const normalizedCompanySecondaryPhone = normalizePhoneInput({
                         rawPhone: typeof company?.phoneSecondary === "object" ? company?.phoneSecondary?.value || company?.phoneSecondary?.e164 || "" : company?.phoneSecondary,
@@ -1231,7 +1214,6 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         phoneSecondary: normalizedCompanySecondaryPhone.e164 || companyPhone,
                         phoneSecondaryCountryCode: normalizedCompanySecondaryPhone.countryCode || normalizedCompanyPrimaryPhone.countryCode,
                         phoneSecondaryNational: normalizedCompanySecondaryPhone.national || normalizedCompanyPrimaryPhone.national,
-                        companyType,
                         geoType: companyGeoType,
                         country: companyGeoType === "INTERNATIONAL" ? resolvedCompanyCountryId : undefined,
                         address: companyAddress,
@@ -1239,7 +1221,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         district: companyGeoType === "INDIAN" ? (companyDistrict || undefined) : undefined,
                         division: companyGeoType === "INDIAN" ? (companyDivision || undefined) : undefined,
                         pincodeEntry: companyGeoType === "INDIAN" ? (companyPincodeEntry || undefined) : undefined,
-                        serviceCapabilities: requestedInterests,
+                        providedCapabilities: [],
+                        soughtCapabilities: [],
                         registrationStatus: "PENDING_REVIEW",
                         isApproved: false,
                         assignedOperator: assignedOperatorId || undefined,
@@ -1252,20 +1235,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
                             selectedFunctionIds,
                             selectedFunctionPriorities,
                         });
-                    } else {
-                        await syncCompanyFunctionMappings({
-                            companyId: linkedCompanyId,
-                            selectedSubFunctionIds,
-                        });
                     }
-                    if (requestedInterests.length) {
-                        await syncCompanyInterests({
-                            associateCompanyId: linkedCompanyId,
-                            interests: requestedInterests,
-                            updatedBy: null,
-                            updatedByRole: "register",
-                        });
-                    }
+                    await syncCompanyFunctions({ companyId: linkedCompanyId, selectedFunctionIds: soughtFunctionIds, selectedFunctionPriorities: soughtFunctionPriorities, kind: "sought" });
                 }
             }
         }
@@ -1661,6 +1632,13 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 if (!companyPhone.e164) {
                     return res.status(400).json({ success: false, message: "Valid company phone is required." });
                 }
+                const providedFunctionIds = Array.isArray(company?.providedFunctionIds) ? company.providedFunctionIds : [];
+                const soughtFunctionIds = Array.isArray(company?.soughtFunctionIds) ? company.soughtFunctionIds : [];
+                const providedFunctionPriorities = Array.isArray(company?.providedFunctionPriorities) ? company.providedFunctionPriorities : [];
+                const soughtFunctionPriorities = Array.isArray(company?.soughtFunctionPriorities) ? company.soughtFunctionPriorities : [];
+                if (!providedFunctionIds.length || !soughtFunctionIds.length || providedFunctionIds.length > 6 || soughtFunctionIds.length > 6) {
+                    return res.status(400).json({ success: false, message: "Select 1 to 6 provided and sought capabilities." });
+                }
                 const existingCompany = await AssociateCompanyModel.findOne({ email: companyEmail }).select("_id").lean();
                 if (existingCompany) {
                     associate.associateCompany = existingCompany._id;
@@ -1680,16 +1658,18 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                         district: company?.district || null,
                         division: company?.division || null,
                         pincodeEntry: company?.pincodeEntry || null,
-                        companyType: company?.companyType || null,
                         gstin: company?.gstin || undefined,
                         legalRegistrationNumber: company?.legalRegistrationNumber || undefined,
                         legalComplianceInfo: company?.legalComplianceInfo || undefined,
-                        serviceCapabilities: Array.isArray(company?.subFunctionIds) ? company.subFunctionIds : [],
+                        providedCapabilities: [],
+                        soughtCapabilities: [],
                         assignedOperator: null,
                         supervisor: associate._id,
                         address: company?.address || "",
                     });
                     associate.associateCompany = createdCompany._id;
+                    await syncCompanyFunctions({ companyId: createdCompany._id, selectedFunctionIds: providedFunctionIds, selectedFunctionPriorities: providedFunctionPriorities, kind: "provided" });
+                    await syncCompanyFunctions({ companyId: createdCompany._id, selectedFunctionIds: soughtFunctionIds, selectedFunctionPriorities: soughtFunctionPriorities, kind: "sought" });
                 }
             }
 
@@ -1803,8 +1783,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             "inland-logistics",
         ]);
         const [
-            companyTypesRes,
-            existingCompaniesRes,
             designationsRes,
             statesRes,
             districtsRes,
@@ -1813,12 +1791,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             companyFunctionsRes,
             companySubFunctionsRes,
         ] = await Promise.allSettled([
-            CompanyTypeModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
-            AssociateCompanyModel.find({})
-                .select("_id name email phone companyType serviceCapabilities")
-                .sort({ name: 1 })
-                .limit(1000)
-                .lean(),
             DesignationModel.find({ isDeleted: { $ne: true } }).select("_id name").sort({ name: 1 }).lean(),
             StateModel.find({ isDeleted: { $ne: true } }).select("_id name code").sort({ name: 1 }).lean(),
             DistrictModel.find({ isDeleted: { $ne: true } }).select("_id name state").sort({ name: 1 }).lean(),
@@ -1828,8 +1800,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             CompanySubFunctionModel.find({ isActive: true }).select("_id functionId name slug description orderIndex").sort({ orderIndex: 1, name: 1 }).lean(),
         ]);
 
-        const companyTypes = companyTypesRes.status === "fulfilled" ? companyTypesRes.value : [];
-        const existingCompanies = existingCompaniesRes.status === "fulfilled" ? existingCompaniesRes.value : [];
         const designations = designationsRes.status === "fulfilled" ? designationsRes.value : [];
         const states = statesRes.status === "fulfilled" ? statesRes.value : [];
         const districts = districtsRes.status === "fulfilled" ? districtsRes.value : [];
@@ -1840,8 +1810,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             : [];
         const companySubFunctions = companySubFunctionsRes.status === "fulfilled" ? companySubFunctionsRes.value : [];
         const failedKeys = [
-            companyTypesRes.status !== "fulfilled" ? "companyTypes" : null,
-            existingCompaniesRes.status !== "fulfilled" ? "existingCompanies" : null,
             designationsRes.status !== "fulfilled" ? "designations" : null,
             statesRes.status !== "fulfilled" ? "states" : null,
             districtsRes.status !== "fulfilled" ? "districts" : null,
@@ -1854,8 +1822,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
         res.json({
             success: true,
             data: {
-                companyTypes,
-                existingCompanies,
                 designations,
                 states,
                 districts,
@@ -1874,8 +1840,6 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
         res.status(200).json({
             success: true,
             data: {
-                companyTypes: [],
-                existingCompanies: [],
                 designations: [],
                 states: [],
                 districts: [],
@@ -1887,7 +1851,7 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             },
             meta: {
                 partial: true,
-                failedKeys: ["companyTypes", "existingCompanies", "designations", "states", "districts", "divisions", "countries", "companyFunctions", "companySubFunctions"],
+                failedKeys: ["designations", "states", "districts", "divisions", "countries", "companyFunctions", "companySubFunctions"],
                 error: error?.message || "Failed to load registration options.",
             },
         });
@@ -2082,12 +2046,19 @@ export const registerOperator = async (req: Request, res: Response) => {
  * Public Registration Companies
  * GET /auth/register/companies
  */
-export const getRegisterCompanies = async (_req: Request, res: Response) => {
+export const getRegisterCompanies = async (req: Request, res: Response) => {
     try {
-        const existingCompanies = await AssociateCompanyModel.find({})
-            .select("_id name email phone serviceCapabilities")
+        const query = String(req.query?.q || "").trim();
+        if (query.length < 3) {
+            return res.json({ success: true, data: [] });
+        }
+        const existingCompanies = await AssociateCompanyModel.find({
+            name: new RegExp(escapeRegex(query), "i"),
+            isDeleted: { $ne: true },
+        })
+            .select("_id name providedCapabilities soughtCapabilities")
             .sort({ name: 1 })
-            .limit(1000)
+            .limit(20)
             .lean();
 
         res.json({ success: true, data: existingCompanies });
@@ -2198,24 +2169,27 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
         }
 
         const company = await AssociateCompanyModel.findById(associateCompanyId)
-            .select("serviceCapabilities companyFunctionPriorities updatedAt")
+            .select("providedCapabilities soughtCapabilities providedCapabilityPriorities soughtCapabilityPriorities updatedAt")
             .lean();
-        const capabilitySlugs = normalizeCompanyFunctionSlugs(company?.serviceCapabilities);
+        const providedSlugs = normalizeCompanyFunctionSlugs((company as any)?.providedCapabilities);
+        const soughtSlugs = normalizeCompanyFunctionSlugs((company as any)?.soughtCapabilities);
         const functions = await CompanyFunctionModel.find({
             isActive: true,
             slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS },
         }).select("_id name slug description orderIndex").sort({ orderIndex: 1, name: 1 }).lean();
-        const selectedFunctions = functions.filter((row: any) => capabilitySlugs.includes(String(row.slug)));
+        const selectedFunctions = functions.filter((row: any) => soughtSlugs.includes(String(row.slug)));
         const selectedIds = selectedFunctions.map((row: any) => String(row._id));
-        const priorityIds = (Array.isArray((company as any)?.companyFunctionPriorities)
-            ? (company as any).companyFunctionPriorities
+        const priorityIds = (Array.isArray((company as any)?.soughtCapabilityPriorities)
+            ? (company as any).soughtCapabilityPriorities
             : []).map((id: any) => String(id)).filter((id: string) => selectedIds.includes(id)).slice(0, 3);
         return res.json({
             success: true,
             data: {
                 associateCompanyId,
                 companyInterestsConfigured: Boolean(selectedIds.length),
-                companyInterests: capabilitySlugs,
+                companyInterests: soughtSlugs,
+                providedCapabilities: providedSlugs,
+                soughtCapabilities: soughtSlugs,
                 approvedCompanyFunctionIds: selectedIds,
                 approvedCompanyFunctionPriorities: priorityIds,
                 companyFunctions: selectedFunctions,
@@ -2270,24 +2244,50 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, message: "Associate company not found." });
         }
 
-        const interests = normalizeCompanyInterests(req.body?.interests);
-        if (!interests.length) {
-            return res.status(400).json({ success: false, message: "At least one interest is required." });
+        const providedFunctionIds = Array.isArray(req.body?.providedFunctionIds) ? req.body.providedFunctionIds : [];
+        const soughtFunctionIds = Array.isArray(req.body?.soughtFunctionIds) ? req.body.soughtFunctionIds : [];
+        if (providedFunctionIds.length || soughtFunctionIds.length) {
+            if (!providedFunctionIds.length || !soughtFunctionIds.length) {
+                return res.status(400).json({ success: false, message: "Provided and sought capabilities are both required." });
+            }
+            await syncCompanyFunctions({
+                companyId: associateCompanyId,
+                selectedFunctionIds: providedFunctionIds,
+                selectedFunctionPriorities: req.body?.providedFunctionPriorities,
+                kind: "provided",
+            });
+            await syncCompanyFunctions({
+                companyId: associateCompanyId,
+                selectedFunctionIds: soughtFunctionIds,
+                selectedFunctionPriorities: req.body?.soughtFunctionPriorities,
+                kind: "sought",
+            });
+        } else {
+            const interests = normalizeCompanyInterests(req.body?.interests);
+            if (!interests.length) {
+                return res.status(400).json({ success: false, message: "At least one sought capability is required." });
+            }
+            await syncCompanyInterests({
+                associateCompanyId,
+                interests,
+                updatedBy: userId,
+                updatedByRole: req.user?.role || undefined,
+            });
         }
-
-        const synced = await syncCompanyInterests({
-            associateCompanyId,
-            interests,
-            updatedBy: userId,
-            updatedByRole: req.user?.role || undefined,
-        });
+        const updatedCompany = await AssociateCompanyModel.findById(associateCompanyId)
+            .select("providedCapabilities soughtCapabilities providedCapabilityPriorities soughtCapabilityPriorities")
+            .lean();
 
         return res.json({
             success: true,
             data: {
                 associateCompanyId,
                 companyInterestsConfigured: true,
-                companyInterests: synced,
+                companyInterests: (updatedCompany as any)?.soughtCapabilities || [],
+                providedCapabilities: (updatedCompany as any)?.providedCapabilities || [],
+                soughtCapabilities: (updatedCompany as any)?.soughtCapabilities || [],
+                providedCapabilityPriorities: (updatedCompany as any)?.providedCapabilityPriorities || [],
+                soughtCapabilityPriorities: (updatedCompany as any)?.soughtCapabilityPriorities || [],
                 allowedInterests: COMPANY_INTERESTS,
             },
         });

@@ -13,7 +13,10 @@ export interface IAssociateCompany {
   phoneSecondary?: string;
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
-  serviceCapabilities?: string[];
+  providedCapabilities?: string[];
+  soughtCapabilities?: string[];
+  providedCapabilityPriorities?: string[];
+  soughtCapabilityPriorities?: string[];
   isQualityLabListed?: boolean;
   labDisplayName?: string;
   labContactEmail?: string;
@@ -75,7 +78,10 @@ export interface ICreateAssociateCompany {
   phoneSecondary?: string;
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
-  serviceCapabilities?: string[];
+  providedCapabilities?: string[];
+  soughtCapabilities?: string[];
+  providedCapabilityPriorities?: string[];
+  soughtCapabilityPriorities?: string[];
   isQualityLabListed?: boolean;
   labDisplayName?: string;
   labContactEmail?: string;
@@ -137,7 +143,10 @@ export interface IUpdateAssociateCompany {
   phoneSecondary?: string;
   phoneSecondaryCountryCode?: string;
   phoneSecondaryNational?: string;
-  serviceCapabilities?: string[];
+  providedCapabilities?: string[];
+  soughtCapabilities?: string[];
+  providedCapabilityPriorities?: string[];
+  soughtCapabilityPriorities?: string[];
   isQualityLabListed?: boolean;
   labDisplayName?: string;
   labContactEmail?: string;

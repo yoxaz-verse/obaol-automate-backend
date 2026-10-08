@@ -20,8 +20,11 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
 
   const roleLower = String(req.user.role || "").toLowerCase();
   let associateCompanyId: string | null = null;
-  let companyInterests: string[] = [];
-  let companyInterestsConfigured = true;
+  let providedCapabilities: string[] = [];
+  let soughtCapabilities: string[] = [];
+  let providedCapabilityPriorities: string[] = [];
+  let soughtCapabilityPriorities: string[] = [];
+  let companyCapabilitiesConfigured = true;
   let dashboardTutorialStatus: string | null = null;
   let onboardingComplete = false;
   let registrationStatus: string | null = null;
@@ -32,7 +35,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
 
   if (roleLower === "associate") {
     associate = await AssociateModel.findById(req.user.id)
-      .select("name email phone associateCompany tradeMode dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt")
+      .select("name email phone associateCompany dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt")
       .lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
     dashboardTutorialStatus = associate?.dashboardTutorialStatus || "PENDING";
@@ -44,7 +47,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     const companies = await AssociateCompanyModel.find({ assignedOperator: req.user.id }).select("_id").limit(2).lean();
     if (companies.length === 1) {
       associateCompanyId = String(companies[0]._id);
-      companyInterestsConfigured = false;
+      companyCapabilitiesConfigured = false;
     }
     operator = await OperatorModel.findById(req.user.id).select("name email phone onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt").lean();
     onboardingComplete = Boolean(operator?.onboardingComplete);
@@ -54,9 +57,14 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   }
 
   if (associateCompanyId) {
-    const company = await AssociateCompanyModel.findById(associateCompanyId).select("providedCapabilities").lean();
-    companyInterests = normalizeCompanyFunctionSlugs((company as any)?.providedCapabilities);
-    companyInterestsConfigured = companyInterests.length > 0;
+    const company = await AssociateCompanyModel.findById(associateCompanyId)
+      .select("providedCapabilities soughtCapabilities providedCapabilityPriorities soughtCapabilityPriorities")
+      .lean();
+    providedCapabilities = normalizeCompanyFunctionSlugs((company as any)?.providedCapabilities);
+    soughtCapabilities = normalizeCompanyFunctionSlugs((company as any)?.soughtCapabilities);
+    providedCapabilityPriorities = ((company as any)?.providedCapabilityPriorities || []).map(String);
+    soughtCapabilityPriorities = ((company as any)?.soughtCapabilityPriorities || []).map(String);
+    companyCapabilitiesConfigured = providedCapabilities.length > 0 && soughtCapabilities.length > 0;
   }
 
   res.setHeader("Cache-Control", "no-store");
@@ -69,9 +77,11 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       phone: associate?.phone || operator?.phone || null,
       role: req.user.role,
       associateCompanyId,
-      companyInterestsConfigured,
-      companyInterests,
-      tradeMode: roleLower === "associate" ? (associate?.tradeMode || "BOTH") : undefined,
+      companyCapabilitiesConfigured,
+      providedCapabilities,
+      soughtCapabilities,
+      providedCapabilityPriorities,
+      soughtCapabilityPriorities,
       dashboardTutorialStatus,
       onboardingComplete,
       registrationStatus,

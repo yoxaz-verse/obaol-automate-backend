@@ -77,16 +77,6 @@ const LOGIN_LOCKOUT_DURATIONS_MS = [
     60 * 60 * 1000,
     24 * 60 * 60 * 1000,
 ];
-const TRADE_MODES = ["BUY", "SELL", "BOTH", "SERVICE"] as const;
-type TradeMode = typeof TRADE_MODES[number];
-const isTradeMode = (value: unknown): value is TradeMode =>
-    TRADE_MODES.includes(String(value || "").trim().toUpperCase() as TradeMode);
-const normalizeTradeMode = (value: unknown): TradeMode => {
-    const normalized = String(value || "").trim().toUpperCase();
-    return isTradeMode(normalized)
-        ? normalized as TradeMode
-        : "BOTH";
-};
 
 const deriveDisplayName = (email: string) => {
     const local = String(email || "").split("@")[0] || "New User";
@@ -398,18 +388,30 @@ const syncCompanyFunctions = async (params: {
     kind?: "provided" | "sought";
 }) => {
     const companyId = params.companyId;
-    const functionIds = Array.from(
-        new Set((params.selectedFunctionIds || []).map((id) => String(id || "").trim()).filter(Boolean))
-    ).filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const rawFunctionIds = (params.selectedFunctionIds || []).map((id) => String(id || "").trim()).filter(Boolean);
+    if (new Set(rawFunctionIds).size !== rawFunctionIds.length) {
+        throw new Error("Company categories must be unique.");
+    }
+    const functionIds = rawFunctionIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
 
     if (!functionIds.length) {
         throw new Error("At least one company category is required.");
     }
+    if (functionIds.length > 6) {
+        throw new Error("You can select up to 6 company categories in each section.");
+    }
 
-    const priorityIds = Array.from(
-        new Set((params.selectedFunctionPriorities || []).map((id) => String(id || "").trim()).filter(Boolean))
-    ).filter((id) => mongoose.Types.ObjectId.isValid(id));
-    const prioritySubset = priorityIds.filter((id) => functionIds.includes(id)).slice(0, 3);
+    const rawPriorityIds = (params.selectedFunctionPriorities || []).map((id) => String(id || "").trim()).filter(Boolean);
+    if (new Set(rawPriorityIds).size !== rawPriorityIds.length) {
+        throw new Error("Company category priorities must be unique.");
+    }
+    if (rawPriorityIds.length > 3) {
+        throw new Error("You can choose up to 3 priorities in each section.");
+    }
+    const priorityIds = rawPriorityIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (priorityIds.length !== rawPriorityIds.length || priorityIds.some((id) => !functionIds.includes(id))) {
+        throw new Error("Every priority must belong to its corresponding company-category selection.");
+    }
 
     const functions = await CompanyFunctionModel.find({
         _id: { $in: functionIds },
@@ -431,8 +433,8 @@ const syncCompanyFunctions = async (params: {
     const isSought = params.kind === "sought";
     await AssociateCompanyModel.findByIdAndUpdate(companyId, {
         $set: isSought
-            ? { soughtCapabilities: capabilitySlugs, soughtCapabilityPriorities: prioritySubset }
-            : { providedCapabilities: capabilitySlugs, providedCapabilityPriorities: prioritySubset },
+            ? { soughtCapabilities: capabilitySlugs, soughtCapabilityPriorities: priorityIds }
+            : { providedCapabilities: capabilitySlugs, providedCapabilityPriorities: priorityIds },
     });
 };
 
@@ -829,7 +831,6 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                 onboardingComplete: false,
                 hasCompany: false,
                 companyMode: "none",
-                tradeMode: "BOTH",
             });
             await VerificationModel.create({
                 userId: String(associate._id),
@@ -886,7 +887,6 @@ export const registerAssociate = async (req: Request, res: Response) => {
             associateDivision,
             associatePincodeEntry,
             referralCode,
-            tradeMode,
         } = req.body;
 
         // Input validation
@@ -951,12 +951,6 @@ export const registerAssociate = async (req: Request, res: Response) => {
             return res.status(400).json({
                 success: false,
                 message: "Associate registration requires an existing or newly registered company. Individuals should register as Operators."
-            });
-        }
-        if (!isTradeMode(tradeMode)) {
-            return res.status(400).json({
-                success: false,
-                message: "Choose whether the company buys, sells, buys and sells, or provides trade services."
             });
         }
 
@@ -1290,7 +1284,6 @@ export const registerAssociate = async (req: Request, res: Response) => {
             phoneSecondaryCountryCode: normalizedPhoneSecondaryInput.countryCode || normalizedPrimaryPhone.countryCode,
             phoneSecondaryNational: normalizedPhoneSecondaryInput.national || normalizedPrimaryPhone.national,
             associateInterests: normalizedAssociateInterests,
-            tradeMode: normalizeTradeMode(tradeMode),
             designation: designationId || undefined,
             associateCompany: linkedCompanyId || null,
             hasCompany: shouldLinkCompany,
@@ -1481,7 +1474,6 @@ export const startOnboarding = async (req: Request, res: Response) => {
             onboardingComplete: false,
             hasCompany: false,
             companyMode: "none",
-            tradeMode: "BOTH",
         });
         issueAuthCookie(res, { ...newAssociate.toObject(), role: "Associate" }, false);
         return res.json({ success: true, user: { id: newAssociate._id, email: newAssociate.email, name: newAssociate.name, role: "Associate" } });
@@ -1531,19 +1523,12 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 associatePincodeEntry,
                 referralCode,
                 password,
-                tradeMode,
             } = req.body || {};
 
             if (!(hasCompany === true || String(hasCompany || "").toLowerCase() === "yes" || String(hasCompany || "").toLowerCase() === "true")) {
                 return res.status(400).json({
                     success: false,
                     message: "Associate onboarding requires an existing or newly registered company. Individuals should register as Operators."
-                });
-            }
-            if (!isTradeMode(tradeMode)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Choose whether the company buys, sells, buys and sells, or provides trade services."
                 });
             }
 
@@ -1584,7 +1569,6 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             associate.phoneSecondaryCountryCode = normalizedSecondary.countryCode || normalizedPrimary.countryCode;
             associate.phoneSecondaryNational = normalizedSecondary.national || normalizedPrimary.national;
             associate.designation = designation || null;
-            associate.tradeMode = normalizeTradeMode(tradeMode || associate.tradeMode);
             associate.onboardingContactPreference = String(contactPreference || "phone").toLowerCase() === "email" ? "email" : "phone";
             associate.onboardingContactNotes = String(contactNotes || "").trim();
             associate.address = String(associateAddress || "").trim();
@@ -1780,7 +1764,8 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             "testing",
             "warehouse-storage",
             "finance-risk",
-            "importing-distribution",
+            "importing-to-india",
+            "exporting-from-india",
             "freight-forwarding",
             "inland-logistics",
         ]);
@@ -2164,8 +2149,9 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
                 success: true,
                 data: {
                     associateCompanyId: null,
-                    companyInterestsConfigured: true,
-                    companyInterests: [],
+                    companyCapabilitiesConfigured: false,
+                    providedCapabilities: [],
+                    soughtCapabilities: [],
                 },
             });
         }
@@ -2193,8 +2179,7 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
             success: true,
             data: {
                 associateCompanyId,
-                companyInterestsConfigured: Boolean(selectedIds.length),
-                companyInterests: soughtSlugs,
+                companyCapabilitiesConfigured: Boolean(providedIds.length && selectedIds.length),
                 providedCapabilities: providedSlugs,
                 soughtCapabilities: soughtSlugs,
                 approvedCompanyFunctionIds: selectedIds,
@@ -2293,8 +2278,7 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
             success: true,
             data: {
                 associateCompanyId,
-                companyInterestsConfigured: true,
-                companyInterests: (updatedCompany as any)?.soughtCapabilities || [],
+                companyCapabilitiesConfigured: true,
                 providedCapabilities: (updatedCompany as any)?.providedCapabilities || [],
                 soughtCapabilities: (updatedCompany as any)?.soughtCapabilities || [],
                 providedCapabilityPriorities: (updatedCompany as any)?.providedCapabilityPriorities || [],
@@ -2304,29 +2288,5 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Failed to update company interests." });
-    }
-};
-
-export const updateAssociateTradeMode = async (req: Request, res: Response) => {
-    try {
-        const roleLower = String(req.user?.role || "").toLowerCase();
-        if (roleLower !== "associate") {
-            return res.status(403).json({ success: false, message: "Only associates can update trading mode." });
-        }
-        const rawMode = String(req.body?.tradeMode || "").trim().toUpperCase();
-        if (!isTradeMode(rawMode)) {
-            return res.status(400).json({ success: false, message: "tradeMode must be BUY, SELL, BOTH, or SERVICE." });
-        }
-        const associate = await AgentModel.findByIdAndUpdate(
-            req.user?.id,
-            { $set: { tradeMode: rawMode } },
-            { new: true, runValidators: true }
-        ).select("_id tradeMode").lean();
-        if (!associate) {
-            return res.status(404).json({ success: false, message: "Associate not found." });
-        }
-        return res.json({ success: true, data: { tradeMode: associate.tradeMode } });
-    } catch (error: any) {
-        return res.status(500).json({ success: false, message: error?.message || "Failed to update trading mode." });
     }
 };

@@ -47,8 +47,15 @@ const COMPANY_FUNCTION_SEED = [
     subFunctions: [],
   },
   {
-    name: "Importing & Distribution",
-    slug: "importing-distribution",
+    name: "Importing to India",
+    slug: "importing-to-india",
+    description: "Importing commodities and products into India.",
+    subFunctions: [],
+  },
+  {
+    name: "Exporting from India",
+    slug: "exporting-from-india",
+    description: "Exporting commodities and products from India.",
     subFunctions: [],
   },
   {

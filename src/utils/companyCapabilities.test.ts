@@ -6,8 +6,8 @@ import {
 } from "./companyCapabilities";
 
 describe("company capability normalization", () => {
-  it("keeps the ten onboarding categories canonical", () => {
-    expect(CANONICAL_COMPANY_FUNCTION_SLUGS).toHaveLength(10);
+  it("keeps the eleven onboarding categories canonical", () => {
+    expect(CANONICAL_COMPANY_FUNCTION_SLUGS).toHaveLength(11);
     expect(normalizeCompanyFunctionSlugs(CANONICAL_COMPANY_FUNCTION_SLUGS)).toEqual(CANONICAL_COMPANY_FUNCTION_SLUGS);
   });
 
@@ -19,6 +19,8 @@ describe("company capability normalization", () => {
     expect(normalizeCompanyFunctionSlug("WAREHOUSING")).toBe("warehouse-storage");
     expect(normalizeCompanyFunctionSlug("OCEAN_FREIGHT")).toBe("freight-forwarding");
     expect(normalizeCompanyFunctionSlug("INLAND_TRANSPORTATION")).toBe("inland-logistics");
+    expect(normalizeCompanyFunctionSlug("IMPORTING_DISTRIBUTION")).toBe("importing-to-india");
+    expect(normalizeCompanyFunctionSlug("EXPORTING_FROM_INDIA")).toBe("exporting-from-india");
   });
 
   it("deduplicates legacy values that resolve to the same category", () => {

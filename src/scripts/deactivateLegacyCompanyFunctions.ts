@@ -9,7 +9,8 @@ const ALLOWED_SLUGS = [
   "testing",
   "warehouse-storage",
   "finance-risk",
-  "importing-distribution",
+  "importing-to-india",
+  "exporting-from-india",
   "freight-forwarding",
   "inland-logistics",
 ];

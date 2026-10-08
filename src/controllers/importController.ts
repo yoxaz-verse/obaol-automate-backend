@@ -62,7 +62,7 @@ export class ImportController {
   private async isImporterCompany(companyId: string | null): Promise<boolean> {
     if (!companyId || !Types.ObjectId.isValid(companyId)) return false;
     const importerFunctions = await CompanyFunctionModel.find({
-      slug: { $in: ["importer", "import"] },
+      slug: "importing-to-india",
       isActive: true,
     })
       .select("_id")

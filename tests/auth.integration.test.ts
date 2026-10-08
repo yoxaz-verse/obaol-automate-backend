@@ -474,7 +474,6 @@ describe("Auth API", () => {
         email: user.email,
         phone: user.phone,
         hasCompany: true,
-        tradeMode: "BOTH",
       });
 
     expect(res.status).toBe(400);

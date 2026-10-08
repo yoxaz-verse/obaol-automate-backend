@@ -23,7 +23,8 @@ export class AnalyticsService {
         "testing": ["QUALITY_TESTING", "CERTIFICATION"],
         "warehouse-storage": ["WAREHOUSE"],
         "freight-forwarding": ["SHIPPING"],
-        "importing-distribution": ["SHIPPING", "TRANSPORTATION"],
+        "importing-to-india": ["SHIPPING", "TRANSPORTATION"],
+        "exporting-from-india": ["SHIPPING", "TRANSPORTATION"],
         "inland-logistics": ["TRANSPORTATION"],
         "finance-risk": [],
     };

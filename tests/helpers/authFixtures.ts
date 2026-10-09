@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { AssociateModel } from "../../src/database/models/associate";
 import { OperatorModel } from "../../src/database/models/operator";
 import { AdminModel } from "../../src/database/models/admin";
+import { CustomerSupportAgentModel } from "../../src/database/models/customerSupportAgent";
 
 const uniqueSuffix = () => new mongoose.Types.ObjectId().toHexString();
 
@@ -56,4 +57,21 @@ export const createAdmin = async (overrides: Record<string, any> = {}) => {
   };
 
   return AdminModel.create(data);
+};
+
+export const createCustomerSupportAgent = async (overrides: Record<string, any> = {}) => {
+  const suffix = uniqueSuffix();
+  const admin = overrides.admin || new mongoose.Types.ObjectId();
+  return CustomerSupportAgentModel.create({
+    name: `Support ${suffix}`,
+    email: `support.${suffix}@example.com`,
+    phone: "+919999000099",
+    password: "Passw0rd!",
+    admin,
+    role: "CustomerSupport",
+    isActive: true,
+    isDeleted: false,
+    isAvailable: false,
+    ...overrides,
+  });
 };

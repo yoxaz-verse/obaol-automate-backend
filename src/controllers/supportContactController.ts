@@ -4,7 +4,7 @@ import { normalizePhoneInput } from "../utils/phone";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdmin = (req: Request) => normalizeRole(req.user?.role) === "admin";
-const isAssociate = (req: Request) => normalizeRole(req.user?.role) === "associate";
+const canViewSupport = (req: Request) => Boolean(req.user?.role);
 
 const normalizedPhone = (body: any) => {
   const phone = normalizePhoneInput({
@@ -24,11 +24,11 @@ const normalizedPhone = (body: any) => {
 export class SupportContactController {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!isAdmin(req) && !isAssociate(req)) {
-        return res.status(403).json({ success: false, message: "Customer support is available to associates and admins only." });
+      if (!canViewSupport(req)) {
+        return res.status(403).json({ success: false, message: "Customer support is available to authenticated users only." });
       }
       const query: Record<string, unknown> = { isDeleted: { $ne: true } };
-      if (isAssociate(req)) query.isActive = true;
+      if (!isAdmin(req)) query.isActive = true;
       const contacts = await SupportContactModel.find(query).sort({ sortOrder: 1, createdAt: 1 }).lean();
       return res.json({ success: true, data: contacts });
     } catch (error) {

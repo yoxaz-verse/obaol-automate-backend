@@ -6,6 +6,7 @@ import { OperatorModel } from "../database/models/operator";
 import { AssociateModel as AgentModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
+import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 import { DesignationModel } from "../database/models/designation";
 import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
 import { StateModel } from "../database/models/state";
@@ -25,7 +26,7 @@ import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
 import { normalizePhoneInput } from "../utils/phone";
 import { getAuthCookieOptions } from "../utils/cookieOptions";
-import { CANONICAL_COMPANY_FUNCTION_SLUGS, normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
+import { CANONICAL_COMPANY_FUNCTION_SLUGS, COMPANY_FUNCTION_TAXONOMY_VERSION, normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import {
     COMPANY_INTERESTS,
     normalizeAssociateInterests,
@@ -107,6 +108,9 @@ const isCooldownRole = (role: any) => {
         "associate",
         "activitymanager",
         "inventorymanager",
+        "customersupport",
+        "customer_support",
+        "customer-support",
         "worker",
     ].includes(normalized);
 };
@@ -175,6 +179,7 @@ export const normalizeAuthRole = (role: any) => {
     if (normalized === "admin") return "Admin";
     if (normalized === "projectmanager" || normalized === "project_manager" || normalized === "project-manager") return "ProjectManager";
     if (normalized === "activitymanager" || normalized === "inventorymanager" || normalized === "inventory_manager") return "InventoryManager";
+    if (normalized === "customersupport" || normalized === "customer_support" || normalized === "customer-support") return "CustomerSupport";
     if (normalized === "operator" || normalized === "team" || normalized === "warehouse_operator" || normalized === "warehouse-operator" || normalized === "warehouseoperator" || normalized === "worker") return "Operator";
     if (normalized === "associate") return "Associate";
     return "";
@@ -186,6 +191,7 @@ export const getAuthModelForRole = (role: any) => {
         Admin: AdminModel,
         ProjectManager: ProjectManagerModel,
         InventoryManager: InventoryManagerModel,
+        CustomerSupport: CustomerSupportAgentModel,
         Operator: OperatorModel,
         Associate: AgentModel,
     };
@@ -568,7 +574,9 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
             "Associate": AgentModel,
             "associate": AgentModel,
             "ActivityManager": InventoryManagerModel,
-            "activitymanager": InventoryManagerModel
+            "activitymanager": InventoryManagerModel,
+            "CustomerSupport": CustomerSupportAgentModel,
+            "customersupport": CustomerSupportAgentModel
         };
 
         const model = models[role];
@@ -617,7 +625,9 @@ export const completePasswordReset = async (req: Request, res: Response) => {
             "Associate": AgentModel,
             "associate": AgentModel,
             "ActivityManager": InventoryManagerModel,
-            "activitymanager": InventoryManagerModel
+            "activitymanager": InventoryManagerModel,
+            "CustomerSupport": CustomerSupportAgentModel,
+            "customersupport": CustomerSupportAgentModel
         };
 
         const model = models[role];
@@ -652,10 +662,11 @@ export const getEmailStatus = async (req: Request, res: Response) => {
         if (!email) {
             return res.status(400).json({ success: false, message: "Email is required" });
         }
-        const [admin, projectManager, inventoryManager, operatorExisting, associateExisting] = await Promise.all([
+        const [admin, projectManager, inventoryManager, supportAgent, operatorExisting, associateExisting] = await Promise.all([
             AdminModel.findOne({ email }).select("_id").lean(),
             ProjectManagerModel.findOne({ email }).select("_id").lean(),
             InventoryManagerModel.findOne({ email }).select("_id").lean(),
+            CustomerSupportAgentModel.findOne({ email }).select("_id").lean(),
             OperatorModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive isDeleted").lean(),
             AgentModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive isDeleted").lean(),
         ]);
@@ -667,6 +678,7 @@ export const getEmailStatus = async (req: Request, res: Response) => {
             admin ? "Admin" :
                 projectManager ? "ProjectManager" :
                     inventoryManager ? "InventoryManager" :
+                        supportAgent ? "CustomerSupport" :
                         operatorExisting ? "Operator" :
                             associateExisting ? "Associate" : undefined;
         return res.json({ success: true, exists: Boolean(role), role });
@@ -695,10 +707,11 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "Google email is required." });
         }
 
-        const [admin, projectManager, inventoryManager, operatorExisting, associateExisting] = await Promise.all([
+        const [admin, projectManager, inventoryManager, supportAgent, operatorExisting, associateExisting] = await Promise.all([
             AdminModel.findOne({ email }).select("_id").lean(),
             ProjectManagerModel.findOne({ email }).select("_id").lean(),
             InventoryManagerModel.findOne({ email }).select("_id").lean(),
+            CustomerSupportAgentModel.findOne({ email }).select("_id").lean(),
             OperatorModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
             AgentModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive").lean(),
         ]);
@@ -706,6 +719,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             admin ? "Admin" :
                 projectManager ? "ProjectManager" :
                     inventoryManager ? "InventoryManager" :
+                        supportAgent ? "CustomerSupport" :
                         operatorExisting ? "Operator" :
                             associateExisting ? "Associate" : null;
 
@@ -1405,10 +1419,11 @@ export const startOnboarding = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "Role must be Associate or Operator." });
         }
 
-        const [admin, projectManager, inventoryManager, operator, associate] = await Promise.all([
+        const [admin, projectManager, inventoryManager, supportAgent, operator, associate] = await Promise.all([
             AdminModel.findOne({ email: emailRaw }).select("_id").lean(),
             ProjectManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
             InventoryManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
+            CustomerSupportAgentModel.findOne({ email: emailRaw }).select("_id").lean(),
             OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt registrationStatus reviewNotes isActive isDeleted").lean(),
             AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes isActive isDeleted").lean(),
         ]);
@@ -1451,6 +1466,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
         const existingRole = admin ? "Admin"
             : projectManager ? "ProjectManager"
             : inventoryManager ? "InventoryManager"
+            : supportAgent ? "CustomerSupport"
             : operatorDoc ? "Operator"
             : associateDoc ? "Associate"
             : null;
@@ -1786,20 +1802,9 @@ export const completeOnboarding = async (req: Request, res: Response) => {
  * GET /auth/register/options
  */
 export const getRegisterOptions = async (_req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store, max-age=0");
     try {
-        const allowedCompanyFunctionSlugs = new Set([
-            "buying",
-            "selling",
-            "sourcing",
-            "packaging",
-            "testing",
-            "warehouse-storage",
-            "finance-risk",
-            "importing-to-india",
-            "exporting-from-india",
-            "freight-forwarding",
-            "inland-logistics",
-        ]);
+        const allowedCompanyFunctionSlugs = new Set<string>(CANONICAL_COMPANY_FUNCTION_SLUGS);
         const [
             designationsRes,
             statesRes,
@@ -1823,9 +1828,24 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
         const districts = districtsRes.status === "fulfilled" ? districtsRes.value : [];
         const divisions = divisionsRes.status === "fulfilled" ? divisionsRes.value : [];
         const countries = countriesRes.status === "fulfilled" ? countriesRes.value : [];
-        const companyFunctions = companyFunctionsRes.status === "fulfilled"
+        const returnedFunctions = companyFunctionsRes.status === "fulfilled"
             ? companyFunctionsRes.value.filter((fn: any) => allowedCompanyFunctionSlugs.has(String(fn?.slug || "").trim()))
             : [];
+        const functionBySlug = new Map(returnedFunctions.map((fn: any) => [String(fn?.slug || "").trim(), fn]));
+        const companyFunctions = CANONICAL_COMPANY_FUNCTION_SLUGS
+            .map((slug) => functionBySlug.get(slug))
+            .filter(Boolean);
+        const returnedFunctionSlugs = new Set(companyFunctions.map((fn: any) => String(fn?.slug || "").trim()));
+        const missingCompanyFunctionSlugs = [...allowedCompanyFunctionSlugs].filter((slug) => !returnedFunctionSlugs.has(slug));
+        if (companyFunctionsRes.status === "fulfilled" && missingCompanyFunctionSlugs.length) {
+            return res.status(503).json({
+                success: false,
+                message: "Company capabilities are being configured. Please retry shortly.",
+                code: "COMPANY_FUNCTION_TAXONOMY_INCOMPLETE",
+                missingCompanyFunctionSlugs,
+                taxonomy: { version: COMPANY_FUNCTION_TAXONOMY_VERSION, expectedCount: CANONICAL_COMPANY_FUNCTION_SLUGS.length },
+            });
+        }
         const companySubFunctions = companySubFunctionsRes.status === "fulfilled" ? companySubFunctionsRes.value : [];
         const failedKeys = [
             designationsRes.status !== "fulfilled" ? "designations" : null,
@@ -1852,6 +1872,11 @@ export const getRegisterOptions = async (_req: Request, res: Response) => {
             meta: {
                 partial: failedKeys.length > 0,
                 failedKeys,
+                companyFunctionTaxonomy: {
+                    version: COMPANY_FUNCTION_TAXONOMY_VERSION,
+                    expectedCount: CANONICAL_COMPANY_FUNCTION_SLUGS.length,
+                    returnedCount: companyFunctions.length,
+                },
             },
         });
     } catch (error: any) {

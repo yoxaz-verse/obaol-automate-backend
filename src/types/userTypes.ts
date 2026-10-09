@@ -10,6 +10,7 @@ export type UserRole =
   | "Admin"
   | "Operator"
   | "Associate"
+  | "CustomerSupport"
   | "warehouse_operator"
   | "ActivityManager"
   | "Worker"

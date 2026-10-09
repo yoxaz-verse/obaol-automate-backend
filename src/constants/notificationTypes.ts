@@ -21,6 +21,10 @@ export const NotificationTypes = {
   APPROVAL_REQUESTED: "APPROVAL_REQUESTED",
   APPROVAL_APPROVED: "APPROVAL_APPROVED",
   GENERAL_MESSAGE: "GENERAL_MESSAGE",
+  SUPPORT_CHAT_WAITING: "SUPPORT_CHAT_WAITING",
+  SUPPORT_CHAT_CLAIMED: "SUPPORT_CHAT_CLAIMED",
+  SUPPORT_CHAT_ASSIGNED: "SUPPORT_CHAT_ASSIGNED",
+  SUPPORT_MESSAGE: "SUPPORT_MESSAGE",
 } as const;
 
 export const NotificationEntityTypes = {
@@ -30,6 +34,7 @@ export const NotificationEntityTypes = {
   VARIANT_RATE: "VARIANT_RATE",
   APPROVAL: "APPROVAL",
   SYSTEM: "SYSTEM",
+  SUPPORT: "SUPPORT",
 } as const;
 
 export type NotificationType = (typeof NotificationTypes)[keyof typeof NotificationTypes];

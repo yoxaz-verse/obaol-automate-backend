@@ -7,6 +7,7 @@ import { AssociateModel } from "../database/models/associate";
 import { OperatorModel } from "../database/models/operator";
 import { AdminModel } from "../database/models/admin";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
+import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 
 export interface DecodedToken {
   id: string;
@@ -85,6 +86,11 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
         { _id: decoded.id, $or: [{ lastSeenAt: { $lt: throttleCutoff } }, { lastSeenAt: null }, { lastSeenAt: { $exists: false } }] },
         updateDoc
       ).catch((error: any) => console.debug("Presence update skipped (inventory manager):", error?.message || error));
+    } else if (roleLower === "customersupport" || roleLower === "customer-support") {
+      CustomerSupportAgentModel.updateOne(
+        { _id: decoded.id, $or: [{ lastSeenAt: { $lt: throttleCutoff } }, { lastSeenAt: null }, { lastSeenAt: { $exists: false } }] },
+        updateDoc
+      ).catch((error: any) => console.debug("Presence update skipped (customer support):", error?.message || error));
     }
 
     next();

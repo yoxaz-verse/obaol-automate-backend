@@ -30,5 +30,6 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 5001
 
 
-# Start compiled JS (NO tsx, NO ts-node)
-CMD ["node", "dist/index.js"]
+# Bring the canonical company-function taxonomy and legacy references forward
+# before accepting traffic. The migration is idempotent and safe on restarts.
+CMD ["sh", "-c", "node dist/scripts/migrateCompanyCapabilityProfiles.js && node dist/index.js"]

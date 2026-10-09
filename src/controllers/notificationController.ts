@@ -17,6 +17,7 @@ export class NotificationController {
     inventory: "/dashboard/inventory",
     execution: "/dashboard/execution-enquiries",
     bidding: "/dashboard/execution-enquiries",
+    support: "/dashboard/customer-support",
   };
 
   async list(req: Request, res: Response) {
@@ -79,12 +80,14 @@ export class NotificationController {
         inventory: 0,
         execution: 0,
         bidding: 0,
+        support: 0,
       };
 
       unreadRows.forEach((row: any) => {
         const route = String(row?.route || "");
         const type = String(row?.type || "");
-        if (route.startsWith(this.sectionPrefixes.approvals)) summary.approvals += 1;
+        if (route.startsWith(this.sectionPrefixes.support)) summary.support += 1;
+        else if (route.startsWith(this.sectionPrefixes.approvals)) summary.approvals += 1;
         else if (route.startsWith(this.sectionPrefixes.enquiries)) summary.enquiries += 1;
         else if (route.startsWith(this.sectionPrefixes.orders)) summary.orders += 1;
         else if (route.startsWith(this.sectionPrefixes.inventory)) summary.inventory += 1;

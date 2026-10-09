@@ -4,7 +4,9 @@ import envVars from "./config/validateEnv";
 import connectDB from "./database/connection";
 import path from "path";
 import express from "express";
-import "./cron"; // ✅ Add this line to start cron jobs!
+import mongoose from "mongoose";
+import { startCronJobs, stopCronJobs } from "./cron";
+import type { Server } from "http";
 import { prefix } from "./routes";
 import { seedCompanyFunctions } from "./seeds/companyFunctions.seed";
 import { seedIncoterms } from "./seeds/incoterms.seed";
@@ -13,6 +15,8 @@ import { verifySmtpTransport } from "./utils/mailer";
 const PORTD = Number(PORT) || 5001;
 const shouldRunStartupSeeds = process.env.RUN_STARTUP_SEEDS === "true";
 const shouldLogStartupDiagnostics = NODE_ENV !== "production" || process.env.STARTUP_DEBUG_LOGS === "true";
+let server: Server | undefined;
+let shuttingDown = false;
 
 const logSmtpConfigPresence = () => {
   if (!shouldLogStartupDiagnostics) return;
@@ -42,12 +46,14 @@ async function startServer() {
       await verifySmtpTransport("auth");
     }
     await connectDB();
+    // Canonical company functions are application schema, not optional demo data.
+    await seedCompanyFunctions();
     if (shouldRunStartupSeeds) {
-      await seedCompanyFunctions();
       await seedIncoterms();
       await seedPaymentTerms();
     }
-    app.listen(PORTD, "::", () => {
+    startCronJobs();
+    server = app.listen(PORTD, "::", () => {
       console.log(`OBAOL Server is running on port ${PORTD}`);
       console.log(`Environment: ${NODE_ENV}`);
       console.log(`${BASE_URL}/api${prefix}`);
@@ -56,6 +62,38 @@ async function startServer() {
     console.error("❌ Server startup failed:", error);
     process.exit(1);
   }
+}
+
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received; shutting down gracefully.`);
+  stopCronJobs();
+
+  const forceExitTimer = setTimeout(() => {
+    console.error("Graceful shutdown timed out; forcing exit.");
+    process.exit(1);
+  }, 10_000);
+  forceExitTimer.unref();
+
+  if (server) {
+    await new Promise<void>((resolve, reject) => {
+      server?.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+  await mongoose.disconnect();
+  clearTimeout(forceExitTimer);
+}
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    shutdown(signal)
+      .then(() => process.exit(0))
+      .catch((error) => {
+        console.error("Graceful shutdown failed:", error);
+        process.exit(1);
+      });
+  });
 }
 
 // Global error handlers

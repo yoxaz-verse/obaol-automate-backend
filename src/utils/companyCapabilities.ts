@@ -58,6 +58,8 @@ export const CANONICAL_COMPANY_FUNCTION_SLUGS = [
   "inland-logistics",
 ] as const;
 
+export const COMPANY_FUNCTION_TAXONOMY_VERSION = 2;
+
 const LEGACY_TO_COMPANY_FUNCTION: Record<string, string> = {
   BUY: "buying",
   BUYING: "buying",

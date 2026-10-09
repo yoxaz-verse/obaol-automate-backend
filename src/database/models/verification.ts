@@ -7,6 +7,7 @@ export interface IVerification extends Document {
   userType:
   | "Associate"
   | "InventoryManager"
+  | "CustomerSupport"
   | "Admin"
   | "ProjectManager"
   | "Operator"; // extend as needed
@@ -24,7 +25,7 @@ const VerificationSchema = new Schema<IVerification>(
     userType: {
       type: String,
       required: true,
-      enum: ["Associate", "InventoryManager", "Admin", "ProjectManager", "Operator"],
+      enum: ["Associate", "InventoryManager", "CustomerSupport", "Admin", "ProjectManager", "Operator"],
     },
     method: { type: String, enum: ["email", "phone"], required: true },
     code: { type: String, required: true },

@@ -129,6 +129,12 @@ router.use(`${prefix}/presence`, presenceRoutes);
 import supportContactRoutes from "./v1/supportContactRoutes";
 router.use(`${prefix}/support-contacts`, supportContactRoutes);
 
+// Live customer support and admin-managed support accounts
+import customerSupportAgentRoutes from "./v1/customerSupportAgentRoutes";
+import supportChatRoutes from "./v1/supportChatRoutes";
+router.use(`${prefix}/customer-support-agents`, customerSupportAgentRoutes);
+router.use(`${prefix}/support`, supportChatRoutes);
+
 // Associate onboarding (dashboard tutorial)
 import associateOnboardingRoutes from "./v1/associateOnboardingRoutes";
 router.use(`${prefix}`, associateOnboardingRoutes);

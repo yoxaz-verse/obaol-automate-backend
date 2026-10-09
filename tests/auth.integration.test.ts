@@ -7,6 +7,8 @@ import { verifyGoogleIdToken } from "../src/utils/googleAuth";
 import { VerificationModel } from "../src/database/models/verification";
 import { AuthPasskeyModel } from "../src/database/models/authPasskey";
 import { AssociateModel } from "../src/database/models/associate";
+import { seedCompanyFunctions } from "../src/seeds/companyFunctions.seed";
+import { CANONICAL_COMPANY_FUNCTION_SLUGS, COMPANY_FUNCTION_TAXONOMY_VERSION } from "../src/utils/companyCapabilities";
 
 const webAuthnMocks = vi.hoisted(() => ({
   generateRegistrationOptions: vi.fn(),
@@ -47,6 +49,18 @@ const extractMaxAge = (setCookieHeader?: string[] | string) => {
 };
 
 describe("Auth API", () => {
+  it("returns the complete ordered company-function taxonomy", async () => {
+    await seedCompanyFunctions();
+    const res = await api.get("/api/v1/web/auth/register/options");
+    expect(res.status).toBe(200);
+    expect(res.body?.data?.companyFunctions?.map((row: any) => row.slug)).toEqual(CANONICAL_COMPANY_FUNCTION_SLUGS);
+    expect(res.body?.meta?.companyFunctionTaxonomy).toEqual({
+      version: COMPANY_FUNCTION_TAXONOMY_VERSION,
+      expectedCount: 11,
+      returnedCount: 11,
+    });
+  });
+
   it("rejects missing email/password", async () => {
     const res = await api.post("/api/v1/web/login").send({});
     expect(res.status).toBe(400);

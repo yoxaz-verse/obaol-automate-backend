@@ -11,8 +11,20 @@ import routes from "./routes";
 import path from "path";
 import apiLogger from "./middlewares/apiLogger";
 import { registerAllHooks } from "./core/hooks"; // Ensure this path is correct
+import mongoose from "mongoose";
 
 const app = express();
+
+export const getReadinessStatus = (mongoReadyState: number) => {
+  const ready = mongoReadyState === 1;
+  return {
+    ready,
+    body: {
+      status: ready ? "ready" : "not_ready",
+      dependencies: { mongodb: ready ? "connected" : "disconnected" },
+    },
+  };
+};
 
 // Register Hooks
 registerAllHooks();
@@ -87,6 +99,16 @@ app.use(
 
 // Main API routes
 app.use("/api", routes);
+
+// Process health is intentionally outside the versioned API and authentication.
+app.get("/health/live", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+app.get("/health/ready", (_req, res) => {
+  const readiness = getReadinessStatus(mongoose.connection.readyState);
+  res.status(readiness.ready ? 200 : 503).json(readiness.body);
+});
 
 // 404 Handler
 app.use((req, res) => {

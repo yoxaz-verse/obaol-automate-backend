@@ -3,6 +3,7 @@ import { AssociateModel } from "../database/models/associate";
 import { OperatorModel } from "../database/models/operator";
 import { AdminModel } from "../database/models/admin";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
+import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 
 export class PresenceController {
   static async ping(req: Request, res: Response) {
@@ -30,6 +31,8 @@ export class PresenceController {
         await AdminModel.updateOne({ _id: user.id }, updateDoc);
       } else if (roleLower === "inventorymanager" || roleLower === "inventory-manager") {
         await InventoryManagerModel.updateOne({ _id: user.id }, updateDoc);
+      } else if (roleLower === "customersupport" || roleLower === "customer-support") {
+        await CustomerSupportAgentModel.updateOne({ _id: user.id }, updateDoc);
       }
 
       return res.status(200).json({

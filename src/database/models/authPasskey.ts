@@ -4,6 +4,7 @@ export type AuthRole =
   | "Admin"
   | "ProjectManager"
   | "InventoryManager"
+  | "CustomerSupport"
   | "Operator"
   | "Associate";
 
@@ -13,7 +14,7 @@ const authPasskeySchema = new mongoose.Schema(
     role: {
       type: String,
       required: true,
-      enum: ["Admin", "ProjectManager", "InventoryManager", "Operator", "Associate"],
+      enum: ["Admin", "ProjectManager", "InventoryManager", "CustomerSupport", "Operator", "Associate"],
       index: true,
     },
     credentialId: { type: String, required: true, unique: true },

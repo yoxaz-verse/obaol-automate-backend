@@ -45,13 +45,15 @@ describe("support contacts controller", () => {
     expect(SupportContactModel.find).toHaveBeenCalledWith({ isDeleted: { $ne: true } });
   });
 
-  it("blocks operators and team users", async () => {
+  it("returns active contacts to other authenticated dashboard users", async () => {
+    const lean = vi.fn().mockResolvedValue([]);
+    vi.mocked(SupportContactModel.find).mockReturnValue({ sort: vi.fn(() => ({ lean })) } as any);
     for (const role of ["Operator", "Team"]) {
       const res = buildRes();
-      await new SupportContactController().list({ user: { role } } as any, res, vi.fn());
-      expect(res.status).toHaveBeenCalledWith(403);
+      await new SupportContactController().list({ user: { id: "user-1", role } } as any, res, vi.fn());
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     }
-    expect(SupportContactModel.find).not.toHaveBeenCalled();
+    expect(SupportContactModel.find).toHaveBeenCalledWith({ isDeleted: { $ne: true }, isActive: true });
   });
 
   it("normalizes valid international numbers when an admin creates a contact", async () => {

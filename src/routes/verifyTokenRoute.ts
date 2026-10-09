@@ -5,6 +5,7 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import { OperatorModel } from "../database/models/operator";
+import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 
 const verifyTokenRoute = Router();
 
@@ -32,6 +33,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   let pendingSince: Date | null = null;
   let associate: any = null;
   let operator: any = null;
+  let supportAgent: any = null;
 
   if (roleLower === "associate") {
     associate = await AssociateModel.findById(req.user.id)
@@ -54,6 +56,10 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     registrationStatus = operator?.registrationStatus ? String(operator.registrationStatus) : null;
     rejectionReason = operator?.reviewNotes ? String(operator.reviewNotes) : null;
     pendingSince = operator?.approvalRequestedAt || operator?.createdAt || null;
+  } else if (roleLower === "customersupport" || roleLower === "customer-support") {
+    supportAgent = await CustomerSupportAgentModel.findById(req.user.id)
+      .select("name email phone isActive isAvailable lastSeenAt")
+      .lean();
   }
 
   if (associateCompanyId) {
@@ -72,10 +78,11 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     success: true,
     user: {
       id: req.user.id,
-      email: associate?.email || operator?.email || req.user.email,
-      name: associate?.name || operator?.name || req.user.name,
-      phone: associate?.phone || operator?.phone || null,
+      email: associate?.email || operator?.email || supportAgent?.email || req.user.email,
+      name: associate?.name || operator?.name || supportAgent?.name || req.user.name,
+      phone: associate?.phone || operator?.phone || supportAgent?.phone || null,
       role: req.user.role,
+      isAvailable: supportAgent?.isAvailable ?? undefined,
       associateCompanyId,
       companyCapabilitiesConfigured,
       providedCapabilities,

@@ -8,7 +8,7 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-const COMPANY_FUNCTION_SEED = [
+export const COMPANY_FUNCTION_SEED = [
   {
     name: "Buying",
     slug: "buying",
@@ -47,15 +47,15 @@ const COMPANY_FUNCTION_SEED = [
     subFunctions: [],
   },
   {
-    name: "Importing to India",
+    name: "Importing into India",
     slug: "importing-to-india",
-    description: "Importing commodities and products into India.",
+    description: "Bringing products or commodities from another country into India.",
     subFunctions: [],
   },
   {
     name: "Exporting from India",
     slug: "exporting-from-india",
-    description: "Exporting commodities and products from India.",
+    description: "Sending products or commodities from India to another country.",
     subFunctions: [],
   },
   {
@@ -105,8 +105,5 @@ export const seedCompanyFunctions = async () => {
     }
   }
 
-  await CompanyFunctionModel.updateMany(
-    { slug: { $nin: allowedSlugs } },
-    { $set: { isActive: false } }
-  );
+  return allowedSlugs;
 };

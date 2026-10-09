@@ -39,6 +39,7 @@ import {
     PRE_AUTH_BLOCKED_MESSAGE,
     toBlockedResponsePayload,
 } from "../utils/preAuthGuard";
+import { CIN_REGEX, GST_REGEX, IEC_REGEX, normalizeCompanyIdentifier } from "../utils/companyIdentifiers";
 
 const generateRandomPassword = (length = 12) => {
     const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -52,9 +53,6 @@ const generateRandomPassword = (length = 12) => {
     return password;
 };
 
-const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-const IEC_REGEX = /^[A-Z0-9]{10}$/;
-const CIN_REGEX = /^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/;
 const COUNTRY_ALIAS_TO_CODE: Record<string, string> = {
     UAE: "AE",
     USA: "US",
@@ -1071,9 +1069,9 @@ export const registerAssociate = async (req: Request, res: Response) => {
                     .map((id: any) => String(id || "").trim())
                     .filter((id: string) => mongoose.Types.ObjectId.isValid(id));
                 const companyAddress = String(company?.address || "").trim();
-                const companyGstin = String(company?.gstin || "").trim().toUpperCase();
-                const companyIecCode = String(company?.iecCode || "").trim().toUpperCase();
-                const companyCin = String(company?.cin || "").trim().toUpperCase();
+                const companyGstin = normalizeCompanyIdentifier(company?.gstin);
+                const companyIecCode = normalizeCompanyIdentifier(company?.iecCode);
+                const companyCin = normalizeCompanyIdentifier(company?.cin);
                 const companyLegalRegistrationNumber = String(company?.legalRegistrationNumber || "").trim();
                 const companyLegalComplianceInfo = String(company?.legalComplianceInfo || "").trim();
                 const companyGeoType = String(company?.geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
@@ -1642,9 +1640,9 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                     return res.status(400).json({ success: false, message: "Select 1 to 6 provided and sought capabilities." });
                 }
                 const companyGeoType = String(company?.geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
-                const companyGstin = companyGeoType === "INDIAN" ? String(company?.gstin || "").trim().toUpperCase() : "";
-                const companyIecCode = companyGeoType === "INDIAN" ? String(company?.iecCode || "").trim().toUpperCase() : "";
-                const companyCin = companyGeoType === "INDIAN" ? String(company?.cin || "").trim().toUpperCase() : "";
+                const companyGstin = companyGeoType === "INDIAN" ? normalizeCompanyIdentifier(company?.gstin) : "";
+                const companyIecCode = companyGeoType === "INDIAN" ? normalizeCompanyIdentifier(company?.iecCode) : "";
+                const companyCin = companyGeoType === "INDIAN" ? normalizeCompanyIdentifier(company?.cin) : "";
                 if (companyGstin && !GST_REGEX.test(companyGstin)) {
                     return res.status(400).json({ success: false, message: "Invalid GST number format." });
                 }

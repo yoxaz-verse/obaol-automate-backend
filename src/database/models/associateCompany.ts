@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { normalizePhoneInput } from "../../utils/phone";
 import { normalizeCompanyFunctionSlugs } from "../../utils/companyCapabilities";
+import { CIN_REGEX, GST_REGEX, IEC_REGEX, normalizeCompanyIdentifier } from "../../utils/companyIdentifiers";
 
 const AssociateCompanySchema = new mongoose.Schema(
   {
@@ -130,10 +131,6 @@ AssociateCompanySchema.index({
   updatedAt: -1,
 });
 
-const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-const IEC_REGEX = /^[A-Z0-9]{10}$/;
-const CIN_REGEX = /^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/;
-
 // Automatic Subdomain & Slug Generation
 AssociateCompanySchema.pre("save", async function (next) {
   const self = this as any;
@@ -157,19 +154,19 @@ AssociateCompanySchema.pre("save", async function (next) {
   self.phoneSecondaryCountryCode = normalizedSecondary.countryCode;
   self.phoneSecondaryNational = normalizedSecondary.national;
   if (typeof self.gstin === "string") {
-    self.gstin = self.gstin.trim().toUpperCase();
+    self.gstin = normalizeCompanyIdentifier(self.gstin);
     if (self.gstin && !GST_REGEX.test(self.gstin)) {
       return next(new Error("Invalid GSTIN format."));
     }
   }
   if (typeof self.iecCode === "string") {
-    self.iecCode = self.iecCode.trim().toUpperCase();
+    self.iecCode = normalizeCompanyIdentifier(self.iecCode);
     if (self.iecCode && !IEC_REGEX.test(self.iecCode)) {
       return next(new Error("Invalid IEC code format."));
     }
   }
   if (typeof self.cin === "string") {
-    self.cin = self.cin.trim().toUpperCase();
+    self.cin = normalizeCompanyIdentifier(self.cin);
     if (self.cin && !CIN_REGEX.test(self.cin)) {
       return next(new Error("Invalid CIN format."));
     }
@@ -244,21 +241,21 @@ AssociateCompanySchema.pre("findOneAndUpdate", function (next) {
     payload.phoneSecondaryNational = normalizedSecondary.national;
   }
   if (Object.prototype.hasOwnProperty.call(payload, "gstin")) {
-    const gstin = String(payload.gstin || "").trim().toUpperCase();
+    const gstin = normalizeCompanyIdentifier(payload.gstin);
     if (gstin && !GST_REGEX.test(gstin)) {
       return next(new Error("Invalid GSTIN format."));
     }
     payload.gstin = gstin || undefined;
   }
   if (Object.prototype.hasOwnProperty.call(payload, "iecCode")) {
-    const iecCode = String(payload.iecCode || "").trim().toUpperCase();
+    const iecCode = normalizeCompanyIdentifier(payload.iecCode);
     if (iecCode && !IEC_REGEX.test(iecCode)) {
       return next(new Error("Invalid IEC code format."));
     }
     payload.iecCode = iecCode || undefined;
   }
   if (Object.prototype.hasOwnProperty.call(payload, "cin")) {
-    const cin = String(payload.cin || "").trim().toUpperCase();
+    const cin = normalizeCompanyIdentifier(payload.cin);
     if (cin && !CIN_REGEX.test(cin)) {
       return next(new Error("Invalid CIN format."));
     }

@@ -53,6 +53,8 @@ const generateRandomPassword = (length = 12) => {
 };
 
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const IEC_REGEX = /^[A-Z0-9]{10}$/;
+const CIN_REGEX = /^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/;
 const COUNTRY_ALIAS_TO_CODE: Record<string, string> = {
     UAE: "AE",
     USA: "US",
@@ -1070,6 +1072,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
                     .filter((id: string) => mongoose.Types.ObjectId.isValid(id));
                 const companyAddress = String(company?.address || "").trim();
                 const companyGstin = String(company?.gstin || "").trim().toUpperCase();
+                const companyIecCode = String(company?.iecCode || "").trim().toUpperCase();
+                const companyCin = String(company?.cin || "").trim().toUpperCase();
                 const companyLegalRegistrationNumber = String(company?.legalRegistrationNumber || "").trim();
                 const companyLegalComplianceInfo = String(company?.legalComplianceInfo || "").trim();
                 const companyGeoType = String(company?.geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
@@ -1122,6 +1126,18 @@ export const registerAssociate = async (req: Request, res: Response) => {
                     return res.status(400).json({
                         success: false,
                         message: "Invalid GST number format."
+                    });
+                }
+                if (companyIecCode && !IEC_REGEX.test(companyIecCode)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid IEC code format."
+                    });
+                }
+                if (companyCin && !CIN_REGEX.test(companyCin)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid CIN format."
                     });
                 }
 
@@ -1200,6 +1216,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         name: companyName,
                         email: companyEmail,
                         gstin: companyGstin || undefined,
+                        iecCode: companyGeoType === "INDIAN" ? (companyIecCode || undefined) : undefined,
+                        cin: companyGeoType === "INDIAN" ? (companyCin || undefined) : undefined,
                         legalRegistrationNumber: companyGeoType === "INTERNATIONAL" ? companyLegalRegistrationNumber : undefined,
                         legalComplianceInfo: companyGeoType === "INTERNATIONAL" ? companyLegalComplianceInfo : undefined,
                         phone: companyPhone,
@@ -1623,6 +1641,19 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 if (!providedFunctionIds.length || !soughtFunctionIds.length || providedFunctionIds.length > 6 || soughtFunctionIds.length > 6) {
                     return res.status(400).json({ success: false, message: "Select 1 to 6 provided and sought capabilities." });
                 }
+                const companyGeoType = String(company?.geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
+                const companyGstin = companyGeoType === "INDIAN" ? String(company?.gstin || "").trim().toUpperCase() : "";
+                const companyIecCode = companyGeoType === "INDIAN" ? String(company?.iecCode || "").trim().toUpperCase() : "";
+                const companyCin = companyGeoType === "INDIAN" ? String(company?.cin || "").trim().toUpperCase() : "";
+                if (companyGstin && !GST_REGEX.test(companyGstin)) {
+                    return res.status(400).json({ success: false, message: "Invalid GST number format." });
+                }
+                if (companyIecCode && !IEC_REGEX.test(companyIecCode)) {
+                    return res.status(400).json({ success: false, message: "Invalid IEC code format." });
+                }
+                if (companyCin && !CIN_REGEX.test(companyCin)) {
+                    return res.status(400).json({ success: false, message: "Invalid CIN format." });
+                }
                 const existingCompany = await AssociateCompanyModel.findOne({ email: companyEmail }).select("_id").lean();
                 if (existingCompany) {
                     associate.associateCompany = existingCompany._id;
@@ -1636,13 +1667,15 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                         phoneSecondary: companySecondary.e164 || companyPhone.e164,
                         phoneSecondaryCountryCode: companySecondary.countryCode || companyPhone.countryCode,
                         phoneSecondaryNational: companySecondary.national || companyPhone.national,
-                        geoType: company?.geoType || "INDIAN",
+                        geoType: companyGeoType,
                         country: company?.country || null,
                         state: company?.state || null,
                         district: company?.district || null,
                         division: company?.division || null,
                         pincodeEntry: company?.pincodeEntry || null,
-                        gstin: company?.gstin || undefined,
+                        gstin: companyGstin || undefined,
+                        iecCode: companyIecCode || undefined,
+                        cin: companyCin || undefined,
                         legalRegistrationNumber: company?.legalRegistrationNumber || undefined,
                         legalComplianceInfo: company?.legalComplianceInfo || undefined,
                         providedCapabilities: [],

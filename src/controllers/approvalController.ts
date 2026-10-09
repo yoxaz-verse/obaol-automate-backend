@@ -460,7 +460,7 @@ export class ApprovalController {
       const status = normalizeStatus(req.query.status) || "PENDING_REVIEW";
       const query: any = { isDeleted: { $ne: true } };
       if (status) query.registrationStatus = status;
-      const searchQuery = buildSearch(req.query.search, ["name", "email", "phone", "gstin"]);
+      const searchQuery = buildSearch(req.query.search, ["name", "email", "phone", "gstin", "iecCode", "cin"]);
       if (searchQuery) Object.assign(query, searchQuery);
 
       // Show pending companies only after the linked supervisor has actually submitted onboarding.
@@ -474,7 +474,7 @@ export class ApprovalController {
       const [total, rows] = await Promise.all([
         AssociateCompanyModel.countDocuments(query),
         AssociateCompanyModel.find(query)
-          .select("name email phone gstin registrationStatus isApproved createdAt")
+          .select("name email phone gstin iecCode cin registrationStatus isApproved createdAt")
           .sort({ createdAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit)

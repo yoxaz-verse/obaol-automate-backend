@@ -36,6 +36,8 @@ const AssociateCompanySchema = new mongoose.Schema(
       required: false,
     },
     gstin: { type: String, trim: true, uppercase: true },
+    iecCode: { type: String, trim: true, uppercase: true },
+    cin: { type: String, trim: true, uppercase: true },
     legalRegistrationNumber: { type: String, trim: true },
     legalComplianceInfo: { type: String, trim: true },
     phoneSecondary: {
@@ -129,6 +131,8 @@ AssociateCompanySchema.index({
 });
 
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const IEC_REGEX = /^[A-Z0-9]{10}$/;
+const CIN_REGEX = /^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/;
 
 // Automatic Subdomain & Slug Generation
 AssociateCompanySchema.pre("save", async function (next) {
@@ -156,6 +160,18 @@ AssociateCompanySchema.pre("save", async function (next) {
     self.gstin = self.gstin.trim().toUpperCase();
     if (self.gstin && !GST_REGEX.test(self.gstin)) {
       return next(new Error("Invalid GSTIN format."));
+    }
+  }
+  if (typeof self.iecCode === "string") {
+    self.iecCode = self.iecCode.trim().toUpperCase();
+    if (self.iecCode && !IEC_REGEX.test(self.iecCode)) {
+      return next(new Error("Invalid IEC code format."));
+    }
+  }
+  if (typeof self.cin === "string") {
+    self.cin = self.cin.trim().toUpperCase();
+    if (self.cin && !CIN_REGEX.test(self.cin)) {
+      return next(new Error("Invalid CIN format."));
     }
   }
 
@@ -233,6 +249,20 @@ AssociateCompanySchema.pre("findOneAndUpdate", function (next) {
       return next(new Error("Invalid GSTIN format."));
     }
     payload.gstin = gstin || undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "iecCode")) {
+    const iecCode = String(payload.iecCode || "").trim().toUpperCase();
+    if (iecCode && !IEC_REGEX.test(iecCode)) {
+      return next(new Error("Invalid IEC code format."));
+    }
+    payload.iecCode = iecCode || undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "cin")) {
+    const cin = String(payload.cin || "").trim().toUpperCase();
+    if (cin && !CIN_REGEX.test(cin)) {
+      return next(new Error("Invalid CIN format."));
+    }
+    payload.cin = cin || undefined;
   }
   if (Object.prototype.hasOwnProperty.call(payload, "providedCapabilities")) {
     payload.providedCapabilities = normalizeCompanyFunctionSlugs(payload.providedCapabilities);

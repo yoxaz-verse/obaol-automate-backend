@@ -55,6 +55,8 @@ export interface IAssociateCompany {
   customDomain?: string;
   isWebsiteLive?: boolean;
   gstin?: string;
+  iecCode?: string;
+  cin?: string;
   legalRegistrationNumber?: string;
   legalComplianceInfo?: string;
   registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -120,6 +122,8 @@ export interface ICreateAssociateCompany {
   customDomain?: string;
   isWebsiteLive?: boolean;
   gstin?: string;
+  iecCode?: string;
+  cin?: string;
   legalRegistrationNumber?: string;
   legalComplianceInfo?: string;
   registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -185,6 +189,8 @@ export interface IUpdateAssociateCompany {
   customDomain?: string;
   isWebsiteLive?: boolean;
   gstin?: string;
+  iecCode?: string;
+  cin?: string;
   legalRegistrationNumber?: string;
   legalComplianceInfo?: string;
   registrationStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";

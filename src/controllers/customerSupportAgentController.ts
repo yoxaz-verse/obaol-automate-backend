@@ -9,6 +9,29 @@ import { ProjectManagerModel } from "../database/models/projectManager";
 import { isAdminRole } from "../services/supportChatService";
 
 const publicFields = "name email phone role isActive isAvailable availabilityUpdatedAt lastSeenAt lastLoginAt createdAt updatedAt admin";
+type AgentFieldErrors = Partial<Record<"name" | "email" | "password", string>>;
+const emailPattern = /^\S+@\S+\.\S+$/;
+
+const invalidAgentResponse = (res: Response, errors: AgentFieldErrors) => res.status(400).json({
+  success: false,
+  message: Object.values(errors)[0] || "Please correct the highlighted fields.",
+  errors,
+});
+
+const mongooseValidationResponse = (error: any, res: Response) => {
+  if (String(error?.name || "") === "ValidationError") {
+    const errors = Object.fromEntries(Object.entries(error.errors || {}).map(([field, detail]: [string, any]) => [
+      field,
+      String(detail?.message || `Invalid ${field}.`),
+    ]));
+    return res.status(400).json({ success: false, message: "The submitted support-agent details are invalid.", errors });
+  }
+  if (String(error?.name || "") === "CastError") {
+    return res.status(400).json({ success: false, message: "The submitted support-agent details are invalid." });
+  }
+  return null;
+};
+
 const emailUsedByAnotherRole = async (email: string) => {
   const rows = await Promise.all([
     AdminModel.exists({ email }), AssociateModel.exists({ email }), OperatorModel.exists({ email }),
@@ -32,17 +55,20 @@ export class CustomerSupportAgentController {
       const name = String(req.body?.name || "").trim();
       const email = String(req.body?.email || "").trim().toLowerCase();
       const password = String(req.body?.password || "");
-      if (!name || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) {
-        return res.status(400).json({ success: false, message: "Name, a valid email, and a password of at least 8 characters are required." });
-      }
-      if (await emailUsedByAnotherRole(email)) return res.status(409).json({ success: false, message: "This email already belongs to another OBAOL account." });
+      const errors: AgentFieldErrors = {};
+      if (!name) errors.name = "Name is required.";
+      if (!emailPattern.test(email)) errors.email = "Enter a valid email address.";
+      if (password.length < 8) errors.password = "Password must contain at least 8 characters.";
+      if (Object.keys(errors).length) return invalidAgentResponse(res, errors);
+      if (await emailUsedByAnotherRole(email)) return res.status(409).json({ success: false, message: "This email already belongs to another OBAOL account.", errors: { email: "This email already belongs to another OBAOL account." } });
       const agent = await CustomerSupportAgentModel.create({
         name, email, password, phone: String(req.body?.phone || "").trim(), admin: req.user!.id,
         isActive: req.body?.isActive !== false,
       });
       return res.status(201).json({ success: true, data: await CustomerSupportAgentModel.findById(agent._id).select(publicFields).lean() });
     } catch (error: any) {
-      if (Number(error?.code) === 11000) return res.status(409).json({ success: false, message: "A customer support account already uses this email." });
+      if (Number(error?.code) === 11000) return res.status(409).json({ success: false, message: "A customer support account already uses this email.", errors: { email: "A customer support account already uses this email." } });
+      if (mongooseValidationResponse(error, res)) return;
       next(error);
     }
   }
@@ -53,10 +79,15 @@ export class CustomerSupportAgentController {
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ success: false, message: "Invalid agent id." });
       const agent = await CustomerSupportAgentModel.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
       if (!agent) return res.status(404).json({ success: false, message: "Customer support agent not found." });
+      const errors: AgentFieldErrors = {};
+      if (req.body?.name !== undefined && !String(req.body.name || "").trim()) errors.name = "Name is required.";
+      if (req.body?.email !== undefined && !emailPattern.test(String(req.body.email || "").trim().toLowerCase())) errors.email = "Enter a valid email address.";
+      if (req.body?.password !== undefined && String(req.body.password) && String(req.body.password).length < 8) errors.password = "Password must contain at least 8 characters.";
+      if (Object.keys(errors).length) return invalidAgentResponse(res, errors);
       if (req.body?.name !== undefined) agent.name = String(req.body.name || "").trim();
       if (req.body?.email !== undefined) {
         const nextEmail = String(req.body.email || "").trim().toLowerCase();
-        if (nextEmail !== agent.email && await emailUsedByAnotherRole(nextEmail)) return res.status(409).json({ success: false, message: "This email already belongs to another OBAOL account." });
+        if (nextEmail !== agent.email && await emailUsedByAnotherRole(nextEmail)) return res.status(409).json({ success: false, message: "This email already belongs to another OBAOL account.", errors: { email: "This email already belongs to another OBAOL account." } });
         agent.email = nextEmail;
       }
       if (req.body?.phone !== undefined) agent.phone = String(req.body.phone || "").trim();
@@ -65,13 +96,13 @@ export class CustomerSupportAgentController {
         if (!agent.isActive) agent.isAvailable = false;
       }
       if (req.body?.password !== undefined && String(req.body.password)) {
-        if (String(req.body.password).length < 8) return res.status(400).json({ success: false, message: "Password must contain at least 8 characters." });
         agent.password = String(req.body.password);
       }
       await agent.save();
       return res.json({ success: true, data: await CustomerSupportAgentModel.findById(agent._id).select(publicFields).lean() });
     } catch (error: any) {
-      if (Number(error?.code) === 11000) return res.status(409).json({ success: false, message: "A customer support account already uses this email." });
+      if (Number(error?.code) === 11000) return res.status(409).json({ success: false, message: "A customer support account already uses this email.", errors: { email: "A customer support account already uses this email." } });
+      if (mongooseValidationResponse(error, res)) return;
       next(error);
     }
   }

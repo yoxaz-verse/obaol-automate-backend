@@ -9,6 +9,43 @@ const api = request(app);
 const tokenFor = (user: any, role: string) => generateJWTToken({ ...user.toObject(), role } as any, "1h");
 
 describe("Customer support chat", () => {
+  it("returns field-level errors for invalid and duplicate support-agent accounts", async () => {
+    const admin = await createAdmin();
+    const token = tokenFor(admin, "Admin");
+    const invalid = await api.post("/api/v1/web/customer-support-agents")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "", email: "not-an-email", password: "short" });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body?.errors).toEqual({
+      name: "Name is required.",
+      email: "Enter a valid email address.",
+      password: "Password must contain at least 8 characters.",
+    });
+
+    const associate = await createAssociate();
+    const crossRole = await api.post("/api/v1/web/customer-support-agents")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Help Agent", email: associate.email, password: "Passw0rd!" });
+    expect(crossRole.status).toBe(409);
+    expect(crossRole.body?.errors?.email).toContain("another OBAOL account");
+
+    const created = await api.post("/api/v1/web/customer-support-agents")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Help Agent", email: "visible-errors@example.com", password: "Passw0rd!" });
+    expect(created.status).toBe(201);
+    const duplicate = await api.post("/api/v1/web/customer-support-agents")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Another Agent", email: "visible-errors@example.com", password: "Passw0rd!" });
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body?.errors?.email).toContain("already uses this email");
+
+    const credentialReset = await api.patch(`/api/v1/web/customer-support-agents/${created.body.data._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ password: "short" });
+    expect(credentialReset.status).toBe(400);
+    expect(credentialReset.body?.errors?.password).toContain("at least 8 characters");
+  });
+
   it("lets an admin create a support agent that can sign in and report presence", async () => {
     const admin = await createAdmin();
     const created = await api.post("/api/v1/web/customer-support-agents")

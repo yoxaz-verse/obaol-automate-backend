@@ -37,6 +37,7 @@ import {
   verifyPasskeyAuthentication,
   verifyPasskeyRegistration,
 } from "../services/passkeyService";
+import { changePassword, listSessions, revokeOtherSessions, revokeSession } from "../services/securityService";
 
 const authRoute = Router();
 
@@ -49,6 +50,10 @@ authRoute.post("/passkeys/registration/verify", passkeyLimiter, authenticateToke
 authRoute.post("/passkeys/authentication/options", passkeyLimiter, generatePasskeyAuthenticationOptions);
 authRoute.post("/passkeys/authentication/verify", passkeyLimiter, verifyPasskeyAuthentication);
 authRoute.delete("/passkeys/:credentialId", passkeyLimiter, authenticateToken, deletePasskey);
+authRoute.get("/sessions", authenticateToken, listSessions);
+authRoute.delete("/sessions/others", authenticateToken, revokeOtherSessions);
+authRoute.delete("/sessions/:sessionId", authenticateToken, revokeSession);
+authRoute.put("/password", passwordResetLimiter, authenticateToken, changePassword);
 authRoute.get("/email-status", getEmailStatus);
 authRoute.get("/register/options", getRegisterOptions);
 authRoute.get("/register/companies", getRegisterCompanies);
@@ -61,7 +66,7 @@ authRoute.post("/onboarding/start", authOnboardingLimiter, startOnboarding);
 authRoute.post("/onboarding", authOnboardingLimiter, authenticateToken, completeOnboarding);
 authRoute.get("/company-interests/status", authenticateToken, getCompanyInterestsStatus);
 authRoute.put("/company-interests", authenticateToken, upsertCompanyInterests);
-authRoute.post("/logout", logoutUser);
+authRoute.post("/logout", authenticateToken, logoutUser);
 authRoute.post("/forgot-password", passwordResetLimiter, requestPasswordReset);
 authRoute.post("/reset-password", passwordResetLimiter, completePasswordReset);
 

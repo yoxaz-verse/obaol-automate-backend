@@ -8,12 +8,14 @@ import { OperatorModel } from "../database/models/operator";
 import { AdminModel } from "../database/models/admin";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
+import { AuthSessionModel } from "../database/models/authSession";
 
 export interface DecodedToken {
   id: string;
   email: string;
   role: string;
   associateCompany?: string | null;
+  sessionId?: string;
   iat: number;
   exp: number;
 }
@@ -26,7 +28,7 @@ declare global {
   }
 }
 
-const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
+const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   // Prioritize HttpOnly cookie 'auth_token', fallback to 'token' or Authorization header
   const token = req.cookies.auth_token || req.cookies.token || req.headers.authorization?.split(" ")[1];
 
@@ -46,6 +48,16 @@ const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET as string) as DecodedToken;
+    if (decoded.sessionId) {
+      const session = await AuthSessionModel.findOne({ sessionId: decoded.sessionId, userId: decoded.id, role: decoded.role });
+      if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+        return res.status(401).json({ success: false, message: "Authentication failed: Session expired or revoked" });
+      }
+      const activeCutoff = new Date(Date.now() - 60 * 1000);
+      if (!session.lastActiveAt || session.lastActiveAt < activeCutoff) {
+        AuthSessionModel.updateOne({ _id: session._id }, { $set: { lastActiveAt: new Date() } }).catch(() => undefined);
+      }
+    }
     req.user = decoded;
 
     // Non-blocking presence update (throttled to 60s)

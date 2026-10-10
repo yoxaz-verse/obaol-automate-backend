@@ -278,7 +278,7 @@ export const verifyPasskeyAuthentication = async (req: Request, res: Response) =
     await passkey.save();
 
     await user.updateOne({ $set: { lastLoginAt: new Date() } });
-    issueAuthCookie(res, { ...user.toObject(), role: canonicalRole }, Boolean(rememberMe));
+    await issueAuthCookie(res, { ...user.toObject(), role: canonicalRole }, Boolean(rememberMe));
     logger.info("Passkey login succeeded", { userId: String(user._id), role: canonicalRole });
     return res.json({
       success: true,

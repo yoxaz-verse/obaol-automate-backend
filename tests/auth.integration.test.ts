@@ -6,6 +6,7 @@ import { generateJWTToken } from "../src/utils/tokenUtils";
 import { verifyGoogleIdToken } from "../src/utils/googleAuth";
 import { VerificationModel } from "../src/database/models/verification";
 import { AuthPasskeyModel } from "../src/database/models/authPasskey";
+import { AuthSessionModel } from "../src/database/models/authSession";
 import { AssociateModel } from "../src/database/models/associate";
 import { seedCompanyFunctions } from "../src/seeds/companyFunctions.seed";
 import { CANONICAL_COMPANY_FUNCTION_SLUGS, COMPANY_FUNCTION_TAXONOMY_VERSION } from "../src/utils/companyCapabilities";
@@ -49,6 +50,45 @@ const extractMaxAge = (setCookieHeader?: string[] | string) => {
 };
 
 describe("Auth API", () => {
+  it("creates and lists a safe active-device session after password login", async () => {
+    const user = await createAssociate();
+    const login = await api.post("/api/v1/web/login").set("User-Agent", "Mozilla/5.0 (Macintosh) Chrome/120.0").send({ email: user.email, password: "Passw0rd!", role: "Associate" });
+    expect(login.status).toBe(200);
+    const cookie = login.headers["set-cookie"];
+    const sessions = await api.get("/api/v1/web/auth/sessions").set("Cookie", cookie);
+    expect(sessions.status).toBe(200);
+    expect(sessions.body.sessions).toHaveLength(1);
+    expect(sessions.body.sessions[0]).toMatchObject({ browser: "Chrome", device: "macOS", current: true });
+    expect(sessions.body.sessions[0]).not.toHaveProperty("ipAddress");
+    expect(await AuthSessionModel.countDocuments({ userId: user._id, revokedAt: null })).toBe(1);
+  });
+
+  it("revokes another device without revoking the current session", async () => {
+    const user = await createAssociate();
+    const first = await api.post("/api/v1/web/login").send({ email: user.email, password: "Passw0rd!", role: "Associate" });
+    const second = await api.post("/api/v1/web/login").send({ email: user.email, password: "Passw0rd!", role: "Associate" });
+    const firstCookie = first.headers["set-cookie"];
+    const secondCookie = second.headers["set-cookie"];
+    const sessions = await api.get("/api/v1/web/auth/sessions").set("Cookie", firstCookie);
+    const other = sessions.body.sessions.find((session: any) => !session.current);
+    expect(other).toBeTruthy();
+    expect((await api.delete(`/api/v1/web/auth/sessions/${other.id}`).set("Cookie", firstCookie)).status).toBe(200);
+    expect((await api.get("/api/v1/web/verify-token").set("Cookie", secondCookie)).status).toBe(401);
+    expect((await api.get("/api/v1/web/verify-token").set("Cookie", firstCookie)).status).toBe(200);
+  });
+
+  it("changes a password with current credentials and OTP, then revokes other devices", async () => {
+    const user = await createAssociate();
+    const current = await api.post("/api/v1/web/login").send({ email: user.email, password: "Passw0rd!", role: "Associate" });
+    const other = await api.post("/api/v1/web/login").send({ email: user.email, password: "Passw0rd!", role: "Associate" });
+    await VerificationModel.create({ userId: String(user._id), userType: "Associate", method: "email", code: "123456", expiresAt: new Date(Date.now() + 60_000), verified: false });
+    const changed = await api.put("/api/v1/web/auth/password").set("Cookie", current.headers["set-cookie"]).send({ currentPassword: "Passw0rd!", newPassword: "NewPassw0rd!", otpCode: "123456" });
+    expect(changed.status).toBe(200);
+    const refreshedUser = await AssociateModel.findById(user._id);
+    expect(await refreshedUser!.comparePassword("NewPassw0rd!")).toBe(true);
+    expect((await api.get("/api/v1/web/verify-token").set("Cookie", other.headers["set-cookie"])).status).toBe(401);
+    expect((await api.get("/api/v1/web/verify-token").set("Cookie", current.headers["set-cookie"])).status).toBe(200);
+  });
   it("returns the complete ordered company-function taxonomy", async () => {
     await seedCompanyFunctions();
     const res = await api.get("/api/v1/web/auth/register/options");

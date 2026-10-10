@@ -21,6 +21,8 @@ import { JobTypeModel } from "../database/models/jobType";
 import { LanguageModel } from "../database/models/language";
 import { CompanyFunctionMappingModel } from "../database/models/companyFunctionMapping";
 import { comparePasswords, hashPassword } from "../utils/passwordUtils";
+import { createAuthSession } from "../utils/authSession";
+import { AuthSessionModel } from "../database/models/authSession";
 import { generateJWTToken } from "../utils/tokenUtils";
 import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
@@ -263,10 +265,12 @@ const hasVerifiedOnboardingEmail = async (userDoc: any, role: "Associate" | "Ope
     return { ok: true };
 };
 
-export const issueAuthCookie = (res: Response, userForToken: any, rememberMe = false) => {
+export const issueAuthCookie = async (res: Response, userForToken: any, rememberMe = false) => {
     const jwtExpiresIn = rememberMe ? "24h" : "2h";
     const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
-    const token = generateJWTToken(userForToken, jwtExpiresIn);
+    const expiresAt = new Date(Date.now() + cookieMaxAge);
+    const sessionId = await createAuthSession(res.req, userForToken, userForToken.role, expiresAt);
+    const token = generateJWTToken(userForToken, jwtExpiresIn, sessionId);
     const host = String(res.req?.headers["x-forwarded-host"] || res.req?.headers.host || "");
     const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
     res.setHeader("Cache-Control", "no-store");
@@ -535,7 +539,7 @@ export const authenticateUser = async (req: Request, res: Response) => {
             associateCompany: user.associateCompany
         };
         await user.updateOne({ $set: { lastLoginAt: new Date() } });
-        issueAuthCookie(res, userForToken, rememberMe);
+        await issueAuthCookie(res, userForToken, rememberMe);
         const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
         const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
         logger.info("Auth cookie set", {
@@ -659,6 +663,9 @@ export const logoutUser = async (req: Request, res: Response) => {
     const { maxAge: _maxAge, ...clearCookieOptions } = cookieOptions;
     res.setHeader("Cache-Control", "no-store");
     res.clearCookie("auth_token", clearCookieOptions);
+    if (req.user?.sessionId) {
+        await AuthSessionModel.updateOne({ sessionId: req.user.sessionId, userId: req.user.id }, { $set: { revokedAt: new Date() } });
+    }
     res.json({ success: true, message: "Logged out successfully" });
 };
 
@@ -763,8 +770,6 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                 }
             }
 
-            const jwtExpiresIn = rememberMe ? "24h" : "2h";
-            const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
             const normalizedRole = roleLower === "operator" ? "Operator" : role;
             const userForToken = {
                 ...user.toObject(),
@@ -772,12 +777,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                 associateCompany: (user as any).associateCompany,
             };
             await user.updateOne({ $set: { lastLoginAt: new Date() } });
-            const token = generateJWTToken(userForToken, jwtExpiresIn);
-            const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
-            const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
-
-            res.setHeader("Cache-Control", "no-store");
-            res.cookie("auth_token", token, cookieOptions);
+            await issueAuthCookie(res, userForToken, rememberMe);
             return res.json({
                 success: true,
                 user: {
@@ -827,7 +827,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                     userAgent: String(req.headers["user-agent"] || ""),
                     verified: true,
                 });
-                issueAuthCookie(res, {
+                await issueAuthCookie(res, {
                     ...operator.toObject(),
                     role: "Operator",
                 }, rememberMe);
@@ -862,7 +862,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                 userAgent: String(req.headers["user-agent"] || ""),
                 verified: true,
             });
-            issueAuthCookie(res, {
+            await issueAuthCookie(res, {
                 ...associate.toObject(),
                 role: "Associate",
                 associateCompany: (associate as any).associateCompany,
@@ -1497,7 +1497,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
                 isEmailVerified: false,
                 onboardingComplete: false,
             });
-            issueAuthCookie(res, { ...newOperator.toObject(), role: "Operator" }, false);
+            await issueAuthCookie(res, { ...newOperator.toObject(), role: "Operator" }, false);
             return res.json({ success: true, user: { id: newOperator._id, email: newOperator.email, name: newOperator.name, role: "Operator" } });
         }
 
@@ -1514,7 +1514,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
             hasCompany: false,
             companyMode: "none",
         });
-        issueAuthCookie(res, { ...newAssociate.toObject(), role: "Associate" }, false);
+        await issueAuthCookie(res, { ...newAssociate.toObject(), role: "Associate" }, false);
         return res.json({ success: true, user: { id: newAssociate._id, email: newAssociate.email, name: newAssociate.name, role: "Associate" } });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Failed to start onboarding." });

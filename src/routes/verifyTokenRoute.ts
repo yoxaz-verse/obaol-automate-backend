@@ -67,7 +67,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       .select("providedCapabilities soughtCapabilities providedCapabilityPriorities soughtCapabilityPriorities")
       .lean();
     providedCapabilities = normalizeCompanyFunctionSlugs((company as any)?.providedCapabilities);
-    soughtCapabilities = normalizeCompanyFunctionSlugs((company as any)?.soughtCapabilities);
+    soughtCapabilities = normalizeCompanyFunctionSlugs((company as any)?.soughtCapabilities, "sought");
     providedCapabilityPriorities = ((company as any)?.providedCapabilityPriorities || []).map(String);
     soughtCapabilityPriorities = ((company as any)?.soughtCapabilityPriorities || []).map(String);
     companyCapabilitiesConfigured = providedCapabilities.length > 0 && soughtCapabilities.length > 0;

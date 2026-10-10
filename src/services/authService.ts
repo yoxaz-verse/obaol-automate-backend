@@ -25,6 +25,12 @@ import { generateJWTToken } from "../utils/tokenUtils";
 import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
 import { normalizePhoneInput } from "../utils/phone";
+import {
+    ASSOCIATE_PASSWORD_ERROR,
+    REPEATED_PHONE_ERROR,
+    isRepeatedDigitPhone,
+    isStrongAssociatePassword,
+} from "../utils/associateRegistrationValidation";
 import { getAuthCookieOptions } from "../utils/cookieOptions";
 import { CANONICAL_COMPANY_FUNCTION_SLUGS, COMPANY_FUNCTION_TAXONOMY_VERSION, normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import {
@@ -336,7 +342,7 @@ const syncCompanyInterests = async (params: {
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     await AssociateCompanyModel.findByIdAndUpdate(associateCompanyId, {
-        $set: { soughtCapabilities: interests },
+        $set: { soughtCapabilities: normalizeCompanyFunctionSlugs(interests, "sought") },
     });
     return interests;
 };
@@ -434,7 +440,7 @@ const syncCompanyFunctions = async (params: {
         await CompanyFunctionMappingModel.deleteMany({ companyId });
     }
 
-    const capabilitySlugs = normalizeCompanyFunctionSlugs(functions.map((row: any) => row.slug));
+    const capabilitySlugs = normalizeCompanyFunctionSlugs(functions.map((row: any) => row.slug), params.kind || "provided");
 
     const isSought = params.kind === "sought";
     await AssociateCompanyModel.findByIdAndUpdate(companyId, {
@@ -920,21 +926,10 @@ export const registerAssociate = async (req: Request, res: Response) => {
             });
         }
 
-        // Password strength validation
-        if (password.length < 8) {
+        if (!isStrongAssociatePassword(password)) {
             return res.status(400).json({
                 success: false,
-                message: "Password must be at least 8 characters long"
-            });
-        }
-
-        const hasUpperCase = /[A-Z]/.test(password);
-        const hasNumber = /[0-9]/.test(password);
-
-        if (!hasUpperCase || !hasNumber) {
-            return res.status(400).json({
-                success: false,
-                message: "Password must contain at least one uppercase letter and one number"
+                message: ASSOCIATE_PASSWORD_ERROR,
             });
         }
 
@@ -973,6 +968,12 @@ export const registerAssociate = async (req: Request, res: Response) => {
                 success: false,
                 message: "Valid phone number is required"
             });
+        }
+        if (isRepeatedDigitPhone(normalizedPrimaryPhone.national)) {
+            return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
+        }
+        if (normalizedPhoneSecondaryInput.e164 && isRepeatedDigitPhone(normalizedPhoneSecondaryInput.national)) {
+            return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
         }
         if (normalizedAssociateInterests.length > 6) {
             return res.status(400).json({
@@ -1064,6 +1065,9 @@ export const registerAssociate = async (req: Request, res: Response) => {
                     rawNational: typeof company?.phone === "object" ? company?.phone?.national : company?.phoneNational,
                 });
                 const companyPhone = normalizedCompanyPrimaryPhone.e164;
+                if (isRepeatedDigitPhone(normalizedCompanyPrimaryPhone.national)) {
+                    return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
+                }
                 const selectedFunctionIdsRaw = Array.isArray(company?.providedFunctionIds) ? company.providedFunctionIds : [];
                 const selectedFunctionIds: string[] = Array.from(new Set<string>(selectedFunctionIdsRaw
                     .map((id: any) => String(id || "").trim())
@@ -1224,6 +1228,9 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         rawNational: typeof company?.phoneSecondary === "object" ? company?.phoneSecondary?.national : company?.phoneSecondaryNational,
                         fallbackCountryCode: normalizedCompanyPrimaryPhone.countryCode,
                     });
+                    if (normalizedCompanySecondaryPhone.e164 && isRepeatedDigitPhone(normalizedCompanySecondaryPhone.national)) {
+                        return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
+                    }
                     const createdCompany = await AssociateCompanyModel.create({
                         name: companyName,
                         email: companyEmail,
@@ -1576,6 +1583,9 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 if (!password) {
                     return res.status(400).json({ success: false, message: "Password is required." });
                 }
+                if (!isStrongAssociatePassword(password)) {
+                    return res.status(400).json({ success: false, message: ASSOCIATE_PASSWORD_ERROR });
+                }
                 const hashed = await hashPassword(String(password));
                 (associate as any).password = hashed;
             }
@@ -1591,6 +1601,16 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 rawNational: phoneSecondaryNational,
                 fallbackCountryCode: normalizedPrimary.countryCode,
             });
+            if (!normalizedPrimary.e164) {
+                return res.status(400).json({ success: false, message: "Valid phone number is required." });
+            }
+            if (isRepeatedDigitPhone(normalizedPrimary.national)) {
+                return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
+            }
+            const hasSecondaryPhone = Boolean(phoneSecondary || phoneSecondaryNational);
+            if (hasSecondaryPhone && isRepeatedDigitPhone(normalizedSecondary.national)) {
+                return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
+            }
 
             associate.name = String(name).trim();
             associate.email = String(email).trim().toLowerCase();
@@ -1647,6 +1667,13 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 });
                 if (!companyPhone.e164) {
                     return res.status(400).json({ success: false, message: "Valid company phone is required." });
+                }
+                if (isRepeatedDigitPhone(companyPhone.national)) {
+                    return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
+                }
+                const hasCompanySecondaryPhone = Boolean(company?.phoneSecondary || company?.phoneSecondaryNational);
+                if (hasCompanySecondaryPhone && isRepeatedDigitPhone(companySecondary.national)) {
+                    return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
                 }
                 const providedFunctionIds = Array.isArray(company?.providedFunctionIds) ? company.providedFunctionIds : [];
                 const soughtFunctionIds = Array.isArray(company?.soughtFunctionIds) ? company.soughtFunctionIds : [];
@@ -2216,7 +2243,7 @@ export const getCompanyInterestsStatus = async (req: Request, res: Response) => 
             .select("providedCapabilities soughtCapabilities providedCapabilityPriorities soughtCapabilityPriorities updatedAt")
             .lean();
         const providedSlugs = normalizeCompanyFunctionSlugs((company as any)?.providedCapabilities);
-        const soughtSlugs = normalizeCompanyFunctionSlugs((company as any)?.soughtCapabilities);
+        const soughtSlugs = normalizeCompanyFunctionSlugs((company as any)?.soughtCapabilities, "sought");
         const functions = await CompanyFunctionModel.find({
             isActive: true,
             slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS },

@@ -116,7 +116,7 @@ export class InquiryController {
         countryIds?: unknown[];
     }): Promise<{ ids: string[]; matchLevel: ProviderMatchLevel }> {
         const capabilities = requestTypeToCapabilityAliases(type);
-        const canonicalCapabilities = normalizeCompanyFunctionSlugs([type, ...capabilities]);
+        const canonicalCapabilities = normalizeCompanyFunctionSlugs([type, ...capabilities], "sought");
         const rows = await AssociateCompanyModel.find({
             isDeleted: { $ne: true },
             isApproved: true,

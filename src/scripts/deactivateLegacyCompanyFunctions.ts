@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 import { CompanyFunctionModel } from "../database/models/companyFunction";
 
 const ALLOWED_SLUGS = [
-  "buying",
-  "selling",
+  "buyer",
+  "seller",
   "sourcing",
   "packaging",
   "testing",

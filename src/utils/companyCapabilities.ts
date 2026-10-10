@@ -45,8 +45,8 @@ const normalizeToken = (value: unknown): string =>
     .replace(/[^A-Z0-9_]/g, "");
 
 export const CANONICAL_COMPANY_FUNCTION_SLUGS = [
-  "buying",
-  "selling",
+  "buyer",
+  "seller",
   "sourcing",
   "packaging",
   "testing",
@@ -58,13 +58,11 @@ export const CANONICAL_COMPANY_FUNCTION_SLUGS = [
   "inland-logistics",
 ] as const;
 
-export const COMPANY_FUNCTION_TAXONOMY_VERSION = 2;
+export const COMPANY_FUNCTION_TAXONOMY_VERSION = 3;
 
 const LEGACY_TO_COMPANY_FUNCTION: Record<string, string> = {
-  BUY: "buying",
-  BUYING: "buying",
-  SELL: "selling",
-  SELLING: "selling",
+  BUYER: "buyer",
+  SELLER: "seller",
   PROCUREMENT: "sourcing",
   PROCUREMENT_PARTNER: "sourcing",
   SOURCING: "sourcing",
@@ -95,17 +93,27 @@ const LEGACY_TO_COMPANY_FUNCTION: Record<string, string> = {
   PROJECT_CARGO: "freight-forwarding",
 };
 
-export const normalizeCompanyFunctionSlug = (value: unknown): string => {
+export type CompanyFunctionPerspective = "provided" | "sought";
+
+export const normalizeCompanyFunctionSlug = (
+  value: unknown,
+  perspective: CompanyFunctionPerspective = "provided"
+): string => {
   const token = normalizeToken(value);
   if (!token) return "";
   const direct = token.toLowerCase().replace(/_/g, "-");
   if ((CANONICAL_COMPANY_FUNCTION_SLUGS as readonly string[]).includes(direct)) return direct;
+  if (token === "BUY" || token === "BUYING") return perspective === "sought" ? "seller" : "buyer";
+  if (token === "SELL" || token === "SELLING") return perspective === "sought" ? "buyer" : "seller";
   return LEGACY_TO_COMPANY_FUNCTION[token] || "";
 };
 
-export const normalizeCompanyFunctionSlugs = (values: unknown): string[] => {
+export const normalizeCompanyFunctionSlugs = (
+  values: unknown,
+  perspective: CompanyFunctionPerspective = "provided"
+): string[] => {
   if (!Array.isArray(values)) return [];
-  return Array.from(new Set(values.map(normalizeCompanyFunctionSlug).filter(Boolean)));
+  return Array.from(new Set(values.map((value) => normalizeCompanyFunctionSlug(value, perspective)).filter(Boolean)));
 };
 
 export const normalizeCapability = (value: unknown): string => {

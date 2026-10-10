@@ -12,8 +12,10 @@ describe("company capability normalization", () => {
   });
 
   it("maps legacy granular interests into onboarding categories", () => {
-    expect(normalizeCompanyFunctionSlug("BUY")).toBe("buying");
-    expect(normalizeCompanyFunctionSlug("SELLING")).toBe("selling");
+    expect(normalizeCompanyFunctionSlug("BUY")).toBe("buyer");
+    expect(normalizeCompanyFunctionSlug("SELLING")).toBe("seller");
+    expect(normalizeCompanyFunctionSlug("BUYING", "sought")).toBe("seller");
+    expect(normalizeCompanyFunctionSlug("SELLING", "sought")).toBe("buyer");
     expect(normalizeCompanyFunctionSlug("PROCUREMENT")).toBe("sourcing");
     expect(normalizeCompanyFunctionSlug("QUALITY_TESTING")).toBe("testing");
     expect(normalizeCompanyFunctionSlug("WAREHOUSING")).toBe("warehouse-storage");

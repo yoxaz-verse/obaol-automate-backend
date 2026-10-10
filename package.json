@@ -25,7 +25,8 @@
     "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
     "seed:spices-board-quality-labs": "ts-node src/scripts/seedSpicesBoardQualityLabs.ts",
     "normalize:company-capabilities": "ts-node src/scripts/normalize-company-capabilities.ts",
-    "migrate:company-capability-profiles": "ts-node src/scripts/migrateCompanyCapabilityProfiles.ts"
+    "migrate:company-capability-profiles": "ts-node src/scripts/migrateCompanyCapabilityProfiles.ts",
+    "migrate:buyer-seller-taxonomy": "ts-node src/scripts/migrateBuyerSellerTaxonomy.ts"
   },
   "keywords": [],
   "author": "",

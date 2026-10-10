@@ -35,7 +35,7 @@ async function run() {
       .lean();
     for (const row of rows as any[]) {
       const provided = normalizeCompanyFunctionSlugs(row.providedCapabilities);
-      const sought = normalizeCompanyFunctionSlugs(row.soughtCapabilities);
+      const sought = normalizeCompanyFunctionSlugs(row.soughtCapabilities, "sought");
       const normalizePriorityIds = (values: unknown[]) => Array.from(new Set(
         (Array.isArray(values) ? values : [])
           .map((value) => String(value))
@@ -59,7 +59,7 @@ async function run() {
     const legacyAssociates = await associates.find({ tradeMode: { $exists: true } }, { projection: { associateCompany: 1, tradeMode: 1 } }).toArray();
     for (const associate of legacyAssociates) {
       const mode = String(associate.tradeMode || "").toUpperCase();
-      const additions = mode === "BUY" ? ["buying"] : mode === "SELL" ? ["selling"] : mode === "BOTH" ? ["buying", "selling"] : [];
+      const additions = mode === "BUY" ? ["buyer"] : mode === "SELL" ? ["seller"] : mode === "BOTH" ? ["buyer", "seller"] : [];
       if (associate.associateCompany && additions.length) {
         await companies.updateOne(
           { _id: associate.associateCompany },

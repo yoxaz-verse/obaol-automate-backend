@@ -10,15 +10,15 @@ const slugify = (value: string) =>
 
 export const COMPANY_FUNCTION_SEED = [
   {
-    name: "Buying",
-    slug: "buying",
-    description: "Buying or procuring commodities and products.",
+    name: "Buyer",
+    slug: "buyer",
+    description: "A company that purchases commodities or products.",
     subFunctions: [],
   },
   {
-    name: "Selling",
-    slug: "selling",
-    description: "Selling or supplying commodities and products.",
+    name: "Seller",
+    slug: "seller",
+    description: "A company that sells or supplies commodities or products.",
     subFunctions: [],
   },
   {

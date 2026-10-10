@@ -173,7 +173,7 @@ AssociateCompanySchema.pre("save", async function (next) {
   }
 
   self.providedCapabilities = normalizeCompanyFunctionSlugs(self.providedCapabilities);
-  self.soughtCapabilities = normalizeCompanyFunctionSlugs(self.soughtCapabilities);
+  self.soughtCapabilities = normalizeCompanyFunctionSlugs(self.soughtCapabilities, "sought");
 
   if (!self.subdomain || !self.slug) {
     const baseValue = self.name
@@ -265,7 +265,7 @@ AssociateCompanySchema.pre("findOneAndUpdate", function (next) {
     payload.providedCapabilities = normalizeCompanyFunctionSlugs(payload.providedCapabilities);
   }
   if (Object.prototype.hasOwnProperty.call(payload, "soughtCapabilities")) {
-    payload.soughtCapabilities = normalizeCompanyFunctionSlugs(payload.soughtCapabilities);
+    payload.soughtCapabilities = normalizeCompanyFunctionSlugs(payload.soughtCapabilities, "sought");
   }
 
   if (update.$set) {

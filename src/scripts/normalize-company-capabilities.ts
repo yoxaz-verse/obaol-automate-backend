@@ -18,7 +18,7 @@ async function run() {
     let updated = 0;
     for (const row of rows as any[]) {
       const provided = normalizeCompanyFunctionSlugs(row?.providedCapabilities || []);
-      const sought = normalizeCompanyFunctionSlugs(row?.soughtCapabilities || []);
+      const sought = normalizeCompanyFunctionSlugs(row?.soughtCapabilities || [], "sought");
       if (JSON.stringify(row?.providedCapabilities || []) === JSON.stringify(provided)
         && JSON.stringify(row?.soughtCapabilities || []) === JSON.stringify(sought)) continue;
 

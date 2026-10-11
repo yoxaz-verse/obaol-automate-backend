@@ -120,6 +120,8 @@ router.use(`${prefix}/approvals`, approvalRoutes);
 // Notifications (Authenticated)
 import notificationRoutes from "./v1/notificationRoutes";
 router.use(`${prefix}/notifications`, notificationRoutes);
+import notificationCategoryRoutes from "./v1/notificationCategoryRoutes";
+router.use(`${prefix}/notification-categories`, notificationCategoryRoutes);
 
 // Presence ping (authenticated)
 import presenceRoutes from "./v1/presenceRoutes";

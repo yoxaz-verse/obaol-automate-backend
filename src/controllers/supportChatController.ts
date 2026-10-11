@@ -8,6 +8,7 @@ import { ProjectManagerModel } from "../database/models/projectManager";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 import { SupportConversationModel } from "../database/models/supportConversation";
 import { SupportMessageModel } from "../database/models/supportMessage";
+import { SupportRatingModel } from "../database/models/supportRating";
 import {
   createSupportNotification,
   getSupportAgentSnapshot,
@@ -55,11 +56,15 @@ const requesterProfile = async (conversation: any) => {
   };
 };
 
-const serializeConversation = async (conversation: any, includeProfile = false) => {
+const serializeConversation = async (conversation: any, includeProfile = false, includeRating = false) => {
   const plain = typeof conversation?.toObject === "function" ? conversation.toObject() : conversation;
+  const rating = includeRating
+    ? await SupportRatingModel.findOne({ conversationId: plain._id }).select("score comment createdAt").lean()
+    : null;
   return {
     ...plain,
     ...(includeProfile ? { requester: await requesterProfile(plain) } : {}),
+    ...(includeRating ? { rating: rating ? { score: rating.score, comment: rating.comment, createdAt: rating.createdAt } : null } : {}),
   };
 };
 
@@ -124,7 +129,7 @@ export class SupportChatController {
       const body = String(req.body?.message || "").trim();
       if (!subject || !body) return res.status(400).json({ success: false, message: "Subject and message are required." });
       const existing = await SupportConversationModel.findOne({ requesterId: userId(req), status: { $in: ["WAITING", "ACTIVE"] } });
-      if (existing) return res.status(409).json({ success: false, message: "You already have an unresolved support conversation.", data: await serializeConversation(existing) });
+      if (existing) return res.status(409).json({ success: false, message: "You already have an unresolved support conversation.", data: await serializeConversation(existing, false, true) });
 
       const now = new Date();
       const conversation = await SupportConversationModel.create({
@@ -157,7 +162,8 @@ export class SupportChatController {
         .sort({ status: 1, createdAt: 1, lastMessageAt: -1 })
         .limit(200).lean();
       const includeProfiles = isAdminRole(roleValue) || isSupportAgentRole(roleValue);
-      return res.json({ success: true, data: await Promise.all(rows.map((row: any) => serializeConversation(row, includeProfiles))) });
+      const includeRatings = isAdminRole(roleValue) || !isSupportAgentRole(roleValue);
+      return res.json({ success: true, data: await Promise.all(rows.map((row: any) => serializeConversation(row, includeProfiles, includeRatings))) });
     } catch (error) { next(error); }
   }
 
@@ -167,7 +173,7 @@ export class SupportChatController {
       const conversation: any = await SupportConversationModel.findById(req.params.id).populate("assignedAgent", "name email phone isAvailable lastSeenAt").lean();
       if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found." });
       if (!canView(req, conversation)) return res.status(403).json({ success: false, message: "You cannot access this conversation." });
-      return res.json({ success: true, data: await serializeConversation(conversation, isAdminRole(role(req)) || isSupportAgentRole(role(req))) });
+      return res.json({ success: true, data: await serializeConversation(conversation, isAdminRole(role(req)) || isSupportAgentRole(role(req)), isAdminRole(role(req)) || !isSupportAgentRole(role(req))) });
     } catch (error) { next(error); }
   }
 

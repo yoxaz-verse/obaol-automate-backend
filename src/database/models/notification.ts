@@ -14,6 +14,8 @@ export interface INotification extends mongoose.Document {
   isRead: boolean;
   readAt?: Date | null;
   priority: "low" | "medium" | "high";
+  categoryId?: mongoose.Types.ObjectId | null;
+  categoryName?: string;
   createdByUserId?: mongoose.Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
@@ -33,6 +35,8 @@ const NotificationSchema = new Schema<INotification>(
     isRead: { type: Boolean, default: false, index: true },
     readAt: { type: Date, default: null },
     priority: { type: String, enum: ["low", "medium", "high"], default: "medium" },
+    categoryId: { type: Schema.Types.ObjectId, ref: "NotificationCategory", default: null, index: true },
+    categoryName: { type: String, default: "", trim: true },
     createdByUserId: { type: Schema.Types.ObjectId, required: false, index: true },
   },
   { timestamps: true }

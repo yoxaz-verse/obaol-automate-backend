@@ -7,6 +7,31 @@ import { AdminModel } from "../database/models/admin";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CompanyFunctionMappingModel } from "../database/models/companyFunctionMapping";
+import { OperatorModel } from "../database/models/operator";
+import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
+import { SupportConversationModel } from "../database/models/supportConversation";
+import { NotificationCategoryModel } from "../database/models/notificationCategory";
+type BroadcastRecipientRole = "Admin" | "Operator" | "Associate" | "CustomerSupport";
+
+const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase().replace(/[_-]/g, "");
+const canonicalRecipientRole = (value: unknown): BroadcastRecipientRole | null => {
+  switch (normalizeRole(value)) {
+    case "admin": return "Admin";
+    case "associate": case "customer": return "Associate";
+    case "operator": return "Operator";
+    case "team": return "Operator";
+    case "customersupport": return "CustomerSupport";
+    default: return null;
+  }
+};
+
+const participantModel = (role: BroadcastRecipientRole) => {
+  if (role === "Admin") return AdminModel;
+  if (role === "Associate") return AssociateModel;
+  if (role === "Operator") return OperatorModel;
+  if (role === "CustomerSupport") return CustomerSupportAgentModel;
+  return null;
+};
 
 export class NotificationController {
   private sectionPrefixes: Record<string, string> = {
@@ -31,17 +56,46 @@ export class NotificationController {
       const limit = Number(req.query.limit || 20);
       const unreadOnly = String(req.query.unreadOnly || "").toLowerCase() === "true";
       const type = String(req.query.type || "").trim();
+      const categoryId = String(req.query.categoryId || "").trim();
+      if (categoryId && !mongoose.Types.ObjectId.isValid(categoryId)) return res.status(400).json({ success: false, message: "Invalid notification category." });
 
       const result = await notificationService.listForUser(userId, {
         page,
         limit,
         unreadOnly,
         ...(type ? { type } : {}),
+        ...(categoryId ? { categoryId } : {}),
       });
 
       return res.json({ success: true, data: result.data, meta: result.meta });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error?.message || "Failed to load notifications." });
+    }
+  }
+
+  async supportParticipants(req: Request, res: Response) {
+    try {
+      const search = String(req.query.search || "").trim().toLowerCase();
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit || 25)));
+      const conversations = await SupportConversationModel.aggregate([
+        { $sort: { lastMessageAt: -1 } },
+        { $group: { _id: { requesterId: "$requesterId", requesterRole: "$requesterRole" }, lastConversationAt: { $first: "$lastMessageAt" } } },
+        { $sort: { lastConversationAt: -1 } },
+        { $limit: search ? 250 : limit },
+      ]);
+      const rows = (await Promise.all(conversations.map(async (entry: any) => {
+        const recipientRole = canonicalRecipientRole(entry._id.requesterRole);
+        const model = recipientRole ? participantModel(recipientRole) : null;
+        if (!recipientRole || !model) return null;
+        const profile: any = await (model as any).findOne({ _id: entry._id.requesterId, isDeleted: { $ne: true }, isActive: { $ne: false } }).select("name email").lean();
+        if (!profile) return null;
+        const haystack = `${profile.name || ""} ${profile.email || ""} ${recipientRole}`.toLowerCase();
+        if (search && !haystack.includes(search)) return null;
+        return { id: String(profile._id), name: profile.name || "User", email: profile.email || "", role: recipientRole, lastConversationAt: entry.lastConversationAt };
+      }))).filter(Boolean).slice(0, limit);
+      return res.json({ success: true, data: rows });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error?.message || "Failed to load support participants." });
     }
   }
 
@@ -183,6 +237,9 @@ export class NotificationController {
       const priorityRaw = String(req.body?.priority || "medium").toLowerCase();
       const rolesRaw = Array.isArray(req.body?.roles) ? req.body.roles : [];
       const functionIdsRaw = Array.isArray(req.body?.companyFunctionIds) ? req.body.companyFunctionIds : [];
+      const recipientIdsRaw = Array.isArray(req.body?.recipientUserIds) ? req.body.recipientUserIds : [];
+      const categoryId = String(req.body?.categoryId || "").trim();
+      const actorRole = canonicalRecipientRole(req.user?.role);
 
       if (!title || !message) {
         return res.status(400).json({ success: false, message: "Title and message are required." });
@@ -200,6 +257,13 @@ export class NotificationController {
 
       const priority: "low" | "medium" | "high" =
         priorityRaw === "low" || priorityRaw === "high" ? (priorityRaw as any) : "medium";
+
+      let category: any = null;
+      if (categoryId) {
+        if (!mongoose.Types.ObjectId.isValid(categoryId)) return res.status(400).json({ success: false, message: "Invalid notification category." });
+        category = await NotificationCategoryModel.findOne({ _id: categoryId, isActive: true }).lean();
+        if (!category) return res.status(400).json({ success: false, message: "The selected notification category is unavailable." });
+      }
 
       const functionIds: string[] = Array.from(
         new Set(
@@ -221,16 +285,31 @@ export class NotificationController {
         companyIds = Array.from(new Set(mappings.map((row: any) => String(row?.companyId || "")).filter(Boolean)));
       }
 
-      const recipientMap = new Map<string, "Admin" | "Associate" | "Operator">();
+      const recipientMap = new Map<string, any>();
 
-      if (normalizedRoles.includes("Admin")) {
+      if (actorRole === "CustomerSupport") {
+        if (rolesRaw.length || functionIdsRaw.length) return res.status(403).json({ success: false, message: "Customer support may notify only selected support participants." });
+        const requestedIds: string[] = Array.from(new Set<string>(recipientIdsRaw.map((id: any) => String(id || "").trim()).filter((id: string) => mongoose.Types.ObjectId.isValid(id))));
+        if (!requestedIds.length) return res.status(400).json({ success: false, message: "Select at least one support participant." });
+        const eligible = await SupportConversationModel.aggregate([
+          { $match: { requesterId: { $in: requestedIds.map((id: string) => new mongoose.Types.ObjectId(id)) } } },
+          { $group: { _id: { requesterId: "$requesterId", requesterRole: "$requesterRole" } } },
+        ]);
+        eligible.forEach((entry: any) => {
+          const eligibleRole = canonicalRecipientRole(entry._id.requesterRole);
+          if (eligibleRole) recipientMap.set(String(entry._id.requesterId), eligibleRole);
+        });
+        if (recipientMap.size !== requestedIds.length) return res.status(403).json({ success: false, message: "One or more selected users are not eligible support participants." });
+      }
+
+      if (actorRole === "Admin" && normalizedRoles.includes("Admin")) {
         const admins = await AdminModel.find({ isDeleted: { $ne: true }, isActive: { $ne: false } })
           .select("_id")
           .lean();
         admins.forEach((row: any) => notificationService.addRecipient(recipientMap, row._id, "Admin"));
       }
 
-      if (normalizedRoles.includes("Associate")) {
+      if (actorRole === "Admin" && normalizedRoles.includes("Associate")) {
         const associateQuery: any = { isDeleted: { $ne: true }, isActive: { $ne: false } };
         if (hasCompanyFilter) {
           associateQuery.associateCompany = { $in: companyIds.map((id) => new mongoose.Types.ObjectId(id)) };
@@ -239,7 +318,7 @@ export class NotificationController {
         associates.forEach((row: any) => notificationService.addRecipient(recipientMap, row._id, "Associate"));
       }
 
-      if (normalizedRoles.includes("Operator")) {
+      if (actorRole === "Admin" && normalizedRoles.includes("Operator")) {
         const companyQuery: any = { assignedOperator: { $ne: null } };
         if (hasCompanyFilter) {
           companyQuery._id = { $in: companyIds.map((id) => new mongoose.Types.ObjectId(id)) };
@@ -263,9 +342,10 @@ export class NotificationController {
         route: "/dashboard/notifications",
         priority,
         payload: {
-          roles: normalizedRoles,
-          companyFunctionIds: functionIds,
+          ...(actorRole === "Admin" ? { roles: normalizedRoles, companyFunctionIds: functionIds } : { recipientUserIds: Array.from(recipientMap.keys()) }),
         },
+        categoryId: category?._id || null,
+        categoryName: category?.name || "",
       });
 
       return res.json({ success: true, data: { created: result.length } });

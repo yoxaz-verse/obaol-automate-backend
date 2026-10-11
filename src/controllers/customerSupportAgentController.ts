@@ -61,6 +61,7 @@ export class CustomerSupportAgentController {
       if (password.length < 8) errors.password = "Password must contain at least 8 characters.";
       if (Object.keys(errors).length) return invalidAgentResponse(res, errors);
       if (await emailUsedByAnotherRole(email)) return res.status(409).json({ success: false, message: "This email already belongs to another OBAOL account.", errors: { email: "This email already belongs to another OBAOL account." } });
+      if (await CustomerSupportAgentModel.exists({ email, isDeleted: { $ne: true } })) return res.status(409).json({ success: false, message: "A customer support account already uses this email.", errors: { email: "A customer support account already uses this email." } });
       const agent = await CustomerSupportAgentModel.create({
         name, email, password, phone: String(req.body?.phone || "").trim(), admin: req.user!.id,
         isActive: req.body?.isActive !== false,
@@ -88,6 +89,7 @@ export class CustomerSupportAgentController {
       if (req.body?.email !== undefined) {
         const nextEmail = String(req.body.email || "").trim().toLowerCase();
         if (nextEmail !== agent.email && await emailUsedByAnotherRole(nextEmail)) return res.status(409).json({ success: false, message: "This email already belongs to another OBAOL account.", errors: { email: "This email already belongs to another OBAOL account." } });
+        if (nextEmail !== agent.email && await CustomerSupportAgentModel.exists({ email: nextEmail, isDeleted: { $ne: true }, _id: { $ne: agent._id } })) return res.status(409).json({ success: false, message: "A customer support account already uses this email.", errors: { email: "A customer support account already uses this email." } });
         agent.email = nextEmail;
       }
       if (req.body?.phone !== undefined) agent.phone = String(req.body.phone || "").trim();

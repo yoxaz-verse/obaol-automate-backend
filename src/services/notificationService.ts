@@ -7,10 +7,10 @@ import { NotificationModel } from "../database/models/notification";
 import { OperatorModel } from "../database/models/operator";
 import { OrderModel } from "../database/models/order";
 
-type RecipientRole = "Admin" | "Operator" | "Associate";
+export type RecipientRole = "Admin" | "Operator" | "Associate";
 
 type CreateNotificationParams = {
-  recipientMap: Map<string, RecipientRole>;
+  recipientMap: Map<string, any>;
   createdByUserId?: string | null;
   type: string;
   title: string;
@@ -20,6 +20,8 @@ type CreateNotificationParams = {
   route: string;
   payload?: Record<string, any>;
   priority?: "low" | "medium" | "high";
+  categoryId?: string | null;
+  categoryName?: string;
 };
 
 class NotificationService {
@@ -163,6 +165,8 @@ class NotificationService {
       route: params.route,
       payload: params.payload || {},
       priority: params.priority || "medium",
+      ...(this.normalizeId(params.categoryId) ? { categoryId: new mongoose.Types.ObjectId(String(params.categoryId)) } : {}),
+      categoryName: params.categoryName || "",
       ...(this.normalizeId(params.createdByUserId) ? { createdByUserId: new mongoose.Types.ObjectId(String(params.createdByUserId)) } : {}),
     }));
     if (!docs.length) return [];
@@ -204,7 +208,7 @@ class NotificationService {
 
   async listForUser(
     userId: string,
-    options: { page: number; limit: number; unreadOnly?: boolean; type?: string; recipientRole?: RecipientRole }
+    options: { page: number; limit: number; unreadOnly?: boolean; type?: string; categoryId?: string; recipientRole?: RecipientRole }
   ) {
     const page = Math.max(1, Number(options.page || 1));
     const limit = Math.min(100, Math.max(1, Number(options.limit || 20)));
@@ -212,6 +216,7 @@ class NotificationService {
     if (options.recipientRole) query.recipientRole = options.recipientRole;
     if (options.unreadOnly) query.isRead = false;
     if (options.type) query.type = String(options.type).trim();
+    if (options.categoryId && mongoose.Types.ObjectId.isValid(options.categoryId)) query.categoryId = new mongoose.Types.ObjectId(options.categoryId);
 
     const [total, rows] = await Promise.all([
       NotificationModel.countDocuments(query),

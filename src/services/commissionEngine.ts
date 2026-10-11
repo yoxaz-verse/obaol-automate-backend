@@ -3,6 +3,9 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CommissionModel } from "../database/models/commission";
 import { CommissionRuleModel } from "../database/models/commissionRule";
 import { OrderModel } from "../database/models/order";
+import { InquiryModel } from "../database/models/enquiry";
+import { AssociateReferralEarningModel } from "../database/models/associateReferralEarning";
+import { AssociateReferralService } from "./associateReferral.service";
 import { OperatorHierarchyService } from "./operatorHierarchy.service";
 
 type PayoutRow = {
@@ -20,6 +23,7 @@ const DEFAULT_RULE = {
   poolPercent: 30,
   procurementPercent: 10,
   handlerPercent: 10,
+  associateReferralPercent: 10,
   closerPercent: 40,
   portfolioPercent: 30,
   leadershipL1Percent: 12,
@@ -38,6 +42,7 @@ const resolveCommissionRule = async () => {
     poolPercent: Number(activeRule.poolPercent ?? DEFAULT_RULE.poolPercent),
     procurementPercent: Number(activeRule.procurementPercent ?? DEFAULT_RULE.procurementPercent),
     handlerPercent: Number(activeRule.handlerPercent ?? DEFAULT_RULE.handlerPercent),
+    associateReferralPercent: Number((activeRule as any).associateReferralPercent ?? DEFAULT_RULE.associateReferralPercent),
     closerPercent: Number(activeRule.closerPercent ?? DEFAULT_RULE.closerPercent),
     portfolioPercent: Number(activeRule.portfolioPercent ?? DEFAULT_RULE.portfolioPercent),
     leadershipL1Percent: Number(activeRule.leadershipL1Percent ?? DEFAULT_RULE.leadershipL1Percent),
@@ -48,6 +53,77 @@ const resolveCommissionRule = async () => {
 };
 
 export class CommissionEngine {
+  static async processAssociateReferralCommission(orderId: string) {
+    if (!mongoose.Types.ObjectId.isValid(orderId)) throw Object.assign(new Error("Invalid orderId."), { status: 400 });
+    const order: any = await OrderModel.findById(orderId)
+      .select("_id enquiry status profit participantCompanyIds associateReferralProcessedAt updatedAt")
+      .lean();
+    if (!order) throw Object.assign(new Error("Order not found."), { status: 404 });
+    if (!isCompletedStatus(order.status)) return { success: true, skipped: true, reason: "ORDER_NOT_COMPLETED" };
+    if (order.associateReferralProcessedAt) return { success: true, skipped: true, reason: "ALREADY_PROCESSED" };
+    const profit = Number(order.profit);
+    if (!Number.isFinite(profit)) throw Object.assign(new Error("Completed order requires numeric profit."), { status: 400 });
+
+    let participantCompanyIds = Array.isArray(order.participantCompanyIds) ? order.participantCompanyIds : [];
+    if (!participantCompanyIds.length && order.enquiry) {
+      const inquiry = await InquiryModel.findById(order.enquiry)
+        .select("buyerAssociateId sellerAssociateId mediatorAssociateId")
+        .lean();
+      participantCompanyIds = await AssociateReferralService.getParticipantCompanyIds(inquiry);
+      if (participantCompanyIds.length) {
+        await OrderModel.updateOne({ _id: order._id }, { $set: { participantCompanyIds } });
+      }
+    }
+
+    const companies: any[] = participantCompanyIds.length
+      ? await AssociateCompanyModel.find({
+          _id: { $in: participantCompanyIds },
+          referredByCompanyId: { $ne: null },
+          referralActivatedAt: { $ne: null, $lte: order.updatedAt || new Date() },
+        }).select("_id referredByCompanyId referralActivatedAt").lean()
+      : [];
+
+    const grouped = new Map<string, string[]>();
+    for (const company of companies) {
+      const referrerId = String(company.referredByCompanyId || "");
+      if (!referrerId) continue;
+      const ids = grouped.get(referrerId) || [];
+      ids.push(String(company._id));
+      grouped.set(referrerId, ids);
+    }
+
+    const rule = await resolveCommissionRule();
+    const poolPercent = Number(rule.associateReferralPercent || 0);
+    const poolCents = Math.max(0, Math.round(profit * (poolPercent / 100) * 100));
+    const recipients = Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b));
+    if (poolCents > 0 && recipients.length > 0) {
+      const baseCents = Math.floor(poolCents / recipients.length);
+      let remainder = poolCents - baseCents * recipients.length;
+      await AssociateReferralEarningModel.bulkWrite(recipients.map(([referrerCompanyId, referredCompanyIds]) => {
+        const amountCents = baseCents + (remainder-- > 0 ? 1 : 0);
+        return {
+          updateOne: {
+            filter: { orderId: order._id, referrerCompanyId: new mongoose.Types.ObjectId(referrerCompanyId) },
+            update: { $setOnInsert: {
+              orderId: order._id,
+              referrerCompanyId: new mongoose.Types.ObjectId(referrerCompanyId),
+              referredCompanyIds: referredCompanyIds.map((id) => new mongoose.Types.ObjectId(id)),
+              profitBasis: round2(profit), poolPercent, poolAmount: poolCents / 100,
+              recipientCount: recipients.length, amount: amountCents / 100, status: "EARNED" as const,
+            } },
+            upsert: true,
+          },
+        };
+      }), { ordered: false });
+    }
+
+    await OrderModel.updateOne(
+      { _id: order._id, associateReferralProcessedAt: null },
+      { $set: { associateReferralProcessedAt: new Date() } }
+    );
+    return { success: true, skipped: false, poolAmount: poolCents / 100, recipientCount: recipients.length };
+  }
+
   static async processTradeCommission(orderId: string) {
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       const err: any = new Error("Invalid orderId.");

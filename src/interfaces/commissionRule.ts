@@ -7,6 +7,7 @@ export interface ICommissionRule extends Document {
   poolPercent: number;
   procurementPercent: number;
   handlerPercent: number;
+  associateReferralPercent: number;
   closerPercent: number;
   portfolioPercent: number;
   leadershipL1Percent: number;

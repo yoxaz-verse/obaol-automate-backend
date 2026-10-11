@@ -124,6 +124,8 @@ const OrderSchema: Schema = new Schema(
         closedByOperator: { type: Schema.Types.ObjectId, ref: "Operator", default: null },
         associateCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null },
         commissionProcessedAt: { type: Date, default: null },
+        participantCompanyIds: [{ type: Schema.Types.ObjectId, ref: "AssociateCompany" }],
+        associateReferralProcessedAt: { type: Date, default: null },
         paymentTermId: { type: Schema.Types.ObjectId, ref: "PaymentTerm", default: null },
         incotermId: { type: Schema.Types.ObjectId, ref: "Incoterm", default: null },
         supplierOperatorId: { type: Schema.Types.ObjectId, ref: "Operator", default: null },
@@ -155,6 +157,7 @@ const OrderSchema: Schema = new Schema(
 
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ commissionProcessedAt: 1 });
+OrderSchema.index({ associateReferralProcessedAt: 1 });
 OrderSchema.index({ closedByOperator: 1 });
 OrderSchema.index({ associateCompanyId: 1 });
 OrderSchema.index({ supplierOperatorId: 1, status: 1, updatedAt: -1 });

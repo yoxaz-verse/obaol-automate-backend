@@ -16,6 +16,7 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { ensureDefaultDocumentRules } from "../utils/documentRules";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { buildPaymentPlanFromTermId, applyPaymentPlanStageUpdate } from "../utils/paymentPlan";
+import { AssociateReferralService } from "../services/associateReferral.service";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -149,6 +150,7 @@ export class OrderController {
                 const paymentPlan = await buildPaymentPlanFromTermId(termId, tradeType);
                 if (paymentPlan) req.body.paymentPlan = paymentPlan;
             }
+            req.body.participantCompanyIds = await AssociateReferralService.getParticipantCompanyIds(enquiry);
 
             const order = await this.engine.create(req, req.body);
 

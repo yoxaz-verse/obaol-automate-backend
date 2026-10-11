@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { AssociateReferralService } from "../services/associateReferral.service";
 import { OperatorModel } from "../database/models/operator";
 import { CatalogItemModel } from "../database/models/catalogItem";
 import { WarehouseModel } from "../database/models/warehouse";
@@ -150,6 +151,16 @@ export class ApprovalController {
         },
       }) : Promise.resolve(),
     ]);
+    if (hasCompanyTarget && params.associateCompanyId) {
+      const liveListing = await CatalogItemModel.findOne({
+        associateCompanyId: params.associateCompanyId,
+        listingState: "LIVE",
+        isLive: true,
+      }).select("_id").lean();
+      if (liveListing) {
+        await AssociateReferralService.activateCompany(params.associateCompanyId, "LIVE_SUPPLY", liveListing._id);
+      }
+    }
   }
 
   async approveExistingPending(req: Request, res: Response) {
@@ -215,6 +226,7 @@ export class ApprovalController {
       ]);
 
       await Promise.all([
+        ...pendingCompanies.map((row: any) => AssociateReferralService.ensureCompanyCode(row._id)),
         ...pendingAssociates.map((row: any) =>
           this.activateDraftListings({
             adminId,
@@ -541,6 +553,10 @@ export class ApprovalController {
         .select("_id name email supervisor registrationStatus isApproved approvedAt reviewNotes")
         .populate("supervisor", "_id name email")
         .lean();
+
+      if (action === "APPROVE" && updated) {
+        await AssociateReferralService.ensureCompanyCode(updated._id);
+      }
 
       if (!updated) {
         return res.status(404).json({ success: false, message: "Company not found." });

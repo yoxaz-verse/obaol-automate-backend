@@ -27,6 +27,7 @@ import { generateJWTToken } from "../utils/tokenUtils";
 import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
 import { normalizePhoneInput } from "../utils/phone";
+import { AssociateReferralService } from "./associateReferral.service";
 import {
     ASSOCIATE_PASSWORD_ERROR,
     REPEATED_PHONE_ERROR,
@@ -1637,6 +1638,16 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             associate.companyMode = associate.hasCompany
                 ? (normalizedCompanyMode === "new" ? "new" : "existing")
                 : "none";
+            const resolvedReferral = await AssociateReferralService.resolveCode(referralCode);
+            if (resolvedReferral.type === "invalid") {
+                return res.status(400).json({ success: false, message: "Invalid referral code." });
+            }
+            if (associate.companyMode === "existing" && resolvedReferral.type === "associate_company") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Associate referral codes can only be applied while registering a new company."
+                });
+            }
             if (!associate.hasCompany) {
                 associate.associateCompany = null;
             }
@@ -1697,6 +1708,12 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 }
                 const existingCompany = await AssociateCompanyModel.findOne({ email: companyEmail }).select("_id").lean();
                 if (existingCompany) {
+                    if (resolvedReferral.type === "associate_company") {
+                        return res.status(400).json({
+                            success: false,
+                            message: "This company already exists and cannot be assigned a new associate referrer."
+                        });
+                    }
                     associate.associateCompany = existingCompany._id;
                 } else {
                     const createdCompany = await AssociateCompanyModel.create({
@@ -1721,9 +1738,15 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                         legalComplianceInfo: company?.legalComplianceInfo || undefined,
                         providedCapabilities: [],
                         soughtCapabilities: [],
-                        assignedOperator: null,
+                        assignedOperator: resolvedReferral.type === "operator" ? resolvedReferral.operatorId : null,
                         supervisor: associate._id,
                         address: company?.address || "",
+                        referralCode: await AssociateReferralService.generateCompanyReferralCode(),
+                        ...(resolvedReferral.type === "associate_company" ? {
+                            referredByCompanyId: resolvedReferral.companyId,
+                            referralCodeUsed: resolvedReferral.code,
+                            referralCapturedAt: new Date(),
+                        } : {}),
                     });
                     associate.associateCompany = createdCompany._id;
                     await syncCompanyFunctions({ companyId: createdCompany._id, selectedFunctionIds: providedFunctionIds, selectedFunctionPriorities: providedFunctionPriorities, kind: "provided" });
@@ -1731,12 +1754,15 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 }
             }
 
-            associate.referralCode = referralCode ? String(referralCode).trim().toUpperCase() : associate.referralCode;
             associate.onboardingComplete = true;
             (associate as any).approvalRequestedAt = new Date();
             await associate.save();
 
-            return res.status(200).json({ success: true, message: "Onboarding completed." });
+            return res.status(200).json({
+                success: true,
+                message: "Onboarding completed.",
+                referralType: resolvedReferral.type === "none" ? null : resolvedReferral.type,
+            });
         }
 
         if (roleLower === "operator") {

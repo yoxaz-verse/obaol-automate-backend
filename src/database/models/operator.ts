@@ -149,10 +149,14 @@ const generateReferralCode = (length = DEFAULT_REFERRAL_LENGTH) => {
 };
 
 export const generateOperatorReferralCode = async (length = DEFAULT_REFERRAL_LENGTH) => {
+    const { AssociateCompanyModel } = await import("./associateCompany");
     for (let attempt = 0; attempt < 8; attempt += 1) {
         const code = generateReferralCode(length);
-        const exists = await OperatorModel.exists({ referralCode: code });
-        if (!exists) return code;
+        const [operatorExists, companyExists] = await Promise.all([
+            OperatorModel.exists({ referralCode: code }),
+            AssociateCompanyModel.exists({ referralCode: code }),
+        ]);
+        if (!operatorExists && !companyExists) return code;
     }
     throw new Error("Unable to generate a unique referral code.");
 };

@@ -83,6 +83,15 @@ const AssociateCompanySchema = new mongoose.Schema(
     soughtCapabilityPriorities: [{ type: mongoose.Types.ObjectId, ref: "CompanyFunction" }],
     assignedOperator: { type: mongoose.Schema.Types.ObjectId, ref: "Operator" },
     supervisor: { type: mongoose.Schema.Types.ObjectId, ref: "Associate" },
+    referralCode: { type: String, unique: true, sparse: true, index: true, uppercase: true, trim: true },
+    referredByCompanyId: { type: mongoose.Schema.Types.ObjectId, ref: "AssociateCompany", default: null, index: true, immutable: true },
+    referralCodeUsed: { type: String, uppercase: true, trim: true, default: null, immutable: true },
+    referralCapturedAt: { type: Date, default: null, immutable: true },
+    referralActivatedAt: { type: Date, default: null, index: true },
+    referralActivationEvent: {
+      type: { type: String, enum: ["LIVE_SUPPLY", "INQUIRY_CREATED", "INQUIRY_TAKEN", null], default: null },
+      entityId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    },
     slug: { type: String, unique: true, sparse: true, trim: true }, // For improved SEO & catalog URLs
     logo: { type: String },
     banner: { type: String },
@@ -125,6 +134,7 @@ const AssociateCompanySchema = new mongoose.Schema(
 AssociateCompanySchema.index({ isQualityLabListed: 1, labListingState: 1, isDeleted: 1 });
 AssociateCompanySchema.index({ isExternalDirectoryListing: 1, externalListingSource: 1, externalListingReference: 1 });
 AssociateCompanySchema.index({ registrationStatus: 1, supervisor: 1, isDeleted: 1, createdAt: -1 });
+AssociateCompanySchema.index({ referredByCompanyId: 1, referralActivatedAt: 1, createdAt: -1 });
 AssociateCompanySchema.index({
   isQualityLabListed: 1,
   labListingState: 1,

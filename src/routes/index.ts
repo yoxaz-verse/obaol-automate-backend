@@ -146,10 +146,12 @@ router.use(`${prefix}/organization-reports`, organizationReportRoutes);
 // Operator hierarchy + commissions
 import operatorHierarchyRoutes from "./v1/operatorHierarchyRoutes";
 import commissionRoutes from "./v1/commissionRoutes";
+import associateReferralRoutes from "./v1/associateReferralRoutes";
 router.use("/commissions", commissionRoutes);
 router.use("/operators", operatorHierarchyRoutes);
 router.use(`${prefix}/operators`, operatorHierarchyRoutes);
 router.use(`${prefix}/commissions`, commissionRoutes);
+router.use(`${prefix}/associate-referrals`, associateReferralRoutes);
 
 
 // Catalog Management (Associate)

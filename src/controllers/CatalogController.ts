@@ -4,6 +4,7 @@ import { AssociateModel } from "../database/models/associate";
 import { VariantRateModel } from "../database/models/variantRate";
 import { DisplayedRateModel } from "../database/models/displayedRate";
 import mongoose from "mongoose";
+import { AssociateReferralService } from "../services/associateReferral.service";
 
 export class CatalogController {
 
@@ -92,6 +93,13 @@ export class CatalogController {
             );
 
             await session.commitTransaction();
+            if (associateIsApproved && newItem[0]?.isLive) {
+                await AssociateReferralService.activateCompany(
+                    (associate as any).associateCompany,
+                    "LIVE_SUPPLY",
+                    newItem[0]._id
+                );
+            }
 
             res.status(201).json({
                 success: true,
@@ -161,6 +169,9 @@ export class CatalogController {
                     { associate: associateId, variantRate: item.baseRateId },
                     updateData
                 );
+            }
+            if (associateIsApproved && item.isLive) {
+                await AssociateReferralService.activateForAssociate(associateId, "LIVE_SUPPLY", item._id);
             }
 
             res.status(200).json({

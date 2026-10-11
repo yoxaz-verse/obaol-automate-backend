@@ -97,6 +97,8 @@ export interface IOrder extends Document {
     closedByOperator?: Types.ObjectId | null;
     associateCompanyId?: Types.ObjectId | null;
     commissionProcessedAt?: Date | null;
+    participantCompanyIds?: Types.ObjectId[];
+    associateReferralProcessedAt?: Date | null;
     paymentTermId?: Types.ObjectId | null;
     incotermId?: Types.ObjectId | null;
     supplierOperatorId?: Types.ObjectId | null;
@@ -135,6 +137,7 @@ export interface ICreateOrder {
     profit?: number | null;
     closedByOperator?: Types.ObjectId | null;
     associateCompanyId?: Types.ObjectId | null;
+    participantCompanyIds?: Types.ObjectId[];
     paymentTermId?: Types.ObjectId | null;
     incotermId?: Types.ObjectId | null;
     supplierOperatorId?: Types.ObjectId | null;
@@ -168,6 +171,8 @@ export interface IUpdateOrder {
     closedByOperator?: Types.ObjectId | null;
     associateCompanyId?: Types.ObjectId | null;
     commissionProcessedAt?: Date | null;
+    participantCompanyIds?: Types.ObjectId[];
+    associateReferralProcessedAt?: Date | null;
     paymentTermId?: Types.ObjectId | null;
     incotermId?: Types.ObjectId | null;
     supplierOperatorId?: Types.ObjectId | null;

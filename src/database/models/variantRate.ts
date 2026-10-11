@@ -5,6 +5,7 @@ import { Types } from "mongoose";
 import { RelationshipSync } from "../../core/behaviors/relationshipSync";
 import { TimeCalculations } from "../../core/behaviors/timeCalculations";
 import { getVariantRateCommissionPercent } from "../../utils/calculationConfig";
+import { AssociateReferralService } from "../../services/associateReferral.service";
 
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
@@ -128,6 +129,10 @@ VariantRateSchema.pre<IVariantRate>("save", function (next) {
     }
   }
   next();
+});
+VariantRateSchema.post<IVariantRate>("save", async function (doc) {
+  if (!doc.isLive) return;
+  await AssociateReferralService.activateCompany(doc.associateCompany as any, "LIVE_SUPPLY", doc._id as any);
 });
 
 export const VariantRateModel = mongoose.model<IVariantRate>(

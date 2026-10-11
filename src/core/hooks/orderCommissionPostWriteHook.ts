@@ -11,5 +11,6 @@ export const orderCommissionPostWriteHook = async (
     const orderId = String(result?._id || "").trim();
     if (!orderId) return;
 
+    await CommissionEngine.processAssociateReferralCommission(orderId);
     await CommissionEngine.processTradeCommission(orderId);
 };

@@ -41,6 +41,7 @@ import { PaymentTermModel } from "../database/models/paymentTerm";
 import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { notificationService } from "../services/notificationService";
+import { AssociateReferralService } from "../services/associateReferral.service";
 import { operationalNotificationService } from "../services/operationalNotificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { TradeDocumentController } from "./tradeDocumentController";
@@ -398,6 +399,9 @@ export class InquiryController {
                 workflowStage: isImport || sourceListingWasPast ? "QUOTATION_REVISION" : "LOI_ACCEPTED_QTY_CONFIRMED",
                 createdBy: req.user!.id
             });
+            if (roleLower === "associate") {
+                await AssociateReferralService.activateForAssociate(req.user!.id, "INQUIRY_CREATED", inquiry._id);
+            }
 
             // Log creation event
             await createInquiryEvent(
@@ -706,6 +710,9 @@ export class InquiryController {
                 (inquiry as any).workflowStage = "QUOTATION_REVISION";
             }
             await inquiry.save();
+            if (String(req.user?.role || "").toLowerCase() === "associate") {
+                await AssociateReferralService.activateForAssociate(req.user!.id, "INQUIRY_TAKEN", inquiry._id);
+            }
 
             const reservation = await InventoryReservationModel.create({
                 inventoryId: inventory._id,
@@ -813,6 +820,9 @@ export class InquiryController {
 
             inquiry.buyerConfirmedAt = new Date();
             await inquiry.save();
+            if (String(req.user?.role || "").toLowerCase() === "associate") {
+                await AssociateReferralService.activateForAssociate(req.user!.id, "INQUIRY_TAKEN", inquiry._id);
+            }
 
             await createInquiryEvent(
                 inquiry._id,
@@ -1236,6 +1246,7 @@ export class InquiryController {
                         const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
                         const createdOrder = await OrderModel.create({
                             enquiry: inquiry._id,
+                            participantCompanyIds: await AssociateReferralService.getParticipantCompanyIds(inquiry),
                             responsibilities: responsibilityPlan,
                             paymentTermId,
                             incotermId,
@@ -2908,6 +2919,7 @@ export class InquiryController {
                     const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
                         const createdOrder = await OrderModel.create({
                             enquiry: inquiry._id,
+                            participantCompanyIds: await AssociateReferralService.getParticipantCompanyIds(inquiry),
                             responsibilities: responsibilityPlan,
                             paymentTermId,
                             incotermId,

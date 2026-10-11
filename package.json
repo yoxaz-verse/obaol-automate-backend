@@ -20,7 +20,7 @@
     "deactivate:legacy-company-functions": "ts-node src/scripts/deactivateLegacyCompanyFunctions.ts",
     "backfill:approval-status": "ts-node src/scripts/backfillApprovalStatus.ts",
     "backfill:product-slugs": "ts-node src/scripts/backfill-product-slugs.ts",
-    "backfill:product-classification": "ts-node src/scripts/backfill-product-classification.ts",
+    "migrate:variant-rate-classification": "ts-node src/scripts/migrate-classification-to-variant-rates.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
     "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
     "seed:spices-board-quality-labs": "ts-node src/scripts/seedSpicesBoardQualityLabs.ts",

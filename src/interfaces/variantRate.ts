@@ -31,6 +31,24 @@ export interface IVariantRate extends Document {
   isDemo?: boolean;
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
+  isConventional?: boolean;
+  isNatural?: boolean;
+  isOrganic?: boolean;
+  isIpmQuality?: boolean;
+  isOrganicCertified?: boolean;
+  organicCertificationBody?: string;
+  organicCertificationBodyOther?: string;
+  organicCertificateNumber?: string;
+  organicCertificateValidFrom?: Date | null;
+  organicCertificateValidTo?: Date | null;
+  organicCertifiedQuantity?: number;
+  organicCertifiedQuantityUnit?: "KG" | "MT" | "Quintal";
+  organicCertificationScope?: "NPOP" | "PGS-India" | "NOP" | "EU" | "Other";
+  organicCertificateDocumentUrl?: string;
+  isGiTagged?: boolean;
+  giName?: string;
+  giCertificateNumber?: string;
+  giDocumentUrl?: string;
 }
 
 export interface ICreateVariantRate {
@@ -59,6 +77,24 @@ export interface ICreateVariantRate {
   isDemo?: boolean;
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
+  isConventional?: boolean;
+  isNatural?: boolean;
+  isOrganic?: boolean;
+  isIpmQuality?: boolean;
+  isOrganicCertified?: boolean;
+  organicCertificationBody?: string;
+  organicCertificationBodyOther?: string;
+  organicCertificateNumber?: string;
+  organicCertificateValidFrom?: Date | null;
+  organicCertificateValidTo?: Date | null;
+  organicCertifiedQuantity?: number;
+  organicCertifiedQuantityUnit?: "KG" | "MT" | "Quintal";
+  organicCertificationScope?: "NPOP" | "PGS-India" | "NOP" | "EU" | "Other";
+  organicCertificateDocumentUrl?: string;
+  isGiTagged?: boolean;
+  giName?: string;
+  giCertificateNumber?: string;
+  giDocumentUrl?: string;
 }
 
 export interface IUpdateVariantRate {
@@ -86,4 +122,22 @@ export interface IUpdateVariantRate {
   isDemo?: boolean;
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
+  isConventional?: boolean;
+  isNatural?: boolean;
+  isOrganic?: boolean;
+  isIpmQuality?: boolean;
+  isOrganicCertified?: boolean;
+  organicCertificationBody?: string;
+  organicCertificationBodyOther?: string;
+  organicCertificateNumber?: string;
+  organicCertificateValidFrom?: Date | null;
+  organicCertificateValidTo?: Date | null;
+  organicCertifiedQuantity?: number;
+  organicCertifiedQuantityUnit?: "KG" | "MT" | "Quintal";
+  organicCertificationScope?: "NPOP" | "PGS-India" | "NOP" | "EU" | "Other";
+  organicCertificateDocumentUrl?: string;
+  isGiTagged?: boolean;
+  giName?: string;
+  giCertificateNumber?: string;
+  giDocumentUrl?: string;
 }

@@ -120,19 +120,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     // --- Catalog (Products & Rates) ---
     "products": {
         model: ProductModel,
-        searchableFields: [
-            "name",
-            "slug",
-            "description",
-            "code",
-            "giName",
-            "giCertificateNumber",
-            "isConventional",
-            "isNatural",
-            "isOrganic",
-            "isIpmQuality",
-            "isGiTagged",
-        ],
+        searchableFields: ["name", "slug", "description", "code"],
         sortableFields: ["createdAt", "name"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: { subCategory: "sub-categories" },
@@ -159,7 +147,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     },
     "variant-rates": {
         model: VariantRateModel,
-        searchableFields: ["customId", "rate"],
+        searchableFields: ["customId", "rate", "giName", "giCertificateNumber"],
         sortableFields: ["createdAt", "rate", "lastLiveDate"],
         allowedOperations: ["list", "create", "read", "update", "delete"],
         relations: {

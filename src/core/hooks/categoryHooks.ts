@@ -3,172 +3,69 @@ import { ProductModel } from "../../database/models/product";
 import { ProductVariantModel } from "../../database/models/productVariant";
 import { VariantRateModel } from "../../database/models/variantRate";
 
-/**
- * Hook to filter variant-rates, catalog-items, and displayed-rates by hierarchy (category, subCategory, product).
- * Translates these high-level filters into appropriate IDs for each entity.
- */
-export const categoryFilterHook = async (query: any, mode: string, id: string | undefined, req: any): Promise<any> => {
-    const { category, subCategory, product, classification, classifications, ...restQuery } = query;
+const normalizeClassifications = (...values: any[]): string[] => Array.from(new Set(
+  values.flatMap((value) => Array.isArray(value) ? value : [value])
+    .flatMap((value) => String(value || "").split(","))
+    .map((value) => value.trim().toLowerCase()).filter(Boolean)
+));
 
-    const rawClassifications = [
-        ...(Array.isArray(classification) ? classification : [classification]),
-        ...(Array.isArray(classifications) ? classifications : [classifications]),
-    ].filter(Boolean);
+const classificationConditions = (labels: string[]): any[] => {
+  const conditions: any[] = [];
+  labels.forEach((label) => {
+  if (label === "natural") conditions.push({ isNatural: true, isOrganic: { $ne: true }, isIpmQuality: { $ne: true } });
+  else if (label === "organic") conditions.push({ isOrganic: true, isIpmQuality: { $ne: true } });
+  else if (["ipm", "ipm-quality", "ipm_quality", "ipmquality"].includes(label)) conditions.push({ isIpmQuality: true });
+  else if (["gi", "gitag", "gi_tag", "gi-tag"].includes(label)) conditions.push({ isGiTagged: true });
+  else if (label === "conventional") conditions.push({ $or: [
+    { isConventional: true },
+    { $and: [
+      { $or: [{ isNatural: { $exists: false } }, { isNatural: false }] },
+      { $or: [{ isOrganic: { $exists: false } }, { isOrganic: false }] },
+      { $or: [{ isIpmQuality: { $exists: false } }, { isIpmQuality: false }] },
+    ] },
+  ] });
+  });
+  return conditions;
+};
 
-    const normalizedClassifications = Array.from(
-        new Set(
-            rawClassifications
-                .map((item: any) => String(item || "").trim().toLowerCase())
-                .filter(Boolean)
-        )
-    );
+/** Translate hierarchy and classification filters to each rate-backed entity's relation field. */
+export const categoryFilterHook = async (query: any, _mode: string, _id: string | undefined, req: any): Promise<any> => {
+  const { category, subCategory, product, classification, classifications, ...restQuery } = query || {};
+  const labels = normalizeClassifications(classification, classifications);
+  if (!category && !subCategory && !product && labels.length === 0) return query;
 
-    const fieldForClassification = (label: string): string | null => {
-        if (label === "conventional") return "isConventional";
-        if (label === "natural") return "isNatural";
-        if (label === "organic") return "isOrganic";
-        if (label === "ipm" || label === "ipm-quality" || label === "ipm_quality" || label === "ipmquality") return "isIpmQuality";
-        if (label === "gi" || label === "gitag" || label === "gi_tag" || label === "gi-tag") return "isGiTagged";
-        return null;
-    };
-
-    // If none of the hierarchical filters are present, return original query
-    if (!category && !subCategory && !product && normalizedClassifications.length === 0) {
-        return query;
+  try {
+    let productIds: any[] | null = null;
+    if (product) productIds = Array.isArray(product) ? product : [product];
+    else if (subCategory) {
+      const ids = Array.isArray(subCategory) ? subCategory : [subCategory];
+      productIds = (await ProductModel.find({ subCategory: { $in: ids } }).select("_id")).map((row) => row._id);
+    } else if (category) {
+      const ids = Array.isArray(category) ? category : [category];
+      const subCategoryIds = (await SubCategoryModel.find({ category: { $in: ids } }).select("_id")).map((row) => row._id);
+      productIds = (await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id")).map((row) => row._id);
     }
 
-    try {
-        let currentTargetIds: any[] = [];
-        let hasFilter = false;
+    let variantIds: any[] | null = null;
+    if (productIds) variantIds = (await ProductVariantModel.find({ product: { $in: productIds } }).select("_id")).map((row) => row._id);
 
-        // 0. Handle classification-only filter on products
-        if (normalizedClassifications.length > 0) {
-            const productQuery: any = {};
-            const mappedFields = normalizedClassifications
-                .map(fieldForClassification)
-                .filter((f): f is string => Boolean(f));
+    const rateQuery: any = {};
+    if (variantIds) rateQuery.productVariant = { $in: variantIds };
+    const conditions = classificationConditions(labels);
+    if (conditions.length === 1) Object.assign(rateQuery, conditions[0]);
+    else if (conditions.length > 1) rateQuery.$or = conditions;
 
-            if (mappedFields.length > 0) {
-                productQuery.$or = mappedFields.map((field) => {
-                    if (field === "isConventional") {
-                        return {
-                            $or: [
-                                { isConventional: true },
-                                {
-                                    $and: [
-                                        { $or: [{ isNatural: { $exists: false } }, { isNatural: false }] },
-                                        { $or: [{ isOrganic: { $exists: false } }, { isOrganic: false }] },
-                                        { $or: [{ isIpmQuality: { $exists: false } }, { isIpmQuality: false }] },
-                                    ],
-                                },
-                            ],
-                        };
-                    }
-                    // Some legacy rows have overlapping method flags. Apply a
-                    // stable specificity order so a row belongs to one method
-                    // tab only: IPM > Organic > Natural > Conventional.
-                    if (field === "isNatural") {
-                        return {
-                            isNatural: true,
-                            isOrganic: { $ne: true },
-                            isIpmQuality: { $ne: true },
-                        };
-                    }
-                    if (field === "isOrganic") {
-                        return {
-                            isOrganic: true,
-                            isIpmQuality: { $ne: true },
-                        };
-                    }
-                    return { [field]: true };
-                });
-            }
-            const productsByClass = await ProductModel.find(productQuery).select("_id");
-            currentTargetIds = productsByClass.map((p) => p._id);
-            hasFilter = true;
-        }
+    const entity = req?.params?.entity;
+    if (entity === "variant-rates") return { ...restQuery, ...rateQuery };
 
-        // 1. Handle Product Filter (Direct parent of ProductVariant)
-        if (product) {
-            hasFilter = true;
-            const explicitProductIds = Array.isArray(product) ? product : [product];
-            currentTargetIds = currentTargetIds.length
-                ? currentTargetIds.filter((id) => explicitProductIds.map(String).includes(String(id)))
-                : explicitProductIds;
-        }
-        // 2. Handle SubCategory Filter
-        else if (subCategory) {
-            hasFilter = true;
-            const subCategoryIds = Array.isArray(subCategory) ? subCategory : [subCategory];
-            const products = await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id");
-            const subCategoryProductIds = products.map(p => p._id);
-            currentTargetIds = currentTargetIds.length
-                ? currentTargetIds.filter((id) => subCategoryProductIds.map(String).includes(String(id)))
-                : subCategoryProductIds;
-        }
-        // 3. Handle Category Filter
-        else if (category) {
-            hasFilter = true;
-            const categoryIds = Array.isArray(category) ? category : [category];
-            const subCategories = await SubCategoryModel.find({ category: { $in: categoryIds } }).select("_id");
-            const subCategoryIds = subCategories.map(sc => sc._id);
-            const products = await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id");
-            const categoryProductIds = products.map(p => p._id);
-            currentTargetIds = currentTargetIds.length
-                ? currentTargetIds.filter((id) => categoryProductIds.map(String).includes(String(id)))
-                : categoryProductIds;
-        }
-
-        if (hasFilter) {
-            // Find ProductVariants for the resulting products
-            const productVariants = await ProductVariantModel.find({ product: { $in: currentTargetIds } }).select("_id");
-            const productVariantIds = productVariants.map(pv => pv._id);
-
-            const entity = req.params?.entity;
-            let filterField = "productVariant";
-            let finalTargetIds = productVariantIds;
-
-            if (entity === "catalog-items") {
-                filterField = "productVariantId";
-            } else if (entity === "displayed-rates") {
-                // For displayed-rates, we need to find the VariantRate IDs first
-                const variantRates = await VariantRateModel.find({ productVariant: { $in: productVariantIds } }).select("_id");
-                finalTargetIds = variantRates.map(vr => vr._id);
-                filterField = "variantRate";
-            }
-
-            // If no target IDs found but we had a filter, return a query that results in nothing
-            if (finalTargetIds.length === 0) {
-                return { ...restQuery, [filterField]: { $in: ["000000000000000000000000"] } };
-            }
-
-            // Merge with existing filter if it exists
-            if (restQuery[filterField]) {
-                const existing = Array.isArray(restQuery[filterField])
-                    ? restQuery[filterField]
-                    : [restQuery[filterField]];
-
-                return {
-                    ...restQuery,
-                    [filterField]: { $in: finalTargetIds.filter(id => existing.includes(String(id))) }
-                };
-            }
-
-            return { ...restQuery, [filterField]: { $in: finalTargetIds } };
-        }
-
-    } catch (error) {
-        console.error("Error in categoryFilterHook:", error);
-        // Determine the filter field for the error case as well
-        const entity = req.params?.entity;
-        let filterField = "productVariant";
-        if (entity === "catalog-items") {
-            filterField = "productVariantId";
-        } else if (entity === "displayed-rates") {
-            filterField = "variantRate";
-        }
-        return { ...restQuery, [filterField]: { $in: ["000000000000000000000000"] } };
-    }
-
-    return restQuery;
+    const rateIds = (await VariantRateModel.find(rateQuery).select("_id")).map((row) => row._id);
+    if (entity === "catalog-items") return { ...restQuery, baseRateId: { $in: rateIds } };
+    if (entity === "displayed-rates") return { ...restQuery, variantRate: { $in: rateIds } };
+    return { ...restQuery, productVariant: { $in: variantIds || [] } };
+  } catch (error) {
+    console.error("Error in categoryFilterHook:", error);
+    const entity = req?.params?.entity;
+    const filterField = entity === "catalog-items" ? "baseRateId" : entity === "displayed-rates" ? "variantRate" : "productVariant";
+    return { ...restQuery, [filterField]: { $in: ["000000000000000000000000"] } };
+  }
 };

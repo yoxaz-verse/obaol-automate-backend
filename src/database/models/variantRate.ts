@@ -50,6 +50,24 @@ const VariantRateSchema: Schema = new Schema({
   lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
   lastLiveDate: { type: Date, default: null },
   unit: { type: String, default: 'KG', enum: ['KG', 'MT', 'Quintal'] },
+  isConventional: { type: Boolean, default: true, index: true },
+  isNatural: { type: Boolean, default: false, index: true },
+  isOrganic: { type: Boolean, default: false, index: true },
+  isIpmQuality: { type: Boolean, default: false, index: true },
+  isOrganicCertified: { type: Boolean, default: false },
+  organicCertificationBody: { type: String, default: "", trim: true },
+  organicCertificationBodyOther: { type: String, default: "", trim: true },
+  organicCertificateNumber: { type: String, default: "", trim: true },
+  organicCertificateValidFrom: { type: Date, default: null },
+  organicCertificateValidTo: { type: Date, default: null },
+  organicCertifiedQuantity: { type: Number, default: 0 },
+  organicCertifiedQuantityUnit: { type: String, default: "KG", enum: ["KG", "MT", "Quintal"] },
+  organicCertificationScope: { type: String, default: "NPOP", trim: true },
+  organicCertificateDocumentUrl: { type: String, default: "", trim: true },
+  isGiTagged: { type: Boolean, default: false, index: true },
+  giName: { type: String, default: "", trim: true },
+  giCertificateNumber: { type: String, default: "", trim: true },
+  giDocumentUrl: { type: String, default: "", trim: true },
 }, { timestamps: true });
 
 // Marketplace query acceleration indexes
@@ -58,6 +76,7 @@ VariantRateSchema.index({ isDeleted: 1, associateCompany: 1, isLive: 1 });
 VariantRateSchema.index({ isDeleted: 1, productVariant: 1, isLive: 1 });
 VariantRateSchema.index({ isDeleted: 1, isLive: 1, lastLiveDate: 1, createdAt: -1 });
 VariantRateSchema.index({ isLive: 1, isDeleted: 1, isDemo: 1, productVariant: 1, associate: 1, associateCompany: 1 });
+VariantRateSchema.index({ isDeleted: 1, isLive: 1, isConventional: 1, isNatural: 1, isOrganic: 1, isIpmQuality: 1, isGiTagged: 1 });
 
 /**
  * Pre-save hook to auto-populate associateCompany

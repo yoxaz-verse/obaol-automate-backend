@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { productClassificationPreReadHook, productClassificationPreWriteHook } from "../src/core/hooks/productClassificationHook";
+import { variantRateClassificationPreReadHook, variantRateClassificationPreWriteHook } from "../src/core/hooks/productClassificationHook";
+import { ProductModel } from "../src/database/models/product";
+import { VariantRateModel } from "../src/database/models/variantRate";
 
 const methodPayloads = {
   conventional: { isConventional: true, isNatural: false, isOrganic: false, isIpmQuality: false },
@@ -8,10 +10,10 @@ const methodPayloads = {
   ipm: { isConventional: false, isNatural: false, isOrganic: false, isIpmQuality: true },
 };
 
-describe("product classification write hook", () => {
+describe("variant-rate classification write hook", () => {
   for (const [method, flags] of Object.entries(methodPayloads)) {
     it(`accepts ${method} with GI Tag independently enabled`, async () => {
-      const result = await productClassificationPreWriteHook({
+      const result = await variantRateClassificationPreWriteHook({
         ...flags,
         isGiTagged: true,
         giName: "Example GI",
@@ -23,7 +25,7 @@ describe("product classification write hook", () => {
   }
 
   it("accepts organic with its required certification details and GI Tag", async () => {
-    const result = await productClassificationPreWriteHook({
+    const result = await variantRateClassificationPreWriteHook({
       isConventional: false,
       isNatural: false,
       isOrganic: true,
@@ -42,7 +44,7 @@ describe("product classification write hook", () => {
   });
 
   it("maps the legacy all-false method shape to conventional", async () => {
-    const result = await productClassificationPreWriteHook({
+    const result = await variantRateClassificationPreWriteHook({
       isNatural: false,
       isOrganic: false,
       isIpmQuality: false,
@@ -53,7 +55,7 @@ describe("product classification write hook", () => {
   });
 
   it("rejects multiple production methods", async () => {
-    await expect(productClassificationPreWriteHook({
+    await expect(variantRateClassificationPreWriteHook({
       isConventional: false,
       isNatural: true,
       isOrganic: true,
@@ -62,7 +64,7 @@ describe("product classification write hook", () => {
   });
 
   it("rejects an explicit payload with no production method", async () => {
-    await expect(productClassificationPreWriteHook({
+    await expect(variantRateClassificationPreWriteHook({
       isConventional: false,
       isNatural: false,
       isOrganic: false,
@@ -71,9 +73,9 @@ describe("product classification write hook", () => {
   });
 });
 
-describe("product classification read hook", () => {
+describe("variant-rate classification read hook", () => {
   it("keeps Natural results separate from conflicting legacy IPM rows", async () => {
-    const result = await productClassificationPreReadHook(
+    const result = await variantRateClassificationPreReadHook(
       { classifications: ["natural"] } as any,
       undefined as any,
       undefined,
@@ -88,7 +90,7 @@ describe("product classification read hook", () => {
   });
 
   it("treats a conflicting legacy IPM row as IPM", async () => {
-    const result = await productClassificationPreReadHook(
+    const result = await variantRateClassificationPreReadHook(
       { classifications: ["ipm"] } as any,
       undefined as any,
       undefined,
@@ -96,5 +98,14 @@ describe("product classification read hook", () => {
     );
 
     expect(result).toEqual({ isIpmQuality: true });
+  });
+});
+
+describe("classification schema ownership", () => {
+  it("keeps classification off products and on variant rates", () => {
+    expect(ProductModel.schema.path("isOrganic")).toBeUndefined();
+    expect(ProductModel.schema.path("giCertificateNumber")).toBeUndefined();
+    expect(VariantRateModel.schema.path("isOrganic")).toBeDefined();
+    expect(VariantRateModel.schema.path("giCertificateNumber")).toBeDefined();
   });
 });

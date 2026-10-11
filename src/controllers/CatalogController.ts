@@ -257,6 +257,7 @@ export class CatalogController {
                 isLive: true
             })
                 .populate("productVariantId")
+                .populate("baseRateId")
                 .sort({ createdAt: -1 });
 
             res.status(200).json({
@@ -306,7 +307,8 @@ export class CatalogController {
                     .populate({
                         path: "productVariantId",
                         populate: { path: "product" }
-                    });
+                    })
+                    .populate("baseRateId");
             } else if (mongoose.Types.ObjectId.isValid(productSlug)) {
                 // Try finding by ID directly (CatalogItem ID or ProductVariant ID)
                 catalogItem = await CatalogItemModel.findOne({
@@ -318,7 +320,8 @@ export class CatalogController {
                     .populate({
                         path: "productVariantId",
                         populate: { path: "product" }
-                    });
+                    })
+                    .populate("baseRateId");
 
                 if (!catalogItem) {
                     // Check if it was a ProductVariant ID
@@ -331,7 +334,8 @@ export class CatalogController {
                         .populate({
                             path: "productVariantId",
                             populate: { path: "product" }
-                        });
+                        })
+                        .populate("baseRateId");
                 }
             }
 

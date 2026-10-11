@@ -13,11 +13,11 @@ const toDateOrNull = (value: any): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 const throwBadRequestWithLog = (message: string, context: Record<string, any> = {}) => {
-  console.warn("[productClassificationPreWriteHook] validation_error", { message, ...context });
+  console.warn("[variantRateClassificationPreWriteHook] validation_error", { message, ...context });
   throw Object.assign(new Error(message), { statusCode: 400 });
 };
 
-export const productClassificationPreWriteHook: HookFunction = async (payload) => {
+export const variantRateClassificationPreWriteHook: HookFunction = async (payload) => {
   const nextPayload: Record<string, any> = { ...(payload || {}) };
 
   const hasNatural = Object.prototype.hasOwnProperty.call(nextPayload, "isNatural");
@@ -136,7 +136,7 @@ export const productClassificationPreWriteHook: HookFunction = async (payload) =
   return nextPayload;
 };
 
-export const productClassificationPreReadHook: HookFunction = async (query) => {
+export const variantRateClassificationPreReadHook: HookFunction = async (query) => {
   const nextQuery: Record<string, any> = { ...(query || {}) };
   const raw = nextQuery.classifications ?? nextQuery.classification;
   const classifications = Array.from(

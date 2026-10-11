@@ -30,7 +30,7 @@ import { inventoryReservationNotificationPostWriteHook, inventoryReservationPreR
 import { orderInventoryReservationHook } from "./orderInventoryReservationHook";
 import { enquiryInventoryReservationHook } from "./enquiryInventoryReservationHook";
 import { associateCompanyDirectoryFiltersHook } from "./associateCompanyDirectoryFiltersHook";
-import { productClassificationPreReadHook, productClassificationPreWriteHook } from "./productClassificationHook";
+import { variantRateClassificationPreReadHook, variantRateClassificationPreWriteHook } from "./productClassificationHook";
 import { associateCompanyPendingLabPreWriteHook } from "./pendingListingHooks";
 import {
     inventoryNotificationPostWriteHook,
@@ -49,7 +49,8 @@ export const registerAllHooks = () => {
     // Composite hook for variant-rates:
     // Marketplace normalization -> Category Filter -> Operator Filter -> Associate Filter
     HookDispatcher.registerPreRead("variant-rates", async (query, mode, id, req) => {
-        let q = await variantRateMarketplaceQueryHook(query, mode, id, req);
+        let q = await variantRateClassificationPreReadHook(query, mode, id, req);
+        q = await variantRateMarketplaceQueryHook(q, mode, id, req);
         q = await categoryFilterHook(q, mode, id, req);
         q = await operatorFilterHook(q, mode, id, req);
         return await associateFilterHook(q, mode, id, req);
@@ -57,7 +58,6 @@ export const registerAllHooks = () => {
 
     HookDispatcher.registerPreRead("enquiries", operatorFilterHook);
     HookDispatcher.registerPreRead("inventories", operatorFilterHook);
-    HookDispatcher.registerPreRead("products", productClassificationPreReadHook);
     HookDispatcher.registerPostWrite("enquiries", enquiryInventoryReservationHook);
     HookDispatcher.registerPreRead("associates", async (query, mode, id, req) => {
         let q = await operatorFilterHook(query, mode, id, req);
@@ -87,6 +87,7 @@ export const registerAllHooks = () => {
         nextPayload = await operatorVariantRateWritePreHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLocationPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateCommissionPreWriteHook(nextPayload, mode, id, req);
+        nextPayload = await variantRateClassificationPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLivePreWriteHook(nextPayload, mode, id, req);
         return nextPayload;
     });
@@ -112,7 +113,6 @@ export const registerAllHooks = () => {
         nextPayload = await orderCommissionPreWriteHook(nextPayload, mode, id, req);
         return nextPayload;
     });
-    HookDispatcher.registerPreWrite("products", productClassificationPreWriteHook);
     HookDispatcher.registerPreRead("organization-reports", organizationReportPreReadHook);
     HookDispatcher.registerPreWrite("organization-reports", organizationReportPreWriteHook);
     HookDispatcher.registerPostWrite("orders", async (entityName: any, result: any, mode: any, req: any) => {

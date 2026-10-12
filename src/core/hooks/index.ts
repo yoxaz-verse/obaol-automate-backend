@@ -1,4 +1,5 @@
 import { HookDispatcher } from "./hook.dispatcher";
+import { ExecutionMode } from "../types";
 import { operatorFilterHook } from "./operatorAccessHooks";
 import { associateFilterHook } from "./associateAccessHooks";
 import { companyStatsHook } from "./companyStatsHooks";
@@ -31,6 +32,8 @@ import { orderInventoryReservationHook } from "./orderInventoryReservationHook";
 import { enquiryInventoryReservationHook } from "./enquiryInventoryReservationHook";
 import { associateCompanyDirectoryFiltersHook } from "./associateCompanyDirectoryFiltersHook";
 import { variantRateClassificationPreReadHook, variantRateClassificationPreWriteHook } from "./productClassificationHook";
+import { variantRateLifecyclePreWriteHook } from "./variantRateLifecycleHook";
+import { syncVariantRateAvailability } from "../../services/variantRateFreshnessService";
 import { associateCompanyPendingLabPreWriteHook } from "./pendingListingHooks";
 import {
     inventoryNotificationPostWriteHook,
@@ -88,12 +91,16 @@ export const registerAllHooks = () => {
         nextPayload = await variantRateLocationPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateCommissionPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateClassificationPreWriteHook(nextPayload, mode, id, req);
+        nextPayload = await variantRateLifecyclePreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLivePreWriteHook(nextPayload, mode, id, req);
         return nextPayload;
     });
-    HookDispatcher.registerPostWrite("variant-rates", async (payload: any, mode: any, id: any, req: any) => {
-        await variantRateNotificationPostWriteHook(payload, mode, id, req);
-        return await variantRateInventoryLinkHook(payload, mode, id, req);
+    HookDispatcher.registerPostWrite("variant-rates", async (entityName: any, payload: any, mode: any, req: any) => {
+        await variantRateNotificationPostWriteHook(entityName, payload, mode, req);
+        if (mode === ExecutionMode.UPDATE && payload?._id) {
+            await syncVariantRateAvailability([payload._id], Boolean(payload.isLive));
+        }
+        return await variantRateInventoryLinkHook(payload, mode, undefined, req);
     });
     HookDispatcher.registerPostRead("variant-rates", variantRateLocationPostReadHook);
 

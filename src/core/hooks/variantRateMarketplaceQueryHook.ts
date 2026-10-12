@@ -1,3 +1,5 @@
+import { liveFreshnessCondition, recentPastCondition } from "../../services/variantRateFreshnessService";
+
 type GenericQuery = Record<string, any>;
 
 const isTruthyString = (value: any) => String(value || "").toLowerCase() === "true";
@@ -48,6 +50,8 @@ export const variantRateMarketplaceQueryHook = async (
   delete nextQuery.view;
 
   if (isMarketplace) {
+    const roleLower = String(req?.user?.role || "").toLowerCase();
+    const restrictHistory = roleLower !== "admin";
     const rawIsLive = nextQuery.isLive ?? req?.query?.isLive;
     const isOffline = rawIsLive === false || isFalsyString(rawIsLive);
     const isLive = rawIsLive === true || isTruthyString(rawIsLive);
@@ -55,8 +59,10 @@ export const variantRateMarketplaceQueryHook = async (
     if (isOffline) {
       // Offline marketplace includes false + null/missing legacy values.
       nextQuery.isLive = { $ne: true };
+      if (restrictHistory) nextQuery = addAndCondition(nextQuery, recentPastCondition());
     } else if (isLive) {
       nextQuery.isLive = true;
+      if (restrictHistory) nextQuery = addAndCondition(nextQuery, liveFreshnessCondition());
     }
     if (req) {
       req.__marketplaceIsLive = nextQuery.isLive;

@@ -50,6 +50,7 @@ const VariantRateSchema: Schema = new Schema({
   // ✅ NEW FIELD
   lastLiveAt: { type: Date, default: null }, // ⏳ Tracks when isLive was turned true
   lastLiveDate: { type: Date, default: null },
+  unpublishedAt: { type: Date, default: null, index: true },
   unit: { type: String, default: 'KG', enum: ['KG', 'MT', 'Quintal'] },
   isConventional: { type: Boolean, default: true, index: true },
   isNatural: { type: Boolean, default: false, index: true },
@@ -76,6 +77,7 @@ VariantRateSchema.index({ isDeleted: 1, associate: 1, isLive: 1, createdAt: -1 }
 VariantRateSchema.index({ isDeleted: 1, associateCompany: 1, isLive: 1 });
 VariantRateSchema.index({ isDeleted: 1, productVariant: 1, isLive: 1 });
 VariantRateSchema.index({ isDeleted: 1, isLive: 1, lastLiveDate: 1, createdAt: -1 });
+VariantRateSchema.index({ isDeleted: 1, isLive: 1, unpublishedAt: 1, createdAt: -1 });
 VariantRateSchema.index({ isLive: 1, isDeleted: 1, isDemo: 1, productVariant: 1, associate: 1, associateCompany: 1 });
 VariantRateSchema.index({ isDeleted: 1, isLive: 1, isConventional: 1, isNatural: 1, isOrganic: 1, isIpmQuality: 1, isGiTagged: 1 });
 
@@ -119,13 +121,14 @@ VariantRateSchema.pre<IVariantRate>("save", async function (next) {
 });
 VariantRateSchema.pre<IVariantRate>("save", function (next) {
   if (this.isModified("isLive")) {
-    const newDate = TimeCalculations.determineLastLiveAt(
-      this.isLive,
-      this.lastLiveAt || null
-    );
+    const now = new Date();
+    const newDate = TimeCalculations.determineLastLiveAt(this.isLive, this.lastLiveAt || null);
     if (newDate) {
       this.lastLiveAt = newDate;
       this.lastLiveDate = newDate;
+      this.unpublishedAt = null;
+    } else {
+      this.unpublishedAt = now;
     }
   }
   next();

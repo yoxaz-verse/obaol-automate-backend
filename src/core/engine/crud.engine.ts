@@ -83,6 +83,7 @@ export class CrudEngine extends BaseService {
                 "commission",
                 "isLive",
                 "lastLiveDate",
+                "unpublishedAt",
                 "updatedAt",
                 "createdAt",
                 "locationDisplay",

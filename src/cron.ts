@@ -1,7 +1,7 @@
 import cron from "node-cron";
-import { VariantRateModel } from "./database/models/variantRate";
 import logger from "./utils/logger";
 import { requeueUnavailableSupportChats } from "./services/supportChatService";
+import { expireStaleVariantRates } from "./services/variantRateFreshnessService";
 
 type ScheduledTask = ReturnType<typeof cron.schedule>;
 
@@ -10,15 +10,12 @@ let scheduledTasks: ScheduledTask[] = [];
 export const startCronJobs = () => {
   if (scheduledTasks.length > 0) return;
 
-  // Cron job to run every day at midnight
-  const variantRateResetTask = cron.schedule("0 0 * * *", async () => {
+  // Expire listings after 20 elapsed days from their last publish/renewal.
+  const variantRateResetTask = cron.schedule("0 * * * *", async () => {
     try {
-      logger.info("Running daily variant rate reset cron job...");
-      const result = await VariantRateModel.updateMany(
-        { isLive: true },
-        { $set: { isLive: false } }
-      );
-      logger.info(`Successfully offlined ${result.modifiedCount} variant rates.`);
+      logger.info("Running hourly variant rate freshness job...");
+      const count = await expireStaleVariantRates();
+      logger.info(`Successfully offlined ${count} stale variant rates.`);
     } catch (err) {
       logger.error("❌ Cron error:", err);
     }

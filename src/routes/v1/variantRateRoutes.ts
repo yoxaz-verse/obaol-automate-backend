@@ -5,10 +5,57 @@ import { RateRevealEventModel } from "../../database/models/rateRevealEvent";
 import { AssociateModel } from "../../database/models/associate";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import mongoose from "mongoose";
+import { getOperatorCompanyScope } from "../../core/hooks/operatorScope";
+import { syncVariantRateAvailability, liveFreshnessCondition, recentPastCondition } from "../../services/variantRateFreshnessService";
+import { variantRateNotificationPostWriteHook } from "../../core/hooks/notificationHooks";
+import { ExecutionMode } from "../../core/types";
 
 const router = Router();
 
 router.use(authenticateToken);
+
+router.post("/:id/renew", async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "A valid listing is required." });
+    }
+
+    const listing: any = await VariantRateModel.findOne({ _id: id, isDeleted: { $ne: true } });
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
+    if (listing.isLive) return res.status(409).json({ success: false, message: "Listing is already live." });
+
+    const roleLower = String(req?.user?.role || "").toLowerCase();
+    const actorId = String(req?.user?.id || "");
+    let allowed = roleLower === "admin";
+    if (roleLower === "associate") {
+      const actor: any = await AssociateModel.findById(actorId).select("associateCompany").lean();
+      allowed = String(listing.associate || "") === actorId || (
+        Boolean(actor?.associateCompany) &&
+        String(listing.associateCompany || "") === String(actor.associateCompany)
+      );
+    } else if (roleLower === "operator" || roleLower === "team") {
+      const { companyIdSet } = await getOperatorCompanyScope(actorId);
+      allowed = companyIdSet.has(String(listing.associateCompany || ""));
+    }
+    if (!allowed) return res.status(403).json({ success: false, message: "You cannot renew this listing." });
+
+    listing.isLive = true;
+    await listing.save();
+    await syncVariantRateAvailability([listing._id], true);
+    await variantRateNotificationPostWriteHook("variant-rates", listing.toObject(), ExecutionMode.UPDATE, {
+      user: req.user,
+      __notificationCtx: { variantRatePrev: { isLive: false } },
+    });
+
+    return res.json({ success: true, data: listing.toObject(), message: "Listing renewed for 20 days." });
+  } catch (error: any) {
+    return res.status(Number(error?.statusCode || 500)).json({
+      success: false,
+      message: error?.message || "Failed to renew listing.",
+    });
+  }
+});
 
 router.post("/:id/reveal", async (req: any, res) => {
   try {
@@ -25,6 +72,10 @@ router.post("/:id/reveal", async (req: any, res) => {
       _id: id,
       isDeleted: { $ne: true },
       associate: { $ne: req.user.id },
+      $or: [
+        { $and: [{ isLive: true }, liveFreshnessCondition()] },
+        { $and: [{ isLive: { $ne: true } }, recentPastCondition()] },
+      ],
     }).select("rate commission isLive associate productVariant").lean();
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
 
@@ -127,14 +178,26 @@ router.get("/marketplace-stats", async (req: any, res) => {
     }
 
     const userId = String(req?.user?.id || "");
-    const baseQuery = {
+    let baseQuery = {
       isDeleted: { $ne: true },
       associate: { $ne: userId },
     } as any;
 
+    if (roleLower === "operator" || roleLower === "team") {
+      const { companyIds } = await getOperatorCompanyScope(userId);
+      if (companyIds.length) baseQuery.associateCompany = { $nin: companyIds };
+    }
+
+    const liveQuery = roleLower === "admin"
+      ? { ...baseQuery, isLive: true }
+      : { $and: [{ ...baseQuery, isLive: true }, liveFreshnessCondition()] };
+    const offlineQuery = roleLower === "admin"
+      ? { ...baseQuery, isLive: { $ne: true } }
+      : { $and: [{ ...baseQuery, isLive: { $ne: true } }, recentPastCondition()] };
+
     const [live, offline] = await Promise.all([
-      VariantRateModel.countDocuments({ ...baseQuery, isLive: true }),
-      VariantRateModel.countDocuments({ ...baseQuery, isLive: { $ne: true } }),
+      VariantRateModel.countDocuments(liveQuery),
+      VariantRateModel.countDocuments(offlineQuery),
     ]);
 
     return res.json({

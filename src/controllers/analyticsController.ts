@@ -38,8 +38,15 @@ export const getDashboardSummary = async (req: Request, res: Response, next: Nex
         if (!userId) {
             return res.status(400).json({ status: 400, message: "User context is missing." });
         }
+        const requestedPerspective = String(req.query.perspective || "").toLowerCase();
+        if (requestedPerspective && requestedPerspective !== "provided" && requestedPerspective !== "sought") {
+            return res.status(400).json({ status: 400, message: "perspective must be provided or sought." });
+        }
+        const perspective = requestedPerspective === "provided" || requestedPerspective === "sought"
+            ? requestedPerspective
+            : undefined;
         const startedAt = Date.now();
-        const data = await AnalyticsService.getDashboardSummary({ userId, role });
+        const data = await AnalyticsService.getDashboardSummary({ userId, role, perspective });
         if (process.env.NODE_ENV !== "production") {
             console.info(`[analytics] dashboard summary served in ${Date.now() - startedAt}ms`, {
                 userId,

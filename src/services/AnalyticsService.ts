@@ -8,6 +8,7 @@ import { CompanyFunctionModel } from "../database/models/companyFunction";
 import { OrderModel } from "../database/models/order";
 import mongoose from "mongoose";
 import { ttlCache } from "../utils/ttlCache";
+import { resolveAssociateDashboardRoles } from "../utils/dashboardPerspective";
 
 export class AnalyticsService {
     private static readonly CACHE_TTL = {
@@ -253,12 +254,14 @@ export class AnalyticsService {
     static async getDashboardSummary({
         userId,
         role,
+        perspective,
     }: {
         userId: string;
         role: string;
+        perspective?: "provided" | "sought";
     }) {
         const roleLower = String(role || "").toLowerCase();
-        const cacheKey = `analytics:dashboard-summary:${roleLower}:${userId}`;
+        const cacheKey = `analytics:dashboard-summary:${roleLower}:${userId}:${perspective || "combined"}`;
         return ttlCache.getOrSet(cacheKey, AnalyticsService.CACHE_TTL.dashboardSummary, async () => {
         const objectId = userId ? new mongoose.Types.ObjectId(userId) : null;
         const isAdmin = roleLower === "admin";
@@ -268,16 +271,30 @@ export class AnalyticsService {
         const enquiryBaseFilter: Record<string, any> = {};
         const orderBaseFilter: Record<string, any> = {};
         if (objectId && isAssociate) {
-            enquiryBaseFilter.$or = [
+            let roleFilters = [
                 { buyerAssociateId: objectId },
                 { sellerAssociateId: objectId },
                 { mediatorAssociateId: objectId },
             ];
-            orderBaseFilter.$or = [
-                { buyerAssociateId: objectId },
-                { sellerAssociateId: objectId },
-                { mediatorAssociateId: objectId },
-            ];
+            if (perspective) {
+                const associate = await AssociateModel.findById(objectId).select("associateCompany").lean();
+                const company = associate?.associateCompany
+                    ? await AssociateCompanyModel.findById(associate.associateCompany).select("providedCapabilities soughtCapabilities").lean()
+                    : null;
+                const capabilities = Array.isArray((company as any)?.[`${perspective}Capabilities`])
+                    ? (company as any)[`${perspective}Capabilities`].map((value: unknown) => String(value || "").toLowerCase())
+                    : [];
+                const dashboardRoles = resolveAssociateDashboardRoles(capabilities, perspective);
+                roleFilters = dashboardRoles.map((dashboardRole) => (
+                    dashboardRole === "buyer"
+                        ? { buyerAssociateId: objectId }
+                        : dashboardRole === "seller"
+                            ? { sellerAssociateId: objectId }
+                            : { mediatorAssociateId: objectId }
+                ));
+            }
+            enquiryBaseFilter.$or = roleFilters;
+            orderBaseFilter.$or = roleFilters;
         } else if (objectId && isOperatorUser) {
             enquiryBaseFilter.$or = [
                 { supplierOperatorId: objectId },
@@ -355,14 +372,12 @@ export class AnalyticsService {
                 : Promise.resolve(0),
             objectId && isAssociate
                 ? EnquiryModel.countDocuments({
-                    ...enquiryBaseFilter,
-                    $or: [
-                        { sellerAssociateId: objectId, sellerAcceptedAt: null },
-                        {
-                            buyerAssociateId: objectId,
-                            sellerAcceptedAt: { $ne: null },
-                            buyerConfirmedAt: null,
-                        },
+                    $and: [
+                        enquiryBaseFilter,
+                        { $or: [
+                            { sellerAssociateId: objectId, sellerAcceptedAt: null },
+                            { buyerAssociateId: objectId, sellerAcceptedAt: { $ne: null }, buyerConfirmedAt: null },
+                        ] },
                     ],
                 })
                 : Promise.resolve(0),
@@ -400,7 +415,7 @@ export class AnalyticsService {
                     isOperatorUser,
                 });
                 return actionFilter
-                    ? EnquiryModel.find(actionFilter)
+                    ? EnquiryModel.find(isAssociate ? { $and: [enquiryBaseFilter, actionFilter] } : actionFilter)
                         .sort({ updatedAt: -1, createdAt: -1 })
                         .limit(10)
                         .select("_id status sellerAcceptedAt buyerConfirmedAt buyerAssociateId sellerAssociateId supplierOperatorId dealCloserOperatorId createdBy updatedAt createdAt")

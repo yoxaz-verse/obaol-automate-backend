@@ -16,6 +16,7 @@ import {
     canOperatorActOnPerspective,
     filterInquiryFields,
     buildInquiryAccessFilter,
+    isExecutionProviderForTask,
     InquiryAccessContext,
     UserRole,
     getAssociateRole
@@ -1891,18 +1892,6 @@ export class InquiryController {
             }
 
             const context: InquiryAccessContext = this.buildAccessContext(req);
-
-            if (!canAccessInquiry(inquiry as any, context)) {
-                return res.status(403).json({ success: false, message: "Access denied" });
-            }
-
-            const isAdmin = req.user!.role === UserRole.ADMIN;
-            const isOperatorUser = req.user!.role === UserRole.OPERATOR || req.user!.role === "team";
-            let associateRole: "buyer" | "seller" | "mediator" | null = null;
-            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
-                associateRole = getAssociateRole(inquiry as any, context.associateId);
-            }
-
             const normalizedType = String(type || "").toUpperCase();
             const tasks = ((inquiry as any).executionInquiries || []) as any[];
             const idx = tasks.findIndex((t) =>
@@ -1914,6 +1903,24 @@ export class InquiryController {
             }
 
             const task = tasks[idx];
+            const associateCompanyId = String(context.associateCompanyId || "");
+            const candidateProviders = Array.isArray(task?.candidateProviders) ? task.candidateProviders : [];
+            const isProviderCandidate = isExecutionProviderForTask(task, associateCompanyId);
+            const hasCommercialAccess = canAccessInquiry(inquiry as any, context);
+
+            // Execution candidates are authorized only for this exact task. They
+            // intentionally do not receive access to the parent commercial inquiry.
+            if (!hasCommercialAccess && !isProviderCandidate) {
+                return res.status(403).json({ success: false, message: "Access denied" });
+            }
+
+            const isAdmin = req.user!.role === UserRole.ADMIN;
+            const isOperatorUser = req.user!.role === UserRole.OPERATOR || req.user!.role === "team";
+            let associateRole: "buyer" | "seller" | "mediator" | null = null;
+            if (req.user!.role === UserRole.ASSOCIATE && context.associateId) {
+                associateRole = getAssociateRole(inquiry as any, context.associateId);
+            }
+
             const taskStatus = String(task.status || "OPEN").toUpperCase();
             if (["COMPLETED", "CANCELLED"].includes(taskStatus)) {
                 return res.status(409).json({ success: false, message: "This bidding task is already closed." });
@@ -1930,12 +1937,6 @@ export class InquiryController {
             const ownerBy = String(task.ownerBy || "").toLowerCase();
             const requiredOperatorPerspective: "buyer" | "supplier" | "any" =
                 ownerBy === "buyer" ? "buyer" : ownerBy === "seller" ? "supplier" : "any";
-            const associateCompanyId = String(context.associateCompanyId || "");
-            const candidateProviders = Array.isArray(task?.candidateProviders) ? task.candidateProviders : [];
-            const isProviderCandidate = Boolean(
-                associateCompanyId &&
-                candidateProviders.some((provider: any) => String(provider?._id || provider || "") === associateCompanyId)
-            );
             const canOperatorHandleTask = Boolean(
                 isOperatorUser && this.canOperatorAct(req, inquiry as any, requiredOperatorPerspective)
             );
@@ -2193,9 +2194,21 @@ export class InquiryController {
                 console.warn("[operational-notification] Failed to notify execution bidding update:", error?.message || error);
             }
 
+            const providerResponse = isProviderCandidate && !hasCommercialAccess
+                ? {
+                    enquiryId: String(inquiry._id),
+                    taskId: String(task?._id || ""),
+                    serviceType: normalizedType,
+                    status: task.status,
+                    ownBid: (Array.isArray(task?.bids) ? task.bids : []).find(
+                        (bid: any) => String(bid?.company?._id || bid?.company || "") === associateCompanyId
+                    ) || null,
+                }
+                : inquiry;
+
             return res.json({
                 success: true,
-                data: inquiry,
+                data: providerResponse,
                 message: "Execution inquiry updated"
             });
         } catch (error: any) {
@@ -2309,7 +2322,7 @@ export class InquiryController {
                         ownBid: operatorView ? undefined : ownBid,
                         bids: operatorView ? bids : undefined,
                         candidates: operatorView ? candidates : undefined,
-                        committedProvider: task.committedProvider || null,
+                        committedProvider: operatorView ? (task.committedProvider || null) : undefined,
                     });
                 }
             }

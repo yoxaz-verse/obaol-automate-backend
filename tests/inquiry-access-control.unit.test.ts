@@ -5,6 +5,7 @@ import {
   canAccessInquiry,
   canOperatorActOnPerspective,
   getOperatorPerspective,
+  isExecutionProviderForTask,
 } from "../src/core/inquiry/inquiryAccessControl";
 
 const inquiryFixture = () =>
@@ -67,5 +68,43 @@ describe("inquiry access control operator perspective", () => {
     expect(serialized).toContain("dealCloserOperatorId");
     expect(serialized).toContain("handlerOperatorId");
     expect(serialized).not.toContain("createdBy");
+  });
+
+  it("limits associate inquiry access to named commercial parties", () => {
+    const providerCompany = new Types.ObjectId();
+    const unrelatedAssociate = new Types.ObjectId();
+    const inquiry: any = {
+      ...inquiryFixture(),
+      executionInquiries: [{ type: "PACKAGING", candidateProviders: [providerCompany] }],
+    };
+
+    expect(canAccessInquiry(inquiry, {
+      userId: unrelatedAssociate,
+      associateId: unrelatedAssociate,
+      associateCompanyId: providerCompany,
+      userRole: "Associate",
+    })).toBe(false);
+
+    const filter = buildInquiryAccessFilter({
+      userId: unrelatedAssociate,
+      associateId: unrelatedAssociate,
+      associateCompanyId: providerCompany,
+      userRole: "Associate",
+    });
+    expect(JSON.stringify(filter)).not.toContain("candidateProviders");
+  });
+
+  it("authorizes an execution provider only for the exact candidate task", () => {
+    const providerCompany = new Types.ObjectId();
+    const otherCompany = new Types.ObjectId();
+
+    expect(isExecutionProviderForTask(
+      { type: "PACKAGING", candidateProviders: [providerCompany] },
+      providerCompany
+    )).toBe(true);
+    expect(isExecutionProviderForTask(
+      { type: "SHIPPING", candidateProviders: [otherCompany] },
+      providerCompany
+    )).toBe(false);
   });
 });

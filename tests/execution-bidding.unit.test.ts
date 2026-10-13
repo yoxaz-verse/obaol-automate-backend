@@ -39,7 +39,7 @@ describe("execution bidding rules", () => {
 });
 
 describe("execution bid privacy", () => {
-  it("returns only an invited provider's tasks and own bids", () => {
+  it("does not turn an execution invitation into commercial inquiry access", () => {
     const providerCompany = new Types.ObjectId();
     const competitorCompany = new Types.ObjectId();
     const associateId = new Types.ObjectId();
@@ -64,9 +64,10 @@ describe("execution bid privacy", () => {
       associateCompanyId: providerCompany,
       userRole: UserRole.ASSOCIATE,
     });
-    expect(result.executionInquiries).toHaveLength(1);
-    expect(result.executionInquiries[0].candidateProviders).toBeUndefined();
-    expect(result.executionInquiries[0].bids).toHaveLength(1);
-    expect(result.executionInquiries[0].bids[0].note).toBe("mine");
+    expect(result).toEqual(expect.objectContaining({
+      _id: inquiry._id,
+      status: inquiry.status,
+    }));
+    expect(result.executionInquiries).toBeUndefined();
   });
 });

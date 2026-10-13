@@ -12,6 +12,15 @@ export const validateEntity = (req: Request, res: Response, next: NextFunction) 
         });
     }
 
+    // Sensitive workflows with dedicated controllers must never fall through to
+    // the generic CRUD engine, which does not implement their full authorization.
+    if (EntityRegistry[entity].genericCrudEnabled === false) {
+        return res.status(404).json({
+            success: false,
+            message: `Entity '${entity}' is not available through generic CRUD.`,
+        });
+    }
+
     // Optional: Validate operation if needed (e.g. read-only entities)
     // const config = EntityRegistry[entity];
     // const operation = getOperationFromMethod(req.method);

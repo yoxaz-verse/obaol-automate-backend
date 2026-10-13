@@ -61,19 +61,14 @@ export function canOperatorActOnPerspective(
     return perspective === required;
 }
 
-export function isExecutionProviderForCompany(
-    inquiry: InquiryDocument,
+export function isExecutionProviderForTask(
+    task: any,
     associateCompanyId?: Types.ObjectId | string | null
 ): boolean {
-    if (!associateCompanyId) return false;
+    if (!associateCompanyId || !task) return false;
     const companyId = associateCompanyId.toString();
-    const tasks = Array.isArray((inquiry as any)?.executionInquiries)
-        ? (inquiry as any).executionInquiries
-        : [];
-    return tasks.some((task: any) => {
-        const candidates = Array.isArray(task?.candidateProviders) ? task.candidateProviders : [];
-        return candidates.some((candidate: any) => getAttrId(candidate) === companyId);
-    });
+    const candidates = Array.isArray(task?.candidateProviders) ? task.candidateProviders : [];
+    return candidates.some((candidate: any) => getAttrId(candidate) === companyId);
 }
 
 /**
@@ -86,7 +81,7 @@ export function canAccessInquiry(
     inquiry: InquiryDocument,
     context: InquiryAccessContext
 ): boolean {
-    const { userId, userRole, associateId, associateCompanyId } = context;
+    const { userId, userRole, associateId } = context;
     const roleLower = String(userRole || "").toLowerCase();
 
     // Admin has full access
@@ -111,8 +106,7 @@ export function canAccessInquiry(
             getAttrId(inquiry.sellerAssociateId) === assocIdStr ||
             getAttrId(inquiry.mediatorAssociateId) === assocIdStr
         );
-        if (isCoreParty) return true;
-        return isExecutionProviderForCompany(inquiry, associateCompanyId);
+        return isCoreParty;
     }
 
     return false;
@@ -154,24 +148,19 @@ export function filterInquiryFields(
     inquiry: InquiryDocument,
     context: InquiryAccessContext
 ): Partial<InquiryDocument> {
-    const { userRole, associateId, associateCompanyId, userId } = context;
+    const { userRole, associateId, userId } = context;
     const roleLower = String(userRole || "").toLowerCase();
     const assignmentVisibility = {
         supplierOperatorAssigned: Boolean(getAttrId((inquiry as any)?.supplierOperatorId)),
         dealCloserOperatorAssigned: Boolean(getAttrId((inquiry as any)?.dealCloserOperatorId)),
         handlerOperatorAssigned: Boolean(getAttrId((inquiry as any)?.handlerOperatorId)),
     };
-    const redactExecutionBids = (tasks: any[], ownCompanyId?: unknown, providerOnly = false) =>
+    const redactExecutionBids = (tasks: any[]) =>
         (Array.isArray(tasks) ? tasks : [])
-            .filter((task: any) => !providerOnly || (task.candidateProviders || []).some(
-                (provider: any) => getAttrId(provider) === String(ownCompanyId || "")
-            ))
             .map((task: any) => ({
                 ...task,
                 candidateProviders: undefined,
-                bids: (task.bids || []).filter(
-                    (bid: any) => ownCompanyId && getAttrId(bid?.company) === String(ownCompanyId)
-                ),
+                bids: [],
             }));
 
     // Admin: full access
@@ -315,29 +304,6 @@ export function filterInquiryFields(
             };
         }
 
-        // Capability-matched provider companies can access execution task context only.
-        if (isExecutionProviderForCompany(inquiry, associateCompanyId)) {
-            const {
-                notes,
-                buyerAssociateId,
-                sellerAssociateId,
-                mediatorAssociateId,
-                adminCommission,
-                mediatorCommission,
-                ...safeFields
-            } = inquiry;
-            return {
-                ...safeFields,
-                ...assignmentVisibility,
-                executionInquiries: redactExecutionBids((safeFields as any).executionInquiries, associateCompanyId, true),
-                notes: undefined,
-                buyerAssociateId: undefined,
-                sellerAssociateId: undefined,
-                mediatorAssociateId: undefined,
-                adminCommission: undefined,
-                mediatorCommission: undefined,
-            };
-        }
     }
 
     // Default: return minimal safe fields
@@ -358,7 +324,7 @@ export function filterInquiryFields(
 export function buildInquiryAccessFilter(
     context: InquiryAccessContext
 ): Record<string, any> {
-    const { userId, userRole, associateId, associateCompanyId } = context;
+    const { userId, userRole, associateId } = context;
     const roleLower = String(userRole || "").toLowerCase();
 
     // Admin: no filter (access all)
@@ -383,15 +349,11 @@ export function buildInquiryAccessFilter(
 
     // Associate: where involved as buyer, seller, or mediator
     if (userRole === UserRole.ASSOCIATE && associateId) {
-        const providerFilter = associateCompanyId
-            ? [{ "executionInquiries.candidateProviders": associateCompanyId }]
-            : [];
         return {
             $or: [
                 { buyerAssociateId: associateId },
                 { sellerAssociateId: associateId },
                 { mediatorAssociateId: associateId },
-                ...providerFilter,
             ]
         };
     }

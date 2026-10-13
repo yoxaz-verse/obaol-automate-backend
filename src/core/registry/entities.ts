@@ -64,6 +64,7 @@ export interface EntityConfig {
     sortableFields: string[];
     allowedOperations: ("list" | "create" | "read" | "update" | "delete")[];
     relations?: Record<string, string>; // fieldName -> entityKey
+    genericCrudEnabled?: boolean;
 }
 
 export const EntityRegistry: Record<string, EntityConfig> = {
@@ -470,6 +471,7 @@ export const EntityRegistry: Record<string, EntityConfig> = {
     // --- Inquiries (Clean Engine) ---
     "enquiries": {
         model: InquiryModel,
+        genericCrudEnabled: false,
         searchableFields: ["specifications", "status", "customId"],
         sortableFields: ["createdAt", "status"],
         allowedOperations: ["list", "create", "read", "update", "delete"],

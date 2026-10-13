@@ -12,6 +12,10 @@ import { ProductVariantModel } from "../database/models/productVariant";
 
 export class CatalogController {
 
+    private static normalizeCatalogName(value: unknown) {
+        return String(value || "").normalize("NFKC").trim().toLocaleLowerCase("en");
+    }
+
     static async getHierarchyOptions(req: Request, res: Response, next: NextFunction) {
         try {
             res.set({
@@ -33,24 +37,89 @@ export class CatalogController {
             }
 
             let rows: any[] = [];
+            let level: "category" | "subCategory" | "product" | "productVariant" = "category";
+            let parentName: string | null = null;
             if (!parentKey) {
-                rows = await CategoryModel.find({}).select("_id name").sort({ name: 1 }).lean();
+                rows = await CategoryModel.find({}).select("_id name").lean();
             } else if (parentKey === "category") {
-                rows = await SubCategoryModel.find({ category: parentId }).select("_id name category").sort({ name: 1 }).lean();
+                level = "subCategory";
+                const parent = await CategoryModel.findById(parentId).select("name").lean();
+                if (!parent) return res.status(404).json({ success: false, message: "Category was not found." });
+                parentName = String((parent as any).name || "").normalize("NFKC").trim();
+                rows = await SubCategoryModel.find({ category: parentId }).select("_id name category").lean();
             } else if (parentKey === "subCategory") {
+                level = "product";
+                const parent = await SubCategoryModel.findById(parentId).select("name").lean();
+                if (!parent) return res.status(404).json({ success: false, message: "Subcategory was not found." });
+                parentName = String((parent as any).name || "").normalize("NFKC").trim();
                 rows = await ProductModel.find({ subCategory: parentId, isDeleted: { $ne: true } })
-                    .select("_id name subCategory").sort({ name: 1 }).lean();
+                    .select("_id name subCategory").lean();
             } else {
+                level = "productVariant";
+                const parent = await ProductModel.findOne({ _id: parentId, isDeleted: { $ne: true } }).select("name").lean();
+                if (!parent) return res.status(404).json({ success: false, message: "Product was not found." });
+                parentName = String((parent as any).name || "").normalize("NFKC").trim();
                 rows = await ProductVariantModel.find({ product: parentId, isDeleted: { $ne: true } })
-                    .select("_id name product").sort({ name: 1 }).lean();
+                    .select("_id name product").lean();
             }
 
-            const options = rows.map((row: any) => ({
-                id: String(row._id),
-                name: String(row.name || ""),
-                parentId: parentKey ? String(row[parentKey] || "") : null,
-            }));
+            const options = rows
+                .map((row: any) => ({
+                    id: String(row._id),
+                    name: String(row.name || "").normalize("NFKC").trim(),
+                    level,
+                    parentId: parentKey ? String(row[parentKey] || "") : null,
+                    parentName,
+                }))
+                .filter((row) => row.id && row.name)
+                .sort((a, b) => CatalogController.normalizeCatalogName(a.name).localeCompare(CatalogController.normalizeCatalogName(b.name), "en"));
+            console.info("[catalog-hierarchy] options", {
+                role: String(req.user?.role || "unknown").toLowerCase(),
+                level,
+                parentId: parentId || null,
+                resultCount: options.length,
+            });
             return res.status(200).json({ success: true, data: options });
+        } catch (error) {
+            return next(error);
+        }
+    }
+
+    static async getHierarchyIntegrity(_req: Request, res: Response, next: NextFunction) {
+        try {
+            const [categories, subCategories, products, variants] = await Promise.all([
+                CategoryModel.find({}).select("_id name").lean(),
+                SubCategoryModel.find({}).select("_id name category").lean(),
+                ProductModel.find({ isDeleted: { $ne: true } }).select("_id name subCategory").lean(),
+                ProductVariantModel.find({ isDeleted: { $ne: true } }).select("_id name product").lean(),
+            ]);
+            const categoryIds = new Set(categories.map((row: any) => String(row._id)));
+            const subCategoryIds = new Set(subCategories.map((row: any) => String(row._id)));
+            const productIds = new Set(products.map((row: any) => String(row._id)));
+            const duplicateGroups = (rows: any[], parentKey?: string) => {
+                const groups = new Map<string, string[]>();
+                rows.forEach((row: any) => {
+                    const key = `${parentKey ? String(row[parentKey] || "") : "root"}:${CatalogController.normalizeCatalogName(row.name)}`;
+                    groups.set(key, [...(groups.get(key) || []), String(row._id)]);
+                });
+                return Array.from(groups.entries()).filter(([, ids]) => ids.length > 1).map(([key, ids]) => ({ key, ids }));
+            };
+            return res.status(200).json({
+                success: true,
+                data: {
+                    duplicates: {
+                        categories: duplicateGroups(categories),
+                        subCategories: duplicateGroups(subCategories, "category"),
+                        products: duplicateGroups(products, "subCategory"),
+                        productVariants: duplicateGroups(variants, "product"),
+                    },
+                    orphans: {
+                        subCategories: subCategories.filter((row: any) => !categoryIds.has(String(row.category))).map((row: any) => String(row._id)),
+                        products: products.filter((row: any) => !subCategoryIds.has(String(row.subCategory))).map((row: any) => String(row._id)),
+                        productVariants: variants.filter((row: any) => !productIds.has(String(row.product))).map((row: any) => String(row._id)),
+                    },
+                },
+            });
         } catch (error) {
             return next(error);
         }

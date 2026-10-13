@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { CatalogController } from "../../controllers/CatalogController";
 import authenticateToken from "../../middlewares/auth";
+import { authorizeRoles } from "../../middlewares/authorizeRoles";
 
 const router = Router();
 
 // Canonical no-cache hierarchy used by product-listing pickers for every dashboard role.
 router.get("/hierarchy-options", authenticateToken, CatalogController.getHierarchyOptions);
+router.get("/hierarchy-integrity", authenticateToken, authorizeRoles("Admin"), CatalogController.getHierarchyIntegrity);
 
 // --- Secured Routes (Associate Only) ---
 // Add item to logged-in associate's catalog

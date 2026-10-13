@@ -52,7 +52,7 @@ async function startServer() {
       await seedIncoterms();
       await seedPaymentTerms();
     }
-    startCronJobs();
+    await startCronJobs();
     server = app.listen(PORTD, "::", () => {
       console.log(`OBAOL Server is running on port ${PORTD}`);
       console.log(`Environment: ${NODE_ENV}`);

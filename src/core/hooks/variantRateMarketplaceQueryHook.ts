@@ -1,4 +1,4 @@
-import { liveFreshnessCondition, recentPastCondition } from "../../services/variantRateFreshnessService";
+import { recentPastCondition } from "../../services/variantRateFreshnessService";
 
 type GenericQuery = Record<string, any>;
 
@@ -62,7 +62,6 @@ export const variantRateMarketplaceQueryHook = async (
       if (restrictHistory) nextQuery = addAndCondition(nextQuery, recentPastCondition());
     } else if (isLive) {
       nextQuery.isLive = true;
-      if (restrictHistory) nextQuery = addAndCondition(nextQuery, liveFreshnessCondition());
     }
     if (req) {
       req.__marketplaceIsLive = nextQuery.isLive;

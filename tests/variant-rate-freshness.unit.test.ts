@@ -77,6 +77,17 @@ describe("variant-rate freshness", () => {
     expect(adminQuery).toEqual({ isLive: { $ne: true } });
   });
 
+  it("uses persisted live status for marketplace reads after expiry reconciliation", async () => {
+    const query: any = await variantRateMarketplaceQueryHook(
+      { view: "marketplace", isLive: true },
+      "read",
+      undefined,
+      { query: { view: "marketplace", isLive: "true" }, user: { role: "Associate" } }
+    );
+
+    expect(query).toEqual({ isLive: true });
+  });
+
   it("expires only stale live rows and synchronizes dependent availability", async () => {
     const staleId = new Types.ObjectId();
     const freshId = new Types.ObjectId();

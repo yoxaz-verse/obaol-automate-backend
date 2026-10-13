@@ -35,7 +35,7 @@ describe("associate catalog hierarchy", () => {
     const associate = await createAssociate({ associateCompany: company._id });
 
     const [categoryA, categoryB] = await CategoryModel.create([
-      { name: `Associate Category A ${suffix}`, inventoryManager },
+      { name: `  AgRi ${suffix}  `, inventoryManager },
       { name: `Associate Category B ${suffix}`, inventoryManager },
     ]);
     const [subA, subB] = await SubCategoryModel.create([
@@ -63,6 +63,11 @@ describe("associate catalog hierarchy", () => {
     expect(subcategoriesResponse.status).toBe(200);
     expect(rows(subcategoriesResponse).map((row: any) => String(row.id))).toContain(String(subA._id));
     expect(rows(subcategoriesResponse).map((row: any) => String(row.id))).not.toContain(String(subB._id));
+    expect(rows(subcategoriesResponse).find((row: any) => String(row.id) === String(subA._id))).toMatchObject({
+      level: "subCategory",
+      parentId: String(categoryA._id),
+      parentName: `AgRi ${suffix}`,
+    });
 
     expect(productsResponse.status).toBe(200);
     expect(rows(productsResponse).map((row: any) => String(row.id))).toContain(String(productA._id));
@@ -96,6 +101,9 @@ describe("associate catalog hierarchy", () => {
     const invalidResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: "not-an-id" });
     expect(invalidResponse.status).toBe(400);
 
+    const missingResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: String(new mongoose.Types.ObjectId()) });
+    expect(missingResponse.status).toBe(404);
+
     const conflictingResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: String(categoryA._id), product: String(productA._id) });
     expect(conflictingResponse.status).toBe(400);
 
@@ -107,5 +115,17 @@ describe("associate catalog hierarchy", () => {
       expect(roleResponse.status).toBe(200);
       expect(rows(roleResponse)).toEqual(rows(subcategoriesResponse));
     }
+
+    const associateIntegrityResponse = await api.get("/api/v1/web/catalog/hierarchy-integrity").set("Cookie", cookie);
+    expect(associateIntegrityResponse.status).toBe(403);
+
+    const adminIntegrityResponse = await api
+      .get("/api/v1/web/catalog/hierarchy-integrity")
+      .set("Cookie", authCookie({ _id: new mongoose.Types.ObjectId(), email: "catalog.admin@example.com" }, "Admin"));
+    expect(adminIntegrityResponse.status).toBe(200);
+    expect(adminIntegrityResponse.body?.data).toMatchObject({
+      duplicates: expect.any(Object),
+      orphans: expect.any(Object),
+    });
   });
 });

@@ -7,8 +7,13 @@ type ScheduledTask = ReturnType<typeof cron.schedule>;
 
 let scheduledTasks: ScheduledTask[] = [];
 
-export const startCronJobs = () => {
+export const startCronJobs = async () => {
   if (scheduledTasks.length > 0) return;
+
+  // Reconcile persisted status immediately so all readers agree on which
+  // listings are live even after a restart or a period of scheduler downtime.
+  const startupExpiredCount = await expireStaleVariantRates();
+  logger.info(`Startup freshness check offlined ${startupExpiredCount} stale variant rates.`);
 
   // Expire listings after 20 elapsed days from their last publish/renewal.
   const variantRateResetTask = cron.schedule("0 * * * *", async () => {

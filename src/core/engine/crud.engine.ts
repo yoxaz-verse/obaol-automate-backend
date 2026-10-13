@@ -264,8 +264,15 @@ export class CrudEngine extends BaseService {
         ) {
             result.data = (result.data || []).map((row: any) => {
                 const source = typeof row?.toObject === "function" ? row.toObject() : { ...row };
-                delete source.rate;
-                delete source.commission;
+                const ownerId = String(source?.associate?._id || source?.associate || "");
+                const isOwnedByViewer =
+                    (roleLower === "associate" || roleLower === "customer") &&
+                    ownerId === String((req as any)?.user?.id || "");
+                source.isOwnedByViewer = isOwnedByViewer;
+                if (!isOwnedByViewer) {
+                    delete source.rate;
+                    delete source.commission;
+                }
                 delete source.locationDisplay;
                 delete source.locationSource;
                 delete source.officeAddress;

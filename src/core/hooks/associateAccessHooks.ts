@@ -35,14 +35,9 @@ export const associateFilterHook = async (query: any, mode: string, id: string |
                 String(req.query?.view || "").toLowerCase() === "marketplace";
 
             if (isMarketplaceView) {
-                // MARKETPLACE (Associate): show full marketplace (live/offline tabs controlled by request),
-                // excluding only self-owned rates.
-                const marketQuery: any = {
-                    ...query,
-                    associate: { $ne: associateId },
-                };
-
-                return marketQuery;
+                // The marketplace is a shared catalogue. Ownership only controls
+                // mutations; it must not hide an otherwise eligible listing.
+                return { ...query };
             } else {
                 // DEFAULT / MY PRODUCTS: Show only my own (only when linked to a company)
                 const associate = await AssociateModel.findById(associateId)

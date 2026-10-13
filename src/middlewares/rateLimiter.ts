@@ -42,6 +42,14 @@ export const authOnboardingLimiter = rateLimit({
   message: { success: false, message: "Too many onboarding attempts. Please wait and try again." },
 });
 
+export const gstLookupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: toPositiveInt(process.env.GST_LOOKUP_RATE_LIMIT_MAX, 10),
+  standardHeaders,
+  legacyHeaders,
+  message: { success: false, code: "RATE_LIMITED", message: "Too many GST verification attempts. Please wait and try again." },
+});
+
 export const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: toPositiveInt(process.env.AUTH_OTP_RATE_LIMIT_MAX, 8),

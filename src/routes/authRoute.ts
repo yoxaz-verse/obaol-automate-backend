@@ -28,7 +28,9 @@ import {
   authRegisterLimiter,
   passwordResetLimiter,
   passkeyLimiter,
+  gstLookupLimiter,
 } from "../middlewares/rateLimiter";
+import { lookupGstinHandler } from "../services/gstinLookupService";
 import {
   deletePasskey,
   generatePasskeyAuthenticationOptions,
@@ -60,6 +62,7 @@ authRoute.get("/register/companies", getRegisterCompanies);
 authRoute.get("/register/designations", getRegisterDesignations);
 authRoute.get("/register/countries", getRegisterCountries);
 authRoute.get("/register/pincodes", getRegisterPincodes);
+authRoute.post("/register/gstin/lookup", gstLookupLimiter, lookupGstinHandler);
 authRoute.post("/operator/register", authRegisterLimiter, registerOperator);
 authRoute.get("/operator/register/options", getOperatorRegisterOptions);
 authRoute.post("/onboarding/start", authOnboardingLimiter, startOnboarding);

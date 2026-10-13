@@ -55,6 +55,11 @@ export interface IAssociateCompany {
   customDomain?: string;
   isWebsiteLive?: boolean;
   gstin?: string;
+  gstVerificationStatus?: "UNVERIFIED" | "VERIFIED" | "STALE";
+  registeredTradeName?: string;
+  registeredAddress?: string;
+  gstStateCode?: string;
+  gstVerification?: Record<string, unknown>;
   iecCode?: string;
   cin?: string;
   legalRegistrationNumber?: string;
@@ -122,6 +127,11 @@ export interface ICreateAssociateCompany {
   customDomain?: string;
   isWebsiteLive?: boolean;
   gstin?: string;
+  gstVerificationStatus?: "UNVERIFIED" | "VERIFIED" | "STALE";
+  registeredTradeName?: string;
+  registeredAddress?: string;
+  gstStateCode?: string;
+  gstVerification?: Record<string, unknown>;
   iecCode?: string;
   cin?: string;
   legalRegistrationNumber?: string;
@@ -189,6 +199,11 @@ export interface IUpdateAssociateCompany {
   customDomain?: string;
   isWebsiteLive?: boolean;
   gstin?: string;
+  gstVerificationStatus?: "UNVERIFIED" | "VERIFIED" | "STALE";
+  registeredTradeName?: string;
+  registeredAddress?: string;
+  gstStateCode?: string;
+  gstVerification?: Record<string, unknown>;
   iecCode?: string;
   cin?: string;
   legalRegistrationNumber?: string;

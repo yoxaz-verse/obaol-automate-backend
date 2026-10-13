@@ -49,7 +49,37 @@ import {
     PRE_AUTH_BLOCKED_MESSAGE,
     toBlockedResponsePayload,
 } from "../utils/preAuthGuard";
-import { CIN_REGEX, GST_REGEX, IEC_REGEX, normalizeCompanyIdentifier } from "../utils/companyIdentifiers";
+import { CIN_REGEX, GST_REGEX, IEC_REGEX, hasValidGstinChecksum, normalizeCompanyIdentifier } from "../utils/companyIdentifiers";
+import { verifyGstinProof } from "./gstinLookupService";
+
+const resolveGstVerification = async (company: any, gstin: string) => {
+    if (!gstin) return { gstVerificationStatus: "UNVERIFIED" };
+    const proofToken = String(company?.gstVerificationProof || "").trim();
+    if (!proofToken) return { gstVerificationStatus: "UNVERIFIED" };
+    const verified = verifyGstinProof(proofToken, gstin);
+    if (!verified || !["ACTIVE", "ACT", "VALID"].includes(String(verified.registrationStatus).toUpperCase())) {
+        throw Object.assign(new Error("GST verification has expired or is invalid. Please verify the GSTIN again."), { status: 400 });
+    }
+    const duplicate = await AssociateCompanyModel.findOne({ gstin, gstVerificationStatus: "VERIFIED" }).select("_id").lean();
+    if (duplicate) throw Object.assign(new Error("This verified GSTIN is already linked to another company."), { status: 409 });
+    return {
+        name: verified.legalName,
+        address: verified.registeredAddress,
+        gstVerificationStatus: "VERIFIED",
+        registeredTradeName: verified.tradeName,
+        registeredAddress: verified.registeredAddress,
+        gstStateCode: verified.stateCode,
+        gstVerification: {
+            provider: verified.provider, providerReference: verified.providerReference,
+            verifiedAt: new Date(verified.lookedUpAt), registrationStatus: verified.registrationStatus,
+            registrationDate: verified.registrationDate, cancellationDate: verified.cancellationDate,
+            legalName: verified.legalName, tradeName: verified.tradeName, registeredAddress: verified.registeredAddress,
+            stateCode: verified.stateCode, constitution: verified.constitution, taxpayerType: verified.taxpayerType,
+            centreJurisdiction: verified.centreJurisdiction, stateJurisdiction: verified.stateJurisdiction,
+            businessActivities: verified.businessActivities,
+        },
+    };
+};
 
 const generateRandomPassword = (length = 12) => {
     const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -215,6 +245,10 @@ const sendNormalizedAuthError = (
     error: any,
     fallbackMessage = "Request failed. Please check the details and try again."
 ) => {
+    const explicitStatus = Number(error?.status || 0);
+    if (explicitStatus >= 400 && explicitStatus < 500) {
+        return res.status(explicitStatus).json({ success: false, message: error?.message || fallbackMessage });
+    }
     if (isDuplicateKeyError(error)) {
         return res.status(400).json({
             success: false,
@@ -1139,7 +1173,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
                 if (soughtFunctionPriorities.length && !soughtFunctionPriorities.every((id: string) => soughtFunctionIds.includes(id))) {
                     return res.status(400).json({ success: false, message: "Sought priorities must be part of sought capabilities." });
                 }
-                if (companyGstin && !GST_REGEX.test(companyGstin)) {
+                if (companyGstin && (!GST_REGEX.test(companyGstin) || !hasValidGstinChecksum(companyGstin))) {
                     return res.status(400).json({
                         success: false,
                         message: "Invalid GST number format."
@@ -1157,6 +1191,9 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         message: "Invalid CIN format."
                     });
                 }
+                const gstVerification = companyGeoType === "INDIAN"
+                    ? await resolveGstVerification(company, companyGstin)
+                    : { gstVerificationStatus: "UNVERIFIED" };
 
                 let resolvedCompanyCountryId: any = undefined;
                 if (companyGeoType === "INDIAN") {
@@ -1233,7 +1270,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         return res.status(400).json({ success: false, message: REPEATED_PHONE_ERROR });
                     }
                     const createdCompany = await AssociateCompanyModel.create({
-                        name: companyName,
+                        name: (gstVerification as any).name || companyName,
                         email: companyEmail,
                         gstin: companyGstin || undefined,
                         iecCode: companyGeoType === "INDIAN" ? (companyIecCode || undefined) : undefined,
@@ -1248,7 +1285,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         phoneSecondaryNational: normalizedCompanySecondaryPhone.national || normalizedCompanyPrimaryPhone.national,
                         geoType: companyGeoType,
                         country: companyGeoType === "INTERNATIONAL" ? resolvedCompanyCountryId : undefined,
-                        address: companyAddress,
+                        address: (gstVerification as any).address || companyAddress,
+                        ...gstVerification,
                         state: companyGeoType === "INDIAN" ? (companyState || undefined) : undefined,
                         district: companyGeoType === "INDIAN" ? (companyDistrict || undefined) : undefined,
                         division: companyGeoType === "INDIAN" ? (companyDivision || undefined) : undefined,
@@ -1697,7 +1735,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 const companyGstin = companyGeoType === "INDIAN" ? normalizeCompanyIdentifier(company?.gstin) : "";
                 const companyIecCode = companyGeoType === "INDIAN" ? normalizeCompanyIdentifier(company?.iecCode) : "";
                 const companyCin = companyGeoType === "INDIAN" ? normalizeCompanyIdentifier(company?.cin) : "";
-                if (companyGstin && !GST_REGEX.test(companyGstin)) {
+                if (companyGstin && (!GST_REGEX.test(companyGstin) || !hasValidGstinChecksum(companyGstin))) {
                     return res.status(400).json({ success: false, message: "Invalid GST number format." });
                 }
                 if (companyIecCode && !IEC_REGEX.test(companyIecCode)) {
@@ -1706,6 +1744,9 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 if (companyCin && !CIN_REGEX.test(companyCin)) {
                     return res.status(400).json({ success: false, message: "Invalid CIN format." });
                 }
+                const gstVerification = companyGeoType === "INDIAN"
+                    ? await resolveGstVerification(company, companyGstin)
+                    : { gstVerificationStatus: "UNVERIFIED" };
                 const existingCompany = await AssociateCompanyModel.findOne({ email: companyEmail }).select("_id").lean();
                 if (existingCompany) {
                     if (resolvedReferral.type === "associate_company") {
@@ -1717,7 +1758,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                     associate.associateCompany = existingCompany._id;
                 } else {
                     const createdCompany = await AssociateCompanyModel.create({
-                        name: companyName,
+                        name: (gstVerification as any).name || companyName,
                         email: companyEmail,
                         phone: companyPhone.e164,
                         phoneCountryCode: companyPhone.countryCode,
@@ -1740,7 +1781,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                         soughtCapabilities: [],
                         assignedOperator: resolvedReferral.type === "operator" ? resolvedReferral.operatorId : null,
                         supervisor: associate._id,
-                        address: company?.address || "",
+                        address: (gstVerification as any).address || company?.address || "",
+                        ...gstVerification,
                         referralCode: await AssociateReferralService.generateCompanyReferralCode(),
                         ...(resolvedReferral.type === "associate_company" ? {
                             referredByCompanyId: resolvedReferral.companyId,

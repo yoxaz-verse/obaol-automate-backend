@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CIN_REGEX, GST_REGEX, IEC_REGEX, normalizeCompanyIdentifier } from "./companyIdentifiers";
+import { CIN_REGEX, GST_REGEX, IEC_REGEX, hasValidGstinChecksum, normalizeCompanyIdentifier } from "./companyIdentifiers";
 
 describe("company verification identifiers", () => {
   it("normalizes optional values", () => {
@@ -11,6 +11,11 @@ describe("company verification identifiers", () => {
     expect(GST_REGEX.test("27AABCU9603R1ZM")).toBe(true);
     expect(GST_REGEX.test("")).toBe(false);
     expect(GST_REGEX.test("123456789012345")).toBe(false);
+  });
+
+  it("validates the GSTIN checksum", () => {
+    expect(hasValidGstinChecksum("27AAPFU0939F1ZV")).toBe(true);
+    expect(hasValidGstinChecksum("27AAPFU0939F1ZW")).toBe(false);
   });
 
   it("validates IEC format", () => {

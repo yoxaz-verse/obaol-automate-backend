@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { normalizePhoneInput } from "../../utils/phone";
 import { normalizeCompanyFunctionSlugs } from "../../utils/companyCapabilities";
-import { CIN_REGEX, GST_REGEX, IEC_REGEX, normalizeCompanyIdentifier } from "../../utils/companyIdentifiers";
+import { CIN_REGEX, GST_REGEX, IEC_REGEX, hasValidGstinChecksum, normalizeCompanyIdentifier } from "../../utils/companyIdentifiers";
 
 const AssociateCompanySchema = new mongoose.Schema(
   {
@@ -37,6 +37,27 @@ const AssociateCompanySchema = new mongoose.Schema(
       required: false,
     },
     gstin: { type: String, trim: true, uppercase: true },
+    gstVerificationStatus: { type: String, enum: ["UNVERIFIED", "VERIFIED", "STALE"], default: "UNVERIFIED", index: true },
+    registeredTradeName: { type: String, trim: true, default: "" },
+    registeredAddress: { type: String, trim: true, default: "" },
+    gstStateCode: { type: String, trim: true, default: "" },
+    gstVerification: {
+      provider: { type: String, trim: true },
+      providerReference: { type: String, trim: true },
+      verifiedAt: { type: Date },
+      registrationStatus: { type: String, trim: true },
+      registrationDate: { type: String, trim: true },
+      cancellationDate: { type: String, trim: true },
+      legalName: { type: String, trim: true },
+      tradeName: { type: String, trim: true },
+      registeredAddress: { type: String, trim: true },
+      stateCode: { type: String, trim: true },
+      constitution: { type: String, trim: true },
+      taxpayerType: { type: String, trim: true },
+      centreJurisdiction: { type: String, trim: true },
+      stateJurisdiction: { type: String, trim: true },
+      businessActivities: [{ type: String, trim: true }],
+    },
     iecCode: { type: String, trim: true, uppercase: true },
     cin: { type: String, trim: true, uppercase: true },
     legalRegistrationNumber: { type: String, trim: true },
@@ -135,6 +156,7 @@ AssociateCompanySchema.index({ isQualityLabListed: 1, labListingState: 1, isDele
 AssociateCompanySchema.index({ isExternalDirectoryListing: 1, externalListingSource: 1, externalListingReference: 1 });
 AssociateCompanySchema.index({ registrationStatus: 1, supervisor: 1, isDeleted: 1, createdAt: -1 });
 AssociateCompanySchema.index({ referredByCompanyId: 1, referralActivatedAt: 1, createdAt: -1 });
+AssociateCompanySchema.index({ gstin: 1, gstVerificationStatus: 1 });
 AssociateCompanySchema.index({
   isQualityLabListed: 1,
   labListingState: 1,
@@ -165,8 +187,15 @@ AssociateCompanySchema.pre("save", async function (next) {
   self.phoneSecondaryNational = normalizedSecondary.national;
   if (typeof self.gstin === "string") {
     self.gstin = normalizeCompanyIdentifier(self.gstin);
-    if (self.gstin && !GST_REGEX.test(self.gstin)) {
+    if (self.gstin && (!GST_REGEX.test(self.gstin) || !hasValidGstinChecksum(self.gstin))) {
       return next(new Error("Invalid GSTIN format."));
+    }
+    if (!self.isNew && self.isModified("gstin")) {
+      self.gstVerificationStatus = self.gstin ? "STALE" : "UNVERIFIED";
+      self.gstVerification = undefined;
+      self.registeredTradeName = "";
+      self.registeredAddress = "";
+      self.gstStateCode = "";
     }
   }
   if (typeof self.iecCode === "string") {
@@ -252,10 +281,17 @@ AssociateCompanySchema.pre("findOneAndUpdate", function (next) {
   }
   if (Object.prototype.hasOwnProperty.call(payload, "gstin")) {
     const gstin = normalizeCompanyIdentifier(payload.gstin);
-    if (gstin && !GST_REGEX.test(gstin)) {
+    if (gstin && (!GST_REGEX.test(gstin) || !hasValidGstinChecksum(gstin))) {
       return next(new Error("Invalid GSTIN format."));
     }
     payload.gstin = gstin || undefined;
+    if (payload.gstVerificationStatus !== "VERIFIED") {
+      payload.gstVerificationStatus = gstin ? "STALE" : "UNVERIFIED";
+      payload.gstVerification = undefined;
+      payload.registeredTradeName = "";
+      payload.registeredAddress = "";
+      payload.gstStateCode = "";
+    }
   }
   if (Object.prototype.hasOwnProperty.call(payload, "iecCode")) {
     const iecCode = normalizeCompanyIdentifier(payload.iecCode);

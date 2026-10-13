@@ -257,18 +257,16 @@ export class ApprovalController {
         notificationWarnings.push(...warnings);
       }
       for (const row of pendingCompanies as any[]) {
-        const companyEmail = String(row?.email || "").trim();
         const supervisor: any = row?.supervisor || null;
         const supervisorEmail = String(supervisor?.email || "").trim();
-        if (!companyEmail && !supervisorEmail) continue;
+        if (!supervisorEmail) continue;
         const warnings = await this.notifyApproval({
           roleLabel: "Associate Company",
           approvedName: String(row?.name || "Associate Company"),
-          accountEmail: companyEmail || supervisorEmail,
+          accountEmail: supervisorEmail,
           entityId: row?._id,
           adminId,
           targets: [
-            { email: companyEmail, loginPath: "/auth" },
             { email: supervisorEmail, userId: supervisor?._id, recipientRole: "Associate", loginPath: "/auth" },
           ],
         });
@@ -568,16 +566,14 @@ export class ApprovalController {
           associateCompanyId: id,
         });
         const supervisor: any = updated?.supervisor || null;
-        const companyEmail = String(updated?.email || "").trim();
         const supervisorEmail = String(supervisor?.email || "").trim();
         const notificationWarnings = await this.notifyApproval({
           roleLabel: "Associate Company",
           approvedName: String(updated?.name || "Associate Company"),
-          accountEmail: companyEmail || supervisorEmail,
+          accountEmail: supervisorEmail,
           entityId: updated?._id,
           adminId,
           targets: [
-            { email: companyEmail, loginPath: "/auth" },
             { email: supervisorEmail, userId: supervisor?._id, recipientRole: "Associate", loginPath: "/auth" },
           ],
         });

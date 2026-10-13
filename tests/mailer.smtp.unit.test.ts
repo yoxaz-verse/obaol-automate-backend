@@ -107,6 +107,38 @@ describe("mailer smtp sender mapping", () => {
     );
   });
 
+  it("sends a distinct, escaped company registration notice with a support review action", async () => {
+    sendMailMock.mockResolvedValueOnce({ messageId: "company-registration-msg-1" });
+    const { sendCompanyRegistrationNoticeEmail } = await import("../src/utils/mailer");
+
+    await sendCompanyRegistrationNoticeEmail({
+      toEmail: "company@example.com",
+      companyId: "company-123",
+      companyName: "Tea & Spice <Exports>",
+      associateName: "Asha & Co <Owner>",
+      associateEmail: "asha+trade@example.com",
+      supportEmail: "info@support.obaol.com",
+    });
+
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "company@example.com",
+        from: expect.stringContaining("<no-reply@notify.obaol.com>"),
+        subject: "Asha & Co <Owner> registered Tea & Spice <Exports> on OBAOL Supreme",
+        text: expect.stringContaining("Someone registered your company"),
+        html: expect.stringContaining("Someone registered your company"),
+      })
+    );
+    const payload = sendMailMock.mock.calls[0][0];
+    expect(payload.html).toContain("Tea &amp; Spice &lt;Exports&gt;");
+    expect(payload.html).toContain("Asha &amp; Co &lt;Owner&gt;");
+    expect(payload.html).toContain("mailto:info@support.obaol.com?subject=");
+    expect(payload.html).toContain("Review registration");
+    expect(payload.html).not.toContain("Check out and login");
+    expect(payload.text).toContain("Company ID: company-123");
+    expect(payload.text).toContain("Associate%20email%3A%20asha%2Btrade%40example.com");
+  });
+
   it("verifies smtp transport without sending mail", async () => {
     const { verifySmtpTransport } = await import("../src/utils/mailer");
 

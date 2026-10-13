@@ -51,6 +51,7 @@ import {
 } from "../utils/preAuthGuard";
 import { CIN_REGEX, GST_REGEX, IEC_REGEX, hasValidGstinChecksum, normalizeCompanyIdentifier } from "../utils/companyIdentifiers";
 import { verifyGstinProof } from "./gstinLookupService";
+import { sendCompanyRegistrationNoticeEmail } from "../utils/mailer";
 
 const resolveGstVerification = async (company: any, gstin: string) => {
     if (!gstin) return { gstVerificationStatus: "UNVERIFIED" };
@@ -1068,6 +1069,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
 
         let linkedCompanyId: any = null;
         let createdCompanyId: any = null;
+        let createdCompanyNotice: { id: string; name: string; email: string } | null = null;
+        const notificationWarnings: string[] = [];
 
         if (shouldLinkCompany) {
             if (companyMode !== "existing" && companyMode !== "new") {
@@ -1299,6 +1302,11 @@ export const registerAssociate = async (req: Request, res: Response) => {
                     });
                     linkedCompanyId = createdCompany._id;
                     createdCompanyId = createdCompany._id;
+                    createdCompanyNotice = {
+                        id: String(createdCompany._id),
+                        name: String(createdCompany.name || companyName),
+                        email: String(createdCompany.email || companyEmail),
+                    };
                     if (selectedFunctionIds.length) {
                         await syncCompanyFunctions({
                             companyId: linkedCompanyId,
@@ -1388,6 +1396,33 @@ export const registerAssociate = async (req: Request, res: Response) => {
             assignedOperator: assignedOperatorId || undefined,
         });
 
+        if (createdCompanyId) {
+            await AssociateCompanyModel.updateOne(
+                { _id: createdCompanyId },
+                { $set: { supervisor: newAssociate._id } }
+            );
+        }
+
+        if (createdCompanyNotice) {
+            try {
+                await sendCompanyRegistrationNoticeEmail({
+                    toEmail: createdCompanyNotice.email,
+                    companyId: createdCompanyNotice.id,
+                    companyName: createdCompanyNotice.name,
+                    associateName: String(newAssociate.name || name),
+                    associateEmail: String(newAssociate.email || trimmedEmail),
+                    supportEmail: "info@support.obaol.com",
+                });
+            } catch (err: any) {
+                const warning = `Failed to send company registration notice to ${createdCompanyNotice.email}: ${err?.message || "unknown error"}`;
+                notificationWarnings.push(warning);
+                logger.warn("Company registration notice failed", {
+                    companyId: createdCompanyNotice.id,
+                    error: err?.message || String(err),
+                });
+            }
+        }
+
         // Notify admins about new pending approvals
         try {
             const recipients = new Map<string, "Admin" | "Operator" | "Associate">();
@@ -1441,7 +1476,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
                 registrationStatus: "PENDING_REVIEW",
                 contactPreference: String(contactPreference || "phone"),
                 contactNotes: String(contactNotes || ""),
-            }
+            },
+            ...(notificationWarnings.length ? { notificationWarnings } : {}),
         });
 
     } catch (error: any) {
@@ -1602,6 +1638,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 referralCode,
                 password,
             } = req.body || {};
+            let createdCompanyNotice: { id: string; name: string; email: string } | null = null;
+            const notificationWarnings: string[] = [];
 
             if (!(hasCompany === true || String(hasCompany || "").toLowerCase() === "yes" || String(hasCompany || "").toLowerCase() === "true")) {
                 return res.status(400).json({
@@ -1791,6 +1829,11 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                         } : {}),
                     });
                     associate.associateCompany = createdCompany._id;
+                    createdCompanyNotice = {
+                        id: String(createdCompany._id),
+                        name: String(createdCompany.name || companyName),
+                        email: String(createdCompany.email || companyEmail),
+                    };
                     await syncCompanyFunctions({ companyId: createdCompany._id, selectedFunctionIds: providedFunctionIds, selectedFunctionPriorities: providedFunctionPriorities, kind: "provided" });
                     await syncCompanyFunctions({ companyId: createdCompany._id, selectedFunctionIds: soughtFunctionIds, selectedFunctionPriorities: soughtFunctionPriorities, kind: "sought" });
                 }
@@ -1800,10 +1843,31 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             (associate as any).approvalRequestedAt = new Date();
             await associate.save();
 
+            if (createdCompanyNotice) {
+                try {
+                    await sendCompanyRegistrationNoticeEmail({
+                        toEmail: createdCompanyNotice.email,
+                        companyId: createdCompanyNotice.id,
+                        companyName: createdCompanyNotice.name,
+                        associateName: String(associate.name || name),
+                        associateEmail: String(associate.email || email),
+                        supportEmail: "info@support.obaol.com",
+                    });
+                } catch (err: any) {
+                    const warning = `Failed to send company registration notice to ${createdCompanyNotice.email}: ${err?.message || "unknown error"}`;
+                    notificationWarnings.push(warning);
+                    logger.warn("Company registration notice failed", {
+                        companyId: createdCompanyNotice.id,
+                        error: err?.message || String(err),
+                    });
+                }
+            }
+
             return res.status(200).json({
                 success: true,
                 message: "Onboarding completed.",
                 referralType: resolvedReferral.type === "none" ? null : resolvedReferral.type,
+                ...(notificationWarnings.length ? { notificationWarnings } : {}),
             });
         }
 

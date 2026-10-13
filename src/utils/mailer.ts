@@ -389,6 +389,96 @@ export async function sendApprovalNotificationEmail(params: {
   }
 }
 
+export async function sendCompanyRegistrationNoticeEmail(params: {
+  toEmail: string;
+  companyId: string;
+  companyName: string;
+  associateName: string;
+  associateEmail: string;
+  supportEmail?: string;
+}) {
+  const brandName = "OBAOL Supreme";
+  const supportEmail = String(params.supportEmail || "info@support.obaol.com").trim();
+  const safeBrand = escapeHtml(brandName);
+  const safeCompanyName = escapeHtml(params.companyName);
+  const safeAssociateName = escapeHtml(params.associateName);
+  const safeAssociateEmail = escapeHtml(params.associateEmail);
+  const safeCompanyId = escapeHtml(params.companyId);
+  const safeSupportEmail = escapeHtml(supportEmail);
+  const reviewSubject = `${params.associateName} registered ${params.companyName} on ${brandName}`;
+  const reviewBody = [
+    "Hello OBAOL Support,",
+    "",
+    "I would like to review or report this company registration:",
+    `Company: ${params.companyName}`,
+    `Company ID: ${params.companyId}`,
+    `Registered by: ${params.associateName}`,
+    `Associate email: ${params.associateEmail}`,
+    "",
+    "Please assist with this registration.",
+  ].join("\n");
+  const reviewUrl = `mailto:${supportEmail}?subject=${encodeURIComponent(reviewSubject)}&body=${encodeURIComponent(reviewBody)}`;
+  const safeReviewUrl = escapeHtml(reviewUrl);
+  const subject = reviewSubject;
+  const textPart = [
+    "Someone registered your company",
+    "",
+    `${params.associateName} (${params.associateEmail}) registered ${params.companyName} on ${brandName}.`,
+    "Our team will review the submission. If you authorized this registration, no action is needed.",
+    `If you do not recognize it or need a correction, contact ${supportEmail}.`,
+    `Company ID: ${params.companyId}`,
+    `Review registration: ${reviewUrl}`,
+  ].join("\n");
+  const htmlPart = `
+  <div style="margin:0;padding:0;background-color:#0f1115;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f1115;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="width:100%;max-width:600px;background:#141821;border-radius:24px;overflow:hidden;border:1px solid #202534;">
+            <tr><td style="padding:28px 28px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:18px;letter-spacing:2px;color:#f59e0b;">${safeBrand}</td></tr>
+            <tr>
+              <td style="padding:0 28px 20px;">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:22px;color:#f5f7fb;margin:0 0 10px;">Someone registered your company</div>
+                <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#cbd5e1;">
+                  <strong style="color:#f8fafc;">${safeAssociateName}</strong> (${safeAssociateEmail}) registered <strong style="color:#f8fafc;">${safeCompanyName}</strong> on ${safeBrand}. Our team will review the submission.
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 18px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#0b0e14;border:1px solid #2b3444;border-radius:16px;">
+                  <tr><td style="padding:16px 18px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.7;color:#cbd5e1;">
+                    <div><strong style="color:#94a3b8;">Company</strong><br>${safeCompanyName}</div>
+                    <div style="margin-top:10px;"><strong style="color:#94a3b8;">Company ID</strong><br>${safeCompanyId}</div>
+                  </td></tr>
+                </table>
+              </td>
+            </tr>
+            <tr><td style="padding:0 28px 18px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.7;color:#cbd5e1;">If you authorized this registration, no action is needed. If you do not recognize it or need a correction, contact us.</td></tr>
+            <tr><td align="center" style="padding:0 28px 24px;"><a href="${safeReviewUrl}" style="display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px;">Review registration</a></td></tr>
+            <tr><td style="padding:18px 28px 26px;border-top:1px solid #202534;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#64748b;line-height:1.6;">Questions? Contact ${safeSupportEmail}.</td></tr>
+          </table>
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#475569;margin-top:14px;">© ${safeBrand}</div>
+        </td>
+      </tr>
+    </table>
+  </div>`;
+
+  try {
+    const result = await sendEmail("notify", {
+      toEmail: params.toEmail,
+      subject,
+      textPart,
+      htmlPart,
+      fromNameOverride: `${brandName} Notifications`,
+    });
+    console.log("✅ Company registration notice sent. MessageId:", result.messageId);
+  } catch (error: any) {
+    console.error("❌ Failed to send company registration notice to:", params.toEmail, "Error:", error.message);
+    throw new Error(`Company registration notice failed: ${error.message}`);
+  }
+}
+
 const buildOperationalHtml = (params: {
   brandName: string;
   title: string;

@@ -98,7 +98,7 @@ describe("Approval notifications", () => {
     });
   });
 
-  it("sends company approval emails to company and supervisor with one supervisor dashboard notification", async () => {
+  it("sends company approval email only to the supervisor with one dashboard notification", async () => {
     const supervisor = await createAssociate({
       name: "Supervisor Associate",
       email: "supervisor@example.com",
@@ -118,21 +118,12 @@ describe("Approval notifications", () => {
     const res = await approve(`/api/v1/web/approvals/companies/${company._id}`);
 
     expect(res.status).toBe(200);
-    expect(sendApprovalNotificationEmail).toHaveBeenCalledTimes(2);
-    expect(sendApprovalNotificationEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toEmail: "company@example.com",
-        approvedName: "Pending Company",
-        accountEmail: "company@example.com",
-        roleLabel: "Associate Company",
-        loginPath: "/auth",
-      })
-    );
+    expect(sendApprovalNotificationEmail).toHaveBeenCalledTimes(1);
     expect(sendApprovalNotificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         toEmail: "supervisor@example.com",
         approvedName: "Pending Company",
-        accountEmail: "company@example.com",
+        accountEmail: "supervisor@example.com",
         roleLabel: "Associate Company",
         loginPath: "/auth",
       })
@@ -147,7 +138,7 @@ describe("Approval notifications", () => {
     });
   });
 
-  it("dedupes company approval emails when company and supervisor emails match", async () => {
+  it("sends one company approval email when company and supervisor emails match", async () => {
     const supervisor = await createAssociate({
       email: "same@example.com",
       registrationStatus: "PENDING_REVIEW",
@@ -168,7 +159,7 @@ describe("Approval notifications", () => {
     expect(res.status).toBe(200);
     expect(sendApprovalNotificationEmail).toHaveBeenCalledTimes(1);
     expect(sendApprovalNotificationEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ toEmail: "same@example.com" })
+      expect.objectContaining({ toEmail: "same@example.com", accountEmail: "same@example.com" })
     );
   });
 
@@ -204,8 +195,8 @@ describe("Approval notifications", () => {
     expect(sendApprovalNotificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({ toEmail: "bulk.associate@example.com", roleLabel: "Associate" })
     );
-    expect(sendApprovalNotificationEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ toEmail: "bulk.company@example.com", roleLabel: "Associate Company" })
+    expect(sendApprovalNotificationEmail).not.toHaveBeenCalledWith(
+      expect.objectContaining({ toEmail: "bulk.company@example.com" })
     );
     expect(sendApprovalNotificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({ toEmail: "bulk.supervisor@example.com", roleLabel: "Associate Company" })

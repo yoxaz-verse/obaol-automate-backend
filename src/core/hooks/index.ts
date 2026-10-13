@@ -33,6 +33,7 @@ import { enquiryInventoryReservationHook } from "./enquiryInventoryReservationHo
 import { associateCompanyDirectoryFiltersHook } from "./associateCompanyDirectoryFiltersHook";
 import { variantRateClassificationPreReadHook, variantRateClassificationPreWriteHook } from "./productClassificationHook";
 import { variantRateLifecyclePreWriteHook } from "./variantRateLifecycleHook";
+import { variantRateListingLockPreWriteHook } from "./variantRateListingLockHook";
 import { syncVariantRateAvailability } from "../../services/variantRateFreshnessService";
 import { associateCompanyPendingLabPreWriteHook } from "./pendingListingHooks";
 import {
@@ -88,6 +89,7 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPreWrite("variant-rates", async (payload, mode, id, req) => {
         let nextPayload = await variantRateOwnershipPreWriteHook(payload, mode, id, req);
         nextPayload = await operatorVariantRateWritePreHook(nextPayload, mode, id, req);
+        nextPayload = await variantRateListingLockPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLocationPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateCommissionPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateClassificationPreWriteHook(nextPayload, mode, id, req);

@@ -5,8 +5,56 @@ import { VariantRateModel } from "../database/models/variantRate";
 import { DisplayedRateModel } from "../database/models/displayedRate";
 import mongoose from "mongoose";
 import { AssociateReferralService } from "../services/associateReferral.service";
+import { CategoryModel } from "../database/models/category";
+import { SubCategoryModel } from "../database/models/subCategory";
+import { ProductModel } from "../database/models/product";
+import { ProductVariantModel } from "../database/models/productVariant";
 
 export class CatalogController {
+
+    static async getHierarchyOptions(req: Request, res: Response, next: NextFunction) {
+        try {
+            res.set({
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+            });
+
+            const filters = ["category", "subCategory", "product"]
+                .filter((key) => String(req.query?.[key] || "").trim());
+            if (filters.length > 1) {
+                return res.status(400).json({ success: false, message: "Provide only one catalog parent filter." });
+            }
+
+            const parentKey = filters[0];
+            const parentId = parentKey ? String(req.query[parentKey] || "").trim() : "";
+            if (parentId && !mongoose.Types.ObjectId.isValid(parentId)) {
+                return res.status(400).json({ success: false, message: `Invalid ${parentKey} id.` });
+            }
+
+            let rows: any[] = [];
+            if (!parentKey) {
+                rows = await CategoryModel.find({}).select("_id name").sort({ name: 1 }).lean();
+            } else if (parentKey === "category") {
+                rows = await SubCategoryModel.find({ category: parentId }).select("_id name category").sort({ name: 1 }).lean();
+            } else if (parentKey === "subCategory") {
+                rows = await ProductModel.find({ subCategory: parentId, isDeleted: { $ne: true } })
+                    .select("_id name subCategory").sort({ name: 1 }).lean();
+            } else {
+                rows = await ProductVariantModel.find({ product: parentId, isDeleted: { $ne: true } })
+                    .select("_id name product").sort({ name: 1 }).lean();
+            }
+
+            const options = rows.map((row: any) => ({
+                id: String(row._id),
+                name: String(row.name || ""),
+                parentId: parentKey ? String(row[parentKey] || "") : null,
+            }));
+            return res.status(200).json({ success: true, data: options });
+        } catch (error) {
+            return next(error);
+        }
+    }
 
     /**
      * Add a product to the associate's catalog with a custom margin

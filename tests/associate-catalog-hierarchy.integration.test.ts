@@ -11,15 +11,15 @@ import { createAssociate } from "./helpers/authFixtures";
 
 const api = request(app);
 
-const associateCookie = (associate: any) => {
+const authCookie = (user: any, role = "Associate") => {
   const token = jwt.sign(
-    { id: String(associate._id), email: associate.email, role: "Associate" },
+    { id: String(user._id), email: user.email, role },
     process.env.JWT_SECRET as string,
   );
   return `auth_token=${token}`;
 };
 
-const rows = (response: any) => response.body?.data?.data || [];
+const rows = (response: any) => Array.isArray(response.body?.data) ? response.body.data : response.body?.data?.data || [];
 
 describe("associate catalog hierarchy", () => {
   it("allows associates to read the full hierarchy and applies exact parent filters", async () => {
@@ -51,26 +51,26 @@ describe("associate catalog hierarchy", () => {
       { name: `Associate Variant B ${suffix}`, description: "B", product: productB._id },
     ]);
 
-    const cookie = associateCookie(associate);
-    const categoriesResponse = await api.get("/api/v1/web/categories").set("Cookie", cookie).query({ limit: 2000 });
-    const subcategoriesResponse = await api.get("/api/v1/web/sub-categories").set("Cookie", cookie).query({ category: String(categoryA._id), limit: 2000 });
-    const productsResponse = await api.get("/api/v1/web/products").set("Cookie", cookie).query({ subCategory: String(subA._id), limit: 2000 });
-    const variantsResponse = await api.get("/api/v1/web/product-variants").set("Cookie", cookie).query({ product: String(productA._id), limit: 2000 });
+    const cookie = authCookie(associate);
+    const categoriesResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie);
+    const subcategoriesResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: String(categoryA._id) });
+    const productsResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ subCategory: String(subA._id) });
+    const variantsResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ product: String(productA._id) });
 
     expect(categoriesResponse.status).toBe(200);
-    expect(rows(categoriesResponse).map((row: any) => String(row._id))).toEqual(expect.arrayContaining([String(categoryA._id), String(categoryB._id)]));
+    expect(rows(categoriesResponse).map((row: any) => String(row.id))).toEqual(expect.arrayContaining([String(categoryA._id), String(categoryB._id)]));
 
     expect(subcategoriesResponse.status).toBe(200);
-    expect(rows(subcategoriesResponse).map((row: any) => String(row._id))).toContain(String(subA._id));
-    expect(rows(subcategoriesResponse).map((row: any) => String(row._id))).not.toContain(String(subB._id));
+    expect(rows(subcategoriesResponse).map((row: any) => String(row.id))).toContain(String(subA._id));
+    expect(rows(subcategoriesResponse).map((row: any) => String(row.id))).not.toContain(String(subB._id));
 
     expect(productsResponse.status).toBe(200);
-    expect(rows(productsResponse).map((row: any) => String(row._id))).toContain(String(productA._id));
-    expect(rows(productsResponse).map((row: any) => String(row._id))).not.toContain(String(productB._id));
+    expect(rows(productsResponse).map((row: any) => String(row.id))).toContain(String(productA._id));
+    expect(rows(productsResponse).map((row: any) => String(row.id))).not.toContain(String(productB._id));
 
     expect(variantsResponse.status).toBe(200);
-    expect(rows(variantsResponse).map((row: any) => String(row._id))).toContain(String(variantA._id));
-    expect(rows(variantsResponse).map((row: any) => String(row._id))).not.toContain(String(variantB._id));
+    expect(rows(variantsResponse).map((row: any) => String(row.id))).toContain(String(variantA._id));
+    expect(rows(variantsResponse).map((row: any) => String(row.id))).not.toContain(String(variantB._id));
 
     const createRateResponse = await api
       .post("/api/v1/web/variant-rates")
@@ -92,5 +92,20 @@ describe("associate catalog hierarchy", () => {
     expect(String(createRateResponse.body?.data?.associate)).toBe(String(associate._id));
     expect(String(createRateResponse.body?.data?.associateCompany)).toBe(String(company._id));
     expect(String(createRateResponse.body?.data?.productVariant)).toBe(String(variantA._id));
+
+    const invalidResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: "not-an-id" });
+    expect(invalidResponse.status).toBe(400);
+
+    const conflictingResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: String(categoryA._id), product: String(productA._id) });
+    expect(conflictingResponse.status).toBe(400);
+
+    for (const role of ["Admin", "Operator"]) {
+      const roleResponse = await api
+        .get("/api/v1/web/catalog/hierarchy-options")
+        .set("Cookie", authCookie({ _id: new mongoose.Types.ObjectId(), email: `${role.toLowerCase()}@example.com` }, role))
+        .query({ category: String(categoryA._id) });
+      expect(roleResponse.status).toBe(200);
+      expect(rows(roleResponse)).toEqual(rows(subcategoriesResponse));
+    }
   });
 });

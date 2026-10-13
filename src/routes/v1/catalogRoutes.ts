@@ -4,6 +4,9 @@ import authenticateToken from "../../middlewares/auth";
 
 const router = Router();
 
+// Canonical no-cache hierarchy used by product-listing pickers for every dashboard role.
+router.get("/hierarchy-options", authenticateToken, CatalogController.getHierarchyOptions);
+
 // --- Secured Routes (Associate Only) ---
 // Add item to logged-in associate's catalog
 router.post("/add", authenticateToken, CatalogController.addToCatalog);

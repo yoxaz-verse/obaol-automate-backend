@@ -184,8 +184,9 @@ export class LabProfileController {
   }
 
   async requestTaxonomy(req: Request, res: Response) {
+    const admin = isAdmin(req);
     const companyId = await ownCompanyId(req);
-    if (!companyId) return res.status(403).json({ success: false, message: "Only a lab owner or admin can add an option." });
+    if (!admin && !companyId) return res.status(403).json({ success: false, message: "Only a lab owner or admin can add an option." });
     const kind = String(req.body?.kind || "").toUpperCase();
     const name = String(req.body?.name || "").trim();
     if (!(LAB_TAXONOMY_KINDS as readonly string[]).includes(kind) || !name) return res.status(400).json({ success: false, message: "Valid kind and name are required." });
@@ -197,7 +198,7 @@ export class LabProfileController {
       await existing.save();
       return res.json({ success: true, data: existing, existing: true });
     }
-    const item = await LabTaxonomyModel.create({ kind, name, description: req.body?.description, unit: req.body?.unit, method: req.body?.method, parentIds: ids(req.body?.parentIds), status: "ACTIVE", requestedByCompany: companyId, requestedBy: req.user?.id });
+    const item = await LabTaxonomyModel.create({ kind, name, description: req.body?.description, unit: req.body?.unit, method: req.body?.method, parentIds: ids(req.body?.parentIds), status: "ACTIVE", requestedByCompany: companyId || null, requestedBy: req.user?.id });
     return res.status(201).json({ success: true, data: item, existing: false });
   }
 

@@ -27,6 +27,8 @@ const createCompany = (name: string) => AssociateCompanyModel.create({
   phone: "+919800000021",
   phoneSecondary: "+919800000022",
   address: `${name} office`,
+  registrationStatus: "APPROVED",
+  isApproved: true,
 });
 
 describe("variant-rate marketplace visibility", () => {
@@ -36,9 +38,9 @@ describe("variant-rate marketplace visibility", () => {
       createCompany("Marketplace Company B"),
     ]);
     const [viewer, teammate, external] = await Promise.all([
-      createAssociate({ associateCompany: companyA._id }),
-      createAssociate({ associateCompany: companyA._id }),
-      createAssociate({ associateCompany: companyB._id }),
+      createAssociate({ associateCompany: companyA._id, isCompanyVerified: true }),
+      createAssociate({ associateCompany: companyA._id, isCompanyVerified: true }),
+      createAssociate({ associateCompany: companyB._id, isCompanyVerified: true }),
     ]);
 
     const category = await CategoryModel.create({

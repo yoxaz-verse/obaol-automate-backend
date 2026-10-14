@@ -2,6 +2,7 @@ import { Router } from "express";
 import authenticateToken from "../../middlewares/auth";
 import { authorizeRoles } from "../../middlewares/authorizeRoles";
 import { approvalController } from "../../controllers/approvalController";
+import { catalogModerationController } from "../../controllers/catalogModerationController";
 
 const router = Router();
 
@@ -18,5 +19,8 @@ router.patch("/companies/:id", approvalController.actionCompany.bind(approvalCon
 
 router.get("/operators", approvalController.listOperators.bind(approvalController));
 router.patch("/operators/:id", approvalController.actionOperator.bind(approvalController));
+
+router.get("/catalog/:entityType", catalogModerationController.listApprovals.bind(catalogModerationController));
+router.patch("/catalog/:entityType/:id", catalogModerationController.review.bind(catalogModerationController));
 
 export default router;

@@ -31,8 +31,10 @@ describe("associate catalog hierarchy", () => {
       phone: "+919800000011",
       phoneSecondary: "+919800000012",
       address: "Associate catalog office",
+      registrationStatus: "APPROVED",
+      isApproved: true,
     });
-    const associate = await createAssociate({ associateCompany: company._id });
+    const associate = await createAssociate({ associateCompany: company._id, isCompanyVerified: true });
 
     const [categoryA, categoryB] = await CategoryModel.create([
       { name: `  AgRi ${suffix}  `, inventoryManager },
@@ -97,6 +99,7 @@ describe("associate catalog hierarchy", () => {
     expect(String(createRateResponse.body?.data?.associate)).toBe(String(associate._id));
     expect(String(createRateResponse.body?.data?.associateCompany)).toBe(String(company._id));
     expect(String(createRateResponse.body?.data?.productVariant)).toBe(String(variantA._id));
+    expect(createRateResponse.body?.data?.approvalStatus).toBe("PENDING_REVIEW");
 
     const invalidResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: "not-an-id" });
     expect(invalidResponse.status).toBe(400);

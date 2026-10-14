@@ -6,6 +6,7 @@ import { RelationshipSync } from "../../core/behaviors/relationshipSync";
 import { TimeCalculations } from "../../core/behaviors/timeCalculations";
 import { getVariantRateCommissionPercent } from "../../utils/calculationConfig";
 import { AssociateReferralService } from "../../services/associateReferral.service";
+import { addCatalogModerationFields } from "./plugins/catalogModeration.plugin";
 
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
@@ -72,6 +73,8 @@ const VariantRateSchema: Schema = new Schema({
   giDocumentUrl: { type: String, default: "", trim: true },
 }, { timestamps: true });
 
+addCatalogModerationFields(VariantRateSchema);
+
 // Marketplace query acceleration indexes
 VariantRateSchema.index({ isDeleted: 1, associate: 1, isLive: 1, createdAt: -1 });
 VariantRateSchema.index({ isDeleted: 1, associateCompany: 1, isLive: 1 });
@@ -80,6 +83,7 @@ VariantRateSchema.index({ isDeleted: 1, isLive: 1, lastLiveDate: 1, createdAt: -
 VariantRateSchema.index({ isDeleted: 1, isLive: 1, unpublishedAt: 1, createdAt: -1 });
 VariantRateSchema.index({ isLive: 1, isDeleted: 1, isDemo: 1, productVariant: 1, associate: 1, associateCompany: 1 });
 VariantRateSchema.index({ isDeleted: 1, isLive: 1, isConventional: 1, isNatural: 1, isOrganic: 1, isIpmQuality: 1, isGiTagged: 1 });
+VariantRateSchema.index({ approvalStatus: 1, isLive: 1, isDeleted: 1, productVariant: 1 });
 
 /**
  * Pre-save hook to auto-populate associateCompany
@@ -134,7 +138,7 @@ VariantRateSchema.pre<IVariantRate>("save", function (next) {
   next();
 });
 VariantRateSchema.post<IVariantRate>("save", async function (doc) {
-  if (!doc.isLive) return;
+  if (!doc.isLive || String((doc as any).approvalStatus || "APPROVED") !== "APPROVED") return;
   await AssociateReferralService.activateCompany(doc.associateCompany as any, "LIVE_SUPPLY", doc._id as any);
 });
 

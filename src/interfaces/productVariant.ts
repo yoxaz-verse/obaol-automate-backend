@@ -7,6 +7,7 @@ export interface IProductVariant extends Document {
   isAvailable: boolean;
   isLive: boolean;
   product: Types.ObjectId;
+  approvalStatus?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 }
 
 export interface ICreateProductVariant {

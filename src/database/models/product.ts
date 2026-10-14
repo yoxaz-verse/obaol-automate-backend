@@ -1,5 +1,6 @@
 import { IProduct } from "../../interfaces/product";
 import mongoose, { Document, Schema } from "mongoose";
+import { addCatalogModerationFields } from "./plugins/catalogModeration.plugin";
 
 const ProductSchema = new Schema({
   name: { type: String, required: true },
@@ -13,7 +14,9 @@ const ProductSchema = new Schema({
   state: [{ type: Schema.Types.ObjectId, ref: "State" }],
   isDeleted: { type: Boolean, default: false, index: true },
   createdAt: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
+
+addCatalogModerationFields(ProductSchema);
 
 const slugify = (value: string) =>
   String(value || "")

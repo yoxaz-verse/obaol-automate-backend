@@ -9,8 +9,16 @@ import { CategoryModel } from "../database/models/category";
 import { SubCategoryModel } from "../database/models/subCategory";
 import { ProductModel } from "../database/models/product";
 import { ProductVariantModel } from "../database/models/productVariant";
+import { assertVariantRateEligible } from "../services/catalogModeration.service";
 
 export class CatalogController {
+
+    private static canReadCatalogNode(row: any, req: Request) {
+        const role = String(req.user?.role || "").toLowerCase();
+        return role === "admin"
+            || String(row?.approvalStatus || "APPROVED") === "APPROVED"
+            || (role === "associate" && String(row?.createdByAssociate || "") === String(req.user?.id || ""));
+    }
 
     private static normalizeCatalogName(value: unknown) {
         return String(value || "").normalize("NFKC").trim().toLocaleLowerCase("en");
@@ -40,27 +48,30 @@ export class CatalogController {
             let level: "category" | "subCategory" | "product" | "productVariant" = "category";
             let parentName: string | null = null;
             if (!parentKey) {
-                rows = await CategoryModel.find({}).select("_id name").lean();
+                const visibility = String(req.user?.role || "").toLowerCase() === "admin" ? {} : {
+                    $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }],
+                };
+                rows = await CategoryModel.find(visibility).select("_id name approvalStatus createdByAssociate reviewNotes").lean();
             } else if (parentKey === "category") {
                 level = "subCategory";
-                const parent = await CategoryModel.findById(parentId).select("name").lean();
-                if (!parent) return res.status(404).json({ success: false, message: "Category was not found." });
+                const parent = await CategoryModel.findById(parentId).select("name approvalStatus createdByAssociate").lean();
+                if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Category was not found." });
                 parentName = String((parent as any).name || "").normalize("NFKC").trim();
-                rows = await SubCategoryModel.find({ category: parentId }).select("_id name category").lean();
+                rows = await SubCategoryModel.find({ category: parentId, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) }).select("_id name category approvalStatus createdByAssociate reviewNotes").lean();
             } else if (parentKey === "subCategory") {
                 level = "product";
-                const parent = await SubCategoryModel.findById(parentId).select("name").lean();
-                if (!parent) return res.status(404).json({ success: false, message: "Subcategory was not found." });
+                const parent = await SubCategoryModel.findById(parentId).select("name approvalStatus createdByAssociate").lean();
+                if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Subcategory was not found." });
                 parentName = String((parent as any).name || "").normalize("NFKC").trim();
-                rows = await ProductModel.find({ subCategory: parentId, isDeleted: { $ne: true } })
-                    .select("_id name subCategory").lean();
+                rows = await ProductModel.find({ subCategory: parentId, isDeleted: { $ne: true }, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) })
+                    .select("_id name subCategory approvalStatus createdByAssociate reviewNotes").lean();
             } else {
                 level = "productVariant";
-                const parent = await ProductModel.findOne({ _id: parentId, isDeleted: { $ne: true } }).select("name").lean();
-                if (!parent) return res.status(404).json({ success: false, message: "Product was not found." });
+                const parent = await ProductModel.findOne({ _id: parentId, isDeleted: { $ne: true } }).select("name approvalStatus createdByAssociate").lean();
+                if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Product was not found." });
                 parentName = String((parent as any).name || "").normalize("NFKC").trim();
-                rows = await ProductVariantModel.find({ product: parentId, isDeleted: { $ne: true } })
-                    .select("_id name product").lean();
+                rows = await ProductVariantModel.find({ product: parentId, isDeleted: { $ne: true }, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) })
+                    .select("_id name product approvalStatus createdByAssociate reviewNotes").lean();
             }
 
             const options = rows
@@ -70,6 +81,8 @@ export class CatalogController {
                     level,
                     parentId: parentKey ? String(row[parentKey] || "") : null,
                     parentName,
+                    approvalStatus: String(row.approvalStatus || "APPROVED"),
+                    reviewNotes: String(row.reviewNotes || ""),
                 }))
                 .filter((row) => row.id && row.name)
                 .sort((a, b) => CatalogController.normalizeCatalogName(a.name).localeCompare(CatalogController.normalizeCatalogName(b.name), "en"));
@@ -374,7 +387,7 @@ export class CatalogController {
 
             // Let's assume for this step we will query by ID until slug lookup is fully integrated
             // OR we can query AssociateCompany by slug first.
-            const associateCompany = await mongoose.model("AssociateCompany").findOne({ slug: companySlug });
+            const associateCompany = await mongoose.model("AssociateCompany").findOne({ slug: companySlug, registrationStatus: "APPROVED", isApproved: true, isDeleted: { $ne: true } });
 
             if (!associateCompany) {
                 return res.status(404).json({ success: false, message: "Company not found" });
@@ -388,9 +401,13 @@ export class CatalogController {
                 .populate("baseRateId")
                 .sort({ createdAt: -1 });
 
+            const eligibleItems = [];
+            for (const item of items as any[]) {
+                try { await assertVariantRateEligible(item.baseRateId); eligibleItems.push(item); } catch { /* intentionally hidden */ }
+            }
             res.status(200).json({
                 success: true,
-                data: items,
+                data: eligibleItems,
                 company: {
                     name: associateCompany.name,
                     slug: associateCompany.slug,
@@ -414,7 +431,7 @@ export class CatalogController {
             startOfToday.setHours(0, 0, 0, 0);
 
             // 1. Find Company
-            const associateCompany = await mongoose.model("AssociateCompany").findOne({ slug: companySlug });
+            const associateCompany = await mongoose.model("AssociateCompany").findOne({ slug: companySlug, registrationStatus: "APPROVED", isApproved: true, isDeleted: { $ne: true } });
             if (!associateCompany) {
                 return res.status(404).json({ success: false, message: "Company not found" });
             }
@@ -468,6 +485,12 @@ export class CatalogController {
             }
 
             if (!catalogItem) {
+                return res.status(404).json({ success: false, message: "Product not found in this catalog" });
+            }
+
+            try {
+                await assertVariantRateEligible((catalogItem as any).baseRateId);
+            } catch {
                 return res.status(404).json({ success: false, message: "Product not found in this catalog" });
             }
 

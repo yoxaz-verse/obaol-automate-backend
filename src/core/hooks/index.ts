@@ -42,6 +42,7 @@ import {
     orderNotificationPostWriteHook,
     orderNotificationPreWriteHook,
 } from "./operationalNotificationHooks";
+import { associateVariantRateModerationPreWriteHook, catalogModerationPreReadHook, catalogModerationPreWriteHook, variantRateModerationPostWriteHook, variantRateModerationPreReadHook } from "./catalogModerationHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Operators (Overseers)
@@ -57,7 +58,8 @@ export const registerAllHooks = () => {
         q = await variantRateMarketplaceQueryHook(q, mode, id, req);
         q = await categoryFilterHook(q, mode, id, req);
         q = await operatorFilterHook(q, mode, id, req);
-        return await associateFilterHook(q, mode, id, req);
+        q = await associateFilterHook(q, mode, id, req);
+        return await variantRateModerationPreReadHook(q, mode, id, req);
     });
 
     HookDispatcher.registerPreRead("enquiries", operatorFilterHook);
@@ -82,12 +84,18 @@ export const registerAllHooks = () => {
         return await associateFilterHook(q, mode, id, req);
     });
 
+    ["categories", "sub-categories", "products", "product-variants"].forEach((entity) => {
+        HookDispatcher.registerPreRead(entity, catalogModerationPreReadHook);
+        HookDispatcher.registerPreWrite(entity, catalogModerationPreWriteHook);
+    });
+
     // Dynamic Statistics Hooks
     HookDispatcher.registerPostRead("associate-companies", companyStatsHook);
 
     // Variant-rate guards + notifications (single dispatcher slot, so compose hooks in order)
     HookDispatcher.registerPreWrite("variant-rates", async (payload, mode, id, req) => {
         let nextPayload = await variantRateOwnershipPreWriteHook(payload, mode, id, req);
+        nextPayload = await associateVariantRateModerationPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await operatorVariantRateWritePreHook(nextPayload, mode, id, req);
         nextPayload = await variantRateListingLockPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLocationPreWriteHook(nextPayload, mode, id, req);
@@ -98,6 +106,7 @@ export const registerAllHooks = () => {
         return nextPayload;
     });
     HookDispatcher.registerPostWrite("variant-rates", async (entityName: any, payload: any, mode: any, req: any) => {
+        await variantRateModerationPostWriteHook(entityName, payload, mode, req);
         await variantRateNotificationPostWriteHook(entityName, payload, mode, req);
         if (mode === ExecutionMode.UPDATE && payload?._id) {
             await syncVariantRateAvailability([payload._id], Boolean(payload.isLive));

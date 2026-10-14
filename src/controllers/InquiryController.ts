@@ -23,6 +23,7 @@ import {
 } from "../core/inquiry/inquiryAccessControl";
 import { Types } from "mongoose";
 import { VariantRateModel } from "../database/models/variantRate";
+import { assertVariantRateEligible } from "../services/catalogModeration.service";
 import { CatalogItemModel } from "../database/models/catalogItem";
 import { CountryModel } from "../database/models/country";
 import { StateModel } from "../database/models/state";
@@ -354,6 +355,7 @@ export class InquiryController {
                 const catalogItem = await CatalogItemModel.findById(normalizedCatalogItemId).populate("baseRateId");
                 if (catalogItem) {
                     const baseRate = catalogItem.baseRateId as any;
+                    await assertVariantRateEligible(baseRate, { requireLive: false });
                     rate = baseRate?.rate || 0;
                     adminCommission = baseRate?.commission || 0;
                     mediatorCommission = catalogItem.margin || 0;
@@ -361,6 +363,7 @@ export class InquiryController {
             } else if (normalizedVariantRateId) {
                 const variantRate = await VariantRateModel.findById(normalizedVariantRateId);
                 if (variantRate) {
+                    await assertVariantRateEligible(variantRate, { requireLive: false });
                     rate = variantRate.rate || 0;
                     adminCommission = variantRate.commission || 0;
                     mediatorCommission = 0;

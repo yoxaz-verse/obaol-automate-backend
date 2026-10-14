@@ -23,6 +23,7 @@
     "migrate:variant-rate-classification": "ts-node src/scripts/migrate-classification-to-variant-rates.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
     "backfill:variant-rate-freshness": "ts-node src/scripts/backfill-variant-rate-freshness.ts",
+    "backfill:catalog-moderation": "ts-node src/scripts/backfill-catalog-moderation.ts",
     "backfill:associate-referral-codes": "ts-node src/scripts/backfill-associate-referral-codes.ts",
     "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
     "seed:spices-board-quality-labs": "ts-node src/scripts/seedSpicesBoardQualityLabs.ts",

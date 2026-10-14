@@ -7,6 +7,7 @@ export interface IProduct extends Document {
   description: string;
   subCategory: Types.ObjectId;
   state?: Types.ObjectId[];
+  approvalStatus?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 }
 
 export interface ICreateProduct {

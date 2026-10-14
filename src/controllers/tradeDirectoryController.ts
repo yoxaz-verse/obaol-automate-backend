@@ -13,6 +13,7 @@ export const eligibleCoveragePipeline = () => [
   {
     $match: {
       isLive: true,
+      approvalStatus: { $in: ["APPROVED", null] },
       isDeleted: { $ne: true },
       isDemo: { $ne: true },
       associate: { $ne: null },
@@ -65,6 +66,7 @@ export const eligibleCoveragePipeline = () => [
     $match: {
       "variantDoc.isDeleted": { $ne: true },
       "variantDoc.isAvailable": { $ne: false },
+      "variantDoc.approvalStatus": { $in: ["APPROVED", null] },
     },
   },
   {
@@ -76,7 +78,7 @@ export const eligibleCoveragePipeline = () => [
     },
   },
   { $unwind: "$productDoc" },
-  { $match: { "productDoc.isDeleted": { $ne: true }, "productDoc.slug": { $nin: [null, ""] } } },
+  { $match: { "productDoc.isDeleted": { $ne: true }, "productDoc.approvalStatus": { $in: ["APPROVED", null] }, "productDoc.slug": { $nin: [null, ""] } } },
   {
     $lookup: {
       from: "subcategories",
@@ -86,6 +88,12 @@ export const eligibleCoveragePipeline = () => [
     },
   },
   { $unwind: { path: "$subCategoryDoc", preserveNullAndEmptyArrays: true } },
+  { $match: { "subCategoryDoc.approvalStatus": { $in: ["APPROVED", null] } } },
+  {
+    $lookup: { from: "categories", localField: "subCategoryDoc.category", foreignField: "_id", as: "categoryDoc" },
+  },
+  { $unwind: "$categoryDoc" },
+  { $match: { "categoryDoc.approvalStatus": { $in: ["APPROVED", null] } } },
 ] as any[];
 
 export const groupedCommodityStages = () => [

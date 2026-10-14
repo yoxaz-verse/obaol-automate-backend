@@ -159,6 +159,8 @@ router.use(`${prefix}/associate-referrals`, associateReferralRoutes);
 // Catalog Management (Associate)
 import catalogRoutes from "./v1/catalogRoutes";
 router.use(`${prefix}/catalog`, catalogRoutes);
+import catalogModerationRoutes from "./v1/catalogModerationRoutes";
+router.use(`${prefix}/catalog-moderation`, catalogModerationRoutes);
 
 // Company Metrics
 import { CompanyController } from "../controllers/CompanyController";
@@ -192,6 +194,7 @@ router.get(`${prefix}/products/slug/:slug/summary`, async (req, res) => {
     const product = await ProductModel.findOne({
       slug,
       isDeleted: { $ne: true },
+      approvalStatus: { $in: ["APPROVED", null] },
     }).select("_id name slug").lean();
 
     if (!product) {
@@ -204,6 +207,7 @@ router.get(`${prefix}/products/slug/:slug/summary`, async (req, res) => {
     const variants = await ProductVariantModel.find({
       product: product._id,
       isDeleted: { $ne: true },
+      approvalStatus: { $in: ["APPROVED", null] },
     }).select("_id").lean();
 
     const variantIds = variants.map((variant) => variant._id);
@@ -211,6 +215,7 @@ router.get(`${prefix}/products/slug/:slug/summary`, async (req, res) => {
       ? await VariantRateModel.countDocuments({
         productVariant: { $in: variantIds },
         isDeleted: { $ne: true },
+        approvalStatus: { $in: ["APPROVED", null] },
       })
       : 0;
 
@@ -243,6 +248,7 @@ router.get(`${prefix}/products/slug/:slug`, async (req, res) => {
     const product = await ProductModel.findOne({
       slug,
       isDeleted: { $ne: true },
+      approvalStatus: { $in: ["APPROVED", null] },
     })
       .populate({
         path: "subCategory",

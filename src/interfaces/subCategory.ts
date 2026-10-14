@@ -6,6 +6,7 @@ export interface ISubCategory extends Document {
   description?: string;
   category: Types.ObjectId;
   createdAt?: Date;
+  approvalStatus?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 }
 
 export interface ICreateSubCategory {

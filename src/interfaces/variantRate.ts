@@ -50,6 +50,9 @@ export interface IVariantRate extends Document {
   giName?: string;
   giCertificateNumber?: string;
   giDocumentUrl?: string;
+  approvalStatus?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  createdByAssociate?: Types.ObjectId;
+  createdByCompany?: Types.ObjectId;
 }
 
 export interface ICreateVariantRate {

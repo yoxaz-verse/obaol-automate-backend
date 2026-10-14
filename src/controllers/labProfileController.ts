@@ -97,19 +97,19 @@ export function validateLabSnapshot(snapshot: any): string[] {
   ["displayName", "contactEmail", "contactPhone", "address", "physicalCountryId"].forEach((key) => {
     if (!String(snapshot?.[key] || "").trim()) errors.push(`${key} is required`);
   });
-  if (!snapshot.productCapabilityTemplates?.length) errors.push("At least one product capability template is required");
+  if (!snapshot.productCapabilityTemplates?.length) errors.push("At least one product capability is required");
   if (!snapshot.countryAssignments?.length) errors.push("At least one export country assignment is required");
   snapshot.credentials?.forEach((item: any, index: number) => {
-    if (!Types.ObjectId.isValid(String(item.accreditationId || "")) || !item.issuer || !item.credentialNumber || !item.validFrom || !item.validTo || !item.documentUrl) {
-      errors.push(`Credential ${index + 1} requires accreditation, issuer, number, validity dates, and proof`);
-    } else if (new Date(item.validTo) < new Date(item.validFrom)) errors.push(`Credential ${index + 1} has invalid validity dates`);
+    if (!Types.ObjectId.isValid(String(item.accreditationId || "")) || !String(item.issuer || "").trim()) {
+      errors.push(`Credential ${index + 1} requires an accreditation and issuing body`);
+    } else if (item.validFrom && item.validTo && new Date(item.validTo) < new Date(item.validFrom)) errors.push(`Credential ${index + 1} has invalid validity dates`);
   });
   const templateIds = new Set<string>();
   snapshot.productCapabilityTemplates?.forEach((item: any, index: number) => {
-    if (!Types.ObjectId.isValid(String(item._id || ""))) errors.push(`Product template ${index + 1} requires a stable identifier`);
+    if (!Types.ObjectId.isValid(String(item._id || ""))) errors.push(`Product capability ${index + 1} requires a stable identifier`);
     else templateIds.add(String(item._id));
-    if (!Types.ObjectId.isValid(String(item.commodityId || ""))) errors.push(`Product template ${index + 1} requires a commodity`);
-    if ((item.credentialIds || []).some((value: unknown) => !credentialAccreditationIds.has(String(value)))) errors.push(`Product template ${index + 1} references a missing or rejected credential`);
+    if (!Types.ObjectId.isValid(String(item.commodityId || ""))) errors.push(`Product capability ${index + 1} requires a commodity`);
+    if ((item.credentialIds || []).some((value: unknown) => !credentialAccreditationIds.has(String(value)))) errors.push(`Product capability ${index + 1} references a missing or rejected credential`);
   });
   const assignedCountries = new Set<string>();
   snapshot.countryAssignments?.forEach((item: any, index: number) => {
@@ -185,14 +185,20 @@ export class LabProfileController {
 
   async requestTaxonomy(req: Request, res: Response) {
     const companyId = await ownCompanyId(req);
-    if (!companyId) return res.status(403).json({ success: false, message: "Only a lab owner can request an option." });
+    if (!companyId) return res.status(403).json({ success: false, message: "Only a lab owner or admin can add an option." });
     const kind = String(req.body?.kind || "").toUpperCase();
     const name = String(req.body?.name || "").trim();
     if (!(LAB_TAXONOMY_KINDS as readonly string[]).includes(kind) || !name) return res.status(400).json({ success: false, message: "Valid kind and name are required." });
     const existing = await LabTaxonomyModel.findOne({ kind, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), isDeleted: { $ne: true } });
-    if (existing) return res.status(409).json({ success: false, message: "This option already exists or is pending." });
-    const item = await LabTaxonomyModel.create({ kind, name, description: req.body?.description, unit: req.body?.unit, method: req.body?.method, parentIds: ids(req.body?.parentIds), status: "REQUESTED", requestedByCompany: companyId, requestedBy: req.user?.id });
-    return res.status(201).json({ success: true, data: item });
+    if (existing) {
+      existing.status = "ACTIVE";
+      existing.isDeleted = false;
+      ids(req.body?.parentIds).forEach((parentId) => { if (!existing.parentIds.some((id) => String(id) === parentId)) existing.parentIds.push(new Types.ObjectId(parentId)); });
+      await existing.save();
+      return res.json({ success: true, data: existing, existing: true });
+    }
+    const item = await LabTaxonomyModel.create({ kind, name, description: req.body?.description, unit: req.body?.unit, method: req.body?.method, parentIds: ids(req.body?.parentIds), status: "ACTIVE", requestedByCompany: companyId, requestedBy: req.user?.id });
+    return res.status(201).json({ success: true, data: item, existing: false });
   }
 
   async adminTaxonomy(req: Request, res: Response) {
@@ -282,7 +288,11 @@ export class LabProfileController {
     if (action === "APPROVE") {
       const errors = validateLabSnapshot(profile.draft?.toObject?.() || profile.draft);
       if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
-      profile.draft.credentials.forEach((item: any) => { if (item.verificationStatus === "PENDING") item.verificationStatus = "VERIFIED"; });
+      const verifiedCredentialIds = new Set(ids(req.body?.verifiedCredentialIds));
+      profile.draft.credentials.forEach((item: any) => {
+        if (verifiedCredentialIds.has(String(item._id)) && item.documentUrl) item.verificationStatus = "VERIFIED";
+        else if (item.verificationStatus !== "REJECTED") item.verificationStatus = "PENDING";
+      });
       profile.published = profile.draft.toObject();
       profile.status = "PUBLISHED";
       profile.publishedAt = new Date();
@@ -318,7 +328,7 @@ export class LabProfileController {
     if (accreditationIds.length || String(req.query.verifiedOnly) === "true") {
       const credential: any = {};
       if (accreditationIds.length) credential.accreditationId = { $in: accreditationIds };
-      if (String(req.query.verifiedOnly) === "true") { credential.verificationStatus = "VERIFIED"; credential.validTo = { $gte: new Date() }; }
+      if (String(req.query.verifiedOnly) === "true") { credential.verificationStatus = "VERIFIED"; credential.$or = [{ validTo: null }, { validTo: { $exists: false } }, { validTo: { $gte: new Date() } }]; }
       query["published.credentials"] = { $elemMatch: credential };
     }
     const source = String(req.query.source || "");

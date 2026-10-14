@@ -7,6 +7,7 @@ const controller = new LabProfileController();
 
 router.use(authenticateToken);
 router.get("/taxonomy", (req, res, next) => controller.taxonomy(req, res).catch(next));
+router.post("/taxonomy", (req, res, next) => controller.requestTaxonomy(req, res).catch(next));
 router.post("/taxonomy/requests", (req, res, next) => controller.requestTaxonomy(req, res).catch(next));
 router.get("/taxonomy/admin", (req, res, next) => controller.adminTaxonomy(req, res).catch(next));
 router.post("/taxonomy/admin", (req, res, next) => controller.createTaxonomy(req, res).catch(next));

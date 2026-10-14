@@ -10,6 +10,43 @@ const role = (req: Request) => String(req.user?.role || "").toLowerCase();
 const isAdmin = (req: Request) => role(req) === "admin";
 const ids = (value: unknown) => String(value || "").split(",").map((v) => v.trim()).filter(Types.ObjectId.isValid);
 const pageNumber = (value: unknown, fallback = 1) => Math.max(1, Math.floor(Number(value) || fallback));
+const escaped = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const hasCapabilityFilters = (query: Record<string, unknown>) => ["destinationCountryIds", "commodityIds", "qualityClassifications", "testIds", "parameterIds", "accreditationIds", "verifiedOnly"].some((key) => Boolean(query[key]) && query[key] !== "false");
+const coordinates = (value: any) => {
+  const latitude = Number(value?.location?.latitude ?? value?.pincodeEntry?.latitude);
+  const longitude = Number(value?.location?.longitude ?? value?.pincodeEntry?.longitude);
+  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude, label: value?.location?.label || value?.pincodeEntry?.officename || "" } : undefined;
+};
+const distanceKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const dLat = radians(bLat - aLat), dLng = radians(bLng - aLng);
+  const value = Math.sin(dLat / 2) ** 2 + Math.cos(radians(aLat)) * Math.cos(radians(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 6378.1 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+};
+
+export function legacyProfile(company: any) {
+  const location = coordinates(company);
+  return {
+    _id: `legacy-${company._id}`,
+    companyId: { _id: company._id, name: company.name, isExternalDirectoryListing: company.isExternalDirectoryListing, externalListingSource: company.externalListingSource },
+    status: "PUBLISHED",
+    capabilityStatus: "LEGACY_REQUIRES_MAPPING",
+    published: {
+      displayName: company.labDisplayName || company.name || "Legacy lab",
+      contactEmail: company.labContactEmail || company.email || "",
+      contactPhone: company.labContactPhone || company.phone || "",
+      contactPhoneSecondary: company.labContactPhoneSecondary || company.phoneSecondary || "",
+      address: company.address || "Location not supplied",
+      physicalCountryId: company.country || null,
+      state: company.state || "",
+      city: company.district || "",
+      location,
+      summary: company.labNotes || "Legacy lab listing awaiting structured capability mapping.",
+      credentials: [], productCapabilityTemplates: [], countryAssignments: [],
+      legacyCapabilities: { tests: company.labTests || [], certifications: company.labCertifications || [], specifications: company.labSpecifications || [], acceptedItems: company.labAcceptedItems || [], requiresMapping: true },
+    },
+  };
+}
 
 async function ownCompanyId(req: Request) {
   if (isAdmin(req)) {
@@ -291,17 +328,41 @@ export class LabProfileController {
     }
     const lat = Number(req.query.latitude), lng = Number(req.query.longitude), radiusKm = Number(req.query.radiusKm);
     if (Number.isFinite(lat) && Number.isFinite(lng) && radiusKm > 0) query["published.location.point"] = { $geoWithin: { $centerSphere: [[lng, lat], radiusKm / 6378.1] } };
-    const [rows, total] = await Promise.all([
-      populateProfile(LabProfileModel.find(query)).populate("companyId", "name isExternalDirectoryListing externalListingSource").skip((page - 1) * limit).limit(limit).lean(),
-      LabProfileModel.countDocuments(query),
-    ]);
+    const structured: any[] = await populateProfile(LabProfileModel.find(query)).populate("companyId", "name isExternalDirectoryListing externalListingSource").lean();
+    const structuredCompanyIds = new Set(structured.map((row: any) => String(row.companyId?._id || row.companyId)));
+    let legacy: any[] = [];
+    if (!hasCapabilityFilters(req.query as Record<string, unknown>)) {
+      const legacyQuery: any = { isDeleted: { $ne: true }, isQualityLabListed: true, labListingState: "LIVE", _id: { $nin: Array.from(structuredCompanyIds) } };
+      if (physicalCountryIds.length) legacyQuery.country = { $in: physicalCountryIds };
+      if (source) legacyQuery.externalListingSource = source;
+      if (search) legacyQuery.$or = ["name", "labDisplayName", "address", "labNotes", "labTests", "labCertifications", "labAcceptedItems"].map((field) => ({ [field]: new RegExp(escaped(search), "i") }));
+      const companies: any[] = await AssociateCompanyModel.find(legacyQuery)
+        .select("name email phone phoneSecondary address country state district location pincodeEntry labDisplayName labContactEmail labContactPhone labContactPhoneSecondary labTests labCertifications labSpecifications labAcceptedItems labNotes isExternalDirectoryListing externalListingSource")
+        .populate("country", "name").populate("state", "name").populate("district", "name").populate("pincodeEntry", "latitude longitude officename").lean();
+      const stateText = String(req.query.state || "").toLowerCase(), cityText = String(req.query.city || "").toLowerCase();
+      legacy = companies.filter((company) => {
+        if (stateText && !String(company.state?.name || company.state || "").toLowerCase().includes(stateText)) return false;
+        if (cityText && !String(company.district?.name || company.district || "").toLowerCase().includes(cityText)) return false;
+        if (!(Number.isFinite(lat) && Number.isFinite(lng) && radiusKm > 0)) return true;
+        const point = coordinates(company);
+        return Boolean(point && distanceKm(lat, lng, point.latitude, point.longitude) <= radiusKm);
+      }).map(legacyProfile);
+    }
+    const allRows = [...structured.map((row: any) => ({ ...row, capabilityStatus: row.published?.legacyCapabilities?.requiresMapping ? "LEGACY_REQUIRES_MAPPING" : "STRUCTURED" })), ...legacy]
+      .sort((a: any, b: any) => String(a.published?.displayName || "").localeCompare(String(b.published?.displayName || "")));
+    const total = allRows.length;
+    const rows = allRows.slice((page - 1) * limit, page * limit);
+    const markers = allRows.flatMap((row: any) => {
+      const point = coordinates(row.published);
+      return point ? [{ _id: row._id, name: row.published.displayName, contactPhone: row.published.contactPhone, location: point, capabilityStatus: row.capabilityStatus, source: row.companyId?.externalListingSource || "" }] : [];
+    });
     const [active, countries, countryCounts, productCounts] = await Promise.all([
       LabTaxonomyModel.find({ status: "ACTIVE", isDeleted: { $ne: true } }).select("kind name unit method parentIds").sort({ name: 1 }).lean(),
       CountryModel.find({ isDeleted: { $ne: true } }).select("name").sort({ name: 1 }).lean(),
       LabProfileModel.aggregate([{ $match: { published: { $ne: null } } }, { $unwind: "$published.countryAssignments" }, { $group: { _id: "$published.countryAssignments.countryId", count: { $sum: 1 } } }]),
       LabProfileModel.aggregate([{ $match: { published: { $ne: null } } }, { $unwind: "$published.productCapabilityTemplates" }, { $group: { _id: "$published.productCapabilityTemplates.commodityId", count: { $sum: 1 } } }]),
     ]);
-    return res.json({ success: true, data: rows, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1 }, facets: { taxonomy: active, countries, qualityClassifications: ["ORGANIC", "CONVENTIONAL", "IPM"], counts: { countries: Object.fromEntries(countryCounts.map((item) => [String(item._id), item.count])), products: Object.fromEntries(productCounts.map((item) => [String(item._id), item.count])) } } });
+    return res.json({ success: true, data: rows, markers, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1 }, facets: { taxonomy: active, countries, qualityClassifications: ["ORGANIC", "CONVENTIONAL", "IPM"], counts: { countries: Object.fromEntries(countryCounts.map((item) => [String(item._id), item.count])), products: Object.fromEntries(productCounts.map((item) => [String(item._id), item.count])) } } });
   }
 
   async detail(req: Request, res: Response) {

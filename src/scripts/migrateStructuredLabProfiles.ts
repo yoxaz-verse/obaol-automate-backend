@@ -30,13 +30,14 @@ async function run() {
     await collection.updateOne({ _id: profile._id }, { $set: { draft: countryFirst(profile.draft), published: countryFirst(profile.published), updatedAt: new Date() } });
   }
   const companies: any[] = await AssociateCompanyModel.find({ isQualityLabListed: true, labListingState: "LIVE", isDeleted: { $ne: true } })
-    .select("name email phone phoneSecondary address country state district location labDisplayName labContactEmail labContactPhone labContactPhoneSecondary labTests labCertifications labSpecifications labAcceptedItems labNotes")
+    .select("name email phone phoneSecondary address country state district location pincodeEntry labDisplayName labContactEmail labContactPhone labContactPhoneSecondary labTests labCertifications labSpecifications labAcceptedItems labNotes isExternalDirectoryListing externalListingSource externalListingSourceUrl externalListingReference externalListingDate")
+    .populate("pincodeEntry", "latitude longitude officename")
     .lean();
   let migrated = 0;
   for (const company of companies) {
     const existing = await LabProfileModel.exists({ companyId: company._id });
     if (existing) continue;
-    const latitude = Number(company.location?.latitude), longitude = Number(company.location?.longitude);
+    const latitude = Number(company.location?.latitude ?? company.pincodeEntry?.latitude), longitude = Number(company.location?.longitude ?? company.pincodeEntry?.longitude);
     const snapshot: any = {
       displayName: company.labDisplayName || company.name || "Legacy lab",
       contactEmail: company.labContactEmail || company.email || "",
@@ -49,7 +50,7 @@ async function run() {
       credentials: [], productCapabilityTemplates: [], countryAssignments: [],
       legacyCapabilities: { tests: company.labTests || [], certifications: company.labCertifications || [], specifications: company.labSpecifications || [], acceptedItems: company.labAcceptedItems || [], requiresMapping: true },
     };
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) snapshot.location = { latitude, longitude, label: company.location?.label || "", point: { type: "Point", coordinates: [longitude, latitude] } };
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) snapshot.location = { latitude, longitude, label: company.location?.label || company.pincodeEntry?.officename || "", point: { type: "Point", coordinates: [longitude, latitude] } };
     await LabProfileModel.collection.updateOne({ companyId: company._id }, { $setOnInsert: { companyId: company._id, published: snapshot, draft: snapshot, status: "PUBLISHED", publishedAt: new Date(), createdAt: new Date(), updatedAt: new Date() } }, { upsert: true });
     migrated += 1;
   }

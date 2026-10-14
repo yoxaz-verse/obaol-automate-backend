@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Types } from "mongoose";
-import { buildLabOfferingFilter, validateLabSnapshot } from "./labProfileController";
+import { buildLabOfferingFilter, hasCapabilityFilters, legacyProfile, validateLabSnapshot } from "./labProfileController";
 
 const id = () => new Types.ObjectId().toString();
 const base = () => ({ displayName: "Lab", contactEmail: "lab@example.com", contactPhone: "1", address: "Address", physicalCountryId: id(), credentials: [] });
@@ -28,5 +28,22 @@ describe("country-first lab profile rules", () => {
   it("builds all optional filters into one product-template match", () => {
     const commodity = id(), test = id(), parameter = id(), accreditation = id();
     expect(buildLabOfferingFilter({ commodityIds: commodity, testIds: test, parameterIds: parameter, accreditationIds: accreditation, qualityClassifications: "ORGANIC,IPM" })).toEqual({ commodityId: { $in: [commodity] }, testIds: { $all: [test] }, parameterIds: { $all: [parameter] }, credentialIds: { $all: [accreditation] }, qualityClassifications: { $all: ["ORGANIC", "IPM"] } });
+  });
+
+  it("keeps legacy labs in ordinary searches but excludes them for capability filters", () => {
+    expect(hasCapabilityFilters({ search: "Mumbai", physicalCountryIds: id() })).toBe(false);
+    expect(hasCapabilityFilters({ commodityIds: id() })).toBe(true);
+    expect(hasCapabilityFilters({ verifiedOnly: "false" })).toBe(false);
+    expect(hasCapabilityFilters({ verifiedOnly: "true" })).toBe(true);
+  });
+
+  it("normalizes a legacy lab without inventing country acceptance", () => {
+    const companyId = id();
+    const profile: any = legacyProfile({ _id: companyId, name: "Legacy Lab", labAcceptedItems: ["Turmeric"], labTests: ["Residue"], location: { latitude: 19.1, longitude: 72.8 } });
+    expect(profile._id).toBe(`legacy-${companyId}`);
+    expect(profile.capabilityStatus).toBe("LEGACY_REQUIRES_MAPPING");
+    expect(profile.published.legacyCapabilities.requiresMapping).toBe(true);
+    expect(profile.published.countryAssignments).toEqual([]);
+    expect(profile.published.location).toMatchObject({ latitude: 19.1, longitude: 72.8 });
   });
 });

@@ -26,6 +26,8 @@
     "backfill:catalog-moderation": "ts-node src/scripts/backfill-catalog-moderation.ts",
     "backfill:associate-referral-codes": "ts-node src/scripts/backfill-associate-referral-codes.ts",
     "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
+    "migrate:structured-lab-profiles": "ts-node src/scripts/migrateStructuredLabProfiles.ts",
+    "seed:lab-taxonomy": "ts-node src/scripts/seedLabTaxonomy.ts",
     "seed:spices-board-quality-labs": "ts-node src/scripts/seedSpicesBoardQualityLabs.ts",
     "normalize:company-capabilities": "ts-node src/scripts/normalize-company-capabilities.ts",
     "migrate:company-capability-profiles": "ts-node src/scripts/migrateCompanyCapabilityProfiles.ts",

@@ -61,6 +61,10 @@ export const verifyOTP = async (req: Request, res: Response) => {
       await OperatorModel.findByIdAndUpdate(userId, { isEmailVerified: true });
     }
 
+    if (req.user?.authStage === "email_verification" && method === "email" && (userType === "Associate" || userType === "Operator")) {
+      await issueAuthCookie(res, { _id: userId, email: req.user?.email, role: userType }, false);
+    }
+
     res.status(200).json({ message: `${userType} verified successfully` });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -201,7 +205,7 @@ export const verifyOtpForExistingEmail = async (req: Request, res: Response) => 
     await verificationService.verify(found.id, found.userType, String(code), "email");
     const normalizedRole = String(found.userType || "").trim();
     if (normalizedRole === "Associate" || normalizedRole === "Operator") {
-      issueAuthCookie(res, { _id: found.id, email: found.email, role: normalizedRole }, Boolean(rememberMe));
+      await issueAuthCookie(res, { _id: found.id, email: found.email, role: normalizedRole }, Boolean(rememberMe));
       const registrationStatus = String(found.registrationStatus || "APPROVED").toUpperCase();
       const next = found.onboardingComplete === false
         ? "/dashboard/onboarding"

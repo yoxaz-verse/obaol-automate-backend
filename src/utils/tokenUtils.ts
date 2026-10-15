@@ -11,6 +11,7 @@ interface TokenPayload {
   role: string;
   associateCompany?: string | null;
   sessionId?: string;
+  authStage?: "email_verification";
 }
 
 /**
@@ -36,4 +37,17 @@ export const generateJWTToken = (
   });
 
   return token;
+};
+
+export const generateEmailVerificationToken = (user: IAdmin | IWorker, expiresIn = "15m"): string => {
+  const payload: TokenPayload = {
+    id: user._id.toString(),
+    email: String(user.email || "").trim().toLowerCase(),
+    role: user.role,
+    authStage: "email_verification",
+  };
+
+  return jwt.sign(payload, (process.env.JWT_SECRET as string) || "secret", {
+    expiresIn: expiresIn as any,
+  });
 };

@@ -23,7 +23,7 @@ import { CompanyFunctionMappingModel } from "../database/models/companyFunctionM
 import { comparePasswords, hashPassword } from "../utils/passwordUtils";
 import { createAuthSession } from "../utils/authSession";
 import { AuthSessionModel } from "../database/models/authSession";
-import { generateJWTToken } from "../utils/tokenUtils";
+import { generateEmailVerificationToken, generateJWTToken } from "../utils/tokenUtils";
 import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
 import { normalizePhoneInput } from "../utils/phone";
@@ -311,6 +311,14 @@ export const issueAuthCookie = async (res: Response, userForToken: any, remember
     const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
     res.setHeader("Cache-Control", "no-store");
     res.cookie("auth_token", token, cookieOptions);
+};
+
+const issueEmailVerificationCookie = (res: Response, userForToken: any) => {
+    const maxAge = 15 * 60 * 1000;
+    const token = generateEmailVerificationToken(userForToken, "15m");
+    const host = String(res.req?.headers["x-forwarded-host"] || res.req?.headers.host || "");
+    res.setHeader("Cache-Control", "no-store");
+    res.cookie("auth_token", token, getAuthCookieOptions(host, maxAge));
 };
 const countryAcronym = (name: string) =>
     String(name || "")
@@ -1572,7 +1580,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
                 isEmailVerified: false,
                 onboardingComplete: false,
             });
-            await issueAuthCookie(res, { ...newOperator.toObject(), role: "Operator" }, false);
+            issueEmailVerificationCookie(res, { ...newOperator.toObject(), role: "Operator" });
             return res.json({ success: true, user: { id: newOperator._id, email: newOperator.email, name: newOperator.name, role: "Operator" } });
         }
 
@@ -1589,7 +1597,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
             hasCompany: false,
             companyMode: "none",
         });
-        await issueAuthCookie(res, { ...newAssociate.toObject(), role: "Associate" }, false);
+        issueEmailVerificationCookie(res, { ...newAssociate.toObject(), role: "Associate" });
         return res.json({ success: true, user: { id: newAssociate._id, email: newAssociate.email, name: newAssociate.name, role: "Associate" } });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Failed to start onboarding." });

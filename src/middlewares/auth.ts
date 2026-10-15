@@ -16,6 +16,7 @@ export interface DecodedToken {
   role: string;
   associateCompany?: string | null;
   sessionId?: string;
+  authStage?: "email_verification";
   iat: number;
   exp: number;
 }
@@ -48,6 +49,13 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET as string) as DecodedToken;
+    if (decoded.authStage) {
+      return res.status(401).json({
+        success: false,
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        message: "Please verify your email OTP before continuing.",
+      });
+    }
     if (decoded.sessionId) {
       const session = await AuthSessionModel.findOne({ sessionId: decoded.sessionId, userId: decoded.id, role: decoded.role });
       if (!session || session.revokedAt || session.expiresAt <= new Date()) {
@@ -112,6 +120,49 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
       success: false,
       message: "Authentication failed: Invalid token",
     });
+  }
+};
+
+export const authenticateEmailVerificationToken = async (req: Request, res: Response, next: NextFunction) => {
+  const token = req.cookies.auth_token || req.cookies.token || req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ success: false, message: "Email verification session is required." });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET as string) as DecodedToken;
+    if (!decoded.authStage) {
+      return authenticateToken(req, res, next);
+    }
+    if (decoded.authStage !== "email_verification") {
+      return res.status(401).json({ success: false, message: "Invalid email verification session." });
+    }
+
+    const role = String(decoded.role || "");
+    const model: any = role === "Associate" ? AssociateModel : role === "Operator" ? OperatorModel : null;
+    if (!model) {
+      return res.status(401).json({ success: false, message: "Invalid email verification session." });
+    }
+
+    const user = await model.findById(decoded.id)
+      .select("email authProvider isEmailVerified onboardingComplete isDeleted")
+      .lean();
+    const tokenEmail = String(decoded.email || "").trim().toLowerCase();
+    const accountEmail = String(user?.email || "").trim().toLowerCase();
+    const validDraft = Boolean(user)
+      && tokenEmail === accountEmail
+      && String(user?.authProvider || "LOCAL").toUpperCase() === "LOCAL"
+      && user?.isEmailVerified !== true
+      && user?.onboardingComplete !== true
+      && user?.isDeleted !== true;
+    if (!validDraft) {
+      return res.status(401).json({ success: false, message: "Invalid or expired email verification session." });
+    }
+
+    req.user = decoded;
+    return next();
+  } catch {
+    return res.status(401).json({ success: false, message: "Invalid or expired email verification session." });
   }
 };
 

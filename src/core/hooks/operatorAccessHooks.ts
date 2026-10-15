@@ -115,10 +115,9 @@ export const operatorFilterHook = async (query: any, mode: string, id: string | 
                 String(req.query?.view || "").toLowerCase() === "marketplace";
 
             if (req.params?.entity === "variant-rates" && isMarketplaceView) {
-                if (assignedIds.length === 0) {
-                    return { ...query };
-                }
-                return { ...query, associateCompany: { $nin: assignedIds } };
+                // Marketplace visibility is driven only by listing status.
+                // Operator company scope controls mutations, not discovery.
+                return { ...query };
             }
 
             return mergeScopedCompanyQuery(query, "associateCompany");

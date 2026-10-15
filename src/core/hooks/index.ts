@@ -43,7 +43,6 @@ import {
     orderNotificationPreWriteHook,
 } from "./operationalNotificationHooks";
 import { associateVariantRateModerationPreWriteHook, catalogModerationPreReadHook, catalogModerationPreWriteHook, variantRateModerationPostWriteHook, variantRateModerationPreReadHook } from "./catalogModerationHooks";
-import { variantRateMarketplaceEligibilityPreWriteHook } from "./variantRateMarketplaceEligibilityHook";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Operators (Overseers)
@@ -102,7 +101,6 @@ export const registerAllHooks = () => {
         nextPayload = await variantRateLocationPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateCommissionPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateClassificationPreWriteHook(nextPayload, mode, id, req);
-        nextPayload = await variantRateMarketplaceEligibilityPreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLifecyclePreWriteHook(nextPayload, mode, id, req);
         nextPayload = await variantRateLivePreWriteHook(nextPayload, mode, id, req);
         return nextPayload;

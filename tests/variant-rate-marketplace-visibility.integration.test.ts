@@ -40,7 +40,7 @@ const createCompany = (name: string) => AssociateCompanyModel.create({
 });
 
 describe("variant-rate marketplace visibility", () => {
-  it("shows every eligible live listing while protecting foreign prices", async () => {
+  it("shows every live listing while protecting foreign prices", async () => {
     const [companyA, companyB] = await Promise.all([
       createCompany("Marketplace Company A"),
       createCompany("Marketplace Company B"),
@@ -125,15 +125,19 @@ describe("variant-rate marketplace visibility", () => {
     expect(externalRow).not.toHaveProperty("commission");
   });
 
-  it("keeps blocked live rows visible to admins, excludes them from associates and live stats, and rejects publishing", async () => {
+  it("returns the same live listing ids to admins and associates regardless of moderation metadata", async () => {
     const [admin, company] = await Promise.all([
       createAdmin(),
-      createCompany("Blocked Marketplace Company"),
+      createCompany("Shared Marketplace Company"),
     ]);
-    const owner = await createAssociate({
+    const [viewer, owner] = await Promise.all([
+      createAssociate({ associateCompany: company._id, isCompanyVerified: true }),
+      createAssociate({
       associateCompany: company._id,
-      isCompanyVerified: true,
-    });
+        isCompanyVerified: false,
+        registrationStatus: "PENDING_REVIEW",
+      }),
+    ]);
     const pendingCategory = await CategoryModel.create({
       name: "Pending Marketplace Category",
       inventoryManager: new mongoose.Types.ObjectId(),
@@ -157,56 +161,60 @@ describe("variant-rate marketplace visibility", () => {
       approvalStatus: "APPROVED",
     });
     const now = new Date();
-    const blockedLive = await VariantRateModel.create({
-      productVariant: variant._id,
-      associate: owner._id,
-      associateCompany: company._id,
-      rate: 200,
-      isLive: true,
-      approvalStatus: "APPROVED",
-      lastLiveAt: now,
-      lastLiveDate: now,
-    });
+    const [liveListing, offlineListing, deletedListing] = await Promise.all([
+      VariantRateModel.create({
+        productVariant: variant._id, associate: owner._id, associateCompany: company._id,
+        rate: 200, isLive: true, approvalStatus: "PENDING_REVIEW", lastLiveAt: now, lastLiveDate: now,
+      }),
+      VariantRateModel.create({
+        productVariant: variant._id, associate: owner._id, associateCompany: company._id,
+        rate: 210, isLive: false, approvalStatus: "PENDING_REVIEW", unpublishedAt: now,
+      }),
+      VariantRateModel.create({
+        productVariant: variant._id, associate: owner._id, associateCompany: company._id,
+        rate: 220, isLive: true, isDeleted: true, approvalStatus: "PENDING_REVIEW", lastLiveAt: now, lastLiveDate: now,
+      }),
+    ]);
 
     const adminRowsResponse = await api
       .get("/api/v1/web/variant-rates")
       .set("Cookie", adminAuthCookie(admin))
-      .query({ view: "product-table", limit: 50 });
+      .query({ view: "marketplace", isLive: true, limit: 50 });
     expect(adminRowsResponse.status).toBe(200);
-    const adminRow = (adminRowsResponse.body?.data?.data || []).find(
-      (row: any) => String(row._id) === String(blockedLive._id),
-    );
-    expect(adminRow).toMatchObject({
-      isLive: true,
-      marketplaceVisible: false,
-      marketplaceBlockCode: "CATALOG_NOT_APPROVED",
-    });
 
     const associateRowsResponse = await api
       .get("/api/v1/web/variant-rates")
-      .set("Cookie", authCookie(owner))
+      .set("Cookie", authCookie(viewer))
       .query({ view: "marketplace", isLive: true, limit: 50 });
     expect(associateRowsResponse.status).toBe(200);
-    expect(associateRowsResponse.body?.data?.data || []).toHaveLength(0);
+    const adminRows = adminRowsResponse.body?.data?.data || [];
+    const associateRows = associateRowsResponse.body?.data?.data || [];
+    expect(associateRows.map((row: any) => String(row._id)).sort()).toEqual(
+      adminRows.map((row: any) => String(row._id)).sort(),
+    );
+    expect(associateRows.map((row: any) => String(row._id))).toContain(String(liveListing._id));
+    expect(associateRows.map((row: any) => String(row._id))).not.toContain(String(offlineListing._id));
+    expect(associateRows.map((row: any) => String(row._id))).not.toContain(String(deletedListing._id));
+    const foreignRow = associateRows.find((row: any) => String(row._id) === String(liveListing._id));
+    expect(foreignRow).not.toHaveProperty("rate");
+    expect(foreignRow).not.toHaveProperty("commission");
 
     const statsResponse = await api
       .get("/api/v1/web/variant-rates/marketplace-stats")
       .set("Cookie", adminAuthCookie(admin));
     expect(statsResponse.status).toBe(200);
-    expect(statsResponse.body?.data?.live).toBe(0);
+    expect(statsResponse.body?.data?.live).toBe(adminRows.length);
 
-    await VariantRateModel.updateOne({ _id: blockedLive._id }, { $set: { isLive: false, unpublishedAt: now } });
     const publishResponse = await api
-      .patch(`/api/v1/web/variant-rates/${blockedLive._id}`)
+      .patch(`/api/v1/web/variant-rates/${offlineListing._id}`)
       .set("Cookie", adminAuthCookie(admin))
       .send({ isLive: true });
-    expect(publishResponse.status).toBe(409);
-    expect(publishResponse.body).toMatchObject({
-      success: false,
-      code: "CATALOG_NOT_APPROVED",
-      marketplaceBlockCode: "CATALOG_NOT_APPROVED",
-    });
-    const unchanged = await VariantRateModel.findById(blockedLive._id).lean();
-    expect(unchanged?.isLive).toBe(false);
+    expect(publishResponse.status).toBe(200);
+    const refreshedAssociateResponse = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", authCookie(viewer))
+      .query({ view: "marketplace", isLive: true, limit: 50 });
+    expect((refreshedAssociateResponse.body?.data?.data || []).map((row: any) => String(row._id)))
+      .toContain(String(offlineListing._id));
   });
 });

@@ -7,7 +7,6 @@ import { ExecutionMode } from "../types";
 import { getEntityConfig } from "../registry/entities";
 import { buildRegexSearchTerms } from "./searchableFields";
 import { findLatestVariantRatesForProductTable } from "../../services/variantRateProductTableService";
-import { evaluateVariantRateMarketplaceEligibility } from "../../services/variantRateMarketplaceEligibilityService";
 
 export class CrudEngine extends BaseService {
     private repository: GenericRepository<any>;
@@ -84,9 +83,6 @@ export class CrudEngine extends BaseService {
                 "quantityUnit",
                 "commission",
                 "isLive",
-                "isDeleted",
-                "isDemo",
-                "approvalStatus",
                 "lastLiveDate",
                 "unpublishedAt",
                 "updatedAt",
@@ -271,19 +267,6 @@ export class CrudEngine extends BaseService {
                 : await this.repository.findAll(filterQuery, pagination, sortOption, populate, select);
         result.data = await HookDispatcher.resolveAfterRead(this.entityName, result.data);
         const roleLower = String((req as any)?.user?.role || "").toLowerCase();
-        if (
-            this.entityName === "variant-rates" &&
-            roleLower === "admin" &&
-            (requestedView === "marketplace" || requestedView === "product-table")
-        ) {
-            result.data = await Promise.all((result.data || []).map(async (row: any) => {
-                const source = typeof row?.toObject === "function" ? row.toObject() : { ...row };
-                return {
-                    ...source,
-                    ...(await evaluateVariantRateMarketplaceEligibility(source, { requireLive: true })),
-                };
-            }));
-        }
         if (
             this.entityName === "variant-rates" &&
             requestedView === "marketplace" &&

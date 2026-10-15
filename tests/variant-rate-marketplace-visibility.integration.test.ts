@@ -8,7 +8,7 @@ import { SubCategoryModel } from "../src/database/models/subCategory";
 import { ProductModel } from "../src/database/models/product";
 import { ProductVariantModel } from "../src/database/models/productVariant";
 import { VariantRateModel } from "../src/database/models/variantRate";
-import { createAdmin, createAssociate } from "./helpers/authFixtures";
+import { createAdmin, createAssociate, createOperator } from "./helpers/authFixtures";
 import { expireStaleVariantRates, LISTING_FRESHNESS_MS } from "../src/services/variantRateFreshnessService";
 
 const api = request(app);
@@ -29,7 +29,15 @@ const adminAuthCookie = (admin: any) => {
   return `auth_token=${token}`;
 };
 
-const createCompany = (name: string) => AssociateCompanyModel.create({
+const operatorAuthCookie = (operator: any) => {
+  const token = jwt.sign(
+    { id: String(operator._id), email: operator.email, role: "Operator" },
+    process.env.JWT_SECRET as string,
+  );
+  return `auth_token=${token}`;
+};
+
+const createCompany = (name: string, overrides: Record<string, any> = {}) => AssociateCompanyModel.create({
   name,
   email: `${new mongoose.Types.ObjectId()}@example.com`,
   phone: "+919800000021",
@@ -37,6 +45,7 @@ const createCompany = (name: string) => AssociateCompanyModel.create({
   address: `${name} office`,
   registrationStatus: "APPROVED",
   isApproved: true,
+  ...overrides,
 });
 
 describe("variant-rate marketplace visibility", () => {
@@ -92,14 +101,17 @@ describe("variant-rate marketplace visibility", () => {
   });
 
   it("shows every live listing while protecting foreign prices", async () => {
-    const [companyA, companyB] = await Promise.all([
+    const operator = await createOperator();
+    const [companyA, companyB, operatorManagedCompany] = await Promise.all([
       createCompany("Marketplace Company A"),
       createCompany("Marketplace Company B"),
+      createCompany("Operator Managed Marketplace Company", { assignedOperator: operator._id }),
     ]);
-    const [viewer, teammate, external] = await Promise.all([
+    const [viewer, teammate, external, operatorManagedOwner] = await Promise.all([
       createAssociate({ associateCompany: companyA._id, isCompanyVerified: true }),
       createAssociate({ associateCompany: companyA._id, isCompanyVerified: true }),
       createAssociate({ associateCompany: companyB._id, isCompanyVerified: true }),
+      createAssociate({ associateCompany: operatorManagedCompany._id, isCompanyVerified: true }),
     ]);
 
     const category = await CategoryModel.create({
@@ -122,7 +134,9 @@ describe("variant-rate marketplace visibility", () => {
     });
 
     const now = new Date();
-    const freshDate = new Date(now.getTime() - 60_000);
+    const newestDate = new Date(now.getTime() - 30_000);
+    const middleDate = new Date(now.getTime() - 60_000);
+    const oldestDate = new Date(now.getTime() - 90_000);
     const staleDate = new Date(now.getTime() - LISTING_FRESHNESS_MS - 1);
     const makeRate = (associate: any, company: any, rate: number, overrides: Record<string, any> = {}) => ({
       productVariant: variant._id,
@@ -132,18 +146,20 @@ describe("variant-rate marketplace visibility", () => {
       commission: 2.5,
       isLive: true,
       isDeleted: false,
-      lastLiveAt: freshDate,
-      lastLiveDate: freshDate,
-      createdAt: freshDate,
-      updatedAt: freshDate,
+      lastLiveAt: middleDate,
+      lastLiveDate: middleDate,
+      createdAt: middleDate,
+      updatedAt: middleDate,
+      officeAddress: "Protected supplier address",
       ...overrides,
     });
 
     const inserted = await VariantRateModel.collection.insertMany([
-      makeRate(viewer, companyA, 100),
-      makeRate(teammate, companyA, 110),
+      makeRate(viewer, companyA, 100, { lastLiveAt: oldestDate, lastLiveDate: oldestDate, createdAt: oldestDate, updatedAt: oldestDate }),
+      makeRate(teammate, companyA, 110, { createdAt: new Date(middleDate.getTime() - 1_000) }),
       makeRate(external, companyB, 120),
-      makeRate(external, companyB, 130, { isLive: false, unpublishedAt: freshDate }),
+      makeRate(operatorManagedOwner, operatorManagedCompany, 125, { lastLiveAt: newestDate, lastLiveDate: newestDate, createdAt: newestDate, updatedAt: newestDate }),
+      makeRate(external, companyB, 130, { isLive: false, unpublishedAt: middleDate }),
       makeRate(external, companyB, 140, { isDeleted: true }),
       makeRate(external, companyB, 150, { lastLiveAt: staleDate, lastLiveDate: staleDate, createdAt: staleDate, updatedAt: staleDate }),
     ] as any);
@@ -153,16 +169,21 @@ describe("variant-rate marketplace visibility", () => {
     const response = await api
       .get("/api/v1/web/variant-rates")
       .set("Cookie", authCookie(viewer))
-      .query({ view: "marketplace", isLive: true, limit: 50 });
+      .query({ view: "marketplace", isLive: true, sort: "lastLiveDate:desc", limit: 50 });
 
     expect(response.status).toBe(200);
     const rows = response.body?.data?.data || [];
-    expect(rows).toHaveLength(3);
-    expect(rows.map((row: any) => String(row._id))).toEqual(expect.arrayContaining([
-      String(inserted.insertedIds[0]),
-      String(inserted.insertedIds[1]),
-      String(inserted.insertedIds[2]),
-    ]));
+    const expectedLiveIds = [3, 2, 1, 0].map((index) => String(inserted.insertedIds[index]));
+    expect(rows).toHaveLength(4);
+    expect(rows.map((row: any) => String(row._id))).toEqual(expectedLiveIds);
+
+    const operatorResponse = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", operatorAuthCookie(operator))
+      .query({ view: "marketplace", isLive: true, sort: "lastLiveDate:desc", limit: 50 });
+    expect(operatorResponse.status).toBe(200);
+    expect((operatorResponse.body?.data?.data || []).map((row: any) => String(row._id)))
+      .toEqual(expectedLiveIds);
 
     const ownRow = rows.find((row: any) => String(row._id) === String(inserted.insertedIds[0]));
     const teammateRow = rows.find((row: any) => String(row._id) === String(inserted.insertedIds[1]));
@@ -174,6 +195,7 @@ describe("variant-rate marketplace visibility", () => {
     expect(teammateRow).not.toHaveProperty("commission");
     expect(externalRow).not.toHaveProperty("rate");
     expect(externalRow).not.toHaveProperty("commission");
+    expect(externalRow).not.toHaveProperty("officeAddress");
   });
 
   it("returns the same live listing ids to admins and associates regardless of moderation metadata", async () => {

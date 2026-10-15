@@ -207,6 +207,8 @@ export class CrudEngine extends BaseService {
                         field: "lastLiveDate",
                         tieBreaker: { createdAt: -1 },
                     };
+                } else if (this.entityName === "variant-rates" && field === "lastLiveDate") {
+                    sortOption = { lastLiveDate: direction, createdAt: -1 };
                 } else {
                     sortOption = { [field]: direction };
                 }

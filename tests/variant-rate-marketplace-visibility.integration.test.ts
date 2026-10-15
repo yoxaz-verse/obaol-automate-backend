@@ -40,6 +40,57 @@ const createCompany = (name: string) => AssociateCompanyModel.create({
 });
 
 describe("variant-rate marketplace visibility", () => {
+  it("returns past listings newest-first across pages with a stable created-at tie-breaker", async () => {
+    const [admin, company] = await Promise.all([
+      createAdmin(),
+      createCompany("Past Listing Sort Company"),
+    ]);
+    const owner = await createAssociate({ associateCompany: company._id, isCompanyVerified: true });
+    const category = await CategoryModel.create({
+      name: "Past Listing Sort Category",
+      inventoryManager: new mongoose.Types.ObjectId(),
+    });
+    const subCategory = await SubCategoryModel.create({
+      name: "Past Listing Sort Subcategory",
+      category: category._id,
+    });
+    const product = await ProductModel.create({
+      name: "Past Listing Sort Product",
+      description: "Past listing ordering fixture",
+      subCategory: subCategory._id,
+    });
+    const variant = await ProductVariantModel.create({
+      name: "Past Listing Sort Variant",
+      description: "Past listing ordering fixture",
+      product: product._id,
+    });
+
+    const newestDate = new Date("2026-10-15T12:00:00.000Z");
+    const middleDate = new Date("2026-10-14T12:00:00.000Z");
+    const oldestDate = new Date("2026-10-13T12:00:00.000Z");
+    const inserted = await VariantRateModel.collection.insertMany([
+      { productVariant: variant._id, associate: owner._id, associateCompany: company._id, rate: 100, isLive: false, isDeleted: false, lastLiveDate: oldestDate, createdAt: oldestDate, updatedAt: oldestDate },
+      { productVariant: variant._id, associate: owner._id, associateCompany: company._id, rate: 110, isLive: false, isDeleted: false, lastLiveDate: middleDate, createdAt: new Date("2026-10-14T10:00:00.000Z"), updatedAt: middleDate },
+      { productVariant: variant._id, associate: owner._id, associateCompany: company._id, rate: 120, isLive: false, isDeleted: false, lastLiveDate: newestDate, createdAt: newestDate, updatedAt: newestDate },
+      { productVariant: variant._id, associate: owner._id, associateCompany: company._id, rate: 130, isLive: false, isDeleted: false, lastLiveDate: middleDate, createdAt: new Date("2026-10-14T11:00:00.000Z"), updatedAt: middleDate },
+    ] as any);
+
+    const fetchPage = async (page: number) => {
+      const response = await api
+        .get("/api/v1/web/variant-rates")
+        .set("Cookie", adminAuthCookie(admin))
+        .query({ view: "marketplace", isLive: false, sort: "lastLiveDate:desc", page, limit: 2 });
+      expect(response.status).toBe(200);
+      return (response.body?.data?.data || []).map((row: any) => String(row._id));
+    };
+
+    await expect(Promise.all([fetchPage(1), fetchPage(2)]))
+      .resolves.toEqual([
+        [String(inserted.insertedIds[2]), String(inserted.insertedIds[3])],
+        [String(inserted.insertedIds[1]), String(inserted.insertedIds[0])],
+      ]);
+  });
+
   it("shows every live listing while protecting foreign prices", async () => {
     const [companyA, companyB] = await Promise.all([
       createCompany("Marketplace Company A"),

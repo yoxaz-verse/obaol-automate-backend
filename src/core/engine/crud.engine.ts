@@ -6,6 +6,7 @@ import { HookDispatcher } from "../hooks/hook.dispatcher";
 import { ExecutionMode } from "../types";
 import { getEntityConfig } from "../registry/entities";
 import { buildRegexSearchTerms } from "./searchableFields";
+import { findLatestVariantRatesForProductTable } from "../../services/variantRateProductTableService";
 
 export class CrudEngine extends BaseService {
     private repository: GenericRepository<any>;
@@ -254,7 +255,16 @@ export class CrudEngine extends BaseService {
         let select;
         ({ populate, select, sortOption } = this.resolveListReadOptions(requestedView, populate, sortOption));
 
-        const result = await this.repository.findAll(filterQuery, pagination, sortOption, populate, select);
+        const result =
+            this.entityName === "variant-rates" && requestedView === "product-table"
+                ? await findLatestVariantRatesForProductTable(
+                    this.model,
+                    filterQuery,
+                    pagination,
+                    populate,
+                    select,
+                )
+                : await this.repository.findAll(filterQuery, pagination, sortOption, populate, select);
         result.data = await HookDispatcher.resolveAfterRead(this.entityName, result.data);
         const roleLower = String((req as any)?.user?.role || "").toLowerCase();
         if (

@@ -6,7 +6,7 @@ import { AssociateModel } from "../../database/models/associate";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import mongoose from "mongoose";
 import { getOperatorCompanyScope } from "../../core/hooks/operatorScope";
-import { syncVariantRateAvailability, liveFreshnessCondition, recentPastCondition } from "../../services/variantRateFreshnessService";
+import { syncVariantRateAvailability, liveFreshnessCondition, recentPastCondition, listingFreshnessCutoff } from "../../services/variantRateFreshnessService";
 import { variantRateNotificationPostWriteHook } from "../../core/hooks/notificationHooks";
 import { ExecutionMode } from "../../core/types";
 
@@ -23,7 +23,11 @@ router.post("/:id/renew", async (req: any, res) => {
 
     const listing: any = await VariantRateModel.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
-    if (listing.isLive) return res.status(409).json({ success: false, message: "Listing is already live." });
+    const lastLive = new Date(listing.lastLiveDate || listing.updatedAt || listing.createdAt).getTime();
+    const isEffectivelyLive = Boolean(
+      listing.isLive && Number.isFinite(lastLive) && lastLive > listingFreshnessCutoff().getTime()
+    );
+    if (isEffectivelyLive) return res.status(409).json({ success: false, message: "Listing is already live." });
 
     const roleLower = String(req?.user?.role || "").toLowerCase();
     const actorId = String(req?.user?.id || "");
@@ -40,7 +44,13 @@ router.post("/:id/renew", async (req: any, res) => {
     }
     if (!allowed) return res.status(403).json({ success: false, message: "You cannot renew this listing." });
 
+    const renewedAt = new Date();
     listing.isLive = true;
+    // A stale row can still be persisted as true until the hourly reconciler runs,
+    // so stamp renewal explicitly even when isLive itself is not modified.
+    listing.lastLiveAt = renewedAt;
+    listing.lastLiveDate = renewedAt;
+    listing.unpublishedAt = null;
     await listing.save();
     await syncVariantRateAvailability([listing._id], true);
     await variantRateNotificationPostWriteHook("variant-rates", listing.toObject(), ExecutionMode.UPDATE, {

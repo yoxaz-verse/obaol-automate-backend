@@ -13,6 +13,7 @@ import { ExecutionMode } from "../src/core/types";
 import { VariantRateModel } from "../src/database/models/variantRate";
 import { CatalogItemModel } from "../src/database/models/catalogItem";
 import { DisplayedRateModel } from "../src/database/models/displayedRate";
+import { findLatestVariantRatesForProductTable } from "../src/services/variantRateProductTableService";
 
 describe("variant-rate freshness", () => {
   const now = new Date("2026-10-12T12:00:00.000Z");
@@ -106,5 +107,69 @@ describe("variant-rate freshness", () => {
     await expect(VariantRateModel.findById(freshId).lean()).resolves.toMatchObject({ isLive: true });
     await expect(CatalogItemModel.findOne({ baseRateId: staleId }).lean()).resolves.toMatchObject({ isLive: false });
     await expect(DisplayedRateModel.findOne({ variantRate: staleId }).lean()).resolves.toMatchObject({ isLive: false });
+  });
+
+  it("returns only the newest listing per company and exact variant", async () => {
+    const companyA = new Types.ObjectId();
+    const companyB = new Types.ObjectId();
+    const associateId = new Types.ObjectId();
+    const variantA = new Types.ObjectId();
+    const variantB = new Types.ObjectId();
+    const oldId = new Types.ObjectId();
+    const newestId = new Types.ObjectId();
+    const otherCompanyId = new Types.ObjectId();
+    const otherVariantId = new Types.ObjectId();
+
+    await VariantRateModel.collection.insertMany([
+      { _id: oldId, rate: 90, productVariant: variantA, associate: associateId, associateCompany: companyA, isLive: true, isDeleted: false, lastLiveDate: new Date("2026-10-01T00:00:00Z"), createdAt: new Date("2026-10-01T00:00:00Z"), updatedAt: new Date("2026-10-01T00:00:00Z") },
+      { _id: newestId, rate: 100, productVariant: variantA, associate: associateId, associateCompany: companyA, isLive: false, isDeleted: false, lastLiveDate: new Date("2026-10-10T00:00:00Z"), createdAt: new Date("2026-10-10T00:00:00Z"), updatedAt: new Date("2026-10-10T00:00:00Z") },
+      { _id: otherCompanyId, rate: 110, productVariant: variantA, associate: associateId, associateCompany: companyB, isLive: true, isDeleted: false, lastLiveDate: new Date("2026-10-11T00:00:00Z"), createdAt: new Date("2026-10-11T00:00:00Z"), updatedAt: new Date("2026-10-11T00:00:00Z") },
+      { _id: otherVariantId, rate: 120, productVariant: variantB, associate: associateId, associateCompany: companyA, isLive: true, isDeleted: false, lastLiveDate: new Date("2026-10-12T00:00:00Z"), createdAt: new Date("2026-10-12T00:00:00Z"), updatedAt: new Date("2026-10-12T00:00:00Z") },
+    ] as any);
+
+    const result = await findLatestVariantRatesForProductTable(
+      VariantRateModel,
+      {},
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.totalCount).toBe(3);
+    expect(result.data.map((row: any) => String(row._id))).toEqual([
+      String(otherVariantId),
+      String(otherCompanyId),
+      String(newestId),
+    ]);
+  });
+
+  it("groups before live filtering and evaluates the exact freshness cutoff", async () => {
+    const companyId = new Types.ObjectId();
+    const associateId = new Types.ObjectId();
+    const hiddenVariant = new Types.ObjectId();
+    const freshVariant = new Types.ObjectId();
+    const expiredVariant = new Types.ObjectId();
+    const current = new Date("2026-10-12T12:00:00.000Z");
+    const cutoff = listingFreshnessCutoff(current);
+    const boundaryVariant = new Types.ObjectId();
+
+    await VariantRateModel.collection.insertMany([
+      { rate: 90, productVariant: hiddenVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(current.getTime() - 1_000), createdAt: new Date(current.getTime() - 1_000), updatedAt: new Date(current.getTime() - 1_000) },
+      { rate: 100, productVariant: hiddenVariant, associate: associateId, associateCompany: companyId, isLive: false, isDeleted: false, lastLiveDate: current, createdAt: current, updatedAt: current },
+      { rate: 110, productVariant: freshVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(cutoff.getTime() + 5_000), createdAt: current, updatedAt: current },
+      { rate: 115, productVariant: boundaryVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: cutoff, createdAt: current, updatedAt: current },
+      { rate: 120, productVariant: expiredVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(cutoff.getTime() - 5_000), createdAt: current, updatedAt: current },
+    ] as any);
+
+    const live = await findLatestVariantRatesForProductTable(
+      VariantRateModel,
+      { isLive: true },
+      { page: 1, limit: 10 },
+      undefined,
+      undefined,
+      current,
+    );
+
+    expect(live.totalCount).toBe(1);
+    expect(String(live.data[0].productVariant)).toBe(String(freshVariant));
+    expect(live.data[0].__effectiveIsLive).toBe(true);
   });
 });

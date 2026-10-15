@@ -58,7 +58,7 @@ router.post("/:id/renew", async (req: any, res) => {
       __notificationCtx: { variantRatePrev: { isLive: false } },
     });
 
-    return res.json({ success: true, data: listing.toObject(), message: "Listing renewed for 20 days." });
+    return res.json({ success: true, data: listing.toObject(), message: "Listing renewed for 24 hours." });
   } catch (error: any) {
     return res.status(Number(error?.statusCode || 500)).json({
       success: false,
@@ -198,7 +198,7 @@ router.get("/marketplace-stats", async (req: any, res) => {
       if (companyIds.length) baseQuery.associateCompany = { $nin: companyIds };
     }
 
-    const liveQuery = { ...baseQuery, isLive: true };
+    const liveQuery = { $and: [{ ...baseQuery, isLive: true }, liveFreshnessCondition()] };
     const offlineQuery = roleLower === "admin"
       ? { ...baseQuery, isLive: { $ne: true } }
       : { $and: [{ ...baseQuery, isLive: { $ne: true } }, recentPastCondition()] };

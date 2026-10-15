@@ -9,7 +9,7 @@ import { ProductModel } from "../src/database/models/product";
 import { ProductVariantModel } from "../src/database/models/productVariant";
 import { VariantRateModel } from "../src/database/models/variantRate";
 import { createAdmin, createAssociate, createOperator } from "./helpers/authFixtures";
-import { expireStaleVariantRates, LISTING_FRESHNESS_MS } from "../src/services/variantRateFreshnessService";
+import { expireStaleVariantRates, LISTING_LIVE_DURATION_MS, liveFreshnessCondition } from "../src/services/variantRateFreshnessService";
 
 const api = request(app);
 
@@ -137,7 +137,7 @@ describe("variant-rate marketplace visibility", () => {
     const newestDate = new Date(now.getTime() - 30_000);
     const middleDate = new Date(now.getTime() - 60_000);
     const oldestDate = new Date(now.getTime() - 90_000);
-    const staleDate = new Date(now.getTime() - LISTING_FRESHNESS_MS - 1);
+    const staleDate = new Date(now.getTime() - LISTING_LIVE_DURATION_MS - 1);
     const makeRate = (associate: any, company: any, rate: number, overrides: Record<string, any> = {}) => ({
       productVariant: variant._id,
       associate: associate._id,
@@ -165,6 +165,10 @@ describe("variant-rate marketplace visibility", () => {
     ] as any);
 
     await expect(expireStaleVariantRates(now)).resolves.toBe(1);
+    await expect(VariantRateModel.countDocuments({
+      $and: [{ isLive: true }, liveFreshnessCondition(now)],
+      isDeleted: { $ne: true },
+    })).resolves.toBe(4);
 
     const response = await api
       .get("/api/v1/web/variant-rates")

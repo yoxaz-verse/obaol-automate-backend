@@ -3,11 +3,16 @@ import { CatalogItemModel } from "../database/models/catalogItem";
 import { DisplayedRateModel } from "../database/models/displayedRate";
 import { VariantRateModel } from "../database/models/variantRate";
 
-export const LISTING_FRESHNESS_DAYS = 20;
-export const LISTING_FRESHNESS_MS = LISTING_FRESHNESS_DAYS * 24 * 60 * 60 * 1000;
+export const LISTING_LIVE_DURATION_HOURS = 24;
+export const LISTING_LIVE_DURATION_MS = LISTING_LIVE_DURATION_HOURS * 60 * 60 * 1000;
+export const PAST_LISTING_RETENTION_DAYS = 20;
+export const PAST_LISTING_RETENTION_MS = PAST_LISTING_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 export const listingFreshnessCutoff = (now = new Date()) =>
-  new Date(now.getTime() - LISTING_FRESHNESS_MS);
+  new Date(now.getTime() - LISTING_LIVE_DURATION_MS);
+
+export const pastListingRetentionCutoff = (now = new Date()) =>
+  new Date(now.getTime() - PAST_LISTING_RETENTION_MS);
 
 export const liveFreshnessCondition = (now = new Date()) => ({
   $expr: {
@@ -19,7 +24,7 @@ export const liveFreshnessCondition = (now = new Date()) => ({
 });
 
 export const recentPastCondition = (now = new Date()) => ({
-  unpublishedAt: { $gt: listingFreshnessCutoff(now) },
+  unpublishedAt: { $gt: pastListingRetentionCutoff(now) },
 });
 
 export const syncVariantRateAvailability = async (

@@ -15,10 +15,10 @@ export const startCronJobs = async () => {
   const startupExpiredCount = await expireStaleVariantRates();
   logger.info(`Startup freshness check offlined ${startupExpiredCount} stale variant rates.`);
 
-  // Expire listings after 20 elapsed days from their last publish/renewal.
-  const variantRateResetTask = cron.schedule("0 * * * *", async () => {
+  // Expire listings after 24 elapsed hours from their last publish/renewal.
+  const variantRateResetTask = cron.schedule("* * * * *", async () => {
     try {
-      logger.info("Running hourly variant rate freshness job...");
+      logger.info("Running minute variant rate freshness job...");
       const count = await expireStaleVariantRates();
       logger.info(`Successfully offlined ${count} stale variant rates.`);
     } catch (err) {

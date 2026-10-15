@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { Types } from "mongoose";
 import {
-  LISTING_FRESHNESS_MS,
+  LISTING_LIVE_DURATION_MS,
+  PAST_LISTING_RETENTION_MS,
   listingFreshnessCutoff,
+  pastListingRetentionCutoff,
   liveFreshnessCondition,
   recentPastCondition,
   expireStaleVariantRates,
@@ -26,8 +28,8 @@ describe("variant-rate freshness", () => {
     ]);
   });
 
-  it("uses an exact 20 x 24 hour cutoff", () => {
-    expect(listingFreshnessCutoff(now).getTime()).toBe(now.getTime() - LISTING_FRESHNESS_MS);
+  it("uses an exact 24 hour live cutoff", () => {
+    expect(listingFreshnessCutoff(now).getTime()).toBe(now.getTime() - LISTING_LIVE_DURATION_MS);
   });
 
   it("builds live visibility from the most recent available publish timestamp", () => {
@@ -42,8 +44,9 @@ describe("variant-rate freshness", () => {
   });
 
   it("keeps past listings visible for 20 days after unpublishing", () => {
+    expect(pastListingRetentionCutoff(now).getTime()).toBe(now.getTime() - PAST_LISTING_RETENTION_MS);
     expect(recentPastCondition(now)).toEqual({
-      unpublishedAt: { $gt: listingFreshnessCutoff(now) },
+      unpublishedAt: { $gt: pastListingRetentionCutoff(now) },
     });
   });
 
@@ -78,7 +81,7 @@ describe("variant-rate freshness", () => {
     expect(adminQuery).toEqual({ isLive: { $ne: true } });
   });
 
-  it("uses persisted live status for marketplace reads after expiry reconciliation", async () => {
+  it("applies the live timestamp cutoff to marketplace reads", async () => {
     const query: any = await variantRateMarketplaceQueryHook(
       { view: "marketplace", isLive: true },
       "read",
@@ -86,7 +89,19 @@ describe("variant-rate freshness", () => {
       { query: { view: "marketplace", isLive: "true" }, user: { role: "Associate" } }
     );
 
-    expect(query).toEqual({ isLive: true });
+    expect(query).toEqual({
+      $and: [
+        { isLive: true },
+        {
+          $expr: {
+            $gt: [
+              { $ifNull: ["$lastLiveDate", { $ifNull: ["$updatedAt", "$createdAt"] }] },
+              expect.any(Date),
+            ],
+          },
+        },
+      ],
+    });
   });
 
   it("expires only stale live rows and synchronizes dependent availability", async () => {
@@ -96,8 +111,8 @@ describe("variant-rate freshness", () => {
     const companyId = new Types.ObjectId();
     const variantId = new Types.ObjectId();
     await VariantRateModel.collection.insertMany([
-      { _id: staleId, rate: 100, productVariant: variantId, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(now.getTime() - LISTING_FRESHNESS_MS), createdAt: now, updatedAt: now },
-      { _id: freshId, rate: 110, productVariant: variantId, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(now.getTime() - LISTING_FRESHNESS_MS + 1), createdAt: now, updatedAt: now },
+      { _id: staleId, rate: 100, productVariant: variantId, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(now.getTime() - LISTING_LIVE_DURATION_MS), createdAt: now, updatedAt: now },
+      { _id: freshId, rate: 110, productVariant: variantId, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(now.getTime() - LISTING_LIVE_DURATION_MS + 1), createdAt: now, updatedAt: now },
     ] as any);
     await CatalogItemModel.collection.insertOne({ associateId, associateCompanyId: companyId, productVariantId: variantId, baseRateId: staleId, margin: 0, finalPrice: 100, isLive: true });
     await DisplayedRateModel.collection.insertOne({ variantRate: staleId, associate: associateId, associateCompany: companyId, isLive: true });

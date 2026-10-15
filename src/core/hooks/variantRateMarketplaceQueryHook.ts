@@ -1,4 +1,4 @@
-import { recentPastCondition } from "../../services/variantRateFreshnessService";
+import { liveFreshnessCondition, recentPastCondition } from "../../services/variantRateFreshnessService";
 
 type GenericQuery = Record<string, any>;
 
@@ -25,10 +25,18 @@ const normalizeClassificationInput = (value: any): string[] => {
 const addAndCondition = (baseQuery: GenericQuery, condition: GenericQuery): GenericQuery => {
   if (!condition || !Object.keys(condition).length) return baseQuery;
   if (!baseQuery || !Object.keys(baseQuery).length) return condition;
-  if (Array.isArray(baseQuery.$and)) {
-    return { ...baseQuery, $and: [...baseQuery.$and, condition] };
+  const filters = { ...baseQuery };
+  const controls: GenericQuery = {};
+  for (const key of ["page", "limit", "sort", "search", "_ts"]) {
+    if (Object.prototype.hasOwnProperty.call(filters, key)) {
+      controls[key] = filters[key];
+      delete filters[key];
+    }
   }
-  return { $and: [baseQuery, condition] };
+  if (Array.isArray(filters.$and)) {
+    return { ...controls, ...filters, $and: [...filters.$and, condition] };
+  }
+  return { ...controls, $and: [filters, condition] };
 };
 
 export const variantRateMarketplaceQueryHook = async (
@@ -62,9 +70,10 @@ export const variantRateMarketplaceQueryHook = async (
       if (restrictHistory) nextQuery = addAndCondition(nextQuery, recentPastCondition());
     } else if (isLive) {
       nextQuery.isLive = true;
+      nextQuery = addAndCondition(nextQuery, liveFreshnessCondition());
     }
     if (req) {
-      req.__marketplaceIsLive = nextQuery.isLive;
+      req.__marketplaceIsLive = isLive ? true : nextQuery.isLive;
     }
 
     const minRate = toFiniteNumber(nextQuery.minRate ?? req?.query?.minRate);

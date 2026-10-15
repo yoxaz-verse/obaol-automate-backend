@@ -9,6 +9,7 @@ import { getOperatorCompanyScope } from "../../core/hooks/operatorScope";
 import { syncVariantRateAvailability, liveFreshnessCondition, recentPastCondition, listingFreshnessCutoff } from "../../services/variantRateFreshnessService";
 import { variantRateNotificationPostWriteHook } from "../../core/hooks/notificationHooks";
 import { ExecutionMode } from "../../core/types";
+import { assertVariantRateMarketplaceEligible, marketplaceEligibilityQuery } from "../../services/variantRateMarketplaceEligibilityService";
 
 const router = Router();
 
@@ -44,6 +45,8 @@ router.post("/:id/renew", async (req: any, res) => {
     }
     if (!allowed) return res.status(403).json({ success: false, message: "You cannot renew this listing." });
 
+    await assertVariantRateMarketplaceEligible(listing, { requireLive: false });
+
     const renewedAt = new Date();
     listing.isLive = true;
     // A stale row can still be persisted as true until the hourly reconciler runs,
@@ -63,6 +66,9 @@ router.post("/:id/renew", async (req: any, res) => {
     return res.status(Number(error?.statusCode || 500)).json({
       success: false,
       message: error?.message || "Failed to renew listing.",
+      ...(error?.code && { code: error.code }),
+      ...(error?.marketplaceBlockCode && { marketplaceBlockCode: error.marketplaceBlockCode }),
+      ...(error?.marketplaceBlockingEntity && { marketplaceBlockingEntity: error.marketplaceBlockingEntity }),
     });
   }
 });
@@ -198,9 +204,9 @@ router.get("/marketplace-stats", async (req: any, res) => {
       if (companyIds.length) baseQuery.associateCompany = { $nin: companyIds };
     }
 
-    const liveQuery = roleLower === "admin"
-      ? { ...baseQuery, isLive: true }
-      : { $and: [{ ...baseQuery, isLive: true }, liveFreshnessCondition()] };
+    const liveQuery = {
+      $and: [baseQuery, await marketplaceEligibilityQuery({ requireLive: true })],
+    };
     const offlineQuery = roleLower === "admin"
       ? { ...baseQuery, isLive: { $ne: true } }
       : { $and: [{ ...baseQuery, isLive: { $ne: true } }, recentPastCondition()] };

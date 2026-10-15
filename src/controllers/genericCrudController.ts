@@ -58,7 +58,13 @@ export class GenericCrudController {
         } catch (error: any) {
             logError(error, req, "GenericCrudController");
             const status = Number(error?.statusCode || error?.status || 500);
-            res.status(status).json({ success: false, message: error.message || "Internal Server Error" });
+            res.status(status).json({
+                success: false,
+                message: error.message || "Internal Server Error",
+                ...(error?.code && { code: error.code }),
+                ...(error?.marketplaceBlockCode && { marketplaceBlockCode: error.marketplaceBlockCode }),
+                ...(error?.marketplaceBlockingEntity && { marketplaceBlockingEntity: error.marketplaceBlockingEntity }),
+            });
         }
     }
 }

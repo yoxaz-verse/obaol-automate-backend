@@ -8,7 +8,7 @@ import { SubCategoryModel } from "../src/database/models/subCategory";
 import { ProductModel } from "../src/database/models/product";
 import { ProductVariantModel } from "../src/database/models/productVariant";
 import { VariantRateModel } from "../src/database/models/variantRate";
-import { createAssociate } from "./helpers/authFixtures";
+import { createAdmin, createAssociate } from "./helpers/authFixtures";
 import { expireStaleVariantRates, LISTING_FRESHNESS_MS } from "../src/services/variantRateFreshnessService";
 
 const api = request(app);
@@ -16,6 +16,14 @@ const api = request(app);
 const authCookie = (associate: any) => {
   const token = jwt.sign(
     { id: String(associate._id), email: associate.email, role: "Associate" },
+    process.env.JWT_SECRET as string,
+  );
+  return `auth_token=${token}`;
+};
+
+const adminAuthCookie = (admin: any) => {
+  const token = jwt.sign(
+    { id: String(admin._id), email: admin.email, role: "Admin" },
     process.env.JWT_SECRET as string,
   );
   return `auth_token=${token}`;
@@ -115,5 +123,90 @@ describe("variant-rate marketplace visibility", () => {
     expect(teammateRow).not.toHaveProperty("commission");
     expect(externalRow).not.toHaveProperty("rate");
     expect(externalRow).not.toHaveProperty("commission");
+  });
+
+  it("keeps blocked live rows visible to admins, excludes them from associates and live stats, and rejects publishing", async () => {
+    const [admin, company] = await Promise.all([
+      createAdmin(),
+      createCompany("Blocked Marketplace Company"),
+    ]);
+    const owner = await createAssociate({
+      associateCompany: company._id,
+      isCompanyVerified: true,
+    });
+    const pendingCategory = await CategoryModel.create({
+      name: "Pending Marketplace Category",
+      inventoryManager: new mongoose.Types.ObjectId(),
+      approvalStatus: "PENDING_REVIEW",
+    });
+    const subCategory = await SubCategoryModel.create({
+      name: "Blocked Marketplace Subcategory",
+      category: pendingCategory._id,
+      approvalStatus: "APPROVED",
+    });
+    const product = await ProductModel.create({
+      name: "Blocked Marketplace Product",
+      description: "Blocked marketplace fixture",
+      subCategory: subCategory._id,
+      approvalStatus: "APPROVED",
+    });
+    const variant = await ProductVariantModel.create({
+      name: "Blocked Marketplace Variant",
+      description: "Blocked marketplace fixture",
+      product: product._id,
+      approvalStatus: "APPROVED",
+    });
+    const now = new Date();
+    const blockedLive = await VariantRateModel.create({
+      productVariant: variant._id,
+      associate: owner._id,
+      associateCompany: company._id,
+      rate: 200,
+      isLive: true,
+      approvalStatus: "APPROVED",
+      lastLiveAt: now,
+      lastLiveDate: now,
+    });
+
+    const adminRowsResponse = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", adminAuthCookie(admin))
+      .query({ view: "product-table", limit: 50 });
+    expect(adminRowsResponse.status).toBe(200);
+    const adminRow = (adminRowsResponse.body?.data?.data || []).find(
+      (row: any) => String(row._id) === String(blockedLive._id),
+    );
+    expect(adminRow).toMatchObject({
+      isLive: true,
+      marketplaceVisible: false,
+      marketplaceBlockCode: "CATALOG_NOT_APPROVED",
+    });
+
+    const associateRowsResponse = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", authCookie(owner))
+      .query({ view: "marketplace", isLive: true, limit: 50 });
+    expect(associateRowsResponse.status).toBe(200);
+    expect(associateRowsResponse.body?.data?.data || []).toHaveLength(0);
+
+    const statsResponse = await api
+      .get("/api/v1/web/variant-rates/marketplace-stats")
+      .set("Cookie", adminAuthCookie(admin));
+    expect(statsResponse.status).toBe(200);
+    expect(statsResponse.body?.data?.live).toBe(0);
+
+    await VariantRateModel.updateOne({ _id: blockedLive._id }, { $set: { isLive: false, unpublishedAt: now } });
+    const publishResponse = await api
+      .patch(`/api/v1/web/variant-rates/${blockedLive._id}`)
+      .set("Cookie", adminAuthCookie(admin))
+      .send({ isLive: true });
+    expect(publishResponse.status).toBe(409);
+    expect(publishResponse.body).toMatchObject({
+      success: false,
+      code: "CATALOG_NOT_APPROVED",
+      marketplaceBlockCode: "CATALOG_NOT_APPROVED",
+    });
+    const unchanged = await VariantRateModel.findById(blockedLive._id).lean();
+    expect(unchanged?.isLive).toBe(false);
   });
 });

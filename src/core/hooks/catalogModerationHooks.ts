@@ -8,6 +8,7 @@ import { ExecutionMode, HookFunction } from "../types";
 import { assertAccessibleParent, getApprovedAssociateContext } from "../../services/catalogModeration.service";
 import { AdminModel } from "../../database/models/admin";
 import { NotificationModel } from "../../database/models/notification";
+import { marketplaceEligibilityQuery } from "../../services/variantRateMarketplaceEligibilityService";
 
 const entityField = (entity: string) => ({
   categories: null, "sub-categories": "category", products: "subCategory", "product-variants": "product",
@@ -53,16 +54,9 @@ export const variantRateModerationPreReadHook: HookFunction = async (query, _mod
   if (!isMarketplace && role === "associate") {
     return addAnd(query, { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { associate: req.user?.id }] });
   }
-  const variantIds = await eligibleApprovedVariantIds();
-  const approvedAssociates = await AssociateModel.find({
-    registrationStatus: "APPROVED", isActive: true, isDeleted: { $ne: true }, isCompanyVerified: true,
-  }).distinct("_id");
-  const approvedCompanies = await AssociateCompanyModel.find({
-    registrationStatus: "APPROVED", isApproved: true, isDeleted: { $ne: true },
-  }).distinct("_id");
-  return addAnd(query, {
-    approvalStatus: { $in: ["APPROVED", null] }, productVariant: { $in: variantIds }, associate: { $in: approvedAssociates }, associateCompany: { $in: approvedCompanies },
-  });
+  return addAnd(query, await marketplaceEligibilityQuery({
+    requireLive: req?.__marketplaceIsLive === true,
+  }));
 };
 
 export const associateVariantRateModerationPreWriteHook: HookFunction = async (payload, mode, id, req) => {

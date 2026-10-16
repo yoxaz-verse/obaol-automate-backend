@@ -59,6 +59,8 @@ export const variantRateMarketplaceQueryHook = async (
 
   if (isMarketplace) {
     const roleLower = String(req?.user?.role || "").toLowerCase();
+    const excludeOwned = isTruthyString(nextQuery.excludeOwned ?? req?.query?.excludeOwned);
+    delete nextQuery.excludeOwned;
     const restrictHistory = roleLower !== "admin";
     const rawIsLive = nextQuery.isLive ?? req?.query?.isLive;
     const isOffline = rawIsLive === false || isFalsyString(rawIsLive);
@@ -70,6 +72,11 @@ export const variantRateMarketplaceQueryHook = async (
       if (restrictHistory) nextQuery = addAndCondition(nextQuery, recentPastCondition());
     } else if (isLive) {
       nextQuery.isLive = true;
+      if (excludeOwned && (roleLower === "associate" || roleLower === "customer")) {
+        nextQuery = addAndCondition(nextQuery, {
+          associate: { $ne: String(req?.user?.id || "") },
+        });
+      }
     }
     if (req) {
       req.__marketplaceIsLive = isLive ? true : nextQuery.isLive;

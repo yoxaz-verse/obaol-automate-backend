@@ -55,10 +55,7 @@ import {
     ProviderMatchLevel,
     resolveBiddingPhase,
 } from "../utils/executionBidding";
-import {
-    CONTACT_NUMBER_SPECIFICATION_ERROR,
-    containsPhoneLikeNumber,
-} from "../utils/enquirySpecificationValidation";
+import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
 
 /**
  * Inquiry Controller
@@ -94,6 +91,32 @@ export class InquiryController {
         });
     }
 
+    private async notifySellerTeamOfNewInquiry(inquiry: any, actorId?: string | null) {
+        const recipients = await notificationService.buildSellerTeamRecipients(inquiry);
+        notificationService.removeActor(recipients, actorId || null);
+        const inquiryId = String(inquiry?._id || "");
+        if (!inquiryId) return;
+        const productName = String(inquiry?.productId?.name || inquiry?.variantRateId?.productVariant?.product?.name || inquiry?.catalogItemId?.productVariantId?.product?.name || "Product");
+        const variantName = String(inquiry?.variantRateId?.productVariant?.name || inquiry?.catalogItemId?.productVariantId?.name || "");
+        const buyerName = String(inquiry?.buyerAssociateId?.name || "Buyer");
+        const buyerCompanyName = String(inquiry?.buyerAssociateId?.associateCompany?.name || "");
+        const quantity = Number(inquiry?.quantity || 0);
+        const unit = String(inquiry?.unit || "MT");
+
+        await notificationService.createNotifications({
+            recipientMap: recipients,
+            createdByUserId: actorId || null,
+            type: NotificationTypes.INQUIRY_CREATED,
+            title: "New enquiry received",
+            message: `${buyerCompanyName || buyerName} enquired about ${variantName ? `${productName} — ${variantName}` : productName}.${inquiry?.sourceListingWasPast ? " Please confirm the latest price and availability." : ""}`,
+            entityType: NotificationEntityTypes.INQUIRY,
+            entityId: inquiryId,
+            route: `/dashboard/enquiries/${inquiryId}`,
+            payload: { inquiryId, productName, variantName, quantity, unit, buyerName, buyerCompanyName, pricingConfirmationRequired: Boolean(inquiry?.sourceListingWasPast), createdAt: inquiry?.createdAt || new Date() },
+            priority: "high",
+        });
+    }
+
     private buildAccessContext(req: Request): InquiryAccessContext {
         return {
             userId: req.user!.id,
@@ -101,6 +124,46 @@ export class InquiryController {
             associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null),
             associateCompanyId: (req.user as any)?.associateCompany || null,
         };
+    }
+
+    private tradeInputContributor(req: Request, inquiry: any): "BUYER" | "SELLER" | "OBAOL" {
+        const role = String(req.user?.role || "").toLowerCase();
+        if (role === "admin" || role === "operator" || role === "team") return "OBAOL";
+        const actorId = String((req.user as any)?.associateId || req.user?.id || "");
+        if (String(inquiry?.buyerAssociateId?._id || inquiry?.buyerAssociateId || "") === actorId) return "BUYER";
+        if (String(inquiry?.sellerAssociateId?._id || inquiry?.sellerAssociateId || "") === actorId) return "SELLER";
+        return "OBAOL";
+    }
+
+    private setTradeInputAttribution(inquiry: any, key: "specifications" | "packagingSpecifications" | "routeNotes" | "inlandTransportSegments", contributor: "BUYER" | "SELLER" | "OBAOL") {
+        inquiry.set(`tradeInputAttribution.${key}`, { contributor, updatedAt: new Date() });
+    }
+
+    private partyLocation(associate: any, companyOverride?: any): { district: string | null; state: string | null; label: string } {
+        const company = companyOverride || associate?.associateCompany;
+        const district = String(company?.district?.name || associate?.district?.name || "").trim() || null;
+        const state = String(company?.state?.name || associate?.state?.name || "").trim() || null;
+        return { district, state, label: [district, state].filter(Boolean).join(", ") || "Location not provided" };
+    }
+
+    private async companyDisclosureNames(companyId: any): Promise<string[]> {
+        if (!companyId || !Types.ObjectId.isValid(String(companyId))) return [];
+        const company: any = await AssociateCompanyModel.findById(companyId)
+            .select("name registeredTradeName gstVerification.legalName gstVerification.tradeName")
+            .lean();
+        return [company?.name, company?.registeredTradeName, company?.gstVerification?.legalName, company?.gstVerification?.tradeName]
+            .map((value) => String(value || "").trim())
+            .filter(Boolean);
+    }
+
+    private async associateDisclosureNames(associateId: any): Promise<string[]> {
+        if (!associateId || !Types.ObjectId.isValid(String(associateId))) return [];
+        const associate: any = await AssociateModel.findById(associateId).select("associateCompany").lean();
+        return this.companyDisclosureNames(associate?.associateCompany);
+    }
+
+    private disclosureViolation(value: any, companyNames: string[] = []) {
+        return detectOffPlatformDisclosure(value, { companyNames });
     }
 
     private isOperatorUser(req: Request): boolean {
@@ -293,10 +356,13 @@ export class InquiryController {
                     message: "productId, buyerAssociateId, and sellerAssociateId are required"
                 });
             }
-            if (containsPhoneLikeNumber(specifications)) {
+            const buyerDisclosureNames = await this.associateDisclosureNames(buyerAssociateId);
+            const createDisclosureViolation = this.disclosureViolation(specifications, buyerDisclosureNames)
+                || this.disclosureViolation(packagingSpecifications, buyerDisclosureNames);
+            if (createDisclosureViolation) {
                 return res.status(400).json({
                     success: false,
-                    message: CONTACT_NUMBER_SPECIFICATION_ERROR,
+                    message: createDisclosureViolation.message,
                 });
             }
             if (!isValidId(productId)) {
@@ -409,6 +475,16 @@ export class InquiryController {
                 workflowStage: isImport || sourceListingWasPast ? "QUOTATION_REVISION" : "LOI_ACCEPTED_QTY_CONFIRMED",
                 createdBy: req.user!.id
             });
+            const initialContributor = this.tradeInputContributor(req, inquiry);
+            if (String(specifications || "").trim()) {
+                this.setTradeInputAttribution(inquiry, "specifications", initialContributor);
+            }
+            if (String(packagingSpecifications || "").trim()) {
+                this.setTradeInputAttribution(inquiry, "packagingSpecifications", initialContributor);
+            }
+            if (String(specifications || "").trim() || String(packagingSpecifications || "").trim()) {
+                await inquiry.save();
+            }
             if (roleLower === "associate") {
                 await AssociateReferralService.activateForAssociate(req.user!.id, "INQUIRY_CREATED", inquiry._id);
             }
@@ -469,32 +545,7 @@ export class InquiryController {
                 { path: "pendingHandlerOperatorId", select: "name email phone" }
             ]);
 
-            await this.notifyInquiryParticipants({
-                inquiry,
-                actorId: req.user!.id,
-                type: NotificationTypes.INQUIRY_CREATED,
-                title: "New inquiry created",
-                message: "A new inquiry relevant to your trade flow was created.",
-                payload: { status: InquiryStatus.NEW },
-                priority: "high",
-            });
-
-            if (sourceListingWasPast) {
-                const sellerRecipients = new Map<string, "Associate">();
-                notificationService.addRecipient(sellerRecipients, normalizedSellerAssociateId, "Associate");
-                await notificationService.createNotifications({
-                    recipientMap: sellerRecipients,
-                    createdByUserId: req.user!.id,
-                    type: NotificationTypes.INQUIRY_CREATED,
-                    title: "Past listing enquiry needs an update",
-                    message: "A buyer enquired about an older listing. Please confirm the latest price and product availability.",
-                    entityType: NotificationEntityTypes.INQUIRY,
-                    entityId: inquiry._id,
-                    route: `/dashboard/enquiries/${inquiry._id}`,
-                    payload: { inquiryId: String(inquiry._id), pricingConfirmationRequired: true },
-                    priority: "high",
-                });
-            }
+            await this.notifySellerTeamOfNewInquiry(inquiry, req.user!.id);
 
             res.status(201).json({
                 success: true,
@@ -987,6 +1038,11 @@ export class InquiryController {
             const context: InquiryAccessContext = this.buildAccessContext(req);
             if (!canAccessInquiry(inquiry as any, context)) {
                 return res.status(403).json({ success: false, message: "Access denied" });
+            }
+            if (actionKey === "CONVERT_TO_ORDER") {
+                const companyNames = await this.companyDisclosureNames(context.associateCompanyId);
+                const violation = this.disclosureViolation(req.body?.notes, companyNames);
+                if (violation) return res.status(400).json({ success: false, message: violation.message });
             }
 
             if (this.isOperatorUser(req)) {
@@ -1535,6 +1591,12 @@ export class InquiryController {
             const packagingSpecifications = String(
                 req.body?.packagingSpecifications ?? (inquiry as any)?.packagingSpecifications ?? ""
             ).trim();
+            const finalizationCompanyNames = await this.companyDisclosureNames(context.associateCompanyId);
+            const finalizationViolation = this.disclosureViolation(packagingSpecifications, finalizationCompanyNames)
+                || this.disclosureViolation(bodyContext?.routeNotes, finalizationCompanyNames);
+            if (finalizationViolation) {
+                return res.status(400).json({ success: false, message: finalizationViolation.message });
+            }
             if (!packagingSpecifications) {
                 return res.status(400).json({
                     success: false,
@@ -1807,6 +1869,17 @@ export class InquiryController {
             (inquiry as any).responsibilityPlan = plan;
             (inquiry as any).executionContext = mergedContext;
             (inquiry as any).packagingSpecifications = packagingSpecifications;
+            (inquiry as any).inlandTransportSegments = rawSegments;
+            const contributor = this.tradeInputContributor(req, inquiry);
+            if (Object.prototype.hasOwnProperty.call(bodyContext, "routeNotes")) {
+                this.setTradeInputAttribution(inquiry, "routeNotes", contributor);
+            }
+            if (typeof req.body?.packagingSpecifications !== "undefined") {
+                this.setTradeInputAttribution(inquiry, "packagingSpecifications", contributor);
+            }
+            if (Array.isArray(req.body?.inlandTransportSegments)) {
+                this.setTradeInputAttribution(inquiry, "inlandTransportSegments", contributor);
+            }
             (inquiry as any).executionInquiries = executionInquiries;
             (inquiry as any).workflowStage = "PROFORMA_ISSUED";
             await inquiry.save();
@@ -1951,6 +2024,11 @@ export class InquiryController {
             );
             const bidCompanyOverride = String(bidCompanyId || "").trim();
             const isAdminBid = (isAdmin || canOperatorHandleTask) && bidCompanyOverride;
+            if (typeof commitNote === "string") {
+                const biddingCompanyNames = await this.companyDisclosureNames(bidCompanyOverride || associateCompanyId);
+                const violation = this.disclosureViolation(commitNote, biddingCompanyNames);
+                if (violation) return res.status(400).json({ success: false, message: violation.message });
+            }
             const canBid =
                 isProviderCandidate ||
                 (ownerBy === "buyer" && associateRole === "buyer") ||
@@ -2387,13 +2465,21 @@ export class InquiryController {
                     },
                     {
                         path: "buyerAssociateId",
-                        select: "name email phone associateCompany",
-                        populate: { path: "associateCompany", select: "name" }
+                        select: "name email phone associateCompany state district",
+                        populate: [
+                            { path: "state", select: "name" },
+                            { path: "district", select: "name" },
+                            { path: "associateCompany", select: "name state district", populate: [{ path: "state", select: "name" }, { path: "district", select: "name" }] }
+                        ]
                     },
                     {
                         path: "sellerAssociateId",
-                        select: "name email phone associateCompany",
-                        populate: { path: "associateCompany", select: "name" }
+                        select: "name email phone associateCompany state district",
+                        populate: [
+                            { path: "state", select: "name" },
+                            { path: "district", select: "name" },
+                            { path: "associateCompany", select: "name state district", populate: [{ path: "state", select: "name" }, { path: "district", select: "name" }] }
+                        ]
                     },
                     {
                         path: "mediatorAssociateId",
@@ -2406,8 +2492,12 @@ export class InquiryController {
                         populate: [
                             {
                                 path: "importerCompanyId",
-                                select: "name phone supervisor",
-                                populate: { path: "supervisor", select: "name email phone lastSeenAt associateCompany", populate: { path: "associateCompany", select: "name" } }
+                                select: "name phone supervisor state district",
+                                populate: [
+                                    { path: "state", select: "name" },
+                                    { path: "district", select: "name" },
+                                    { path: "supervisor", select: "name email phone lastSeenAt associateCompany", populate: { path: "associateCompany", select: "name" } }
+                                ]
                             },
                             {
                                 path: "importerAssociateId",
@@ -2446,10 +2536,15 @@ export class InquiryController {
 
             // Filter fields based on role
             const filteredInquiry = filterInquiryFields(inquiry.toObject(), context);
+            const importCompany = (inquiry as any)?.importListingId?.importerCompanyId;
+            const partyLocations = {
+                buyer: this.partyLocation((inquiry as any).buyerAssociateId),
+                seller: this.partyLocation((inquiry as any).sellerAssociateId, importCompany),
+            };
 
             res.json({
                 success: true,
-                data: filteredInquiry
+                data: { ...filteredInquiry, partyLocations }
             });
         } catch (error: any) {
             next(error);
@@ -2669,15 +2764,25 @@ export class InquiryController {
             const previousSupplierOperatorId = String((inquiry as any).supplierOperatorId || "");
             const previousDealCloserOperatorId = String((inquiry as any).dealCloserOperatorId || "");
             const previousHandlerOperatorId = String((inquiry as any).handlerOperatorId || "");
+            const actorCompanyNames = await this.companyDisclosureNames(context.associateCompanyId);
+            const buyerCompanyNames = await this.associateDisclosureNames((inquiry as any).buyerAssociateId);
+            const contributor = this.tradeInputContributor(req, inquiry);
 
             if (typeof req.body?.specifications !== "undefined") {
-                if (containsPhoneLikeNumber(req.body.specifications)) {
+                const violation = this.disclosureViolation(req.body.specifications, buyerCompanyNames);
+                if (violation) {
                     return res.status(400).json({
                         success: false,
-                        message: CONTACT_NUMBER_SPECIFICATION_ERROR,
+                        message: violation.message,
                     });
                 }
                 (inquiry as any).specifications = req.body.specifications;
+                this.setTradeInputAttribution(inquiry, "specifications", contributor);
+            }
+            const sharedTradeViolation = this.disclosureViolation(req.body?.packagingSpecifications, actorCompanyNames)
+                || this.disclosureViolation(req.body?.executionContext?.routeNotes, actorCompanyNames);
+            if (sharedTradeViolation) {
+                return res.status(400).json({ success: false, message: sharedTradeViolation.message });
             }
             if (typeof req.body?.responsibilityPlan === "object") {
                 (inquiry as any).responsibilityPlan = req.body.responsibilityPlan || {};
@@ -2692,9 +2797,21 @@ export class InquiryController {
                     : "DOMESTIC";
                 mergedContext.tradeType = tradeType;
                 (inquiry as any).executionContext = mergedContext;
+                if (Object.prototype.hasOwnProperty.call(req.body.executionContext || {}, "routeNotes")) {
+                    this.setTradeInputAttribution(inquiry, "routeNotes", contributor);
+                }
             }
             if (typeof req.body?.packagingSpecifications !== "undefined") {
                 (inquiry as any).packagingSpecifications = String(req.body.packagingSpecifications || "");
+                this.setTradeInputAttribution(inquiry, "packagingSpecifications", contributor);
+            }
+            if (Array.isArray(req.body?.inlandTransportSegments)) {
+                (inquiry as any).inlandTransportSegments = req.body.inlandTransportSegments.map((segment: any) => ({
+                    label: String(segment?.label || "").trim(),
+                    from: String(segment?.from || "").trim(),
+                    to: String(segment?.to || "").trim(),
+                }));
+                this.setTradeInputAttribution(inquiry, "inlandTransportSegments", contributor);
             }
             if (typeof req.body?.supplierOperatorId !== "undefined") {
                 if (!isAdminUser) {

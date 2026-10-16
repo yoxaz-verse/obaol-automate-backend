@@ -6,6 +6,7 @@ import { InventoryModel } from "../database/models/inventory";
 import { NotificationModel } from "../database/models/notification";
 import { OperatorModel } from "../database/models/operator";
 import { OrderModel } from "../database/models/order";
+import { notificationStreamService } from "./notificationStreamService";
 
 export type RecipientRole = "Admin" | "Operator" | "Associate";
 
@@ -62,6 +63,21 @@ class NotificationService {
   async buildInquiryRelatedRecipients(inquiry: any) {
     const map = new Map<string, RecipientRole>();
     await this.addInquiryRelatedRecipients(map, inquiry);
+    return map;
+  }
+
+  async buildSellerTeamRecipients(inquiry: any) {
+    const map = new Map<string, RecipientRole>();
+    this.addRecipient(map, inquiry?.sellerAssociateId, "Associate");
+
+    const sellerId = this.normalizeId(inquiry?.sellerAssociateId);
+    if (!sellerId) return map;
+    const seller = await AssociateModel.findById(sellerId).select("associateCompany").lean();
+    const companyId = this.normalizeId((seller as any)?.associateCompany);
+    if (!companyId) return map;
+    const company = await AssociateCompanyModel.findById(companyId).select("supervisor assignedOperator").lean();
+    this.addRecipient(map, (company as any)?.supervisor, "Associate");
+    this.addRecipient(map, (company as any)?.assignedOperator, "Operator");
     return map;
   }
 
@@ -170,7 +186,9 @@ class NotificationService {
       ...(this.normalizeId(params.createdByUserId) ? { createdByUserId: new mongoose.Types.ObjectId(String(params.createdByUserId)) } : {}),
     }));
     if (!docs.length) return [];
-    return NotificationModel.insertMany(docs);
+    const created = await NotificationModel.insertMany(docs);
+    created.forEach((notification) => notificationStreamService.publish(notification));
+    return created;
   }
 
   async getRecipientEmails(recipientMap: Map<string, RecipientRole>) {

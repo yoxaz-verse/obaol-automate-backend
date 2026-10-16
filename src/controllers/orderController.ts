@@ -17,12 +17,23 @@ import { ensureDefaultDocumentRules } from "../utils/documentRules";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { buildPaymentPlanFromTermId, applyPaymentPlanStageUpdate } from "../utils/paymentPlan";
 import { AssociateReferralService } from "../services/associateReferral.service";
+import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
 
 export class OrderController {
     private engine: CrudEngine;
 
     constructor() {
         this.engine = new CrudEngine(OrderModel, "orders");
+    }
+
+    private async disclosureCompanyNames(companyId: any): Promise<string[]> {
+        if (!companyId || !Types.ObjectId.isValid(String(companyId))) return [];
+        const company: any = await AssociateCompanyModel.findById(companyId)
+            .select("name registeredTradeName gstVerification.legalName gstVerification.tradeName")
+            .lean();
+        return [company?.name, company?.registeredTradeName, company?.gstVerification?.legalName, company?.gstVerification?.tradeName]
+            .map((value) => String(value || "").trim())
+            .filter(Boolean);
     }
 
     public create = async (req: Request, res: Response) => {
@@ -34,6 +45,17 @@ export class OrderController {
             const enquiry = await EnquiryModel.findById(req.body.enquiry);
             if (!enquiry) {
                 return res.status(404).json({ success: false, message: "Source inquiry not found" });
+            }
+            let disclosureCompanyId = (req.user as any)?.associateCompany || null;
+            if (!disclosureCompanyId && (enquiry as any).buyerAssociateId) {
+                const buyer: any = await AssociateModel.findById((enquiry as any).buyerAssociateId).select("associateCompany").lean();
+                disclosureCompanyId = buyer?.associateCompany || null;
+            }
+            const createNoteViolation = detectOffPlatformDisclosure(req.body?.notes, {
+                companyNames: await this.disclosureCompanyNames(disclosureCompanyId),
+            });
+            if (createNoteViolation) {
+                return res.status(400).json({ success: false, message: createNoteViolation.message });
             }
 
             if (!enquiry.sellerAcceptedAt || !enquiry.buyerConfirmedAt) {
@@ -384,6 +406,12 @@ export class OrderController {
 
     public update = async (req: Request, res: Response) => {
         try {
+            if (typeof req.body?.notes !== "undefined") {
+                const noteViolation = detectOffPlatformDisclosure(req.body.notes, {
+                    companyNames: await this.disclosureCompanyNames((req.user as any)?.associateCompany),
+                });
+                if (noteViolation) return res.status(400).json({ success: false, message: noteViolation.message });
+            }
             const workflowStage = String(req.body?.workflowStage || "").trim().toUpperCase();
             const milestonePatch = req.body?.milestones || {};
             const hasProcurementDates = milestonePatch.procurementDate || milestonePatch.procurementInspectionDate;

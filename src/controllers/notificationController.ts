@@ -11,6 +11,7 @@ import { OperatorModel } from "../database/models/operator";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 import { SupportConversationModel } from "../database/models/supportConversation";
 import { NotificationCategoryModel } from "../database/models/notificationCategory";
+import { notificationStreamService } from "../services/notificationStreamService";
 type BroadcastRecipientRole = "Admin" | "Operator" | "Associate" | "CustomerSupport";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase().replace(/[_-]/g, "");
@@ -44,6 +45,23 @@ export class NotificationController {
     bidding: "/dashboard/execution-enquiries",
     support: "/dashboard/customer-support",
   };
+
+  async stream(req: Request, res: Response) {
+    const userId = String(req.user?.id || "");
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(401).json({ success: false, message: "Unauthorized." });
+    }
+
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const unsubscribe = notificationStreamService.subscribe(userId, res);
+    req.on("close", unsubscribe);
+  }
 
   async list(req: Request, res: Response) {
     try {

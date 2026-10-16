@@ -8,6 +8,8 @@ import { ProductModel } from "../src/database/models/product";
 import { ProductVariantModel } from "../src/database/models/productVariant";
 import { VariantRateModel } from "../src/database/models/variantRate";
 import { AssociateCompanyModel } from "../src/database/models/associateCompany";
+import { NotificationModel } from "../src/database/models/notification";
+import { NotificationTypes } from "../src/constants/notificationTypes";
 import { createAssociate, createOperator } from "./helpers/authFixtures";
 
 const api = request(app);
@@ -56,6 +58,50 @@ const createCompany = (overrides: Record<string, any> = {}) =>
   });
 
 describe("Inquiry create supplier ownership rule", () => {
+  it("notifies the deduplicated seller team with an enquiry summary", async () => {
+    const product = await createProductFixture();
+    const assignedOperator = await createOperator();
+    const buyerCompany = await createCompany({ name: "Buyer Company" });
+    const sellerCompany = await createCompany({ assignedOperator: assignedOperator._id });
+    const buyerAssociate = await createAssociate({ name: "Buyer Contact", associateCompany: buyerCompany._id });
+    const sellerAssociate = await createAssociate({ associateCompany: sellerCompany._id });
+    await sellerCompany.updateOne({ $set: { supervisor: sellerAssociate._id } });
+
+    const res = await api
+      .post("/api/v1/web/inquiries")
+      .set("Cookie", authCookie("Operator"))
+      .send({
+        productId: product._id,
+        buyerAssociateId: buyerAssociate._id,
+        sellerAssociateId: sellerAssociate._id,
+        quantity: 12,
+      });
+
+    expect(res.status).toBe(201);
+    const notifications = await NotificationModel.find({
+      type: NotificationTypes.INQUIRY_CREATED,
+      entityId: res.body.data._id,
+    }).lean();
+    expect(notifications).toHaveLength(2);
+    expect(notifications.map((row: any) => String(row.recipientUserId)).sort()).toEqual(
+      [String(sellerAssociate._id), String(assignedOperator._id)].sort()
+    );
+    expect(notifications.some((row: any) => String(row.recipientUserId) === String(buyerAssociate._id))).toBe(false);
+    expect(notifications[0]).toMatchObject({
+      title: "New enquiry received",
+      priority: "high",
+      route: `/dashboard/enquiries/${res.body.data._id}`,
+      payload: {
+        inquiryId: String(res.body.data._id),
+        productName: product.name,
+        quantity: 12,
+        unit: "MT",
+        buyerName: "Buyer Contact",
+        buyerCompanyName: "Buyer Company",
+      },
+    });
+  });
+
   it("creates inquiry and sets supplier operator when company has assigned operator", async () => {
     const product = await createProductFixture();
     const assignedOperator = await createOperator();

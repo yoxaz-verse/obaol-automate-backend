@@ -10,6 +10,10 @@ export interface IInquiry extends Document {
   quantity?: number;
   specifications?: string;
   packagingSpecifications?: string;
+  tradeInputAttribution?: Partial<Record<"specifications" | "packagingSpecifications" | "routeNotes" | "inlandTransportSegments", {
+    contributor?: "BUYER" | "SELLER" | "OBAOL" | null;
+    updatedAt?: Date | null;
+  }>>;
   variantRateId?: Types.ObjectId | null;
   catalogItemId?: Types.ObjectId | null;
   sourceListingWasPast?: boolean;
@@ -137,6 +141,7 @@ export interface IInquiry extends Document {
     destinationPort?: string;
     routeNotes?: string;
   };
+  inlandTransportSegments?: Array<{ label: string; from: string; to: string }>;
   responsibilitiesFinalizedAt?: Date | null;
   executionInquiries?: Array<{
     type: "PROCUREMENT" | "CERTIFICATION" | "TRANSPORTATION" | "SHIPPING" | "PACKAGING" | "QUALITY_TESTING" | "WAREHOUSE";

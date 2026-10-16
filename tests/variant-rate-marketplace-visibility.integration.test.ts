@@ -203,6 +203,23 @@ describe("variant-rate marketplace visibility", () => {
     expect(externalRow).not.toHaveProperty("rate");
     expect(externalRow).not.toHaveProperty("commission");
     expect(externalRow).not.toHaveProperty("officeAddress");
+
+    const excludeOwnedResponse = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", authCookie(viewer))
+      .query({ view: "marketplace", isLive: true, excludeOwned: true, sort: "lastLiveDate:desc", page: 1, limit: 2 });
+    expect(excludeOwnedResponse.status).toBe(200);
+    expect((excludeOwnedResponse.body?.data?.data || []).map((row: any) => String(row._id)))
+      .toEqual([String(inserted.insertedIds[3]), String(inserted.insertedIds[2])]);
+    expect(excludeOwnedResponse.body?.data?.totalCount).toBe(4);
+
+    const historyWithExcludeFlag = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", authCookie(viewer))
+      .query({ view: "marketplace", isLive: false, excludeOwned: true, limit: 50 });
+    expect(historyWithExcludeFlag.status).toBe(200);
+    expect((historyWithExcludeFlag.body?.data?.data || []).map((row: any) => String(row._id)))
+      .toContain(String(inserted.insertedIds[4]));
   });
 
   it("hides live-flagged listings that are not eligible for enquiries", async () => {

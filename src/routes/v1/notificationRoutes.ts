@@ -8,6 +8,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get("/", notificationController.list.bind(notificationController));
+router.get("/stream", notificationController.stream.bind(notificationController));
 router.get("/unread-count", notificationController.unreadCount.bind(notificationController));
 router.get("/unread-summary", notificationController.unreadSummary.bind(notificationController));
 router.get("/support-participants", authorizeRoles("Admin", "CustomerSupport"), notificationController.supportParticipants.bind(notificationController));

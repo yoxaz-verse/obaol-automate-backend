@@ -25,6 +25,24 @@ const InquirySchema: Schema = new Schema(
             trim: true,
             default: ""
         },
+        tradeInputAttribution: {
+            specifications: {
+                contributor: { type: String, enum: ["BUYER", "SELLER", "OBAOL"], default: null },
+                updatedAt: { type: Date, default: null },
+            },
+            packagingSpecifications: {
+                contributor: { type: String, enum: ["BUYER", "SELLER", "OBAOL"], default: null },
+                updatedAt: { type: Date, default: null },
+            },
+            routeNotes: {
+                contributor: { type: String, enum: ["BUYER", "SELLER", "OBAOL"], default: null },
+                updatedAt: { type: Date, default: null },
+            },
+            inlandTransportSegments: {
+                contributor: { type: String, enum: ["BUYER", "SELLER", "OBAOL"], default: null },
+                updatedAt: { type: Date, default: null },
+            },
+        },
         variantRateId: {
             type: Schema.Types.ObjectId,
             ref: "VariantRate",
@@ -278,6 +296,11 @@ const InquirySchema: Schema = new Schema(
             destinationPort: { type: String, default: null },
             routeNotes: { type: String, default: null },
         },
+        inlandTransportSegments: [{
+            label: { type: String, trim: true, default: "" },
+            from: { type: String, trim: true, default: "" },
+            to: { type: String, trim: true, default: "" },
+        }],
         responsibilitiesFinalizedAt: {
             type: Date,
             default: null

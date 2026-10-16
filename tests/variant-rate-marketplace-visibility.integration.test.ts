@@ -117,20 +117,24 @@ describe("variant-rate marketplace visibility", () => {
     const category = await CategoryModel.create({
       name: "Marketplace Category",
       inventoryManager: new mongoose.Types.ObjectId(),
+      approvalStatus: "APPROVED",
     });
     const subCategory = await SubCategoryModel.create({
       name: "Marketplace Subcategory",
       category: category._id,
+      approvalStatus: "APPROVED",
     });
     const product = await ProductModel.create({
       name: "Marketplace Product",
       description: "Marketplace visibility fixture",
       subCategory: subCategory._id,
+      approvalStatus: "APPROVED",
     });
     const variant = await ProductVariantModel.create({
       name: "Marketplace Variant",
       description: "Marketplace visibility fixture",
       product: product._id,
+      approvalStatus: "APPROVED",
     });
 
     const now = new Date();
@@ -146,6 +150,7 @@ describe("variant-rate marketplace visibility", () => {
       commission: 2.5,
       isLive: true,
       isDeleted: false,
+      approvalStatus: "APPROVED",
       lastLiveAt: middleDate,
       lastLiveDate: middleDate,
       createdAt: middleDate,
@@ -202,7 +207,7 @@ describe("variant-rate marketplace visibility", () => {
     expect(externalRow).not.toHaveProperty("officeAddress");
   });
 
-  it("returns the same live listing ids to admins and associates regardless of moderation metadata", async () => {
+  it("hides live-flagged listings that are not eligible for enquiries", async () => {
     const [admin, company] = await Promise.all([
       createAdmin(),
       createCompany("Shared Marketplace Company"),
@@ -269,12 +274,10 @@ describe("variant-rate marketplace visibility", () => {
     expect(associateRows.map((row: any) => String(row._id)).sort()).toEqual(
       adminRows.map((row: any) => String(row._id)).sort(),
     );
-    expect(associateRows.map((row: any) => String(row._id))).toContain(String(liveListing._id));
+    expect(associateRows.map((row: any) => String(row._id))).not.toContain(String(liveListing._id));
     expect(associateRows.map((row: any) => String(row._id))).not.toContain(String(offlineListing._id));
     expect(associateRows.map((row: any) => String(row._id))).not.toContain(String(deletedListing._id));
-    const foreignRow = associateRows.find((row: any) => String(row._id) === String(liveListing._id));
-    expect(foreignRow).not.toHaveProperty("rate");
-    expect(foreignRow).not.toHaveProperty("commission");
+    expect(associateRows).toHaveLength(0);
 
     const statsResponse = await api
       .get("/api/v1/web/variant-rates/marketplace-stats")
@@ -292,6 +295,6 @@ describe("variant-rate marketplace visibility", () => {
       .set("Cookie", authCookie(viewer))
       .query({ view: "marketplace", isLive: true, limit: 50 });
     expect((refreshedAssociateResponse.body?.data?.data || []).map((row: any) => String(row._id)))
-      .toContain(String(offlineListing._id));
+      .not.toContain(String(offlineListing._id));
   });
 });

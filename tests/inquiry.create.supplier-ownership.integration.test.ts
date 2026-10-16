@@ -5,6 +5,8 @@ import app from "../src/app";
 import { CategoryModel } from "../src/database/models/category";
 import { SubCategoryModel } from "../src/database/models/subCategory";
 import { ProductModel } from "../src/database/models/product";
+import { ProductVariantModel } from "../src/database/models/productVariant";
+import { VariantRateModel } from "../src/database/models/variantRate";
 import { AssociateCompanyModel } from "../src/database/models/associateCompany";
 import { createAssociate, createOperator } from "./helpers/authFixtures";
 
@@ -127,5 +129,91 @@ describe("Inquiry create supplier ownership rule", () => {
     expect(res.status).toBe(201);
     const supplierOperator = res.body?.data?.supplierOperatorId;
     expect(supplierOperator === null || supplierOperator === undefined || supplierOperator === "").toBe(true);
+  });
+
+  it("creates an enquiry from an eligible live marketplace listing", async () => {
+    const product = await createProductFixture();
+    const variant = await ProductVariantModel.create({
+      name: `Variant ${new mongoose.Types.ObjectId().toHexString().slice(0, 6)}`,
+      description: "Eligible marketplace listing fixture",
+      product: product._id,
+      approvalStatus: "APPROVED",
+    });
+    const buyerCompany = await createCompany({ registrationStatus: "APPROVED", isApproved: true });
+    const sellerCompany = await createCompany({ registrationStatus: "APPROVED", isApproved: true });
+    const buyerAssociate = await createAssociate({ associateCompany: buyerCompany._id, isCompanyVerified: true });
+    const sellerAssociate = await createAssociate({ associateCompany: sellerCompany._id, isCompanyVerified: true });
+    const listing = await VariantRateModel.create({
+      productVariant: variant._id,
+      associate: sellerAssociate._id,
+      associateCompany: sellerCompany._id,
+      rate: 250,
+      isLive: true,
+      approvalStatus: "APPROVED",
+      lastLiveDate: new Date(),
+    });
+
+    const res = await api
+      .post("/api/v1/web/inquiries")
+      .set("Cookie", authCookie("Operator"))
+      .send({
+        productId: product._id,
+        buyerAssociateId: buyerAssociate._id,
+        sellerAssociateId: sellerAssociate._id,
+        variantRateId: listing._id,
+        quantity: 5,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body?.success).toBe(true);
+    expect(String(res.body?.data?.variantRateId?._id || res.body?.data?.variantRateId)).toBe(String(listing._id));
+  });
+
+  it("returns a structured eligibility conflict when listing ownership is no longer approved", async () => {
+    const product = await createProductFixture();
+    const variant = await ProductVariantModel.create({
+      name: `Variant ${new mongoose.Types.ObjectId().toHexString().slice(0, 6)}`,
+      description: "Ineligible marketplace listing fixture",
+      product: product._id,
+      approvalStatus: "APPROVED",
+    });
+    const buyerCompany = await createCompany({ registrationStatus: "APPROVED", isApproved: true });
+    const sellerCompany = await createCompany({ registrationStatus: "APPROVED", isApproved: true });
+    const buyerAssociate = await createAssociate({ associateCompany: buyerCompany._id, isCompanyVerified: true });
+    const sellerAssociate = await createAssociate({
+      associateCompany: sellerCompany._id,
+      isCompanyVerified: false,
+      registrationStatus: "PENDING_REVIEW",
+    });
+    const listing = await VariantRateModel.create({
+      productVariant: variant._id,
+      associate: sellerAssociate._id,
+      associateCompany: sellerCompany._id,
+      rate: 250,
+      isLive: true,
+      approvalStatus: "APPROVED",
+      lastLiveDate: new Date(),
+    });
+
+    const res = await api
+      .post("/api/v1/web/inquiries")
+      .set("Cookie", authCookie("Operator"))
+      .set("Accept", "application/json")
+      .send({
+        productId: product._id,
+        buyerAssociateId: buyerAssociate._id,
+        sellerAssociateId: sellerAssociate._id,
+        variantRateId: listing._id,
+        quantity: 5,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.headers["content-type"]).toContain("application/json");
+    expect(res.body).toMatchObject({
+      success: false,
+      status: 409,
+      code: "LISTING_NOT_ENQUIRY_ELIGIBLE",
+      message: "This product is no longer available for enquiry. Please refresh the marketplace.",
+    });
   });
 });

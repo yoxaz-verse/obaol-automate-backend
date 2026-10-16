@@ -9,6 +9,7 @@ import { getOperatorCompanyScope } from "../../core/hooks/operatorScope";
 import { syncVariantRateAvailability, liveFreshnessCondition, recentPastCondition, listingFreshnessCutoff } from "../../services/variantRateFreshnessService";
 import { variantRateNotificationPostWriteHook } from "../../core/hooks/notificationHooks";
 import { ExecutionMode } from "../../core/types";
+import { getEnquiryEligibleVariantRateFilter } from "../../services/catalogModeration.service";
 
 const router = Router();
 
@@ -198,7 +199,8 @@ router.get("/marketplace-stats", async (req: any, res) => {
       if (companyIds.length) baseQuery.associateCompany = { $nin: companyIds };
     }
 
-    const liveQuery = { $and: [{ ...baseQuery, isLive: true }, liveFreshnessCondition()] };
+    const eligibleLiveFilter = await getEnquiryEligibleVariantRateFilter({ requireLive: true });
+    const liveQuery = { $and: [baseQuery, eligibleLiveFilter, liveFreshnessCondition()] };
     const offlineQuery = roleLower === "admin"
       ? { ...baseQuery, isLive: { $ne: true } }
       : { $and: [{ ...baseQuery, isLive: { $ne: true } }, recentPastCondition()] };

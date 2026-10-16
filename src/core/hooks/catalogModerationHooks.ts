@@ -5,7 +5,7 @@ import { ProductVariantModel } from "../../database/models/productVariant";
 import { AssociateModel } from "../../database/models/associate";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { ExecutionMode, HookFunction } from "../types";
-import { assertAccessibleParent, getApprovedAssociateContext } from "../../services/catalogModeration.service";
+import { assertAccessibleParent, getApprovedAssociateContext, getEnquiryEligibleVariantRateFilter } from "../../services/catalogModeration.service";
 import { AdminModel } from "../../database/models/admin";
 import { NotificationModel } from "../../database/models/notification";
 
@@ -13,7 +13,21 @@ const entityField = (entity: string) => ({
   categories: null, "sub-categories": "category", products: "subCategory", "product-variants": "product",
 } as Record<string, string | null>)[entity];
 
-const addAnd = (query: any, condition: any) => Object.keys(query || {}).length ? { $and: [query, condition] } : condition;
+const addAnd = (query: any, condition: any) => {
+  const filters = { ...(query || {}) };
+  const controls: Record<string, any> = {};
+  for (const key of ["page", "limit", "sort", "search", "_ts", "view"]) {
+    if (Object.prototype.hasOwnProperty.call(filters, key)) {
+      controls[key] = filters[key];
+      delete filters[key];
+    }
+  }
+  if (!Object.keys(filters).length) return { ...controls, ...condition };
+  if (Array.isArray(filters.$and)) {
+    return { ...controls, ...filters, $and: [...filters.$and, condition] };
+  }
+  return { ...controls, $and: [filters, condition] };
+};
 
 export const catalogModerationPreReadHook: HookFunction = async (query, _mode, _id, req) => {
   const role = String(req?.user?.role || "").toLowerCase();
@@ -48,8 +62,11 @@ export const eligibleApprovedVariantIds = async () => {
 
 export const variantRateModerationPreReadHook: HookFunction = async (query, _mode, _id, req) => {
   const role = String(req?.user?.role || "").toLowerCase();
-  if (role === "admin") return query;
   const isMarketplace = String(req?.query?.view || "").toLowerCase() === "marketplace";
+  if (isMarketplace && (req?.query?.isLive === true || String(req?.query?.isLive).toLowerCase() === "true")) {
+    return addAnd(query, await getEnquiryEligibleVariantRateFilter({ requireLive: true }));
+  }
+  if (role === "admin") return query;
   if (isMarketplace) return query;
   if (!isMarketplace && role === "associate") {
     return addAnd(query, { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { associate: req.user?.id }] });

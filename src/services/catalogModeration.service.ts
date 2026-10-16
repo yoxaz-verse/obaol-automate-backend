@@ -135,21 +135,84 @@ export const catalogModerationSummary = async (entityType: ModeratedEntityType, 
   };
 };
 
+export const LISTING_NOT_ENQUIRY_ELIGIBLE = "LISTING_NOT_ENQUIRY_ELIGIBLE";
+
+const listingEligibilityError = (message: string, details: Record<string, any> = {}) =>
+  Object.assign(new Error(message), {
+    status: 409,
+    statusCode: 409,
+    code: LISTING_NOT_ENQUIRY_ELIGIBLE,
+    ...details,
+  });
+
+/**
+ * Database-level eligibility filter used by marketplace reads. Keep this in
+ * sync with assertVariantRateEligible so anything labelled Live can be used
+ * to create an enquiry.
+ */
+export const getEnquiryEligibleVariantRateFilter = async (options: { requireLive?: boolean } = {}) => {
+  const variantIds = await (async () => {
+    const categoryIds = await CategoryModel.find({
+      approvalStatus: { $in: ["APPROVED", null] },
+      isDeleted: { $ne: true },
+    }).distinct("_id");
+    const subCategoryIds = await SubCategoryModel.find({
+      category: { $in: categoryIds },
+      approvalStatus: { $in: ["APPROVED", null] },
+      isDeleted: { $ne: true },
+    }).distinct("_id");
+    const productIds = await ProductModel.find({
+      subCategory: { $in: subCategoryIds },
+      approvalStatus: { $in: ["APPROVED", null] },
+      isDeleted: { $ne: true },
+    }).distinct("_id");
+    return ProductVariantModel.find({
+      product: { $in: productIds },
+      approvalStatus: { $in: ["APPROVED", null] },
+      isDeleted: { $ne: true },
+      isAvailable: { $ne: false },
+    }).distinct("_id");
+  })();
+  const associateIds = await AssociateModel.find({
+    registrationStatus: "APPROVED",
+    isActive: true,
+    isDeleted: { $ne: true },
+    isCompanyVerified: true,
+  }).distinct("_id");
+  const companyIds = await AssociateCompanyModel.find({
+    registrationStatus: "APPROVED",
+    isApproved: true,
+    isDeleted: { $ne: true },
+  }).distinct("_id");
+
+  return {
+    approvalStatus: { $in: ["APPROVED", null] },
+    isDeleted: { $ne: true },
+    isDemo: { $ne: true },
+    productVariant: { $in: variantIds },
+    associate: { $in: associateIds },
+    associateCompany: { $in: companyIds },
+    ...(options.requireLive === false
+      ? {}
+      : { isLive: true, unpublishedAt: null }),
+  };
+};
+
 export const assertVariantRateEligible = async (rateOrId: any, options: { requireLive?: boolean } = {}) => {
   const rate: any = typeof rateOrId === "object" && rateOrId?._id
     ? rateOrId
     : await VariantRateModel.findById(rateOrId).lean();
   if (!rate || rate.isDeleted || rate.isDemo || (options.requireLive !== false && (!rate.isLive || rate.unpublishedAt)) || String(rate.approvalStatus || "APPROVED") !== "APPROVED") {
-    throw Object.assign(new Error("This listing is not approved for Associate use."), { status: 409 });
+    throw listingEligibilityError("This product is no longer available for enquiry. Please refresh the marketplace.");
   }
   const moderation = await catalogModerationSummary("variantRate", rate);
   if (!moderation.effectiveVisibility) {
-    throw Object.assign(new Error(`This listing is blocked by an unapproved ${moderation.blockingAncestor?.entityType || "catalog ancestor"}.`), { status: 409, blockingAncestor: moderation.blockingAncestor });
+    throw listingEligibilityError("This product is no longer available for enquiry. Please refresh the marketplace.", { blockingAncestor: moderation.blockingAncestor });
   }
   const associate: any = await AssociateModel.findById(rate.associate).select("registrationStatus isActive isDeleted isCompanyVerified associateCompany").lean();
   const company: any = rate.associateCompany ? await AssociateCompanyModel.findById(rate.associateCompany).select("registrationStatus isApproved isDeleted").lean() : null;
   if (!associate || associate.isDeleted || !associate.isActive || !associate.isCompanyVerified || associate.registrationStatus !== "APPROVED" || !company || company.isDeleted || !company.isApproved || company.registrationStatus !== "APPROVED") {
-    throw Object.assign(new Error("This listing's Associate or company is not currently eligible."), { status: 409 });
+    throw listingEligibilityError("This product is no longer available for enquiry. Please refresh the marketplace.");
   }
   return rate;
 };

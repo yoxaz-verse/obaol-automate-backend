@@ -55,6 +55,10 @@ import {
     ProviderMatchLevel,
     resolveBiddingPhase,
 } from "../utils/executionBidding";
+import {
+    CONTACT_NUMBER_SPECIFICATION_ERROR,
+    containsPhoneLikeNumber,
+} from "../utils/enquirySpecificationValidation";
 
 /**
  * Inquiry Controller
@@ -289,6 +293,12 @@ export class InquiryController {
                     message: "productId, buyerAssociateId, and sellerAssociateId are required"
                 });
             }
+            if (containsPhoneLikeNumber(specifications)) {
+                return res.status(400).json({
+                    success: false,
+                    message: CONTACT_NUMBER_SPECIFICATION_ERROR,
+                });
+            }
             if (!isValidId(productId)) {
                 return res.status(400).json({ success: false, message: "Invalid productId" });
             }
@@ -353,23 +363,19 @@ export class InquiryController {
             // Backend Rate & Commission Lookup
             if (normalizedCatalogItemId) {
                 const catalogItem = await CatalogItemModel.findById(normalizedCatalogItemId).populate("baseRateId");
-                if (catalogItem) {
-                    const baseRate = catalogItem.baseRateId as any;
-                    await assertVariantRateEligible(baseRate, { requireLive: false });
-                    rate = baseRate?.rate || 0;
-                    adminCommission = baseRate?.commission || 0;
-                    mediatorCommission = catalogItem.margin || 0;
-                }
+                const baseRate = catalogItem?.baseRateId as any;
+                await assertVariantRateEligible(baseRate, { requireLive: false });
+                rate = baseRate?.rate || 0;
+                adminCommission = baseRate?.commission || 0;
+                mediatorCommission = catalogItem?.margin || 0;
             } else if (normalizedVariantRateId) {
                 const variantRate = await VariantRateModel.findById(normalizedVariantRateId);
-                if (variantRate) {
-                    await assertVariantRateEligible(variantRate, { requireLive: false });
-                    rate = variantRate.rate || 0;
-                    adminCommission = variantRate.commission || 0;
-                    mediatorCommission = 0;
-                    sourceListingWasPast = variantRate.isLive !== true;
-                    sourceProductVariantId = variantRate.productVariant || null;
-                }
+                await assertVariantRateEligible(variantRate, { requireLive: false });
+                rate = variantRate!.rate || 0;
+                adminCommission = variantRate!.commission || 0;
+                mediatorCommission = 0;
+                sourceListingWasPast = variantRate!.isLive !== true;
+                sourceProductVariantId = variantRate!.productVariant || null;
             }
 
             const isImport = String(req.body?.sourceType || "").toUpperCase() === "IMPORT" || Boolean(req.body?.importListingId);
@@ -2665,6 +2671,12 @@ export class InquiryController {
             const previousHandlerOperatorId = String((inquiry as any).handlerOperatorId || "");
 
             if (typeof req.body?.specifications !== "undefined") {
+                if (containsPhoneLikeNumber(req.body.specifications)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: CONTACT_NUMBER_SPECIFICATION_ERROR,
+                    });
+                }
                 (inquiry as any).specifications = req.body.specifications;
             }
             if (typeof req.body?.responsibilityPlan === "object") {

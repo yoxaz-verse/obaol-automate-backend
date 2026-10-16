@@ -271,8 +271,7 @@ export class CrudEngine extends BaseService {
         const roleLower = String((req as any)?.user?.role || "").toLowerCase();
         if (
             this.entityName === "variant-rates" &&
-            requestedView === "marketplace" &&
-            (roleLower === "associate" || roleLower === "customer")
+            requestedView === "marketplace"
         ) {
             result.data = (result.data || []).map((row: any) => {
                 const source = typeof row?.toObject === "function" ? row.toObject() : { ...row };
@@ -280,19 +279,26 @@ export class CrudEngine extends BaseService {
                 const isOwnedByViewer =
                     (roleLower === "associate" || roleLower === "customer") &&
                     ownerId === String((req as any)?.user?.id || "");
-                source.isOwnedByViewer = isOwnedByViewer;
-                if (!isOwnedByViewer) {
+                const isLiveMarketplaceRequest = (req as any)?.__marketplaceIsLive === true;
+                source.enquiryEligible = isLiveMarketplaceRequest;
+                source.effectiveIsLive = isLiveMarketplaceRequest;
+                if (roleLower === "associate" || roleLower === "customer") {
+                    source.isOwnedByViewer = isOwnedByViewer;
+                }
+                if ((roleLower === "associate" || roleLower === "customer") && !isOwnedByViewer) {
                     delete source.rate;
                     delete source.commission;
                 }
-                delete source.locationDisplay;
-                delete source.locationSource;
-                delete source.officeAddress;
-                delete source.warehouseId;
-                delete source.state;
-                delete source.district;
-                delete source.division;
-                delete source.pincodeEntry;
+                if (roleLower === "associate" || roleLower === "customer") {
+                    delete source.locationDisplay;
+                    delete source.locationSource;
+                    delete source.officeAddress;
+                    delete source.warehouseId;
+                    delete source.state;
+                    delete source.district;
+                    delete source.division;
+                    delete source.pincodeEntry;
+                }
                 return source;
             });
         }

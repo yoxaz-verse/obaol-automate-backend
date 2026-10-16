@@ -8,10 +8,10 @@ import {
   catalogModerationSummary, getApprovedAssociateContext, pickEntityFields,
 } from "../services/catalogModeration.service";
 
-const ENTITY_TYPES = ["category", "subCategory", "product", "productVariant", "variantRate"] as const;
+const ENTITY_TYPES = ["category", "subCategory", "product", "productVariant"] as const;
 const parseEntityType = (value: unknown): ModeratedEntityType => {
   const type = String(value || "") as ModeratedEntityType;
-  if (!ENTITY_TYPES.includes(type)) throw Object.assign(new Error("Unsupported catalog entity type."), { status: 400 });
+  if (!(ENTITY_TYPES as readonly string[]).includes(type)) throw Object.assign(new Error("Unsupported catalog entity type."), { status: 400 });
   return type;
 };
 const positiveInt = (value: unknown, fallback: number, max: number) => {

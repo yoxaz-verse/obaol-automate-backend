@@ -28,6 +28,11 @@ describe("catalog moderation", () => {
     const otherToken = tokenFor(other, "Associate");
     const adminToken = tokenFor({ _id: new mongoose.Types.ObjectId(), email: "catalog-admin@example.com" }, "Admin");
 
+    await api.post("/api/v1/web/catalog-moderation/variantRate")
+      .set("Authorization", `Bearer ${creatorToken}`).send({ rate: 100 }).expect(400);
+    await api.get("/api/v1/web/approvals/catalog/variantRate")
+      .set("Authorization", `Bearer ${adminToken}`).expect(400);
+
     const created = await api.post("/api/v1/web/catalog-moderation/category")
       .set("Authorization", `Bearer ${creatorToken}`).send({ name: `Private Category ${suffix}`, description: "Private draft" });
     expect(created.status).toBe(201);

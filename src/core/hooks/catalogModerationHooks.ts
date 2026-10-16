@@ -6,8 +6,6 @@ import { AssociateModel } from "../../database/models/associate";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { ExecutionMode, HookFunction } from "../types";
 import { assertAccessibleParent, eligibleApprovedVariantIds, getApprovedAssociateContext, getEnquiryEligibleVariantRateFilter } from "../../services/catalogModeration.service";
-import { AdminModel } from "../../database/models/admin";
-import { NotificationModel } from "../../database/models/notification";
 
 const entityField = (entity: string) => ({
   categories: null, "sub-categories": "category", products: "subCategory", "product-variants": "product",
@@ -92,21 +90,19 @@ export const associateVariantRateModerationPreWriteHook: HookFunction = async (p
   if (String(req?.user?.role || "").toLowerCase() !== "associate") return payload;
   if (mode === ExecutionMode.CREATE) {
     const context = await getApprovedAssociateContext(String(req.user?.id || ""));
-    await assertAccessibleParent("variantRate", payload, String(context.associateId));
-    return { ...payload, approvalStatus: "PENDING_REVIEW", approvalRequestedAt: new Date(), approvedAt: null, approvedBy: null, reviewNotes: "", createdByAssociate: context.associateId, createdByCompany: context.companyId };
+    await assertAccessibleParent("variantRate", payload, String(context.associateId), { requireApproved: true });
+    return {
+      ...payload,
+      approvalStatus: "APPROVED",
+      approvalRequestedAt: null,
+      approvedAt: new Date(),
+      approvedBy: null,
+      reviewNotes: "",
+      createdByAssociate: context.associateId,
+      createdByCompany: context.companyId,
+    };
   }
   const err: any = new Error("Use the catalog proposal workflow to revise an Associate listing.");
   err.status = 403; err.statusCode = 403; throw err;
 };
 
-export const variantRateModerationPostWriteHook = async (_entity: any, result: any, mode: any, req: any) => {
-  if (mode !== ExecutionMode.CREATE || String(req?.user?.role || "").toLowerCase() !== "associate" || !result?._id) return result;
-  const admins = await AdminModel.find({ isActive: true, isDeleted: { $ne: true } }).select("_id").lean();
-  if (admins.length) await NotificationModel.insertMany(admins.map((admin: any) => ({
-    recipientUserId: admin._id, recipientRole: "Admin", type: "APPROVAL_REQUESTED",
-    title: "Listing approval requested", message: "An Associate submitted a commodity listing for review.",
-    entityType: "APPROVAL", entityId: result._id, route: "/dashboard/approvals", priority: "high",
-    payload: { catalogEntityType: "variantRate" },
-  })));
-  return result;
-};

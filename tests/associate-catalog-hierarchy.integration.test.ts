@@ -7,6 +7,7 @@ import { SubCategoryModel } from "../src/database/models/subCategory";
 import { ProductModel } from "../src/database/models/product";
 import { ProductVariantModel } from "../src/database/models/productVariant";
 import { AssociateCompanyModel } from "../src/database/models/associateCompany";
+import { NotificationModel } from "../src/database/models/notification";
 import { createAssociate } from "./helpers/authFixtures";
 
 const api = request(app);
@@ -99,7 +100,28 @@ describe("associate catalog hierarchy", () => {
     expect(String(createRateResponse.body?.data?.associate)).toBe(String(associate._id));
     expect(String(createRateResponse.body?.data?.associateCompany)).toBe(String(company._id));
     expect(String(createRateResponse.body?.data?.productVariant)).toBe(String(variantA._id));
-    expect(createRateResponse.body?.data?.approvalStatus).toBe("PENDING_REVIEW");
+    expect(createRateResponse.body?.data?.approvalStatus).toBe("APPROVED");
+    expect(createRateResponse.body?.data?.approvalRequestedAt).toBeNull();
+
+    const liveRateResponse = await api
+      .post("/api/v1/web/variant-rates")
+      .set("Cookie", cookie)
+      .send({
+        rate: 130,
+        unit: "KG",
+        productVariant: variantB._id,
+        locationSource: "OFFICE_ADDRESS",
+        officeAddress: "Associate catalog office",
+        isLive: true,
+        isConventional: true,
+      });
+    expect(liveRateResponse.status).toBe(201);
+    expect(liveRateResponse.body?.data).toMatchObject({ approvalStatus: "APPROVED", isLive: true });
+    const viewer = await createAssociate({ associateCompany: company._id, isCompanyVerified: true });
+    const marketplaceResponse = await api.get("/api/v1/web/variant-rates")
+      .set("Cookie", authCookie(viewer)).query({ view: "marketplace", isLive: true, limit: 50 });
+    expect(rows(marketplaceResponse).map((row: any) => String(row._id))).toContain(String(liveRateResponse.body.data._id));
+    expect(await NotificationModel.countDocuments({ type: "APPROVAL_REQUESTED", "payload.catalogEntityType": "variantRate" })).toBe(0);
 
     const invalidResponse = await api.get("/api/v1/web/catalog/hierarchy-options").set("Cookie", cookie).query({ category: "not-an-id" });
     expect(invalidResponse.status).toBe(400);

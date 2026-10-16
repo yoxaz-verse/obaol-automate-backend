@@ -42,7 +42,7 @@ import {
     orderNotificationPostWriteHook,
     orderNotificationPreWriteHook,
 } from "./operationalNotificationHooks";
-import { associateVariantRateModerationPreWriteHook, catalogModerationPreReadHook, catalogModerationPreWriteHook, variantRateModerationPostWriteHook, variantRateModerationPreReadHook } from "./catalogModerationHooks";
+import { associateVariantRateModerationPreWriteHook, catalogModerationPreReadHook, catalogModerationPreWriteHook, variantRateModerationPreReadHook } from "./catalogModerationHooks";
 
 export const registerAllHooks = () => {
     // RBAC Hooks for Operators (Overseers)
@@ -106,7 +106,6 @@ export const registerAllHooks = () => {
         return nextPayload;
     });
     HookDispatcher.registerPostWrite("variant-rates", async (entityName: any, payload: any, mode: any, req: any) => {
-        await variantRateModerationPostWriteHook(entityName, payload, mode, req);
         await variantRateNotificationPostWriteHook(entityName, payload, mode, req);
         if (mode === ExecutionMode.UPDATE && payload?._id) {
             await syncVariantRateAvailability([payload._id], Boolean(payload.isLive));

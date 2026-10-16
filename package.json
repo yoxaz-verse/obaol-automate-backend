@@ -21,6 +21,7 @@
     "backfill:approval-status": "ts-node src/scripts/backfillApprovalStatus.ts",
     "backfill:product-slugs": "ts-node src/scripts/backfill-product-slugs.ts",
     "migrate:variant-rate-classification": "ts-node src/scripts/migrate-classification-to-variant-rates.ts",
+    "migrate:variant-rate-immediate-publication": "ts-node src/scripts/migrateVariantRateImmediatePublication.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
     "backfill:catalog-moderation": "ts-node src/scripts/backfill-catalog-moderation.ts",
     "backfill:associate-referral-codes": "ts-node src/scripts/backfill-associate-referral-codes.ts",

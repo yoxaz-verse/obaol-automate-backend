@@ -67,7 +67,7 @@ export const getParent = async (entityType: ModeratedEntityType, payload: any) =
   return { type: "productVariant" as ModeratedEntityType, id: payload.productVariant };
 };
 
-export const assertAccessibleParent = async (entityType: ModeratedEntityType, payload: any, associateId: string) => {
+export const assertAccessibleParent = async (entityType: ModeratedEntityType, payload: any, associateId: string, options: { requireApproved?: boolean } = {}) => {
   const parent = await getParent(entityType, payload);
   if (!parent) return null;
   if (!parent?.id || !mongoose.Types.ObjectId.isValid(String(parent.id))) {
@@ -77,6 +77,9 @@ export const assertAccessibleParent = async (entityType: ModeratedEntityType, pa
     .select("_id approvalStatus createdByAssociate isDeleted").lean();
   if (!row || (row as any).isDeleted) throw Object.assign(new Error(`${parent.type} was not found.`), { status: 404 });
   const status = String((row as any).approvalStatus || "APPROVED");
+  if (options.requireApproved && status !== "APPROVED") {
+    throw Object.assign(new Error(`The selected ${parent.type} must be approved before a trade listing can be published.`), { status: 409 });
+  }
   if (status !== "APPROVED" && String((row as any).createdByAssociate || "") !== associateId) {
     throw Object.assign(new Error(`You cannot build on another Associate's unapproved ${parent.type}.`), { status: 403 });
   }

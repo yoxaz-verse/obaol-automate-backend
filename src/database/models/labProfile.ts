@@ -57,6 +57,7 @@ const SnapshotSchema = new Schema(
     displayName: { type: String, required: true, trim: true },
     contactEmail: { type: String, required: true, trim: true, lowercase: true },
     contactPhone: { type: String, required: true, trim: true },
+    whatsappPhone: { type: String, default: "", trim: true },
     contactPhoneSecondary: { type: String, default: "", trim: true },
     address: { type: String, required: true, trim: true },
     physicalCountryId: { type: Schema.Types.ObjectId, ref: "Country", required: true },

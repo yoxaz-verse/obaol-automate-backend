@@ -35,6 +35,7 @@ export function legacyProfile(company: any) {
       displayName: company.labDisplayName || company.name || "Legacy lab",
       contactEmail: company.labContactEmail || company.email || "",
       contactPhone: company.labContactPhone || company.phone || "",
+      whatsappPhone: company.labWhatsappPhone || "",
       contactPhoneSecondary: company.labContactPhoneSecondary || company.phoneSecondary || "",
       address: company.address || "Location not supplied",
       physicalCountryId: company.country || null,
@@ -348,7 +349,7 @@ export class LabProfileController {
       if (source) legacyQuery.externalListingSource = source;
       if (search) legacyQuery.$or = ["name", "labDisplayName", "address", "labNotes", "labTests", "labCertifications", "labAcceptedItems"].map((field) => ({ [field]: new RegExp(escaped(search), "i") }));
       const companies: any[] = await AssociateCompanyModel.find(legacyQuery)
-        .select("name email phone phoneSecondary address country state district location pincodeEntry labDisplayName labContactEmail labContactPhone labContactPhoneSecondary labTests labCertifications labSpecifications labAcceptedItems labNotes isExternalDirectoryListing externalListingSource")
+        .select("name email phone phoneSecondary address country state district location pincodeEntry labDisplayName labContactEmail labContactPhone labWhatsappPhone labContactPhoneSecondary labTests labCertifications labSpecifications labAcceptedItems labNotes isExternalDirectoryListing externalListingSource")
         .populate("country", "name").populate("state", "name").populate("district", "name").populate("pincodeEntry", "latitude longitude officename").lean();
       const stateText = String(req.query.state || "").toLowerCase(), cityText = String(req.query.city || "").toLowerCase();
       legacy = companies.filter((company) => {
@@ -365,7 +366,7 @@ export class LabProfileController {
     const rows = allRows.slice((page - 1) * limit, page * limit);
     const markers = allRows.flatMap((row: any) => {
       const point = coordinates(row.published);
-      return point ? [{ _id: row._id, name: row.published.displayName, contactPhone: row.published.contactPhone, location: point, capabilityStatus: row.capabilityStatus, source: row.companyId?.externalListingSource || "" }] : [];
+      return point ? [{ _id: row._id, name: row.published.displayName, contactPhone: row.published.contactPhone, whatsappPhone: row.published.whatsappPhone, contactEmail: row.published.contactEmail, location: point, capabilityStatus: row.capabilityStatus, source: row.companyId?.externalListingSource || "" }] : [];
     });
     const [active, countries, countryCounts, productCounts] = await Promise.all([
       LabTaxonomyModel.find({ status: "ACTIVE", isDeleted: { $ne: true } }).select("kind name unit method parentIds").sort({ name: 1 }).lean(),

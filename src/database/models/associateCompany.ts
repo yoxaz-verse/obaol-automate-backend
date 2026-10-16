@@ -76,6 +76,7 @@ const AssociateCompanySchema = new mongoose.Schema(
     labDisplayName: { type: String, trim: true, default: "" },
     labContactEmail: { type: String, trim: true, lowercase: true, default: "" },
     labContactPhone: { type: String, trim: true, default: "" },
+    labWhatsappPhone: { type: String, trim: true, default: "" },
     labContactPhoneSecondary: { type: String, trim: true, default: "" },
     labTests: [{ type: String, default: [] }],
     labCertifications: [{ type: String, default: [] }],

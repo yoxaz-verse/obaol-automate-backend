@@ -11,6 +11,14 @@ describe("country-first lab profile rules", () => {
     expect(validateLabSnapshot({ ...base(), productCapabilityTemplates: [{ _id: templateId, name: "Turmeric", commodityId: id(), testIds: [], parameterIds: [], qualityClassifications: [], credentialIds: [] }], countryAssignments: [{ countryId: id(), productTemplateIds: [templateId] }] })).toEqual([]);
   });
 
+  it("keeps WhatsApp optional during profile validation", () => {
+    const templateId = id();
+    const snapshot = { ...base(), whatsappPhone: "+91 98765 43210", productCapabilityTemplates: [{ _id: templateId, commodityId: id(), credentialIds: [] }], countryAssignments: [{ countryId: id(), productTemplateIds: [templateId] }] };
+    expect(validateLabSnapshot(snapshot)).toEqual([]);
+    delete (snapshot as any).whatsappPhone;
+    expect(validateLabSnapshot(snapshot)).toEqual([]);
+  });
+
   it("reuses one template across 100 countries without duplicating capability data", () => {
     const templateId = id();
     const snapshot = { ...base(), productCapabilityTemplates: [{ _id: templateId, name: "Organic Turmeric", commodityId: id(), qualityClassifications: ["ORGANIC"], testIds: [id()], parameterIds: [id()], credentialIds: [] }], countryAssignments: Array.from({ length: 100 }, () => ({ countryId: id(), productTemplateIds: [templateId] })) };

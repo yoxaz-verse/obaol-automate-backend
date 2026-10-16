@@ -42,6 +42,7 @@ async function run() {
       displayName: company.labDisplayName || company.name || "Legacy lab",
       contactEmail: company.labContactEmail || company.email || "",
       contactPhone: company.labContactPhone || company.phone || "",
+      whatsappPhone: company.labWhatsappPhone || "",
       contactPhoneSecondary: company.labContactPhoneSecondary || company.phoneSecondary || "",
       address: company.address || "Location not supplied",
       physicalCountryId: company.country || undefined,

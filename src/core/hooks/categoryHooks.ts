@@ -42,7 +42,7 @@ export const categoryFilterHook = async (query: any, _mode: string, _id: string 
       productIds = (await ProductModel.find({ subCategory: { $in: ids } }).select("_id")).map((row) => row._id);
     } else if (category) {
       const ids = Array.isArray(category) ? category : [category];
-      const subCategoryIds = (await SubCategoryModel.find({ category: { $in: ids } }).select("_id")).map((row) => row._id);
+      const subCategoryIds = (await SubCategoryModel.find({ category: { $in: ids }, isDeleted: { $ne: true } }).select("_id")).map((row) => row._id);
       productIds = (await ProductModel.find({ subCategory: { $in: subCategoryIds } }).select("_id")).map((row) => row._id);
     }
 

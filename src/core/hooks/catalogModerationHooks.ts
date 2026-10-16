@@ -42,6 +42,18 @@ export const catalogModerationPreReadHook: HookFunction = async (query, _mode, _
 export const catalogModerationPreWriteHook: HookFunction = async (payload, mode, id, req) => {
   const role = String(req?.user?.role || "").toLowerCase();
   if (role === "admin") {
+    if (mode === ExecutionMode.DELETE && String(req?.params?.entity || "").toLowerCase() === "sub-categories") {
+      const subCategory = await SubCategoryModel.findOne({ _id: id, isDeleted: { $ne: true } }).select("_id").lean();
+      if (!subCategory) {
+        const err: any = new Error("Subcategory was not found.");
+        err.status = 404; err.statusCode = 404; throw err;
+      }
+      const hasActiveProducts = await ProductModel.exists({ subCategory: id, isDeleted: { $ne: true } });
+      if (hasActiveProducts) {
+        const err: any = new Error("Delete the products in this subcategory before deleting the subcategory.");
+        err.status = 409; err.statusCode = 409; throw err;
+      }
+    }
     if (mode === ExecutionMode.CREATE) return { ...payload, approvalStatus: "APPROVED", approvedAt: new Date(), approvedBy: req.user?.id };
     return payload;
   }
@@ -55,7 +67,7 @@ export const catalogModerationPreWriteHook: HookFunction = async (payload, mode,
 
 export const eligibleApprovedVariantIds = async () => {
   const categoryIds = (await CategoryModel.find({ approvalStatus: { $in: ["APPROVED", null] } }).distinct("_id"));
-  const subCategoryIds = (await SubCategoryModel.find({ category: { $in: categoryIds }, approvalStatus: { $in: ["APPROVED", null] } }).distinct("_id"));
+  const subCategoryIds = (await SubCategoryModel.find({ category: { $in: categoryIds }, approvalStatus: { $in: ["APPROVED", null] }, isDeleted: { $ne: true } }).distinct("_id"));
   const productIds = (await ProductModel.find({ subCategory: { $in: subCategoryIds }, approvalStatus: { $in: ["APPROVED", null] }, isDeleted: { $ne: true } }).distinct("_id"));
   return ProductVariantModel.find({ product: { $in: productIds }, approvalStatus: { $in: ["APPROVED", null] }, isDeleted: { $ne: true }, isAvailable: { $ne: false } }).distinct("_id");
 };

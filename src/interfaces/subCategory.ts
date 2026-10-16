@@ -5,6 +5,7 @@ export interface ISubCategory extends Document {
   name: string;
   description?: string;
   category: Types.ObjectId;
+  isDeleted?: boolean;
   createdAt?: Date;
   approvalStatus?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 }

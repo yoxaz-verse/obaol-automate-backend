@@ -57,10 +57,10 @@ export class CatalogController {
                 const parent = await CategoryModel.findById(parentId).select("name approvalStatus createdByAssociate").lean();
                 if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Category was not found." });
                 parentName = String((parent as any).name || "").normalize("NFKC").trim();
-                rows = await SubCategoryModel.find({ category: parentId, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) }).select("_id name category approvalStatus createdByAssociate reviewNotes").lean();
+                rows = await SubCategoryModel.find({ category: parentId, isDeleted: { $ne: true }, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) }).select("_id name category approvalStatus createdByAssociate reviewNotes").lean();
             } else if (parentKey === "subCategory") {
                 level = "product";
-                const parent = await SubCategoryModel.findById(parentId).select("name approvalStatus createdByAssociate").lean();
+                const parent = await SubCategoryModel.findOne({ _id: parentId, isDeleted: { $ne: true } }).select("name approvalStatus createdByAssociate").lean();
                 if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Subcategory was not found." });
                 parentName = String((parent as any).name || "").normalize("NFKC").trim();
                 rows = await ProductModel.find({ subCategory: parentId, isDeleted: { $ne: true }, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) })
@@ -102,7 +102,7 @@ export class CatalogController {
         try {
             const [categories, subCategories, products, variants] = await Promise.all([
                 CategoryModel.find({}).select("_id name").lean(),
-                SubCategoryModel.find({}).select("_id name category").lean(),
+                SubCategoryModel.find({ isDeleted: { $ne: true } }).select("_id name category").lean(),
                 ProductModel.find({ isDeleted: { $ne: true } }).select("_id name subCategory").lean(),
                 ProductVariantModel.find({ isDeleted: { $ne: true } }).select("_id name product").lean(),
             ]);

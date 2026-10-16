@@ -119,6 +119,8 @@ router.use(`${prefix}`, companyFunctionRoutes);
 // Approvals (Admin)
 import approvalRoutes from "./v1/approvalRoutes";
 router.use(`${prefix}/approvals`, approvalRoutes);
+import dataIntegrityRoutes from "./v1/dataIntegrityRoutes";
+router.use(`${prefix}/admin`, dataIntegrityRoutes);
 
 // Notifications (Authenticated)
 import notificationRoutes from "./v1/notificationRoutes";
@@ -170,10 +172,6 @@ import { CompanyController } from "../controllers/CompanyController";
 router.get(`${prefix}/associate-companies/:id/stats`, CompanyController.getTeamStats);
 router.get(`${prefix}/associate-companies/:id/enquiries`, CompanyController.getCompanyEnquiries);
 router.get(`${prefix}/associate-companies/:id/activity`, CompanyController.getCompanyActivity);
-
-// Diagnostic Routes (Development)
-import diagnosticRoutes from "./diagnosticRoutes";
-router.use(`${prefix}/diagnostic`, diagnosticRoutes);
 
 // Public Routes (No Auth)
 import { GenericCrudController } from "../controllers/genericCrudController";

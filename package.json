@@ -22,7 +22,6 @@
     "backfill:product-slugs": "ts-node src/scripts/backfill-product-slugs.ts",
     "migrate:variant-rate-classification": "ts-node src/scripts/migrate-classification-to-variant-rates.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
-    "backfill:variant-rate-freshness": "ts-node src/scripts/backfill-variant-rate-freshness.ts",
     "backfill:catalog-moderation": "ts-node src/scripts/backfill-catalog-moderation.ts",
     "backfill:associate-referral-codes": "ts-node src/scripts/backfill-associate-referral-codes.ts",
     "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
@@ -30,6 +29,7 @@
     "seed:lab-taxonomy": "ts-node src/scripts/seedLabTaxonomy.ts",
     "seed:spices-board-quality-labs": "ts-node src/scripts/seedSpicesBoardQualityLabs.ts",
     "normalize:company-capabilities": "ts-node src/scripts/normalize-company-capabilities.ts",
+    "integrity:associate-orphans": "ts-node src/scripts/cleanupAssociateOrphans.ts",
     "migrate:company-capability-profiles": "ts-node src/scripts/migrateCompanyCapabilityProfiles.ts",
     "migrate:buyer-seller-taxonomy": "ts-node src/scripts/migrateBuyerSellerTaxonomy.ts"
   },

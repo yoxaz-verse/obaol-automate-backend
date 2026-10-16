@@ -5,7 +5,7 @@ import { ProductVariantModel } from "../../database/models/productVariant";
 import { AssociateModel } from "../../database/models/associate";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { ExecutionMode, HookFunction } from "../types";
-import { assertAccessibleParent, getApprovedAssociateContext, getEnquiryEligibleVariantRateFilter } from "../../services/catalogModeration.service";
+import { assertAccessibleParent, eligibleApprovedVariantIds, getApprovedAssociateContext, getEnquiryEligibleVariantRateFilter } from "../../services/catalogModeration.service";
 import { AdminModel } from "../../database/models/admin";
 import { NotificationModel } from "../../database/models/notification";
 
@@ -63,13 +63,6 @@ export const catalogModerationPreWriteHook: HookFunction = async (payload, mode,
   }
   const err: any = new Error("Only admins and approved Associates can manage commodity directory entries.");
   err.status = 403; err.statusCode = 403; throw err;
-};
-
-export const eligibleApprovedVariantIds = async () => {
-  const categoryIds = (await CategoryModel.find({ approvalStatus: { $in: ["APPROVED", null] } }).distinct("_id"));
-  const subCategoryIds = (await SubCategoryModel.find({ category: { $in: categoryIds }, approvalStatus: { $in: ["APPROVED", null] }, isDeleted: { $ne: true } }).distinct("_id"));
-  const productIds = (await ProductModel.find({ subCategory: { $in: subCategoryIds }, approvalStatus: { $in: ["APPROVED", null] }, isDeleted: { $ne: true } }).distinct("_id"));
-  return ProductVariantModel.find({ product: { $in: productIds }, approvalStatus: { $in: ["APPROVED", null] }, isDeleted: { $ne: true }, isAvailable: { $ne: false } }).distinct("_id");
 };
 
 export const variantRateModerationPreReadHook: HookFunction = async (query, _mode, _id, req) => {

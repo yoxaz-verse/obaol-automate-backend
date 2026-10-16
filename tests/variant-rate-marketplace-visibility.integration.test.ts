@@ -9,7 +9,6 @@ import { ProductModel } from "../src/database/models/product";
 import { ProductVariantModel } from "../src/database/models/productVariant";
 import { VariantRateModel } from "../src/database/models/variantRate";
 import { createAdmin, createAssociate, createOperator } from "./helpers/authFixtures";
-import { expireStaleVariantRates, LISTING_LIVE_DURATION_MS, liveFreshnessCondition } from "../src/services/variantRateFreshnessService";
 
 const api = request(app);
 
@@ -141,7 +140,7 @@ describe("variant-rate marketplace visibility", () => {
     const newestDate = new Date(now.getTime() - 30_000);
     const middleDate = new Date(now.getTime() - 60_000);
     const oldestDate = new Date(now.getTime() - 90_000);
-    const staleDate = new Date(now.getTime() - LISTING_LIVE_DURATION_MS - 1);
+    const olderThanOneDay = new Date(now.getTime() - (48 * 60 * 60 * 1000));
     const makeRate = (associate: any, company: any, rate: number, overrides: Record<string, any> = {}) => ({
       productVariant: variant._id,
       associate: associate._id,
@@ -166,14 +165,13 @@ describe("variant-rate marketplace visibility", () => {
       makeRate(operatorManagedOwner, operatorManagedCompany, 125, { lastLiveAt: newestDate, lastLiveDate: newestDate, createdAt: newestDate, updatedAt: newestDate }),
       makeRate(external, companyB, 130, { isLive: false, unpublishedAt: middleDate }),
       makeRate(external, companyB, 140, { isDeleted: true }),
-      makeRate(external, companyB, 150, { lastLiveAt: staleDate, lastLiveDate: staleDate, createdAt: staleDate, updatedAt: staleDate }),
+      makeRate(external, companyB, 150, { lastLiveAt: olderThanOneDay, lastLiveDate: olderThanOneDay, createdAt: olderThanOneDay, updatedAt: olderThanOneDay }),
     ] as any);
 
-    await expect(expireStaleVariantRates(now)).resolves.toBe(1);
     await expect(VariantRateModel.countDocuments({
-      $and: [{ isLive: true }, liveFreshnessCondition(now)],
+      isLive: true,
       isDeleted: { $ne: true },
-    })).resolves.toBe(4);
+    })).resolves.toBe(5);
 
     const response = await api
       .get("/api/v1/web/variant-rates")
@@ -182,8 +180,8 @@ describe("variant-rate marketplace visibility", () => {
 
     expect(response.status).toBe(200);
     const rows = response.body?.data?.data || [];
-    const expectedLiveIds = [3, 2, 1, 0].map((index) => String(inserted.insertedIds[index]));
-    expect(rows).toHaveLength(4);
+    const expectedLiveIds = [3, 2, 1, 0, 6].map((index) => String(inserted.insertedIds[index]));
+    expect(rows).toHaveLength(5);
     expect(rows.map((row: any) => String(row._id))).toEqual(expectedLiveIds);
 
     const operatorResponse = await api

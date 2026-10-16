@@ -9,6 +9,7 @@ import { AdminModel } from "../database/models/admin";
 import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 import { AuthSessionModel } from "../database/models/authSession";
+import { requireApprovedAssociateCompany } from "../utils/companyApprovalAccess";
 
 export interface DecodedToken {
   id: string;
@@ -113,7 +114,7 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
       ).catch((error: any) => console.debug("Presence update skipped (customer support):", error?.message || error));
     }
 
-    next();
+    return requireApprovedAssociateCompany(req, res, next);
   } catch (error: any) {
     console.log("Token verification failed:", error.message);
     return res.status(401).json({

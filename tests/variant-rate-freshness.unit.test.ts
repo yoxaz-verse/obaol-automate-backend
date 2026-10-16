@@ -1,13 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { Types } from "mongoose";
 import {
-  LISTING_LIVE_DURATION_MS,
   PAST_LISTING_RETENTION_MS,
-  listingFreshnessCutoff,
   pastListingRetentionCutoff,
-  liveFreshnessCondition,
   recentPastCondition,
-  expireStaleVariantRates,
 } from "../src/services/variantRateFreshnessService";
 import { variantRateLifecyclePreWriteHook } from "../src/core/hooks/variantRateLifecycleHook";
 import { variantRateMarketplaceQueryHook } from "../src/core/hooks/variantRateMarketplaceQueryHook";
@@ -26,21 +22,6 @@ describe("variant-rate freshness", () => {
       CatalogItemModel.deleteMany({}),
       DisplayedRateModel.deleteMany({}),
     ]);
-  });
-
-  it("uses an exact 24 hour live cutoff", () => {
-    expect(listingFreshnessCutoff(now).getTime()).toBe(now.getTime() - LISTING_LIVE_DURATION_MS);
-  });
-
-  it("builds live visibility from the most recent available publish timestamp", () => {
-    expect(liveFreshnessCondition(now)).toEqual({
-      $expr: {
-        $gt: [
-          { $ifNull: ["$lastLiveDate", { $ifNull: ["$updatedAt", "$createdAt"] }] },
-          listingFreshnessCutoff(now),
-        ],
-      },
-    });
   });
 
   it("keeps past listings visible for 20 days after unpublishing", () => {
@@ -81,7 +62,7 @@ describe("variant-rate freshness", () => {
     expect(adminQuery).toEqual({ isLive: { $ne: true } });
   });
 
-  it("applies the live timestamp cutoff to marketplace reads", async () => {
+  it("keeps manually-live listings visible regardless of age", async () => {
     const query: any = await variantRateMarketplaceQueryHook(
       { view: "marketplace", isLive: true },
       "read",
@@ -89,39 +70,7 @@ describe("variant-rate freshness", () => {
       { query: { view: "marketplace", isLive: "true" }, user: { role: "Associate" } }
     );
 
-    expect(query).toEqual({
-      $and: [
-        { isLive: true },
-        {
-          $expr: {
-            $gt: [
-              { $ifNull: ["$lastLiveDate", { $ifNull: ["$updatedAt", "$createdAt"] }] },
-              expect.any(Date),
-            ],
-          },
-        },
-      ],
-    });
-  });
-
-  it("expires only stale live rows and synchronizes dependent availability", async () => {
-    const staleId = new Types.ObjectId();
-    const freshId = new Types.ObjectId();
-    const associateId = new Types.ObjectId();
-    const companyId = new Types.ObjectId();
-    const variantId = new Types.ObjectId();
-    await VariantRateModel.collection.insertMany([
-      { _id: staleId, rate: 100, productVariant: variantId, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(now.getTime() - LISTING_LIVE_DURATION_MS), createdAt: now, updatedAt: now },
-      { _id: freshId, rate: 110, productVariant: variantId, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(now.getTime() - LISTING_LIVE_DURATION_MS + 1), createdAt: now, updatedAt: now },
-    ] as any);
-    await CatalogItemModel.collection.insertOne({ associateId, associateCompanyId: companyId, productVariantId: variantId, baseRateId: staleId, margin: 0, finalPrice: 100, isLive: true });
-    await DisplayedRateModel.collection.insertOne({ variantRate: staleId, associate: associateId, associateCompany: companyId, isLive: true });
-
-    await expect(expireStaleVariantRates(now)).resolves.toBe(1);
-    await expect(VariantRateModel.findById(staleId).lean()).resolves.toMatchObject({ isLive: false, unpublishedAt: now });
-    await expect(VariantRateModel.findById(freshId).lean()).resolves.toMatchObject({ isLive: true });
-    await expect(CatalogItemModel.findOne({ baseRateId: staleId }).lean()).resolves.toMatchObject({ isLive: false });
-    await expect(DisplayedRateModel.findOne({ variantRate: staleId }).lean()).resolves.toMatchObject({ isLive: false });
+    expect(query).toEqual({ isLive: true });
   });
 
   it("returns only the newest listing per company and exact variant", async () => {
@@ -156,22 +105,17 @@ describe("variant-rate freshness", () => {
     ]);
   });
 
-  it("groups before live filtering and evaluates the exact freshness cutoff", async () => {
+  it("groups before live filtering without expiring older live rows", async () => {
     const companyId = new Types.ObjectId();
     const associateId = new Types.ObjectId();
     const hiddenVariant = new Types.ObjectId();
     const freshVariant = new Types.ObjectId();
-    const expiredVariant = new Types.ObjectId();
     const current = new Date("2026-10-12T12:00:00.000Z");
-    const cutoff = listingFreshnessCutoff(current);
-    const boundaryVariant = new Types.ObjectId();
 
     await VariantRateModel.collection.insertMany([
       { rate: 90, productVariant: hiddenVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(current.getTime() - 1_000), createdAt: new Date(current.getTime() - 1_000), updatedAt: new Date(current.getTime() - 1_000) },
       { rate: 100, productVariant: hiddenVariant, associate: associateId, associateCompany: companyId, isLive: false, isDeleted: false, lastLiveDate: current, createdAt: current, updatedAt: current },
-      { rate: 110, productVariant: freshVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(cutoff.getTime() + 5_000), createdAt: current, updatedAt: current },
-      { rate: 115, productVariant: boundaryVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: cutoff, createdAt: current, updatedAt: current },
-      { rate: 120, productVariant: expiredVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date(cutoff.getTime() - 5_000), createdAt: current, updatedAt: current },
+      { rate: 110, productVariant: freshVariant, associate: associateId, associateCompany: companyId, isLive: true, isDeleted: false, lastLiveDate: new Date("2026-01-01T00:00:00Z"), createdAt: new Date("2026-01-01T00:00:00Z"), updatedAt: new Date("2026-01-01T00:00:00Z") },
     ] as any);
 
     const live = await findLatestVariantRatesForProductTable(

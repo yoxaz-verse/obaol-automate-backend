@@ -3,70 +3,14 @@ import authenticateToken from "../../middlewares/auth";
 import { VariantRateModel } from "../../database/models/variantRate";
 import { RateRevealEventModel } from "../../database/models/rateRevealEvent";
 import { AssociateModel } from "../../database/models/associate";
-import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import mongoose from "mongoose";
 import { getOperatorCompanyScope } from "../../core/hooks/operatorScope";
-import { syncVariantRateAvailability, liveFreshnessCondition, recentPastCondition, listingFreshnessCutoff } from "../../services/variantRateFreshnessService";
-import { variantRateNotificationPostWriteHook } from "../../core/hooks/notificationHooks";
-import { ExecutionMode } from "../../core/types";
-import { getEnquiryEligibleVariantRateFilter } from "../../services/catalogModeration.service";
+import { recentPastCondition } from "../../services/variantRateFreshnessService";
+import { getEnquiryEligibleVariantRateFilter, getMarketplaceVisibilitySummary } from "../../services/catalogModeration.service";
 
 const router = Router();
 
 router.use(authenticateToken);
-
-router.post("/:id/renew", async (req: any, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "A valid listing is required." });
-    }
-
-    const listing: any = await VariantRateModel.findOne({ _id: id, isDeleted: { $ne: true } });
-    if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
-    const lastLive = new Date(listing.lastLiveDate || listing.updatedAt || listing.createdAt).getTime();
-    const isEffectivelyLive = Boolean(
-      listing.isLive && Number.isFinite(lastLive) && lastLive > listingFreshnessCutoff().getTime()
-    );
-    if (isEffectivelyLive) return res.status(409).json({ success: false, message: "Listing is already live." });
-
-    const roleLower = String(req?.user?.role || "").toLowerCase();
-    const actorId = String(req?.user?.id || "");
-    let allowed = roleLower === "admin";
-    if (roleLower === "associate") {
-      const actor: any = await AssociateModel.findById(actorId).select("associateCompany").lean();
-      allowed = String(listing.associate || "") === actorId || (
-        Boolean(actor?.associateCompany) &&
-        String(listing.associateCompany || "") === String(actor.associateCompany)
-      );
-    } else if (roleLower === "operator" || roleLower === "team") {
-      const { companyIdSet } = await getOperatorCompanyScope(actorId);
-      allowed = companyIdSet.has(String(listing.associateCompany || ""));
-    }
-    if (!allowed) return res.status(403).json({ success: false, message: "You cannot renew this listing." });
-
-    const renewedAt = new Date();
-    listing.isLive = true;
-    // A stale row can still be persisted as true until the hourly reconciler runs,
-    // so stamp renewal explicitly even when isLive itself is not modified.
-    listing.lastLiveAt = renewedAt;
-    listing.lastLiveDate = renewedAt;
-    listing.unpublishedAt = null;
-    await listing.save();
-    await syncVariantRateAvailability([listing._id], true);
-    await variantRateNotificationPostWriteHook("variant-rates", listing.toObject(), ExecutionMode.UPDATE, {
-      user: req.user,
-      __notificationCtx: { variantRatePrev: { isLive: false } },
-    });
-
-    return res.json({ success: true, data: listing.toObject(), message: "Listing renewed for 24 hours." });
-  } catch (error: any) {
-    return res.status(Number(error?.statusCode || 500)).json({
-      success: false,
-      message: error?.message || "Failed to renew listing.",
-    });
-  }
-});
 
 router.post("/:id/reveal", async (req: any, res) => {
   try {
@@ -84,7 +28,7 @@ router.post("/:id/reveal", async (req: any, res) => {
       isDeleted: { $ne: true },
       associate: { $ne: req.user.id },
       $or: [
-        { $and: [{ isLive: true }, liveFreshnessCondition()] },
+        { isLive: true, unpublishedAt: null },
         { $and: [{ isLive: { $ne: true } }, recentPastCondition()] },
       ],
     }).select("rate commission isLive associate productVariant").lean();
@@ -181,6 +125,14 @@ router.get("/rate-interest/analytics", async (req: any, res) => {
   }
 });
 
+router.get("/marketplace-visibility-summary", async (_req: any, res) => {
+  try {
+    return res.json({ success: true, data: await getMarketplaceVisibilitySummary() });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error?.message || "Failed to inspect marketplace visibility." });
+  }
+});
+
 router.get("/marketplace-stats", async (req: any, res) => {
   try {
     const roleLower = String(req?.user?.role || "").toLowerCase();
@@ -200,7 +152,7 @@ router.get("/marketplace-stats", async (req: any, res) => {
     }
 
     const eligibleLiveFilter = await getEnquiryEligibleVariantRateFilter({ requireLive: true });
-    const liveQuery = { $and: [baseQuery, eligibleLiveFilter, liveFreshnessCondition()] };
+    const liveQuery = { $and: [baseQuery, eligibleLiveFilter] };
     const offlineQuery = roleLower === "admin"
       ? { ...baseQuery, isLive: { $ne: true } }
       : { $and: [{ ...baseQuery, isLive: { $ne: true } }, recentPastCondition()] };

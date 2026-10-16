@@ -137,6 +137,29 @@ export const catalogModerationSummary = async (entityType: ModeratedEntityType, 
 
 export const LISTING_NOT_ENQUIRY_ELIGIBLE = "LISTING_NOT_ENQUIRY_ELIGIBLE";
 
+export const eligibleApprovedVariantIds = async () => {
+  const categoryIds = await CategoryModel.find({
+    approvalStatus: { $in: ["APPROVED", null] },
+    isDeleted: { $ne: true },
+  }).distinct("_id");
+  const subCategoryIds = await SubCategoryModel.find({
+    category: { $in: categoryIds },
+    approvalStatus: { $in: ["APPROVED", null] },
+    isDeleted: { $ne: true },
+  }).distinct("_id");
+  const productIds = await ProductModel.find({
+    subCategory: { $in: subCategoryIds },
+    approvalStatus: { $in: ["APPROVED", null] },
+    isDeleted: { $ne: true },
+  }).distinct("_id");
+  return ProductVariantModel.find({
+    product: { $in: productIds },
+    approvalStatus: { $in: ["APPROVED", null] },
+    isDeleted: { $ne: true },
+    isAvailable: { $ne: false },
+  }).distinct("_id");
+};
+
 const listingEligibilityError = (message: string, details: Record<string, any> = {}) =>
   Object.assign(new Error(message), {
     status: 409,
@@ -151,28 +174,7 @@ const listingEligibilityError = (message: string, details: Record<string, any> =
  * to create an enquiry.
  */
 export const getEnquiryEligibleVariantRateFilter = async (options: { requireLive?: boolean } = {}) => {
-  const variantIds = await (async () => {
-    const categoryIds = await CategoryModel.find({
-      approvalStatus: { $in: ["APPROVED", null] },
-      isDeleted: { $ne: true },
-    }).distinct("_id");
-    const subCategoryIds = await SubCategoryModel.find({
-      category: { $in: categoryIds },
-      approvalStatus: { $in: ["APPROVED", null] },
-      isDeleted: { $ne: true },
-    }).distinct("_id");
-    const productIds = await ProductModel.find({
-      subCategory: { $in: subCategoryIds },
-      approvalStatus: { $in: ["APPROVED", null] },
-      isDeleted: { $ne: true },
-    }).distinct("_id");
-    return ProductVariantModel.find({
-      product: { $in: productIds },
-      approvalStatus: { $in: ["APPROVED", null] },
-      isDeleted: { $ne: true },
-      isAvailable: { $ne: false },
-    }).distinct("_id");
-  })();
+  const variantIds = await eligibleApprovedVariantIds();
   const associateIds = await AssociateModel.find({
     registrationStatus: "APPROVED",
     isActive: true,
@@ -195,6 +197,46 @@ export const getEnquiryEligibleVariantRateFilter = async (options: { requireLive
     ...(options.requireLive === false
       ? {}
       : { isLive: true, unpublishedAt: null }),
+  };
+};
+
+export const getMarketplaceVisibilitySummary = async () => {
+  const [allAssociates, approvedAssociates, allCompanies, approvedCompanies, eligibleVariantIds, eligibleFilter] = await Promise.all([
+    AssociateModel.find({}).distinct("_id"),
+    AssociateModel.find({ registrationStatus: "APPROVED", isActive: true, isDeleted: { $ne: true }, isCompanyVerified: true }).distinct("_id"),
+    AssociateCompanyModel.find({}).distinct("_id"),
+    AssociateCompanyModel.find({ registrationStatus: "APPROVED", isApproved: true, isDeleted: { $ne: true } }).distinct("_id"),
+    eligibleApprovedVariantIds(),
+    getEnquiryEligibleVariantRateFilter({ requireLive: true }),
+  ]);
+  const base = { isDeleted: { $ne: true }, isDemo: { $ne: true } } as any;
+  const [eligible, total, missingOwner, missingCompany, ownerUnavailable, companyUnavailable, hierarchyUnavailable, offline, deleted, demo] = await Promise.all([
+    VariantRateModel.countDocuments(eligibleFilter),
+    VariantRateModel.countDocuments({}),
+    VariantRateModel.countDocuments({ associate: { $nin: allAssociates } }),
+    VariantRateModel.countDocuments({ associateCompany: { $nin: allCompanies } }),
+    VariantRateModel.countDocuments({ ...base, associate: { $in: allAssociates, $nin: approvedAssociates } }),
+    VariantRateModel.countDocuments({ ...base, associateCompany: { $in: allCompanies, $nin: approvedCompanies } }),
+    VariantRateModel.countDocuments({ ...base, productVariant: { $nin: eligibleVariantIds } }),
+    VariantRateModel.countDocuments({ ...base, isLive: { $ne: true } }),
+    VariantRateModel.countDocuments({ isDeleted: true }),
+    VariantRateModel.countDocuments({ isDemo: true }),
+  ]);
+  return {
+    total,
+    eligible,
+    excluded: Math.max(0, total - eligible),
+    reasons: {
+      missingOwner,
+      missingCompany,
+      ownerUnavailable,
+      companyUnavailable,
+      hierarchyUnavailable,
+      offline,
+      deleted,
+      demo,
+    },
+    note: "Only live listings with an approved owner, company, and commodity hierarchy are shown. A listing can match more than one exclusion reason.",
   };
 };
 

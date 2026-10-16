@@ -1,5 +1,4 @@
 import { Model } from "mongoose";
-import { listingFreshnessCutoff } from "./variantRateFreshnessService";
 
 type Pagination = { page: number; limit: number };
 
@@ -20,13 +19,12 @@ export const findLatestVariantRatesForProductTable = async (
   pagination: Pagination,
   populate?: any,
   select?: string,
-  now = new Date(),
+  _now = new Date(),
 ) => {
   const requestedLive = filter.isLive;
   const groupingFilter = { ...filter };
   delete groupingFilter.isLive;
 
-  const cutoff = listingFreshnessCutoff(now);
   const page = Math.max(1, Number(pagination.page || 1));
   const limit = Math.max(1, Number(pagination.limit || 10));
   const postGroupMatch =
@@ -48,10 +46,7 @@ export const findLatestVariantRatesForProductTable = async (
     {
       $addFields: {
         __effectiveIsLive: {
-          $and: [
-            { $eq: ["$isLive", true] },
-            { $gt: ["$__effectiveLastLive", cutoff] },
-          ],
+          $eq: ["$isLive", true],
         },
       },
     },

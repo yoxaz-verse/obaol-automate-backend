@@ -6,6 +6,7 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import { OperatorModel } from "../database/models/operator";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
+import { CompanyApprovalAccess, resolveAssociateCompanyApproval } from "../utils/companyApprovalAccess";
 
 const verifyTokenRoute = Router();
 
@@ -34,6 +35,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   let associate: any = null;
   let operator: any = null;
   let supportAgent: any = null;
+  let companyApproval: CompanyApprovalAccess | null = null;
 
   if (roleLower === "associate") {
     associate = await AssociateModel.findById(req.user.id)
@@ -45,6 +47,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     registrationStatus = associate?.registrationStatus ? String(associate.registrationStatus) : null;
     rejectionReason = associate?.reviewNotes ? String(associate.reviewNotes) : null;
     pendingSince = associate?.approvalRequestedAt || associate?.createdAt || null;
+    companyApproval = await resolveAssociateCompanyApproval(String(req.user.id));
   } else if (roleLower === "operator" || roleLower === "team") {
     const companies = await AssociateCompanyModel.find({ assignedOperator: req.user.id }).select("_id").limit(2).lean();
     if (companies.length === 1) {
@@ -94,6 +97,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       registrationStatus,
       rejectionReason,
       pendingSince,
+      companyApproval,
       verified: {
         email: verificationRecord?.verified === true,
         phone: false, // phone/gst can be added later if needed

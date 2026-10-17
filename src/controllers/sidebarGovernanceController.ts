@@ -65,6 +65,36 @@ const validateMappings = async (input: any[]) => {
   });
 };
 
+const expectedRevision = (value: unknown, field: string) => {
+  const revision = Number(value);
+  if (!Number.isInteger(revision) || revision < 0) {
+    const error: any = new Error(`${field} is required and must be a non-negative integer.`);
+    error.status = 400;
+    error.code = "INVALID_EXPECTED_REVISION";
+    throw error;
+  }
+  return revision;
+};
+
+const mutationError = async (res: Response, error: any, fallback: string) => {
+  const status = Number(error?.status || 400);
+  return res.status(status).json({
+    success: false,
+    message: error?.message || fallback,
+    ...(error?.code ? { error: { code: error.code, ...(error.details || {}) } } : {}),
+  });
+};
+
+const revisionConflict = async (expected: number, snapshot: "draft" | "published") => {
+  const current: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+  const actual = Number(current?.[snapshot]?.revision || 0);
+  const error: any = new Error(`Sidebar governance ${snapshot} changed from revision ${expected} to ${actual}. Reload before continuing.`);
+  error.status = 409;
+  error.code = "SIDEBAR_GOVERNANCE_REVISION_CONFLICT";
+  error.details = { snapshot, expectedRevision: expected, currentRevision: actual };
+  throw error;
+};
+
 export class SidebarGovernanceController {
   async getAdmin(_req: Request, res: Response) {
     try {
@@ -79,31 +109,51 @@ export class SidebarGovernanceController {
   async saveDraft(req: Request, res: Response) {
     try {
       const mappings = await validateMappings(req.body?.mappings);
-      const config = await ensureConfig();
-      config.draft = { revision: Number(config.draft?.revision || 0) + 1, mappings, updatedAt: new Date(), updatedBy: req.user?.id as any } as any;
-      await config.save();
+      await ensureConfig();
+      const expected = expectedRevision(req.body?.expectedDraftRevision, "expectedDraftRevision");
+      const config = await SidebarGovernanceModel.findOneAndUpdate(
+        { key: "associate-sidebar", "draft.revision": expected },
+        { $set: { "draft.mappings": mappings, "draft.updatedAt": new Date(), "draft.updatedBy": req.user?.id || null }, $inc: { "draft.revision": 1 } },
+        { new: true, runValidators: true },
+      );
+      if (!config) await revisionConflict(expected, "draft");
       return res.json({ success: true, data: config });
-    } catch (error: any) { return res.status(400).json({ success: false, message: error.message || "Failed to save draft." }); }
+    } catch (error: any) { return mutationError(res, error, "Failed to save draft."); }
   }
 
   async publish(req: Request, res: Response) {
     try {
-      const config = await ensureConfig();
-      const mappings = await validateMappings(canonicalizeGovernanceMappings(config.draft?.mappings as any[]) as any[]);
-      const revision = Number(config.published?.revision || 0) + 1;
-      config.published = { revision, mappings, updatedAt: new Date(), updatedBy: req.user?.id as any } as any;
-      await config.save();
+      await ensureConfig();
+      const expectedDraft = expectedRevision(req.body?.expectedDraftRevision, "expectedDraftRevision");
+      const expectedPublished = expectedRevision(req.body?.expectedPublishedRevision, "expectedPublishedRevision");
+      const current: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+      if (Number(current?.draft?.revision || 0) !== expectedDraft) await revisionConflict(expectedDraft, "draft");
+      if (Number(current?.published?.revision || 0) !== expectedPublished) await revisionConflict(expectedPublished, "published");
+      const mappings = await validateMappings(canonicalizeGovernanceMappings(current.draft?.mappings as any[]) as any[]);
+      const config = await SidebarGovernanceModel.findOneAndUpdate(
+        { key: "associate-sidebar", "draft.revision": expectedDraft, "published.revision": expectedPublished },
+        { $set: { "published.mappings": mappings, "published.updatedAt": new Date(), "published.updatedBy": req.user?.id || null }, $inc: { "published.revision": 1 } },
+        { new: true, runValidators: true },
+      );
+      if (!config) await revisionConflict(expectedDraft, "draft");
       return res.json({ success: true, data: config });
-    } catch (error: any) { return res.status(400).json({ success: false, message: error.message || "Failed to publish sidebar governance." }); }
+    } catch (error: any) { return mutationError(res, error, "Failed to publish sidebar governance."); }
   }
 
   async resetDraft(req: Request, res: Response) {
     try {
-      const config = await ensureConfig();
-      config.draft = { revision: Number(config.draft?.revision || 0) + 1, mappings: config.published.mappings as any, updatedAt: new Date(), updatedBy: req.user?.id as any } as any;
-      await config.save();
+      await ensureConfig();
+      const expected = expectedRevision(req.body?.expectedDraftRevision, "expectedDraftRevision");
+      const current: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+      if (Number(current?.draft?.revision || 0) !== expected) await revisionConflict(expected, "draft");
+      const config = await SidebarGovernanceModel.findOneAndUpdate(
+        { key: "associate-sidebar", "draft.revision": expected },
+        { $set: { "draft.mappings": current.published?.mappings || [], "draft.updatedAt": new Date(), "draft.updatedBy": req.user?.id || null }, $inc: { "draft.revision": 1 } },
+        { new: true, runValidators: true },
+      );
+      if (!config) await revisionConflict(expected, "draft");
       return res.json({ success: true, data: config });
-    } catch (error: any) { return res.status(500).json({ success: false, message: error.message || "Failed to reset draft." }); }
+    } catch (error: any) { return mutationError(res, error, "Failed to reset draft."); }
   }
 
   async getPublished(req: Request, res: Response) {

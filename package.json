@@ -33,7 +33,8 @@
     "integrity:associate-orphans": "ts-node src/scripts/cleanupAssociateOrphans.ts",
     "migrate:company-capability-profiles": "ts-node src/scripts/migrateCompanyCapabilityProfiles.ts",
     "migrate:buyer-seller-taxonomy": "ts-node src/scripts/migrateBuyerSellerTaxonomy.ts",
-    "migrate:sidebar-common-routes": "ts-node src/scripts/migrateSidebarCommonRoutes.ts"
+    "migrate:sidebar-common-routes": "ts-node src/scripts/migrateSidebarCommonRoutes.ts",
+    "reconcile:lab-work": "ts-node src/scripts/reconcileLabWorkItems.ts"
   },
   "keywords": [],
   "author": "",

@@ -20,7 +20,10 @@ const listingCreatedAt = (createdAt: Date) => ({
 });
 
 describe("variant-rate listing lock", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
 
   it("allows non-admin actors to change only live status", async () => {
     await expect(
@@ -43,8 +46,10 @@ describe("variant-rate listing lock", () => {
   });
 
   it("allows non-admin deletion strictly before the one-hour boundary", async () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
     mockedFindById.mockReturnValueOnce(
-      listingCreatedAt(new Date(Date.now() - VARIANT_RATE_DELETE_WINDOW_MS + 1)) as any,
+      listingCreatedAt(new Date(now - VARIANT_RATE_DELETE_WINDOW_MS + 1)) as any,
     );
 
     await expect(

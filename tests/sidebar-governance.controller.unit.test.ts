@@ -37,15 +37,45 @@ describe("sidebar governance canonical functions", () => {
 
   it("rejects attempts to save code-controlled common routes", async () => {
     const { res, state } = response();
-    await sidebarGovernanceController.saveDraft({ body: { mappings: [{ functionSlug: "buyer", routePath: "/dashboard", placement: "SEEKING", status: "LIVE", order: 0 }] }, user: { id: "000000000000000000000001" } } as any, res);
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [{ functionSlug: "buyer", routePath: "/dashboard", placement: "SEEKING", status: "LIVE", order: 0 }] }, user: { id: "000000000000000000000001" } } as any, res);
     expect(state.status).toBe(400);
     expect(state.body.message).toMatch(/unknown dashboard route/i);
   });
 
   it("rejects legacy governance mappings", async () => {
     const { res, state } = response();
-    await sidebarGovernanceController.saveDraft({ body: { mappings: [{ functionSlug: "buying", routePath: "/dashboard", placement: "BOTH", status: "LIVE", order: 0 }] }, user: { id: "000000000000000000000001" } } as any, res);
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [{ functionSlug: "buying", routePath: "/dashboard", placement: "BOTH", status: "LIVE", order: 0 }] }, user: { id: "000000000000000000000001" } } as any, res);
     expect(state.status).toBe(400);
     expect(state.body.message).toMatch(/legacy company function/i);
+  });
+
+  it("rejects a stale draft write without replacing the newer draft", async () => {
+    const mapping = { functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "SEEKING", status: "LIVE", order: 0 };
+    const first = response();
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [mapping] }, user: { id: "000000000000000000000001" } } as any, first.res);
+    expect(first.state.status).toBe(200);
+    expect(first.state.body.data.draft.revision).toBe(2);
+
+    const stale = response();
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [{ ...mapping, status: "HIDDEN" }] }, user: { id: "000000000000000000000002" } } as any, stale.res);
+    expect(stale.state.status).toBe(409);
+    expect(stale.state.body.error).toMatchObject({ code: "SIDEBAR_GOVERNANCE_REVISION_CONFLICT", snapshot: "draft", expectedRevision: 1, currentRevision: 2 });
+    const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+    expect(stored.draft.mappings[0].status).toBe("LIVE");
+  });
+
+  it("publishes only when both expected revisions still match", async () => {
+    const mapping = { functionSlug: "seller", routePath: "/dashboard/product", placement: "PROVIDING", status: "LIVE", order: 0 };
+    const saved = response();
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [mapping] }, user: { id: "000000000000000000000001" } } as any, saved.res);
+    const published = response();
+    await sidebarGovernanceController.publish({ body: { expectedDraftRevision: 2, expectedPublishedRevision: 1 }, user: { id: "000000000000000000000001" } } as any, published.res);
+    expect(published.state.status).toBe(200);
+    expect(published.state.body.data.published.revision).toBe(2);
+
+    const stale = response();
+    await sidebarGovernanceController.publish({ body: { expectedDraftRevision: 2, expectedPublishedRevision: 1 }, user: { id: "000000000000000000000001" } } as any, stale.res);
+    expect(stale.state.status).toBe(409);
+    expect(stale.state.body.error).toMatchObject({ code: "SIDEBAR_GOVERNANCE_REVISION_CONFLICT", snapshot: "published", currentRevision: 2 });
   });
 });

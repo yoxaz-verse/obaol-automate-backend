@@ -64,18 +64,24 @@ export class LabWorkItemController {
   async transition(req: Request, res: Response) {
     if (!Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lab work item id." });
     if (!isStaff(req) && roleOf(req) !== "associate") return res.status(403).json({ success: false, message: "Lab execution access required." });
-    const row: any = await LabWorkItemModel.findOne({ _id: req.params.id, ...(await accessQuery(req)) });
+    const access = await accessQuery(req);
+    const row: any = await LabWorkItemModel.findOne({ _id: req.params.id, ...access }).select("status").lean();
     if (!row) return res.status(404).json({ success: false, message: "Lab work item not found." });
     const next = String(req.body?.status || "").toUpperCase();
     if (!(LAB_CUSTODY_STATUSES as readonly string[]).includes(next)) return res.status(400).json({ success: false, message: "Invalid custody status." });
     if (!isValidLabCustodyTransition(String(row.status), next)) return res.status(409).json({ success: false, message: `Cannot move a sample from ${row.status} to ${next}.` });
+    const note = String(req.body?.note || "").trim();
+    if (note.length > 1000) return res.status(400).json({ success: false, message: "Custody note cannot exceed 1000 characters." });
     const now = new Date();
-    row.status = next;
-    row.updatedBy = req.user?.id;
-    row.notes = String(req.body?.note || row.notes || "");
-    row[`${next.toLowerCase()}At`] = now;
-    row.statusHistory.push({ status: next, at: now, by: req.user?.id, note: String(req.body?.note || "") });
-    await row.save();
-    return res.json({ success: true, data: row });
+    const updated: any = await LabWorkItemModel.findOneAndUpdate(
+      { _id: req.params.id, ...access, status: row.status },
+      {
+        $set: { status: next, updatedBy: req.user?.id, ...(note ? { notes: note } : {}), [`${next.toLowerCase()}At`]: now },
+        $push: { statusHistory: { status: next, at: now, by: req.user?.id, note } },
+      },
+      { new: true, runValidators: true },
+    );
+    if (!updated) return res.status(409).json({ success: false, message: "Custody status changed in another session. Refresh before continuing.", error: { code: "LAB_CUSTODY_CONFLICT", expectedStatus: row.status } });
+    return res.json({ success: true, data: updated });
   }
 }

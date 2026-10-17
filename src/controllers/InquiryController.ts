@@ -2219,10 +2219,10 @@ export class InquiryController {
 
             tasks[idx] = task;
             (inquiry as any).executionInquiries = tasks;
-            await inquiry.save();
-
+            let insertedLabWorkItem = false;
             if (awardedProviderId && normalizedType === "QUALITY_TESTING") {
                 const now = new Date();
+                const existingLabWorkItem = await LabWorkItemModel.exists({ inquiryId: inquiry._id, executionTaskId: task._id });
                 await LabWorkItemModel.findOneAndUpdate(
                     { inquiryId: inquiry._id, executionTaskId: task._id },
                     {
@@ -2237,6 +2237,16 @@ export class InquiryController {
                     },
                     { upsert: true, new: true }
                 );
+                insertedLabWorkItem = !existingLabWorkItem;
+            }
+
+            try {
+                await inquiry.save();
+            } catch (error) {
+                if (insertedLabWorkItem) {
+                    await LabWorkItemModel.deleteOne({ inquiryId: inquiry._id, executionTaskId: task._id, status: "EXPECTED" }).catch(() => undefined);
+                }
+                throw error;
             }
 
             await createInquiryEvent(

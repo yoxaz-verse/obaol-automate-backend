@@ -9,6 +9,7 @@ import { SidebarGovernanceModel } from "../database/models/sidebarGovernance";
 import { canonicalizeGovernanceMappings } from "../utils/sidebarGovernanceRegistry";
 
 dotenv.config();
+const apply = process.argv.includes("--apply");
 
 type RoleMigration = {
   legacySlugs: string[];
@@ -85,6 +86,27 @@ async function run() {
   await mongoose.connect(uri);
 
   try {
+    if (!apply) {
+      const [legacyFunctions, canonicalFunctions, companyCount, governance] = await Promise.all([
+        CompanyFunctionModel.countDocuments({ slug: { $in: ROLE_MIGRATIONS.flatMap((row) => row.legacySlugs) } }),
+        CompanyFunctionModel.countDocuments({ slug: { $in: ROLE_MIGRATIONS.map((row) => row.slug) } }),
+        AssociateCompanyModel.countDocuments({}),
+        SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).select("draft.revision published.revision draft.mappings published.mappings").lean(),
+      ]);
+      const draftBefore = (governance as any)?.draft?.mappings || [];
+      const publishedBefore = (governance as any)?.published?.mappings || [];
+      console.log(JSON.stringify({
+        mode: "dry-run",
+        legacyFunctions,
+        canonicalFunctions,
+        companiesToScan: companyCount,
+        governance: {
+          draftWouldChange: JSON.stringify(canonicalizeGovernanceMappings(draftBefore)) !== JSON.stringify(draftBefore),
+          publishedWouldChange: JSON.stringify(canonicalizeGovernanceMappings(publishedBefore)) !== JSON.stringify(publishedBefore),
+        },
+      }, null, 2));
+      return;
+    }
     const buyer = await resolveCanonicalFunction(ROLE_MIGRATIONS[0]);
     const seller = await resolveCanonicalFunction(ROLE_MIGRATIONS[1]);
     const buyerId = String(buyer.canonical._id);
@@ -120,7 +142,7 @@ async function run() {
     if (buyer.legacy.length) await CompanyFunctionModel.deleteMany({ _id: { $in: buyer.legacy.map((row) => row._id) } });
     if (seller.legacy.length) await CompanyFunctionModel.deleteMany({ _id: { $in: seller.legacy.map((row) => row._id) } });
 
-    console.log(`Buyer/Seller taxonomy migrated for ${companies.length} companies.`);
+    console.log(JSON.stringify({ mode: "apply", companiesMigrated: companies.length, buyerLegacyRowsRemoved: buyer.legacy.length, sellerLegacyRowsRemoved: seller.legacy.length }, null, 2));
   } finally {
     await mongoose.disconnect();
   }

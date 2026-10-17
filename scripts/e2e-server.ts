@@ -31,6 +31,10 @@ const [
   { CompanyInterestProfileModel },
   { OperatorModel },
   { AdminModel },
+  { CompanyFunctionModel },
+  { SidebarGovernanceModel },
+  { COMPANY_FUNCTION_SEED },
+  { createBaselineSidebarMappings },
 ] = await Promise.all([
   import("../src/app"),
   import("../src/database/models/associate"),
@@ -38,24 +42,35 @@ const [
   import("../src/database/models/companyInterestProfile"),
   import("../src/database/models/operator"),
   import("../src/database/models/admin"),
+  import("../src/database/models/companyFunction"),
+  import("../src/database/models/sidebarGovernance"),
+  import("../src/seeds/companyFunctions.seed"),
+  import("../src/utils/sidebarGovernanceRegistry"),
 ]);
 
-const makeCompany = async (name: string, suffix: string, capabilities: string[]) =>
+const makeCompany = async (name: string, suffix: string, providedCapabilities: string[], soughtCapabilities: string[]) =>
   AssociateCompanyModel.create({
     name: `${name} ${runId}`,
     email: `${suffix}.${runId}@company.obaol.test`,
     phone: `+91910000${suffix.padStart(4, "0").slice(-4)}`,
     phoneSecondary: `+91920000${suffix.padStart(4, "0").slice(-4)}`,
     address: "Isolated E2E fixture",
-    serviceCapabilities: capabilities,
+    serviceCapabilities: providedCapabilities,
+    providedCapabilities,
+    soughtCapabilities,
     registrationStatus: "APPROVED",
     isApproved: true,
     tags: ["E2E", runId],
   });
 
-const buyerCompany = await makeCompany("E2E Buyer", "1001", ["PROCUREMENT"]);
-const sellerCompany = await makeCompany("E2E Seller", "1002", ["PROCUREMENT", "WAREHOUSING"]);
-const serviceCompany = await makeCompany("E2E Service", "1003", ["TRANSPORTATION", "QUALITY_TESTING"]);
+const buyerCompany = await makeCompany("E2E Buyer", "1001", ["buyer"], ["seller"]);
+const sellerCompany = await makeCompany("E2E Seller", "1002", ["seller"], ["buyer"]);
+const bothCompany = await makeCompany("E2E Both", "1004", ["buyer", "seller"], ["buyer", "seller"]);
+const serviceCompany = await makeCompany("E2E Service", "1003", ["testing"], ["testing"]);
+
+await CompanyFunctionModel.insertMany(COMPANY_FUNCTION_SEED.map((fn: any, index: number) => ({ name: fn.name, slug: fn.slug, description: fn.description || "", isActive: true, orderIndex: index + 1 })));
+const baselineMappings = createBaselineSidebarMappings(COMPANY_FUNCTION_SEED.map((fn: any) => fn.slug));
+await SidebarGovernanceModel.create({ key: "associate-sidebar", draft: { revision: 1, mappings: baselineMappings, updatedAt: new Date() }, published: { revision: 1, mappings: baselineMappings, updatedAt: new Date() } });
 
 await Promise.all([
   CompanyInterestProfileModel.create({ associateCompanyId: buyerCompany._id, interests: ["PROCUREMENT"] }),
@@ -83,7 +98,7 @@ const associateFixture = (email: string, name: string, tradeMode: string, compan
 await Promise.all([
   AssociateModel.create(associateFixture("buyer@e2e.obaol.test", "E2E Buyer", "BUY", buyerCompany)),
   AssociateModel.create(associateFixture("seller@e2e.obaol.test", "E2E Seller", "SELL", sellerCompany)),
-  AssociateModel.create(associateFixture("both@e2e.obaol.test", "E2E Both", "BOTH", sellerCompany)),
+  AssociateModel.create(associateFixture("both@e2e.obaol.test", "E2E Both", "BOTH", bothCompany)),
   AssociateModel.create(associateFixture("service@e2e.obaol.test", "E2E Service", "SERVICE", serviceCompany)),
   AssociateModel.create(associateFixture("pending@e2e.obaol.test", "E2E Pending", "BUY", buyerCompany, { registrationStatus: "PENDING_REVIEW" })),
   AssociateModel.create(associateFixture("rejected@e2e.obaol.test", "E2E Rejected", "BUY", buyerCompany, { registrationStatus: "REJECTED", reviewNotes: "E2E rejection" })),

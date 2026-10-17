@@ -139,6 +139,7 @@ export const catalogModerationSummary = async (entityType: ModeratedEntityType, 
 };
 
 export const LISTING_NOT_ENQUIRY_ELIGIBLE = "LISTING_NOT_ENQUIRY_ELIGIBLE";
+export const CATALOG_ITEM_LOCKED = "CATALOG_ITEM_LOCKED";
 
 export const eligibleApprovedVariantIds = async () => {
   const categoryIds = await CategoryModel.find({

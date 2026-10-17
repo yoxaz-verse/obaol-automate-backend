@@ -21,6 +21,9 @@ router.get("/operators", approvalController.listOperators.bind(approvalControlle
 router.patch("/operators/:id", approvalController.actionOperator.bind(approvalController));
 
 router.get("/catalog/:entityType", catalogModerationController.listApprovals.bind(catalogModerationController));
+router.get("/catalog/:entityType/:id/audit", catalogModerationController.audit.bind(catalogModerationController));
+router.patch("/catalog/:entityType/:id/edit", catalogModerationController.adminEdit.bind(catalogModerationController));
+router.post("/catalog/:entityType/:id/approve-chain", catalogModerationController.approveChain.bind(catalogModerationController));
 router.patch("/catalog/:entityType/:id", catalogModerationController.review.bind(catalogModerationController));
 
 export default router;

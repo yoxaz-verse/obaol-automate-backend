@@ -8,5 +8,7 @@ router.use(authenticateToken);
 router.get("/mine", authorizeRoles("Associate"), catalogModerationController.mine.bind(catalogModerationController));
 router.post("/:entityType", authorizeRoles("Associate"), catalogModerationController.createDraft.bind(catalogModerationController));
 router.patch("/:entityType/:id", authorizeRoles("Associate"), catalogModerationController.updateDraft.bind(catalogModerationController));
+router.get("/:entityType/:id/delete-preview", authorizeRoles("Associate"), catalogModerationController.deletePreview.bind(catalogModerationController));
+router.delete("/:entityType/:id", authorizeRoles("Associate"), catalogModerationController.removeDraft.bind(catalogModerationController));
 router.post("/:entityType/:id/submit", authorizeRoles("Associate"), catalogModerationController.submit.bind(catalogModerationController));
 export default router;

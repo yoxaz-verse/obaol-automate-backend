@@ -90,7 +90,9 @@ export const associateVariantRateModerationPreWriteHook: HookFunction = async (p
   if (String(req?.user?.role || "").toLowerCase() !== "associate") return payload;
   if (mode === ExecutionMode.CREATE) {
     const context = await getApprovedAssociateContext(String(req.user?.id || ""));
-    await assertAccessibleParent("variantRate", payload, String(context.associateId), { requireApproved: true });
+    // Associates may prepare and activate a private listing on their own pending
+    // hierarchy. Marketplace reads still require the complete approved chain.
+    await assertAccessibleParent("variantRate", payload, String(context.associateId));
     return {
       ...payload,
       approvalStatus: "APPROVED",

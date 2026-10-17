@@ -10,6 +10,7 @@ const categorySchema = new mongoose.Schema({
     ref: "InventoryManager",
     required: false,
   },
+  isDeleted: { type: Boolean, default: false, index: true },
   createdAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 

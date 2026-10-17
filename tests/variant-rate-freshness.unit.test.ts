@@ -62,6 +62,32 @@ describe("variant-rate freshness", () => {
     expect(adminQuery).toEqual({ isLive: { $ne: true } });
   });
 
+  it("limits the unfiltered associate marketplace to live and recent offline listings", async () => {
+    const associateQuery: any = await variantRateMarketplaceQueryHook(
+      { view: "marketplace" },
+      "read",
+      undefined,
+      { query: { view: "marketplace" }, user: { role: "Associate" } }
+    );
+    expect(associateQuery.$or).toEqual([
+      { isLive: true },
+      {
+        $and: [
+          { isLive: { $ne: true } },
+          recentPastCondition(),
+        ],
+      },
+    ]);
+
+    const adminQuery: any = await variantRateMarketplaceQueryHook(
+      { view: "marketplace" },
+      "read",
+      undefined,
+      { query: { view: "marketplace" }, user: { role: "Admin" } }
+    );
+    expect(adminQuery).toEqual({});
+  });
+
   it("keeps manually-live listings visible regardless of age", async () => {
     const query: any = await variantRateMarketplaceQueryHook(
       { view: "marketplace", isLive: true },

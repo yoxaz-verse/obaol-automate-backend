@@ -141,6 +141,8 @@ describe("variant-rate marketplace visibility", () => {
     const middleDate = new Date(now.getTime() - 60_000);
     const oldestDate = new Date(now.getTime() - 90_000);
     const olderThanOneDay = new Date(now.getTime() - (48 * 60 * 60 * 1000));
+    const olderThanTwentyDays = new Date(now.getTime() - (21 * 24 * 60 * 60 * 1000));
+    const exactlyTwentyDays = new Date(now.getTime() - (20 * 24 * 60 * 60 * 1000));
     const makeRate = (associate: any, company: any, rate: number, overrides: Record<string, any> = {}) => ({
       productVariant: variant._id,
       associate: associate._id,
@@ -166,6 +168,9 @@ describe("variant-rate marketplace visibility", () => {
       makeRate(external, companyB, 130, { isLive: false, unpublishedAt: middleDate }),
       makeRate(external, companyB, 140, { isDeleted: true }),
       makeRate(external, companyB, 150, { lastLiveAt: olderThanOneDay, lastLiveDate: olderThanOneDay, createdAt: olderThanOneDay, updatedAt: olderThanOneDay }),
+      makeRate(external, companyB, 160, { isLive: false, unpublishedAt: olderThanTwentyDays, lastLiveAt: olderThanTwentyDays, lastLiveDate: olderThanTwentyDays }),
+      makeRate(external, companyB, 170, { isLive: false, unpublishedAt: undefined }),
+      makeRate(external, companyB, 180, { isLive: false, unpublishedAt: exactlyTwentyDays, lastLiveAt: exactlyTwentyDays, lastLiveDate: exactlyTwentyDays }),
     ] as any);
 
     await expect(VariantRateModel.countDocuments({
@@ -203,6 +208,28 @@ describe("variant-rate marketplace visibility", () => {
     expect(externalRow).not.toHaveProperty("rate");
     expect(externalRow).not.toHaveProperty("commission");
     expect(externalRow).not.toHaveProperty("officeAddress");
+
+    const mixedAssociateResponse = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", authCookie(viewer))
+      .query({ view: "marketplace", sort: "lastLiveDate:desc", limit: 50 });
+    expect(mixedAssociateResponse.status).toBe(200);
+    const mixedAssociateIds = (mixedAssociateResponse.body?.data?.data || []).map((row: any) => String(row._id));
+    expect(mixedAssociateIds).toContain(String(inserted.insertedIds[4]));
+    expect(mixedAssociateIds).not.toContain(String(inserted.insertedIds[7]));
+    expect(mixedAssociateIds).not.toContain(String(inserted.insertedIds[8]));
+    expect(mixedAssociateIds).not.toContain(String(inserted.insertedIds[9]));
+    expect(mixedAssociateResponse.body?.data?.totalCount).toBe(6);
+
+    const mixedAdminResponse = await api
+      .get("/api/v1/web/variant-rates")
+      .set("Cookie", adminAuthCookie(await createAdmin()))
+      .query({ view: "marketplace", limit: 50 });
+    expect(mixedAdminResponse.status).toBe(200);
+    const mixedAdminIds = (mixedAdminResponse.body?.data?.data || []).map((row: any) => String(row._id));
+    expect(mixedAdminIds).toContain(String(inserted.insertedIds[7]));
+    expect(mixedAdminIds).toContain(String(inserted.insertedIds[8]));
+    expect(mixedAdminIds).toContain(String(inserted.insertedIds[9]));
 
     const excludeOwnedResponse = await api
       .get("/api/v1/web/variant-rates")

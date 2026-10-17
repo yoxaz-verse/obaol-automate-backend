@@ -65,6 +65,7 @@ export const variantRateMarketplaceQueryHook = async (
     const rawIsLive = nextQuery.isLive ?? req?.query?.isLive;
     const isOffline = rawIsLive === false || isFalsyString(rawIsLive);
     const isLive = rawIsLive === true || isTruthyString(rawIsLive);
+    const isAssociateMarketplace = roleLower === "associate" || roleLower === "customer";
 
     if (isOffline) {
       // Offline marketplace includes false + null/missing legacy values.
@@ -77,6 +78,18 @@ export const variantRateMarketplaceQueryHook = async (
           associate: { $ne: String(req?.user?.id || "") },
         });
       }
+    } else if (isAssociateMarketplace) {
+      nextQuery = addAndCondition(nextQuery, {
+        $or: [
+          { isLive: true },
+          {
+            $and: [
+              { isLive: { $ne: true } },
+              recentPastCondition(),
+            ],
+          },
+        ],
+      });
     }
     if (req) {
       req.__marketplaceIsLive = isLive ? true : nextQuery.isLive;

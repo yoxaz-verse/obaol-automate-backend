@@ -105,5 +105,12 @@ export const seedCompanyFunctions = async () => {
     }
   }
 
+  // These aliases predate the canonical Buyer/Seller taxonomy. Keep unrelated
+  // custom functions intact while ensuring the legacy pair cannot reappear.
+  await CompanyFunctionModel.updateMany(
+    { slug: { $in: ["buy", "buying", "sell", "selling"] } },
+    { $set: { isActive: false } }
+  );
+
   return allowedSlugs;
 };

@@ -19,4 +19,16 @@ describe("company function seed", () => {
     expect(rows.find((row) => row.slug === "importing-to-india")?.name).toBe("Importing into India");
     expect(rows.find((row) => row.slug === "exporting-from-india")?.name).toBe("Exporting from India");
   });
+
+  it("deactivates only known buyer and seller aliases", async () => {
+    await CompanyFunctionModel.create([
+      { name: "Buying", slug: "buying", isActive: true },
+      { name: "Selling", slug: "selling", isActive: true },
+      { name: "Custom Function", slug: "custom-function", isActive: true },
+    ]);
+    await seedCompanyFunctions();
+    expect((await CompanyFunctionModel.findOne({ slug: "buying" }).lean())?.isActive).toBe(false);
+    expect((await CompanyFunctionModel.findOne({ slug: "selling" }).lean())?.isActive).toBe(false);
+    expect((await CompanyFunctionModel.findOne({ slug: "custom-function" }).lean())?.isActive).toBe(true);
+  });
 });

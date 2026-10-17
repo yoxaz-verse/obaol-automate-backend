@@ -56,6 +56,7 @@ import {
     resolveBiddingPhase,
 } from "../utils/executionBidding";
 import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
+import { LabWorkItemModel } from "../database/models/labWorkItem";
 
 /**
  * Inquiry Controller
@@ -2219,6 +2220,24 @@ export class InquiryController {
             tasks[idx] = task;
             (inquiry as any).executionInquiries = tasks;
             await inquiry.save();
+
+            if (awardedProviderId && normalizedType === "QUALITY_TESTING") {
+                const now = new Date();
+                await LabWorkItemModel.findOneAndUpdate(
+                    { inquiryId: inquiry._id, executionTaskId: task._id },
+                    {
+                        $setOnInsert: {
+                            labCompanyId: awardedProviderId,
+                            status: "EXPECTED",
+                            expectedAt: now,
+                            createdBy: req.user!.id,
+                            statusHistory: [{ status: "EXPECTED", at: now, by: req.user!.id, note: "Quality testing work awarded." }],
+                        },
+                        $set: { labCompanyId: awardedProviderId, updatedBy: req.user!.id },
+                    },
+                    { upsert: true, new: true }
+                );
+            }
 
             await createInquiryEvent(
                 inquiry._id,

@@ -60,6 +60,18 @@ export const CANONICAL_COMPANY_FUNCTION_SLUGS = [
 
 export const COMPANY_FUNCTION_TAXONOMY_VERSION = 3;
 
+const TAXONOMY_SLUG_ALIASES: Record<string, string> = {
+  buy: "buyer",
+  buying: "buyer",
+  sell: "seller",
+  selling: "seller",
+};
+
+export const canonicalizeCompanyFunctionTaxonomySlug = (value: unknown): string => {
+  const slug = String(value || "").trim().toLowerCase().replace(/_/g, "-");
+  return TAXONOMY_SLUG_ALIASES[slug] || slug;
+};
+
 const LEGACY_TO_COMPANY_FUNCTION: Record<string, string> = {
   BUYER: "buyer",
   SELLER: "seller",

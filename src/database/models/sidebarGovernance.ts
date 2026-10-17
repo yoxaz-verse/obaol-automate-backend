@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const MappingSchema = new mongoose.Schema({
   functionSlug: { type: String, required: true, trim: true, lowercase: true },
   routePath: { type: String, required: true, trim: true },
-  placement: { type: String, enum: ["SEEKING", "PROVIDING", "BOTH"], required: true },
+  placement: { type: String, enum: ["SEEKING", "PROVIDING", "BOTH", "OTHER_SERVICES"], required: true },
   status: { type: String, enum: ["LIVE", "COMING_SOON", "HIDDEN"], required: true },
   order: { type: Number, required: true, min: 0 },
 }, { _id: false });

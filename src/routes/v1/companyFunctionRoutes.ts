@@ -2,6 +2,7 @@ import { Router } from "express";
 import authenticateToken from "../../middlewares/auth";
 import { authorizeRoles } from "../../middlewares/authorizeRoles";
 import { companyFunctionController } from "../../controllers/companyFunctionController";
+import { sidebarGovernanceController } from "../../controllers/sidebarGovernanceController";
 
 const router = Router();
 
@@ -19,5 +20,11 @@ router.post("/admin/company-functions", authenticateToken, authorizeRoles("Admin
 router.put("/admin/company-functions/:id", authenticateToken, authorizeRoles("Admin"), companyFunctionController.updateFunction.bind(companyFunctionController));
 router.post("/admin/company-sub-functions", authenticateToken, authorizeRoles("Admin"), companyFunctionController.createSubFunction.bind(companyFunctionController));
 router.put("/admin/company-sub-functions/:id", authenticateToken, authorizeRoles("Admin"), companyFunctionController.updateSubFunction.bind(companyFunctionController));
+
+router.get("/sidebar-governance/published", authenticateToken, sidebarGovernanceController.getPublished.bind(sidebarGovernanceController));
+router.get("/admin/sidebar-governance", authenticateToken, authorizeRoles("Admin"), sidebarGovernanceController.getAdmin.bind(sidebarGovernanceController));
+router.put("/admin/sidebar-governance/draft", authenticateToken, authorizeRoles("Admin"), sidebarGovernanceController.saveDraft.bind(sidebarGovernanceController));
+router.post("/admin/sidebar-governance/publish", authenticateToken, authorizeRoles("Admin"), sidebarGovernanceController.publish.bind(sidebarGovernanceController));
+router.post("/admin/sidebar-governance/reset-draft", authenticateToken, authorizeRoles("Admin"), sidebarGovernanceController.resetDraft.bind(sidebarGovernanceController));
 
 export default router;

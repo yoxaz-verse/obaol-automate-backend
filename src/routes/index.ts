@@ -34,6 +34,9 @@ router.use(`${prefix}/orders`, orderRoutes);
 import inquiryRoutes from "./v1/inquiryRoutes";
 router.use(`${prefix}/inquiries`, inquiryRoutes);
 
+import productBiddingRoutes from "./v1/productBiddingRoutes";
+router.use(`${prefix}/product-bidding`, productBiddingRoutes);
+
 // Variant-rates specialized endpoints
 import variantRateRoutes from "./v1/variantRateRoutes";
 router.use(`${prefix}/variant-rates`, variantRateRoutes);

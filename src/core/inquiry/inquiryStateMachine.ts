@@ -4,6 +4,7 @@
  */
 
 export enum InquiryStatus {
+    DRAFT = "DRAFT",
     NEW = "NEW",
     CONTACTED = "CONTACTED",
     IN_DISCUSSION = "IN_DISCUSSION",
@@ -17,6 +18,7 @@ export enum InquiryStatus {
  * Each key represents the current state, and the value is an array of allowed next states
  */
 const STATE_TRANSITIONS: Record<InquiryStatus, InquiryStatus[]> = {
+    [InquiryStatus.DRAFT]: [InquiryStatus.NEW, InquiryStatus.CANCELLED],
     [InquiryStatus.NEW]: [InquiryStatus.CONTACTED, InquiryStatus.CANCELLED],
     [InquiryStatus.CONTACTED]: [InquiryStatus.IN_DISCUSSION, InquiryStatus.CANCELLED],
     [InquiryStatus.IN_DISCUSSION]: [

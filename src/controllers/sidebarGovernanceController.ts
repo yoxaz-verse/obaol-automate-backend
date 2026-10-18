@@ -33,7 +33,24 @@ const normalizedConfig = (config: any) => {
 
 const ensureConfig = async () => {
   const existing = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" });
-  if (existing) return existing;
+  if (existing) {
+    const functionSlugs = await getFunctionSlugs();
+    const baseline = createBaselineSidebarMappings(functionSlugs);
+    const addMissing = (current: any[] = []) => {
+      const keys = new Set(current.map((row: any) => `${row.functionSlug}:${row.routePath}`));
+      return [...current, ...baseline.filter((row) => !keys.has(`${row.functionSlug}:${row.routePath}`))];
+    };
+    const draft = addMissing((existing as any).draft?.mappings || []);
+    const published = addMissing((existing as any).published?.mappings || []);
+    if (draft.length !== (existing as any).draft?.mappings?.length || published.length !== (existing as any).published?.mappings?.length) {
+      (existing as any).draft.mappings = draft;
+      (existing as any).published.mappings = published;
+      (existing as any).draft.revision = Number((existing as any).draft.revision || 0) + 1;
+      (existing as any).published.revision = Number((existing as any).published.revision || 0) + 1;
+      await existing.save();
+    }
+    return existing;
+  }
   const mappings = createBaselineSidebarMappings(await getFunctionSlugs());
   return SidebarGovernanceModel.create({
     key: "associate-sidebar",

@@ -16,6 +16,7 @@ export const COMMON_ASSOCIATE_SIDEBAR_ROUTES = [
 export const COMMON_ASSOCIATE_ROUTE_PATHS = new Set(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path));
 
 export const ASSOCIATE_SIDEBAR_ROUTES = [
+  ["bidding", "/dashboard/bidding", "Bidding"],
   ["trade-listings", "/dashboard/marketplace", "Trade Listings"],
   ["my-trade-listings", "/dashboard/product", "My Trade Listings"],
   ["commodity-directory", "/dashboard/catalog", "Commodity Directory"],
@@ -83,8 +84,8 @@ export const canonicalizeGovernanceMappings = <T extends GovernanceMapping>(mapp
 };
 
 const LIVE_BY_FUNCTION: Record<string, string[]> = {
-  buyer: ["/dashboard/marketplace", "/dashboard/catalog", "/dashboard/enquiries", "/dashboard/sample-requests", "/dashboard/orders"],
-  seller: ["/dashboard/product", "/dashboard/marketplace", "/dashboard/inventory", "/dashboard/enquiries", "/dashboard/orders"],
+  buyer: ["/dashboard/bidding", "/dashboard/marketplace", "/dashboard/catalog", "/dashboard/enquiries", "/dashboard/sample-requests", "/dashboard/orders"],
+  seller: ["/dashboard/bidding", "/dashboard/product", "/dashboard/marketplace", "/dashboard/inventory", "/dashboard/enquiries", "/dashboard/orders"],
   sourcing: ["/dashboard/marketplace", "/dashboard/enquiries", "/dashboard/orders"],
   packaging: ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/documents"],
   testing: ["/dashboard/quality-labs", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/sample-requests", "/dashboard/documents"],

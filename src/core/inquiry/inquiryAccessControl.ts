@@ -4,6 +4,7 @@
  */
 
 import { Types } from "mongoose";
+import { InquiryStatus } from "./inquiryStateMachine";
 
 export enum UserRole {
     ADMIN = "Admin",
@@ -352,8 +353,8 @@ export function buildInquiryAccessFilter(
         return {
             $or: [
                 { buyerAssociateId: associateId },
-                { sellerAssociateId: associateId },
-                { mediatorAssociateId: associateId },
+                { sellerAssociateId: associateId, status: { $ne: InquiryStatus.DRAFT } },
+                { mediatorAssociateId: associateId, status: { $ne: InquiryStatus.DRAFT } },
             ]
         };
     }

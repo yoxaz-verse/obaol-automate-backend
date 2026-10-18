@@ -20,6 +20,9 @@ export interface IInquiry extends Document {
   pricingConfirmationRequired?: boolean;
   historicalListedPrice?: number | null;
   sourceProductVariantId?: Types.ObjectId | null;
+  biddingEventId?: Types.ObjectId | null;
+  biddingOfferId?: Types.ObjectId | null;
+  biddingUnitPrice?: number | null;
 
   // Associate roles
   buyerAssociateId: Types.ObjectId;

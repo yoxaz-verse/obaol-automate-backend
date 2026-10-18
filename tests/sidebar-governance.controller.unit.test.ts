@@ -32,6 +32,7 @@ describe("sidebar governance canonical functions", () => {
       ["Seller", "seller"],
     ]);
     expect(state.body.data.commonRoutes.map((row: any) => row.path)).toEqual(["/dashboard", "/dashboard/guidance", "/dashboard/settings", "/dashboard/customer-support"]);
+    expect(state.body.data.commonRoutes.map((row: any) => row.position)).toEqual(["TOP", "BOTTOM", "BOTTOM", "BOTTOM"]);
     expect(state.body.data.routes.some((row: any) => row.path === "/dashboard")).toBe(false);
   });
 

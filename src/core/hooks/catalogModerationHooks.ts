@@ -72,7 +72,11 @@ export const variantRateModerationPreReadHook: HookFunction = async (query, _mod
   if (role === "admin") return query;
   if (isMarketplace) return query;
   if (!isMarketplace && role === "associate") {
-    return addAnd(query, { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { associate: req.user?.id }] });
+    const variantIds = await eligibleApprovedVariantIds();
+    return addAnd(query, { $or: [
+      { associate: req.user?.id },
+      { approvalStatus: { $in: ["APPROVED", null] }, productVariant: { $in: variantIds } },
+    ] });
   }
   const variantIds = await eligibleApprovedVariantIds();
   const approvedAssociates = await AssociateModel.find({

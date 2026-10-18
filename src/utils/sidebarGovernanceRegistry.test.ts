@@ -13,6 +13,7 @@ describe("sidebar governance registry", () => {
     const buyer = createBaselineSidebarMappings(["buyer"]);
     const buyerPaths = new Set<string>(buyer.map((row) => row.routePath));
     expect(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path)).toEqual(["/dashboard", "/dashboard/guidance", "/dashboard/settings", "/dashboard/customer-support"]);
+    expect(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, , , position]) => position)).toEqual(["TOP", "BOTTOM", "BOTTOM", "BOTTOM"]);
     expect(buyerPaths.has("/dashboard")).toBe(false);
     expect(buyerPaths.has("/dashboard/settings")).toBe(false);
     expect(buyer.find((row) => row.routePath === "/dashboard/quality-labs")?.status).toBe("HIDDEN");

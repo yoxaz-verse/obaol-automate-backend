@@ -23,7 +23,8 @@ router.post("/:id/reveal", async (req: any, res) => {
     if (!mongoose.Types.ObjectId.isValid(id) || !sessionId || sessionId.length > 120) {
       return res.status(400).json({ success: false, message: "A valid listing and session are required." });
     }
-    const listing = await VariantRateModel.findOne({
+    const eligibleHierarchy = await getEnquiryEligibleVariantRateFilter({ requireLive: false });
+    const listing = await VariantRateModel.findOne({ $and: [{
       _id: id,
       isDeleted: { $ne: true },
       associate: { $ne: req.user.id },
@@ -31,7 +32,7 @@ router.post("/:id/reveal", async (req: any, res) => {
         { isLive: true, unpublishedAt: null },
         { $and: [{ isLive: { $ne: true } }, recentPastCondition()] },
       ],
-    }).select("rate commission isLive associate productVariant").lean();
+    }, eligibleHierarchy] }).select("rate commission isLive associate productVariant").lean();
     if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
 
     const viewer: any = await AssociateModel.findById(req.user.id)

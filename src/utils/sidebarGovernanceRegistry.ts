@@ -7,10 +7,10 @@ export type SidebarPlacement = typeof SIDEBAR_PLACEMENTS[number];
 export type SidebarPageStatus = typeof SIDEBAR_STATUSES[number];
 
 export const COMMON_ASSOCIATE_SIDEBAR_ROUTES = [
-  ["dashboard", "/dashboard", "Dashboard"],
-  ["guidance", "/dashboard/guidance", "Guidance"],
-  ["settings", "/dashboard/settings", "Settings"],
-  ["customer-support", "/dashboard/customer-support", "Customer Support"],
+  ["dashboard", "/dashboard", "Dashboard", "TOP"],
+  ["guidance", "/dashboard/guidance", "Guidance", "BOTTOM"],
+  ["settings", "/dashboard/settings", "Settings", "BOTTOM"],
+  ["customer-support", "/dashboard/customer-support", "Customer Support", "BOTTOM"],
 ] as const;
 
 export const COMMON_ASSOCIATE_ROUTE_PATHS = new Set(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path));

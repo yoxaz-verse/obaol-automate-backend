@@ -102,7 +102,7 @@ export class SidebarGovernanceController {
         ensureConfig(),
         getCanonicalFunctions(),
       ]);
-      return res.json({ success: true, data: { config: normalizedConfig(config), functions, routes: ASSOCIATE_SIDEBAR_ROUTES.map(([id, path, label]) => ({ id, path, label })), commonRoutes: COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([id, path, label]) => ({ id, path, label })) } });
+      return res.json({ success: true, data: { config: normalizedConfig(config), functions, routes: ASSOCIATE_SIDEBAR_ROUTES.map(([id, path, label]) => ({ id, path, label })), commonRoutes: COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([id, path, label, position]) => ({ id, path, label, position })) } });
     } catch (error: any) { return res.status(500).json({ success: false, message: error.message || "Failed to load sidebar governance." }); }
   }
 

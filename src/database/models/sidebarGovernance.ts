@@ -10,6 +10,13 @@ const MappingSchema = new mongoose.Schema({
 
 const SnapshotSchema = new mongoose.Schema({
   revision: { type: Number, required: true, default: 0 },
+  resolutionVersion: { type: Number, enum: [1, 2], required: true, default: 1 },
+  sectionOrder: {
+    SEEKING: { type: [String], default: [] },
+    PROVIDING: { type: [String], default: [] },
+    OTHER_SERVICES: { type: [String], default: [] },
+  },
+  fallbackStatusByRoute: { type: Map, of: { type: String, enum: ["LIVE", "COMING_SOON", "HIDDEN"] }, default: {} },
   mappings: { type: [MappingSchema], default: [] },
   updatedAt: { type: Date, default: Date.now },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, default: null },

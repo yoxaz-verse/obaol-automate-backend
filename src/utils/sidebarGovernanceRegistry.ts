@@ -42,6 +42,22 @@ export const ASSOCIATE_SIDEBAR_ROUTES = [
 ] as const;
 
 export const SIDEBAR_ROUTE_PATHS = new Set(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path));
+export const SIDEBAR_RESOLVED_SECTIONS = ["SEEKING", "PROVIDING", "OTHER_SERVICES"] as const;
+export type SidebarResolvedSection = typeof SIDEBAR_RESOLVED_SECTIONS[number];
+
+export const createDefaultSidebarSectionOrder = () => Object.fromEntries(
+  SIDEBAR_RESOLVED_SECTIONS.map((section) => [section, ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path)]),
+) as Record<SidebarResolvedSection, string[]>;
+
+export const deriveSidebarSectionOrder = (mappings: Array<{ routePath: string; placement: string; order: number }>) => {
+  const defaults = createDefaultSidebarSectionOrder();
+  return Object.fromEntries(SIDEBAR_RESOLVED_SECTIONS.map((section) => {
+    const relevant = mappings.filter((row) => row.placement === section || (row.placement === "BOTH" && section !== "OTHER_SERVICES"));
+    const minimum = new Map<string, number>();
+    relevant.forEach((row) => minimum.set(row.routePath, Math.min(minimum.get(row.routePath) ?? Number.MAX_SAFE_INTEGER, row.order)));
+    return [section, [...defaults[section]].sort((a, b) => (minimum.get(a) ?? Number.MAX_SAFE_INTEGER) - (minimum.get(b) ?? Number.MAX_SAFE_INTEGER) || defaults[section].indexOf(a) - defaults[section].indexOf(b))];
+  })) as Record<SidebarResolvedSection, string[]>;
+};
 
 type GovernanceMapping = {
   functionSlug: string;

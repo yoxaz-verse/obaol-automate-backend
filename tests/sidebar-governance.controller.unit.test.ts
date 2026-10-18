@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sidebarGovernanceController } from "../src/controllers/sidebarGovernanceController";
 import { CompanyFunctionModel } from "../src/database/models/companyFunction";
 import { SidebarGovernanceModel } from "../src/database/models/sidebarGovernance";
+import { ASSOCIATE_SIDEBAR_ROUTES, createBaselineSidebarMappings, createDefaultSidebarSectionOrder } from "../src/utils/sidebarGovernanceRegistry";
 
 const response = () => {
   const state: { status: number; body?: any } = { status: 200 };
@@ -11,6 +12,13 @@ const response = () => {
   };
   return { res, state };
 };
+
+const validDraft = (mappings = createBaselineSidebarMappings(["buyer", "seller"])) => ({
+  resolutionVersion: 2,
+  sectionOrder: createDefaultSidebarSectionOrder(),
+  fallbackStatusByRoute: Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"])),
+  mappings,
+});
 
 describe("sidebar governance canonical functions", () => {
   beforeEach(async () => {
@@ -52,23 +60,25 @@ describe("sidebar governance canonical functions", () => {
 
   it("rejects a stale draft write without replacing the newer draft", async () => {
     const mapping = { functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "SEEKING", status: "LIVE", order: 0 };
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.functionSlug === mapping.functionSlug && row.routePath === mapping.routePath ? mapping : row);
     const first = response();
-    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [mapping] }, user: { id: "000000000000000000000001" } } as any, first.res);
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, ...validDraft(mappings) }, user: { id: "000000000000000000000001" } } as any, first.res);
     expect(first.state.status).toBe(200);
     expect(first.state.body.data.draft.revision).toBe(2);
 
     const stale = response();
-    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [{ ...mapping, status: "HIDDEN" }] }, user: { id: "000000000000000000000002" } } as any, stale.res);
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, ...validDraft(mappings.map((row) => row.functionSlug === mapping.functionSlug && row.routePath === mapping.routePath ? { ...row, status: "HIDDEN" } : row)) }, user: { id: "000000000000000000000002" } } as any, stale.res);
     expect(stale.state.status).toBe(409);
     expect(stale.state.body.error).toMatchObject({ code: "SIDEBAR_GOVERNANCE_REVISION_CONFLICT", snapshot: "draft", expectedRevision: 1, currentRevision: 2 });
     const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
-    expect(stored.draft.mappings[0].status).toBe("LIVE");
+    expect(stored.draft.mappings.find((row: any) => row.functionSlug === "buyer" && row.routePath === "/dashboard/marketplace").status).toBe("LIVE");
   });
 
   it("publishes only when both expected revisions still match", async () => {
     const mapping = { functionSlug: "seller", routePath: "/dashboard/product", placement: "PROVIDING", status: "LIVE", order: 0 };
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.functionSlug === mapping.functionSlug && row.routePath === mapping.routePath ? mapping : row);
     const saved = response();
-    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, mappings: [mapping] }, user: { id: "000000000000000000000001" } } as any, saved.res);
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, ...validDraft(mappings) }, user: { id: "000000000000000000000001" } } as any, saved.res);
     const published = response();
     await sidebarGovernanceController.publish({ body: { expectedDraftRevision: 2, expectedPublishedRevision: 1 }, user: { id: "000000000000000000000001" } } as any, published.res);
     expect(published.state.status).toBe(200);

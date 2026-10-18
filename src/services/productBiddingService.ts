@@ -4,11 +4,11 @@ import { VariantRateModel } from "../database/models/variantRate";
 import { ProductVariantModel } from "../database/models/productVariant";
 import { notificationService } from "./notificationService";
 
-const notify = async (recipientIds: any[], event: any, type: string, title: string, message: string) => {
+const notify = async (recipientIds: any[], event: any, type: string, title: string, message: string, route = "/dashboard/bidding") => {
   const recipientMap = new Map<string, "Associate">();
   recipientIds.map((value) => String(value?._id || value || "")).filter(Boolean).forEach((id) => recipientMap.set(id, "Associate"));
   if (!recipientMap.size) return;
-  await notificationService.createNotifications({ recipientMap, type, title, message, entityType: "SYSTEM", entityId: event._id, route: "/dashboard/bidding", payload: { biddingEventId: String(event._id) } });
+  await notificationService.createNotifications({ recipientMap, type, title, message, entityType: "SYSTEM", entityId: event._id, route, payload: { biddingEventId: String(event._id) } });
 };
 
 export const resolveProductBiddingStatus = (status: string, opensAt: Date | string | null, closesAt: Date | string | null, now = new Date()) => {
@@ -18,6 +18,15 @@ export const resolveProductBiddingStatus = (status: string, opensAt: Date | stri
   if (close && close <= now) return "CLOSED";
   if (open && open <= now) return "OPEN";
   return open ? "SCHEDULED" : status;
+};
+
+export const matchesSellerBiddingView = (event: any, offers: any[], companyId: string, view: string, eligibleListingKeys: Set<string> = new Set()) => {
+  const ownOffer = offers.find((offer) => String(offer.sellerCompany?._id || offer.sellerCompany) === companyId);
+  const eligibleKey = event.productVariant ? `variant:${String(event.productVariant?._id || event.productVariant)}` : `product:${String(event.product?._id || event.product)}`;
+  if (view === "available") return event.status === "OPEN" && eligibleListingKeys.has(eligibleKey) && ownOffer?.status !== "SUBMITTED";
+  if (view === "participating") return ["OPEN", "CLOSED"].includes(event.status) && ownOffer?.status === "SUBMITTED";
+  if (view === "history") return Boolean(ownOffer) && (["AWARDED", "CANCELLED"].includes(event.status) || ["AWARDED", "NOT_SELECTED"].includes(ownOffer.status));
+  return false;
 };
 
 export const synchronizeProductBiddingLifecycle = async (eventOrId: any, now = new Date()) => {
@@ -46,7 +55,10 @@ export const synchronizeAllProductBiddingLifecycles = async (now = new Date()) =
     const claimed = await ProductBiddingEventModel.findOneAndUpdate({ _id: event._id, closingSoonNotifiedAt: null }, { $set: { closingSoonNotifiedAt: now } });
     if (!claimed) continue;
     const sellers = await ProductBidOfferModel.find({ event: event._id, status: "SUBMITTED" }).distinct("seller");
-    await notify([event.buyer, ...sellers], event, "PRODUCT_BIDDING_CLOSING_SOON", "Bidding closes soon", `${event.title} closes within one hour.`);
+    await Promise.all([
+      notify([event.buyer], event, "PRODUCT_BIDDING_CLOSING_SOON", "Bidding closes soon", `${event.title} closes within one hour.`, "/dashboard/bidding/my"),
+      notify(sellers, event, "PRODUCT_BIDDING_CLOSING_SOON", "Bidding closes soon", `${event.title} closes within one hour.`),
+    ]);
   }
 
   const closing: any[] = await ProductBiddingEventModel.find({ status: { $in: ["SCHEDULED", "OPEN"] }, closesAt: { $lte: now }, closedNotifiedAt: null }).lean();
@@ -56,6 +68,9 @@ export const synchronizeAllProductBiddingLifecycles = async (now = new Date()) =
     const claimed = await ProductBiddingEventModel.findOneAndUpdate({ _id: event._id, closedNotifiedAt: null }, { $set: { closedNotifiedAt: now } });
     if (!claimed) continue;
     const sellers = await ProductBidOfferModel.find({ event: event._id }).distinct("seller");
-    await notify([event.buyer, ...sellers], event, "PRODUCT_BIDDING_CLOSED", "Bidding closed", `${event.title} is now closed.`);
+    await Promise.all([
+      notify([event.buyer], event, "PRODUCT_BIDDING_CLOSED", "Bidding closed", `${event.title} is now closed.`, "/dashboard/bidding/my"),
+      notify(sellers, event, "PRODUCT_BIDDING_CLOSED", "Bidding closed", `${event.title} is now closed.`),
+    ]);
   }
 };

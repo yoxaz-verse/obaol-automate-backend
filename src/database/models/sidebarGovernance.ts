@@ -24,6 +24,7 @@ const SnapshotSchema = new mongoose.Schema({
 
 const SidebarGovernanceSchema = new mongoose.Schema({
   key: { type: String, unique: true, default: "associate-sidebar" },
+  matrixMigrationVersion: { type: Number, required: true, default: 0 },
   draft: { type: SnapshotSchema, required: true },
   published: { type: SnapshotSchema, required: true },
 }, { timestamps: true });

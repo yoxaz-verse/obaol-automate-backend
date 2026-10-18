@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sidebarGovernanceController } from "../src/controllers/sidebarGovernanceController";
 import { CompanyFunctionModel } from "../src/database/models/companyFunction";
 import { SidebarGovernanceModel } from "../src/database/models/sidebarGovernance";
-import { ASSOCIATE_SIDEBAR_ROUTES, createBaselineSidebarMappings, createDefaultSidebarSectionOrder } from "../src/utils/sidebarGovernanceRegistry";
+import { ASSOCIATE_SIDEBAR_ROUTES, createBaselineSidebarMappings, createDefaultSidebarSectionOrder, migrateBiddingSplit } from "../src/utils/sidebarGovernanceRegistry";
 
 const response = () => {
   const state: { status: number; body?: any } = { status: 200 };
@@ -88,5 +88,47 @@ describe("sidebar governance canonical functions", () => {
     await sidebarGovernanceController.publish({ body: { expectedDraftRevision: 2, expectedPublishedRevision: 1 }, user: { id: "000000000000000000000001" } } as any, stale.res);
     expect(stale.state.status).toBe(409);
     expect(stale.state.body.error).toMatchObject({ code: "SIDEBAR_GOVERNANCE_REVISION_CONFLICT", snapshot: "published", currentRevision: 2 });
+  });
+
+  it("normalizes Bidding in the draft once without changing the published snapshot", async () => {
+    const legacyMappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.routePath === "/dashboard/bidding" ? { ...row, placement: "BOTH" as const, status: "LIVE" as const } : row);
+    const sectionOrder = createDefaultSidebarSectionOrder();
+    const fallbackStatusByRoute = Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"]));
+    await SidebarGovernanceModel.create({ key: "associate-sidebar", matrixMigrationVersion: 2, draft: { revision: 4, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings: legacyMappings }, published: { revision: 3, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings: legacyMappings } });
+
+    const first = response();
+    await sidebarGovernanceController.getAdmin({} as any, first.res);
+    const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+    expect(stored.matrixMigrationVersion).toBe(3);
+    expect(stored.draft.revision).toBe(5);
+    expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
+    expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "OTHER_SERVICES", status: "HIDDEN" }));
+    expect(stored.published.revision).toBe(3);
+    expect(stored.published.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "BOTH", status: "LIVE" }));
+
+    const second = response();
+    await sidebarGovernanceController.getAdmin({} as any, second.res);
+    const afterSecondLoad: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+    expect(afterSecondLoad.draft.revision).toBe(5);
+  });
+});
+
+describe("bidding governance migration", () => {
+  it("places buyer and seller bidding routes in separate perspectives", () => {
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]);
+    expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding/my", placement: "SEEKING", status: "LIVE" }));
+    expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
+    expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", status: "HIDDEN" }));
+    expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding/my", status: "HIDDEN" }));
+  });
+
+  it("moves the buyer setting to My Buying Requests and preserves the seller setting", () => {
+    const migrated = migrateBiddingSplit([
+      { functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "BOTH", status: "COMING_SOON", order: 7 },
+      { functionSlug: "seller", routePath: "/dashboard/bidding", placement: "BOTH", status: "LIVE", order: 4 },
+    ]);
+    expect(migrated).toContainEqual({ functionSlug: "buyer", routePath: "/dashboard/bidding/my", placement: "SEEKING", status: "COMING_SOON", order: 7 });
+    expect(migrated).toContainEqual({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "HIDDEN", order: 7 });
+    expect(migrated).toContainEqual({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE", order: 4 });
   });
 });

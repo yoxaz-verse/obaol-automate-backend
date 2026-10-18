@@ -7,7 +7,7 @@ import { VariantRateModel } from "../database/models/variantRate";
 import { InquiryModel } from "../database/models/enquiry";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
-import { synchronizeAllProductBiddingLifecycles, synchronizeProductBiddingLifecycle } from "../services/productBiddingService";
+import { matchesSellerBiddingView, synchronizeAllProductBiddingLifecycles, synchronizeProductBiddingLifecycle } from "../services/productBiddingService";
 import { notificationService } from "../services/notificationService";
 
 const idOf = (value: any) => String(value?._id || value || "");
@@ -41,11 +41,11 @@ const validateSchedule = (opensAt: any, closesAt: any) => {
   return null;
 };
 
-const notifyAssociates = async (ids: any[], event: any, type: string, title: string, body: string, actorId?: string) => {
+const notifyAssociates = async (ids: any[], event: any, type: string, title: string, body: string, actorId?: string, route = "/dashboard/bidding") => {
   const recipientMap = new Map<string, "Associate">();
   ids.map(idOf).filter((id) => isId(id) && id !== String(actorId || "")).forEach((id) => recipientMap.set(id, "Associate"));
   if (!recipientMap.size) return;
-  await notificationService.createNotifications({ recipientMap, createdByUserId: actorId || null, type, title, message: body, entityType: "SYSTEM", entityId: event._id, route: "/dashboard/bidding", payload: { biddingEventId: idOf(event) } });
+  await notificationService.createNotifications({ recipientMap, createdByUserId: actorId || null, type, title, message: body, entityType: "SYSTEM", entityId: event._id, route, payload: { biddingEventId: idOf(event) } });
 };
 
 const baseEvent = (event: any, offerCount = 0) => ({
@@ -126,6 +126,8 @@ export class ProductBiddingController {
     const who = await actor(req);
     if (!who && !elevated(req)) return fail(res, 403, "Forbidden.");
     const mode = String(req.query.mode || "buyer");
+    const sellerView = String(req.query.view || "available").toLowerCase();
+    if (mode === "seller" && !["available", "participating", "history"].includes(sellerView)) return fail(res, 400, "Seller view must be available, participating, or history.");
     const filter: any = {};
     if (req.query.status) filter.status = String(req.query.status).toUpperCase();
     if (["operator", "team"].includes(roleOf(req))) {
@@ -138,11 +140,19 @@ export class ProductBiddingController {
         filter.buyerCompany = { $ne: who!.companyId };
       }
     }
-    const events: any[] = await ProductBiddingEventModel.find(filter).populate("product", "name").populate("productVariant", "name").sort({ createdAt: -1 }).limit(200).lean();
+    let events: any[] = await ProductBiddingEventModel.find(filter).populate("product", "name").populate("productVariant", "name").sort({ createdAt: -1 }).limit(200).lean();
     const ids = events.map((event) => event._id);
     const offers: any[] = await ProductBidOfferModel.find({ event: { $in: ids } }).populate({ path: "listing", populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } } }).populate("sellerCompany", "name").lean();
     const byEvent = new Map<string, any[]>();
     offers.forEach((offer) => byEvent.set(idOf(offer.event), [...(byEvent.get(idOf(offer.event)) || []), offer]));
+    if (mode === "seller" && roleOf(req) === "associate") {
+      let eligibleListingKeys = new Set<string>();
+      if (sellerView === "available") {
+        const listings: any[] = await VariantRateModel.find({ associateCompany: who!.companyId, isDeleted: { $ne: true }, approvalStatus: "APPROVED" }).populate({ path: "productVariant", select: "product" }).lean();
+        eligibleListingKeys = new Set(listings.flatMap((listing) => [`product:${idOf(listing.productVariant?.product)}`, `variant:${idOf(listing.productVariant)}`]).filter((key) => !key.endsWith(":")));
+      }
+      events = events.filter((event) => matchesSellerBiddingView(event, byEvent.get(idOf(event)) || [], who!.companyId, sellerView, eligibleListingKeys));
+    }
     const data = events.map((event) => {
       const rows = byEvent.get(idOf(event)) || [];
       const base: any = baseEvent(event, rows.filter((row) => row.status !== "WITHDRAWN").length);
@@ -176,7 +186,7 @@ export class ProductBiddingController {
       existing.revisions.push({ unitPrice: existing.unitPrice, listing: existing.listing, offeredQuantity: existing.offeredQuantity, unit: existing.unit, validUntil: existing.validUntil, note: existing.note, revisedAt: new Date(), revisedBy: who.id });
       Object.assign(existing, next); offer = await existing.save();
     } else offer = await ProductBidOfferModel.create({ ...next, event: event._id, seller: who.id, sellerCompany: who.companyId });
-    await notifyAssociates([event.buyer], event, existing ? "PRODUCT_BID_UPDATED" : "PRODUCT_BID_SUBMITTED", existing ? "Sealed offer updated" : "Sealed offer received", `A confidential offer was ${existing ? "updated" : "submitted"} for ${event.title}.`, who.id);
+    await notifyAssociates([event.buyer], event, existing ? "PRODUCT_BID_UPDATED" : "PRODUCT_BID_SUBMITTED", existing ? "Sealed offer updated" : "Sealed offer received", `A confidential offer was ${existing ? "updated" : "submitted"} for ${event.title}.`, who.id, "/dashboard/bidding/my");
     return res.status(existing ? 200 : 201).json({ success: true, data: offer });
   }
 
@@ -218,7 +228,7 @@ export class ProductBiddingController {
     } finally { await session.endSession(); }
     const allOffers: any[] = await ProductBidOfferModel.find({ event: event._id }).select("seller status").lean();
     await notifyAssociates(allOffers.map((row) => row.seller), event, "PRODUCT_BIDDING_AWARDED", "Bidding result available", `${event.title} has been awarded.`, who?.id);
-    await notifyAssociates([event.buyer], event, "PRODUCT_BIDDING_ENQUIRY_READY", "Draft enquiry ready", `Review and confirm the draft enquiry for ${event.title}.`);
+    await notifyAssociates([event.buyer], event, "PRODUCT_BIDDING_ENQUIRY_READY", "Draft enquiry ready", `Review and confirm the draft enquiry for ${event.title}.`, undefined, "/dashboard/bidding/my");
     return res.json({ success: true, data: baseEvent(event) });
   }
 

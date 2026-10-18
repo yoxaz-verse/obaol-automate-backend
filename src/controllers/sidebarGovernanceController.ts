@@ -3,7 +3,7 @@ import { CompanyFunctionModel } from "../database/models/companyFunction";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { SidebarGovernanceModel } from "../database/models/sidebarGovernance";
-import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_PLACEMENTS, SIDEBAR_RESOLVED_SECTIONS, SIDEBAR_ROUTE_PATHS, SIDEBAR_STATUSES, canonicalizeGovernanceMappings, createBaselineSidebarMappings, createDefaultSidebarSectionOrder, deriveSidebarSectionOrder } from "../utils/sidebarGovernanceRegistry";
+import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_PLACEMENTS, SIDEBAR_RESOLVED_SECTIONS, SIDEBAR_ROUTE_PATHS, SIDEBAR_STATUSES, canonicalizeGovernanceMappings, createBaselineSidebarMappings, createDefaultSidebarSectionOrder, deriveSidebarSectionOrder, normalizeBiddingForSeller } from "../utils/sidebarGovernanceRegistry";
 import { canonicalizeCompanyFunctionTaxonomySlug } from "../utils/companyCapabilities";
 
 const getCanonicalFunctions = async () => {
@@ -67,21 +67,26 @@ const ensureConfig = async () => {
       return [...current, ...baseline.filter((row) => !keys.has(`${row.functionSlug}:${row.routePath}`))];
     };
     const needsV2Conversion = Number((existing as any).draft?.resolutionVersion || 1) !== 2;
+    const needsMatrixMigration = Number((existing as any).matrixMigrationVersion || 0) < 3;
     const currentDraft = canonicalizeGovernanceMappings((existing as any).draft?.mappings || []);
-    const draft = needsV2Conversion ? addMissing(currentDraft) : currentDraft;
-    if (draft.length !== currentDraft.length || needsV2Conversion) {
+    const completedDraft = addMissing(currentDraft);
+    const draft = needsMatrixMigration ? normalizeBiddingForSeller(completedDraft) : completedDraft;
+    const draftChanged = JSON.stringify(draft) !== JSON.stringify(currentDraft) || needsV2Conversion || needsMatrixMigration;
+    if (draftChanged) {
       (existing as any).draft.mappings = draft;
       (existing as any).draft.resolutionVersion = 2;
       (existing as any).draft.sectionOrder = deriveSidebarSectionOrder(draft);
       (existing as any).draft.fallbackStatusByRoute = deriveFallbackStatuses(draft);
       (existing as any).draft.revision = Number((existing as any).draft.revision || 0) + 1;
-      await existing.save();
     }
+    if (needsMatrixMigration) (existing as any).matrixMigrationVersion = 3;
+    if (draftChanged) await existing.save();
     return existing;
   }
   const mappings = createBaselineSidebarMappings(await getFunctionSlugs());
   return SidebarGovernanceModel.create({
     key: "associate-sidebar",
+    matrixMigrationVersion: 3,
     draft: { revision: 1, resolutionVersion: 2, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
     published: { revision: 1, resolutionVersion: 2, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
   });

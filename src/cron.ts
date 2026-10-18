@@ -2,6 +2,7 @@ import cron from "node-cron";
 import logger from "./utils/logger";
 import { requeueUnavailableSupportChats } from "./services/supportChatService";
 import { synchronizeAllProductBiddingLifecycles } from "./services/productBiddingService";
+import { synchronizeServiceRequirements } from "./services/serviceMarketplaceService";
 
 type ScheduledTask = ReturnType<typeof cron.schedule>;
 
@@ -28,7 +29,12 @@ export const startCronJobs = async () => {
     }
   });
 
-  scheduledTasks = [supportChatRequeueTask, productBiddingLifecycleTask];
+  const serviceMarketplaceLifecycleTask = cron.schedule("* * * * *", async () => {
+    try { await synchronizeServiceRequirements("PACKAGING"); }
+    catch (err) { logger.error("Service marketplace lifecycle cron error:", err); }
+  });
+
+  scheduledTasks = [supportChatRequeueTask, productBiddingLifecycleTask, serviceMarketplaceLifecycleTask];
   logger.info(`Started ${scheduledTasks.length} scheduled background jobs.`);
 };
 

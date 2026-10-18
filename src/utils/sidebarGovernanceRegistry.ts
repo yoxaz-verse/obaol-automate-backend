@@ -17,6 +17,7 @@ export const COMMON_ASSOCIATE_ROUTE_PATHS = new Set(COMMON_ASSOCIATE_SIDEBAR_ROU
 
 export const ASSOCIATE_SIDEBAR_ROUTES = [
   ["bidding", "/dashboard/bidding", "Bidding"],
+  ["my-buying-requests", "/dashboard/bidding/my", "My Buying Requests"],
   ["trade-listings", "/dashboard/marketplace", "Trade Listings"],
   ["my-trade-listings", "/dashboard/product", "My Trade Listings"],
   ["commodity-directory", "/dashboard/catalog", "Commodity Directory"],
@@ -34,6 +35,9 @@ export const ASSOCIATE_SIDEBAR_ROUTES = [
   ["quality-labs", "/dashboard/quality-labs", "Quality Labs"],
   ["my-lab", "/dashboard/quality-labs/my", "My Lab"],
   ["lab-execution", "/dashboard/quality-labs/execution", "Lab Execution"],
+  ["packaging-services", "/dashboard/packaging", "Packaging Services"],
+  ["my-packaging", "/dashboard/packaging/my", "My Packaging"],
+  ["packaging-execution", "/dashboard/packaging/execution", "Packaging Execution"],
   ["inventory", "/dashboard/inventory", "Inventory"],
   ["my-warehouses", "/dashboard/warehouses", "My Warehouses"],
   ["warehouse-operations", "/dashboard/warehouses/operations", "Warehouse Operations"],
@@ -100,10 +104,10 @@ export const canonicalizeGovernanceMappings = <T extends GovernanceMapping>(mapp
 };
 
 const LIVE_BY_FUNCTION: Record<string, string[]> = {
-  buyer: ["/dashboard/bidding", "/dashboard/marketplace", "/dashboard/catalog", "/dashboard/enquiries", "/dashboard/sample-requests", "/dashboard/orders"],
+  buyer: ["/dashboard/bidding/my", "/dashboard/marketplace", "/dashboard/catalog", "/dashboard/enquiries", "/dashboard/sample-requests", "/dashboard/orders"],
   seller: ["/dashboard/bidding", "/dashboard/product", "/dashboard/marketplace", "/dashboard/inventory", "/dashboard/enquiries", "/dashboard/orders"],
   sourcing: ["/dashboard/marketplace", "/dashboard/enquiries", "/dashboard/orders"],
-  packaging: ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/documents"],
+  packaging: ["/dashboard/packaging", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/documents"],
   testing: ["/dashboard/quality-labs", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/sample-requests", "/dashboard/documents"],
   "warehouse-storage": ["/dashboard/warehouses", "/dashboard/warehouses/operations", "/dashboard/inventory", "/dashboard/warehouse-rent"],
   "finance-risk": ["/dashboard/orders", "/dashboard/commercial-documents"],
@@ -114,16 +118,32 @@ const LIVE_BY_FUNCTION: Record<string, string[]> = {
 };
 
 const ALWAYS_LIVE = ["/dashboard/company"];
-const SEEKING_ROUTES = new Set(["/dashboard/quality-labs", "/dashboard/imports", "/dashboard/imports/reservations", "/dashboard/warehouse-rent"]);
-const PROVIDING_ROUTES = new Set(["/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/imports/my-listings", "/dashboard/warehouses", "/dashboard/warehouses/operations"]);
+const SEEKING_ROUTES = new Set(["/dashboard/bidding/my", "/dashboard/quality-labs", "/dashboard/packaging", "/dashboard/imports", "/dashboard/imports/reservations", "/dashboard/warehouse-rent"]);
+const PROVIDING_ROUTES = new Set(["/dashboard/bidding", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/imports/my-listings", "/dashboard/warehouses", "/dashboard/warehouses/operations"]);
 
 export const createBaselineSidebarMappings = (functionSlugs: string[]) => functionSlugs.flatMap((functionSlug) => {
   const live = new Set([...(LIVE_BY_FUNCTION[functionSlug] || []), ...ALWAYS_LIVE]);
   return ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath], order) => ({
     functionSlug,
     routePath,
-    placement: (SEEKING_ROUTES.has(routePath) ? "SEEKING" : PROVIDING_ROUTES.has(routePath) ? "PROVIDING" : "BOTH") as SidebarPlacement,
-    status: live.has(routePath) ? "LIVE" as SidebarPageStatus : "HIDDEN" as SidebarPageStatus,
+    placement: (routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "PROVIDING" : "OTHER_SERVICES") : SEEKING_ROUTES.has(routePath) ? "SEEKING" : PROVIDING_ROUTES.has(routePath) ? "PROVIDING" : "BOTH") as SidebarPlacement,
+    status: routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "LIVE" : "HIDDEN") as SidebarPageStatus : live.has(routePath) ? "LIVE" as SidebarPageStatus : "HIDDEN" as SidebarPageStatus,
     order,
   }));
 });
+
+export const normalizeBiddingForSeller = <T extends GovernanceMapping>(mappings: T[]) => mappings.map((row) => row.routePath === "/dashboard/bidding"
+  ? { ...row, placement: row.functionSlug === "seller" ? "PROVIDING" : "OTHER_SERVICES", status: row.functionSlug === "seller" ? "LIVE" : "HIDDEN" }
+  : row);
+
+export const migrateBiddingSplit = <T extends GovernanceMapping>(mappings: T[]) => {
+  if (mappings.some((row) => row.routePath === "/dashboard/bidding/my")) return mappings;
+  const migrated: GovernanceMapping[] = mappings.map((row) => {
+    if (row.routePath !== "/dashboard/bidding") return row;
+    if (row.functionSlug === "seller") return { ...row, placement: "PROVIDING" };
+    return { ...row, placement: "PROVIDING", status: "HIDDEN" };
+  });
+  const buyerLegacy = mappings.find((row) => row.functionSlug === "buyer" && row.routePath === "/dashboard/bidding");
+  if (buyerLegacy) migrated.push({ ...buyerLegacy, routePath: "/dashboard/bidding/my", placement: "SEEKING" });
+  return migrated as T[];
+};

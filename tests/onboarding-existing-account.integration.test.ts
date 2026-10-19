@@ -1,10 +1,16 @@
 import request from "supertest";
 import mongoose from "mongoose";
+import { vi } from "vitest";
 import app from "../src/app";
 import { AssociateModel } from "../src/database/models/associate";
 import { OperatorModel } from "../src/database/models/operator";
 import { VerificationModel } from "../src/database/models/verification";
 import { createAssociate, createOperator } from "./helpers/authFixtures";
+
+vi.mock("../src/utils/mailer", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../src/utils/mailer")>();
+  return { ...original, sendOtpEmail: vi.fn().mockResolvedValue(undefined) };
+});
 
 const api = request(app);
 const start = (email: string, role: "Associate" | "Operator") =>
@@ -16,7 +22,7 @@ describe("onboarding existing accounts", () => {
     const response = await start(email, "Associate");
 
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ success: true, user: { email, role: "Associate" } });
+    expect(response.body).toEqual({ success: true, message: "If this email is eligible, a verification code has been sent." });
     expect(await AssociateModel.exists({ email })).toBeTruthy();
   });
 
@@ -62,16 +68,16 @@ describe("onboarding existing accounts", () => {
     expect(session.body?.user).toMatchObject({ email, role, onboardingComplete: false, verified: { email: true } });
   });
 
-  it("returns the matching role for a completed account", async () => {
+  it("does not disclose the matching role for a completed account", async () => {
     const associate = await createAssociate();
     const response = await start(associate.email, "Associate");
 
-    expect(response.status).toBe(409);
-    expect(response.body).toMatchObject({ success: false, role: "Associate" });
+    expect(response.status).toBe(200);
+    expect(response.body?.role).toBeUndefined();
     expect(await AssociateModel.exists({ _id: associate._id })).toBeTruthy();
   });
 
-  it("preserves another role's recent draft and returns its role", async () => {
+  it("preserves another role's recent draft without returning its role", async () => {
     const associate = await createAssociate({
       onboardingComplete: false,
       isEmailVerified: false,
@@ -79,16 +85,16 @@ describe("onboarding existing accounts", () => {
     });
     const response = await start(associate.email, "Operator");
 
-    expect(response.status).toBe(409);
-    expect(response.body).toMatchObject({ success: false, role: "Associate" });
+    expect(response.status).toBe(200);
+    expect(response.body?.role).toBeUndefined();
     expect(await AssociateModel.exists({ _id: associate._id })).toBeTruthy();
   });
 
-  it("returns Operator when registering an Associate with an Operator email", async () => {
+  it("does not reveal Operator when registering with an Operator email", async () => {
     const operator = await createOperator();
     const response = await start(operator.email, "Associate");
 
-    expect(response.status).toBe(409);
-    expect(response.body).toMatchObject({ success: false, role: "Operator" });
+    expect(response.status).toBe(200);
+    expect(response.body?.role).toBeUndefined();
   });
 });

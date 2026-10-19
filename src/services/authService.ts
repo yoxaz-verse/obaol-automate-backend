@@ -111,6 +111,7 @@ const DRAFT_OPERATOR_ADDRESS = "Pending";
 const BLOCKED_ACCOUNT_MESSAGE = PRE_AUTH_BLOCKED_MESSAGE;
 const PENDING_APPROVAL_MESSAGE = "Account pending admin approval.";
 const LOGIN_COOLDOWN_CODE = "LOGIN_COOLDOWN";
+const DUMMY_PASSWORD_HASH = "$2a$10$.nynYacPM08xksf4TXFan.ADG7I8tebcTIMy1VUWNsmsuyhWJGV9S";
 export const LOGIN_COOLDOWN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_DURATIONS_MS = [
     5 * 60 * 1000,
@@ -212,6 +213,18 @@ const resetLoginCooldown = async (userDoc: any) => {
     userDoc.lastFailedLoginAt = null;
     userDoc.loginLockoutLevel = 0;
     await userDoc.save();
+};
+
+export const getAuthNextPath = (user: any, role: string) => {
+    const normalizedRole = normalizeAuthRole(role);
+    const registrationStatus = String(user?.registrationStatus || "APPROVED").toUpperCase();
+    if ((normalizedRole === "Associate" || normalizedRole === "Operator") && user?.onboardingComplete === false) {
+        return "/dashboard/onboarding";
+    }
+    if ((normalizedRole === "Associate" || normalizedRole === "Operator") && registrationStatus !== "APPROVED") {
+        return "/dashboard/pending-approval";
+    }
+    return "/dashboard";
 };
 
 export const normalizeAuthRole = (role: any) => {
@@ -612,6 +625,58 @@ export const authenticateUser = async (req: Request, res: Response) => {
     }
 };
 
+export const authenticateUnifiedUser = async (req: Request, res: Response) => {
+    try {
+        const email = String(req.body?.email || "").trim().toLowerCase();
+        const password = String(req.body?.password || "");
+        if (!email || !password) {
+            return res.status(400).json({ success: false, code: "INVALID_CREDENTIALS", message: "Email and password are required." });
+        }
+
+        const [operator, associate] = await Promise.all([
+            OperatorModel.findOne({ email }),
+            AgentModel.findOne({ email }),
+        ]);
+        const user: any = operator || associate;
+        const role = operator ? "Operator" : associate ? "Associate" : "";
+        const isMatch = user && !user.isDeleted
+            ? await user.comparePassword(password)
+            : await comparePasswords(password, DUMMY_PASSWORD_HASH);
+        if (!user || user.isDeleted || !isMatch) {
+            if (user && !user.isDeleted && !getLoginCooldownPayload(user)) {
+                await recordFailedPasswordAttempt(user);
+            }
+            return res.status(401).json({ success: false, code: "INVALID_CREDENTIALS", message: "Invalid email or password." });
+        }
+
+        const registrationStatus = String(user.registrationStatus || "APPROVED").toUpperCase();
+        if (registrationStatus === "REJECTED") {
+            return res.status(403).json({ success: false, code: "ACCOUNT_BLOCKED", message: BLOCKED_ACCOUNT_MESSAGE });
+        }
+        if (registrationStatus === "APPROVED" && user.isActive === false) {
+            return res.status(403).json({ success: false, code: "ACCOUNT_BLOCKED", message: "Account access is disabled. Please contact support." });
+        }
+
+        const cooldownPayload = getLoginCooldownPayload(user);
+        if (cooldownPayload) {
+            res.setHeader("Retry-After", String(cooldownPayload.retryAfterSeconds));
+            return res.status(429).json({ ...cooldownPayload, code: "RATE_LIMITED" });
+        }
+
+        await resetLoginCooldown(user);
+        await user.updateOne({ $set: { lastLoginAt: new Date() } });
+        await issueAuthCookie(res, { ...user.toObject(), role }, Boolean(req.body?.rememberMe));
+        return res.json({
+            success: true,
+            next: getAuthNextPath(user, role),
+            user: { id: user._id, email: user.email, name: user.name, role, registrationStatus },
+        });
+    } catch (error: any) {
+        logger.warn("Unified password login failed", { error: error?.message || error });
+        return res.status(500).json({ success: false, code: "AUTH_UNAVAILABLE", message: "Sign-in is temporarily unavailable." });
+    }
+};
+
 export const requestPasswordReset = async (req: Request, res: Response) => {
     try {
         const { email, role } = req.body;
@@ -719,26 +784,8 @@ export const getEmailStatus = async (req: Request, res: Response) => {
         if (!email) {
             return res.status(400).json({ success: false, message: "Email is required" });
         }
-        const [admin, projectManager, inventoryManager, supportAgent, operatorExisting, associateExisting] = await Promise.all([
-            AdminModel.findOne({ email }).select("_id").lean(),
-            ProjectManagerModel.findOne({ email }).select("_id").lean(),
-            InventoryManagerModel.findOne({ email }).select("_id").lean(),
-            CustomerSupportAgentModel.findOne({ email }).select("_id").lean(),
-            OperatorModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive isDeleted").lean(),
-            AgentModel.findOne({ email }).select("_id registrationStatus reviewNotes isActive isDeleted").lean(),
-        ]);
-        const blockedPayload = toBlockedResponsePayload(operatorExisting || associateExisting);
-        if (blockedPayload) {
-            return res.status(403).json(blockedPayload);
-        }
-        const role =
-            admin ? "Admin" :
-                projectManager ? "ProjectManager" :
-                    inventoryManager ? "InventoryManager" :
-                        supportAgent ? "CustomerSupport" :
-                        operatorExisting ? "Operator" :
-                            associateExisting ? "Associate" : undefined;
-        return res.json({ success: true, exists: Boolean(role), role });
+        res.setHeader("Cache-Control", "no-store");
+        return res.json({ success: true, canContinue: true });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Unable to verify email." });
     }
@@ -747,14 +794,14 @@ export const getEmailStatus = async (req: Request, res: Response) => {
 export const authenticateGoogle = async (req: Request, res: Response) => {
     try {
         const idToken = String(req.body?.idToken || "").trim();
-        const role = String(req.body?.role || "").trim();
+        let role = String(req.body?.role || "").trim();
         const intent = String(req.body?.intent || "login").trim().toLowerCase();
         const rememberMe = Boolean(req.body?.rememberMe);
 
-        if (!idToken || !role) {
-            return res.status(400).json({ success: false, message: "idToken and role are required" });
+        if (!idToken) {
+            return res.status(400).json({ success: false, code: "INVALID_REQUEST", message: "Google credential is required." });
         }
-        if (role !== "Associate" && role !== "Operator") {
+        if (intent === "register" && role !== "Associate" && role !== "Operator") {
             return res.status(400).json({ success: false, message: "Google login is only enabled for Associate and Operator." });
         }
 
@@ -780,7 +827,11 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                         operatorExisting ? "Operator" :
                             associateExisting ? "Associate" : null;
 
-        if (existingRole && existingRole !== role) {
+        if (intent === "login" && (existingRole === "Associate" || existingRole === "Operator")) {
+            role = existingRole;
+        }
+
+        if (existingRole && role && existingRole !== role) {
             return res.status(409).json({
                 success: false,
                 message: "Account exists under a different role.",
@@ -789,6 +840,9 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
         }
 
         if (intent === "login") {
+            if (role !== "Associate" && role !== "Operator") {
+                return res.status(401).json({ success: false, code: "INVALID_CREDENTIALS", message: "Unable to sign in with this Google account." });
+            }
             const model: any = role === "Operator" ? OperatorModel : AgentModel;
             const user: any = await model.findOne({ email });
             if (!user) {
@@ -824,6 +878,7 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             await issueAuthCookie(res, userForToken, rememberMe);
             return res.json({
                 success: true,
+                next: getAuthNextPath(user, normalizedRole),
                 user: {
                     id: user._id,
                     email: user.email,
@@ -1501,6 +1556,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
         const role = String(req.body?.role || "").trim();
         const now = Date.now();
         const draftWindowMs = 2 * 60 * 60 * 1000; // 2 hours
+        const safeResponse = { success: true, message: "If this email is eligible, a verification code has been sent." };
 
         if (!emailRaw || !role) {
             return res.status(400).json({ success: false, message: "Email and role are required." });
@@ -1548,11 +1604,6 @@ export const startOnboarding = async (req: Request, res: Response) => {
             associateDoc = null;
         }
 
-        const blockedPayload = toBlockedResponsePayload(operatorDoc || associateDoc);
-        if (blockedPayload) {
-            return res.status(403).json(blockedPayload);
-        }
-
         const existingRole = admin ? "Admin"
             : projectManager ? "ProjectManager"
             : inventoryManager ? "InventoryManager"
@@ -1561,7 +1612,22 @@ export const startOnboarding = async (req: Request, res: Response) => {
             : associateDoc ? "Associate"
             : null;
         if (existingRole) {
-            return res.status(409).json({ success: false, message: "Account already exists — sign in.", role: existingRole });
+            const existingUser: any = operatorDoc || associateDoc;
+            if (existingUser && (existingRole === "Associate" || existingRole === "Operator") && !toBlockedResponsePayload(existingUser)) {
+                issueEmailVerificationCookie(res, { ...existingUser, _id: existingUser._id, email: emailRaw, role: existingRole });
+                await verificationService.initiateVerification(
+                    String(existingUser._id),
+                    existingRole,
+                    "email",
+                    String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown"),
+                    String(req.headers["user-agent"] || "unknown"),
+                    emailRaw,
+                    req.language,
+                    { authEmailType: "signin_otp" }
+                );
+            }
+            res.setHeader("Cache-Control", "no-store");
+            return res.json(safeResponse);
         }
 
         const displayName = deriveDisplayName(emailRaw);
@@ -1581,7 +1647,13 @@ export const startOnboarding = async (req: Request, res: Response) => {
                 onboardingComplete: false,
             });
             issueEmailVerificationCookie(res, { ...newOperator.toObject(), role: "Operator" });
-            return res.json({ success: true, user: { id: newOperator._id, email: newOperator.email, name: newOperator.name, role: "Operator" } });
+            await verificationService.initiateVerification(
+                String(newOperator._id), "Operator", "email",
+                String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown"),
+                String(req.headers["user-agent"] || "unknown"), emailRaw, req.language,
+                { authEmailType: "signup_otp" }
+            );
+            return res.json(safeResponse);
         }
 
         const newAssociate = await AgentModel.create({
@@ -1598,7 +1670,13 @@ export const startOnboarding = async (req: Request, res: Response) => {
             companyMode: "none",
         });
         issueEmailVerificationCookie(res, { ...newAssociate.toObject(), role: "Associate" });
-        return res.json({ success: true, user: { id: newAssociate._id, email: newAssociate.email, name: newAssociate.name, role: "Associate" } });
+        await verificationService.initiateVerification(
+            String(newAssociate._id), "Associate", "email",
+            String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown"),
+            String(req.headers["user-agent"] || "unknown"), emailRaw, req.language,
+            { authEmailType: "signup_otp" }
+        );
+        return res.json(safeResponse);
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Failed to start onboarding." });
     }

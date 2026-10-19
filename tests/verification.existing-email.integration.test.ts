@@ -1,14 +1,20 @@
 import request from "supertest";
+import { vi } from "vitest";
 import app from "../src/app";
 import { VerificationModel } from "../src/database/models/verification";
 import { createAssociate, createOperator } from "./helpers/authFixtures";
 import { generateJWTToken } from "../src/utils/tokenUtils";
 import { OperatorModel } from "../src/database/models/operator";
 
+vi.mock("../src/utils/mailer", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../src/utils/mailer")>();
+  return { ...original, sendOtpEmail: vi.fn().mockResolvedValue(undefined) };
+});
+
 const api = request(app);
 
 describe("Verification existing-email flow", () => {
-  it("returns blocked response for deleted associate on send-otp-existing", async () => {
+  it("returns the neutral response for a deleted associate on send-otp-existing", async () => {
     const associate = await createAssociate({ isDeleted: true });
     const res = await api.post("/api/v1/web/verification/send-otp-existing").send({
       method: "email",
@@ -16,11 +22,11 @@ describe("Verification existing-email flow", () => {
       role: "Associate",
     });
 
-    expect(res.status).toBe(403);
-    expect(res.body?.status).toBe("blocked");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true, message: "If this email is eligible, a verification code has been sent." });
   });
 
-  it("returns blocked response for deleted operator on send-otp-existing", async () => {
+  it("returns the neutral response for a deleted operator on send-otp-existing", async () => {
     const operator = await createOperator({ isDeleted: true });
     const res = await api.post("/api/v1/web/verification/send-otp-existing").send({
       method: "email",
@@ -28,11 +34,11 @@ describe("Verification existing-email flow", () => {
       role: "Operator",
     });
 
-    expect(res.status).toBe(403);
-    expect(res.body?.status).toBe("blocked");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true, message: "If this email is eligible, a verification code has been sent." });
   });
 
-  it("returns blocked response for deleted associate on verify-otp-existing", async () => {
+  it("does not reveal a deleted associate before OTP ownership is proven", async () => {
     const associate = await createAssociate({ isDeleted: true });
     const res = await api.post("/api/v1/web/verification/verify-otp-existing").send({
       method: "email",
@@ -41,11 +47,11 @@ describe("Verification existing-email flow", () => {
       code: "123456",
     });
 
-    expect(res.status).toBe(403);
-    expect(res.body?.status).toBe("blocked");
+    expect(res.status).toBe(400);
+    expect(res.body?.code).toBe("OTP_EXPIRED");
   });
 
-  it("returns blocked response for deleted operator on verify-otp-existing", async () => {
+  it("does not reveal a deleted operator before OTP ownership is proven", async () => {
     const operator = await createOperator({ isDeleted: true });
     const res = await api.post("/api/v1/web/verification/verify-otp-existing").send({
       method: "email",
@@ -54,8 +60,8 @@ describe("Verification existing-email flow", () => {
       code: "123456",
     });
 
-    expect(res.status).toBe(403);
-    expect(res.body?.status).toBe("blocked");
+    expect(res.status).toBe(400);
+    expect(res.body?.code).toBe("OTP_EXPIRED");
   });
 
   it("signs an approved associate in after successful OTP verification", async () => {
@@ -124,7 +130,7 @@ describe("Verification existing-email flow", () => {
     expect(res.headers["set-cookie"]?.join(";")).toMatch(/Max-Age=86400/i);
   });
 
-  it("rejects an OTP request made through the wrong role portal", async () => {
+  it("ignores an untrusted role hint and returns a neutral OTP response", async () => {
     const associate = await createAssociate({ isDeleted: false, isActive: true });
     const res = await api.post("/api/v1/web/verification/send-otp-existing").send({
       method: "email",
@@ -132,8 +138,8 @@ describe("Verification existing-email flow", () => {
       role: "Operator",
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body?.role).toBe("Associate");
+    expect(res.status).toBe(200);
+    expect(res.body?.role).toBeUndefined();
   });
 
   it("persists operator email verification after authenticated OTP verify", async () => {

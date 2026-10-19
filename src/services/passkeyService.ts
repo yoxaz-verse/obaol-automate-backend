@@ -12,6 +12,7 @@ import { VerificationModel } from "../database/models/verification";
 import logger from "../utils/apiLogger";
 import {
   getAuthModelForRole,
+  getAuthNextPath,
   issueAuthCookie,
   normalizeAuthRole,
 } from "./authService";
@@ -52,6 +53,15 @@ const requestRpId = (req: Request) => {
 const normalizeEmail = (email: any) => String(email || "").trim().toLowerCase();
 
 const getUserForRole = async (role: any, email?: any, id?: any) => {
+  if (!role && email && !id) {
+    const normalizedEmail = normalizeEmail(email);
+    const [operator, associate] = await Promise.all([
+      getAuthModelForRole("Operator").model.findOne({ email: normalizedEmail }),
+      getAuthModelForRole("Associate").model.findOne({ email: normalizedEmail }),
+    ]);
+    if (operator) return { canonicalRole: "Operator", user: operator };
+    if (associate) return { canonicalRole: "Associate", user: associate };
+  }
   const { canonicalRole, model } = getAuthModelForRole(role);
   if (!canonicalRole || !model) return { canonicalRole: "", user: null };
   const query = id ? { _id: id } : { email: normalizeEmail(email) };
@@ -216,22 +226,17 @@ export const generatePasskeyAuthenticationOptions = async (req: Request, res: Re
   try {
     const { email, role } = req.body || {};
     const { canonicalRole, user } = await getUserForRole(role, email);
-    if (!canonicalRole || !user || !isAccountAllowed(user, canonicalRole)) {
-      return res.status(400).json({ success: false, message: PASSKEY_UNAVAILABLE_MESSAGE });
-    }
-    const passkeys = await AuthPasskeyModel.find({ userId: user._id, role: canonicalRole, revokedAt: null }).lean();
-    if (!passkeys.length) {
-      return res.status(400).json({ success: false, message: PASSKEY_UNAVAILABLE_MESSAGE });
-    }
+    const accountAllowed = Boolean(canonicalRole && user && isAccountAllowed(user, canonicalRole));
+    const passkeys = accountAllowed
+      ? await AuthPasskeyModel.find({ userId: user._id, role: canonicalRole, revokedAt: null }).lean()
+      : [];
     const options = await generateAuthenticationOptions({
       rpID: requestRpId(req),
       userVerification: "required",
-      allowCredentials: passkeys.map((passkey: any) => ({
-        id: passkey.credentialId,
-        transports: passkey.transports || undefined,
-      })),
     });
-    await storeChallenge(user._id, canonicalRole, "PASSKEY_AUTHENTICATION", options.challenge);
+    if (accountAllowed && passkeys.length) {
+      await storeChallenge(user._id, canonicalRole, "PASSKEY_AUTHENTICATION", options.challenge);
+    }
     return res.json({ success: true, options });
   } catch (error: any) {
     logger.warn("Passkey authentication options failed", { error: error?.message || error });
@@ -282,6 +287,7 @@ export const verifyPasskeyAuthentication = async (req: Request, res: Response) =
     logger.info("Passkey login succeeded", { userId: String(user._id), role: canonicalRole });
     return res.json({
       success: true,
+      next: getAuthNextPath(user, canonicalRole),
       user: {
         id: user._id,
         email: user.email,

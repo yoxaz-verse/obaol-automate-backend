@@ -50,6 +50,39 @@ const extractMaxAge = (setCookieHeader?: string[] | string) => {
 };
 
 describe("Auth API", () => {
+  it("returns the same public email-status payload for known and unknown emails", async () => {
+    const user = await createAssociate();
+    const known = await api.get("/api/v1/web/auth/email-status").query({ email: user.email });
+    const unknown = await api.get("/api/v1/web/auth/email-status").query({ email: "unknown@example.com" });
+    expect(known.status).toBe(200);
+    expect(unknown.status).toBe(200);
+    expect(known.body).toEqual({ success: true, canContinue: true });
+    expect(unknown.body).toEqual(known.body);
+  });
+
+  it("signs public accounts in without accepting a client-supplied role", async () => {
+    const user = await createOperator({ onboardingComplete: true, registrationStatus: "APPROVED" });
+    const login = await api.post("/api/v1/web/auth/unified/password").send({
+      email: user.email,
+      password: "Passw0rd!",
+      rememberMe: true,
+    });
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({ success: true, next: "/dashboard", user: { role: "Operator" } });
+    expect(login.headers["set-cookie"]?.join(";")).toContain("auth_token=");
+    expect(login.headers["set-cookie"]?.join(";")).toMatch(/Max-Age=86400/i);
+  });
+
+  it("uses identical unified password errors for unknown email and bad password", async () => {
+    const user = await createAssociate();
+    const unknown = await api.post("/api/v1/web/auth/unified/password").send({ email: "unknown@example.com", password: "wrong" });
+    const wrong = await api.post("/api/v1/web/auth/unified/password").send({ email: user.email, password: "wrong" });
+    expect(unknown.status).toBe(401);
+    expect(wrong.status).toBe(401);
+    expect(unknown.body).toMatchObject({ code: "INVALID_CREDENTIALS", message: "Invalid email or password." });
+    expect(wrong.body).toMatchObject({ code: "INVALID_CREDENTIALS", message: "Invalid email or password." });
+  });
+
   it("creates and lists a safe active-device session after password login", async () => {
     const user = await createAssociate();
     const login = await api.post("/api/v1/web/login").set("User-Agent", "Mozilla/5.0 (Macintosh) Chrome/120.0").send({ email: user.email, password: "Passw0rd!", role: "Associate" });

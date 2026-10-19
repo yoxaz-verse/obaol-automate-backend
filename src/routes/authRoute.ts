@@ -3,6 +3,7 @@
 import { Router } from "express";
 import {
   authenticateUser,
+  authenticateUnifiedUser,
   requestPasswordReset,
   completePasswordReset,
   logoutUser,
@@ -44,6 +45,7 @@ import { changePassword, listSessions, revokeOtherSessions, revokeSession } from
 const authRoute = Router();
 
 authRoute.post("/", authLoginLimiter, authenticateUser);
+authRoute.post("/unified/password", authLoginLimiter, authenticateUnifiedUser);
 authRoute.post("/register", authRegisterLimiter, registerAssociate);
 authRoute.post("/google", authRegisterLimiter, authenticateGoogle);
 authRoute.get("/passkeys", authenticateToken, listPasskeys);

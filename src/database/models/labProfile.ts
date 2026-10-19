@@ -90,7 +90,7 @@ const SnapshotSchema = new Schema(
 
 const LabProfileSchema = new Schema(
   {
-    companyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, unique: true, index: true },
+    companyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, index: true },
     draft: { type: SnapshotSchema, default: null },
     published: { type: SnapshotSchema, default: null },
     status: { type: String, enum: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED"], default: "DRAFT", index: true },
@@ -108,6 +108,8 @@ LabProfileSchema.index({ "published.productCapabilityTemplates.parameterIds": 1,
 LabProfileSchema.index({ "published.credentials.accreditationId": 1, "published.credentials.verificationStatus": 1 });
 LabProfileSchema.index({ "published.displayName": "text", "published.address": "text", "published.city": "text", "published.state": "text" });
 LabProfileSchema.index({ "published.location.point": "2dsphere" }, { sparse: true });
+LabProfileSchema.index({ companyId: 1, updatedAt: -1 });
+LabProfileSchema.index({ companyId: 1, status: 1, updatedAt: -1 });
 
 export const LabProfileModel = mongoose.model("LabProfile", LabProfileSchema);
 

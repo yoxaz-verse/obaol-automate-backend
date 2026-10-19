@@ -25,6 +25,11 @@ function countryFirst(snapshot: any) {
 async function run() {
   await mongoose.connect(MONGODB_URI as string);
   const collection = mongoose.connection.collection("labprofiles");
+  const indexes = await collection.indexes();
+  const legacyCompanyIndex = indexes.find((index) => index.name === "companyId_1" && index.unique);
+  if (legacyCompanyIndex) await collection.dropIndex("companyId_1");
+  await collection.createIndex({ companyId: 1, updatedAt: -1 }, { name: "companyId_1_updatedAt_-1" });
+  await collection.createIndex({ companyId: 1, status: 1, updatedAt: -1 }, { name: "companyId_1_status_1_updatedAt_-1" });
   const existingProfiles: any[] = await collection.find({ $or: [{ "draft.offerings.0": { $exists: true } }, { "published.offerings.0": { $exists: true } }] }).toArray();
   for (const profile of existingProfiles) {
     await collection.updateOne({ _id: profile._id }, { $set: { draft: countryFirst(profile.draft), published: countryFirst(profile.published), updatedAt: new Date() } });
@@ -55,7 +60,7 @@ async function run() {
     await LabProfileModel.collection.updateOne({ companyId: company._id }, { $setOnInsert: { companyId: company._id, published: snapshot, draft: snapshot, status: "PUBLISHED", publishedAt: new Date(), createdAt: new Date(), updatedAt: new Date() } }, { upsert: true });
     migrated += 1;
   }
-  console.log(`Converted ${existingProfiles.length} structured profile(s) and migrated ${migrated} legacy quality lab profile(s).`);
+  console.log(`Prepared multi-lab indexes, converted ${existingProfiles.length} structured profile(s), and migrated ${migrated} legacy quality lab profile(s).`);
   await mongoose.disconnect();
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

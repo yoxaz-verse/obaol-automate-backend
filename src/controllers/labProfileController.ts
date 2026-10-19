@@ -4,6 +4,7 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CountryModel } from "../database/models/country";
 import { LabProfileModel } from "../database/models/labProfile";
+import { LAB_CONTACT_CHANNELS, LabContactEventModel } from "../database/models/labContactEvent";
 import { LAB_TAXONOMY_KINDS, LabTaxonomyModel } from "../database/models/labTaxonomy";
 
 const role = (req: Request) => String(req.user?.role || "").toLowerCase();
@@ -57,6 +58,14 @@ async function ownCompanyId(req: Request) {
   if (role(req) !== "associate" || !Types.ObjectId.isValid(String(req.user?.id || ""))) return null;
   const associate = await AssociateModel.findById(req.user!.id).select("associateCompany").lean();
   return String((associate as any)?.associateCompany || "") || null;
+}
+
+async function accessibleProfile(req: Request, id: string) {
+  if (!Types.ObjectId.isValid(id)) return null;
+  if (isAdmin(req)) return LabProfileModel.findById(id);
+  const companyId = await ownCompanyId(req);
+  if (!companyId) return null;
+  return LabProfileModel.findOne({ _id: id, companyId });
 }
 
 function normalizeSnapshot(raw: any) {
@@ -174,6 +183,97 @@ const populateProfile = (query: any, path = "published") => query
   .populate(`${path}.countryAssignments.countryId`, "name");
 
 export class LabProfileController {
+  async mine(req: Request, res: Response) {
+    const companyId = await ownCompanyId(req);
+    if (!companyId) return res.status(403).json({ success: false, message: "Lab owner or admin access required." });
+    let rows: any[] = await populateProfile(populateProfile(LabProfileModel.find({ companyId }), "draft"), "published").sort({ updatedAt: -1 }).lean();
+    if (!rows.length) {
+      const company: any = await AssociateCompanyModel.findOne({ _id: companyId, isQualityLabListed: true, isDeleted: { $ne: true } })
+        .select("name email phone phoneSecondary address country state district location pincodeEntry labDisplayName labContactEmail labContactPhone labWhatsappPhone labContactPhoneSecondary labTests labCertifications labSpecifications labAcceptedItems labNotes isExternalDirectoryListing externalListingSource")
+        .populate("pincodeEntry", "latitude longitude officename").lean();
+      if (company) {
+        const snapshot = legacyProfile(company).published;
+        const now = new Date();
+        await LabProfileModel.collection.updateOne(
+          { companyId: company._id },
+          { $setOnInsert: { companyId: company._id, draft: snapshot, published: snapshot, status: "PUBLISHED", publishedAt: now, createdAt: now, updatedAt: now } },
+          { upsert: true },
+        );
+        rows = await populateProfile(populateProfile(LabProfileModel.find({ companyId }), "draft"), "published").sort({ updatedAt: -1 }).lean();
+      }
+    }
+    const profileIds = rows.map((row) => row._id);
+    const counts = profileIds.length ? await LabContactEventModel.aggregate([
+      { $match: { labProfileId: { $in: profileIds } } },
+      { $group: { _id: { labProfileId: "$labProfileId", channel: "$channel" }, count: { $sum: 1 } } },
+    ]) : [];
+    const metrics = new Map<string, Record<string, number>>();
+    counts.forEach((item: any) => {
+      const id = String(item._id.labProfileId);
+      metrics.set(id, { ...(metrics.get(id) || {}), [String(item._id.channel)]: item.count });
+    });
+    return res.json({ success: true, data: rows.map((row) => ({ ...row, contactMetrics: { PHONE: 0, WHATSAPP: 0, EMAIL: 0, ...(metrics.get(String(row._id)) || {}) } })) });
+  }
+
+  async createMine(req: Request, res: Response) {
+    const companyId = await ownCompanyId(req);
+    if (!companyId) return res.status(403).json({ success: false, message: "Lab owner or admin access required." });
+    const company = await AssociateCompanyModel.findById(companyId).select("_id").lean();
+    if (!company) return res.status(404).json({ success: false, message: "Associate company not found." });
+    const profile = await LabProfileModel.create({ companyId, draft: null, published: null, status: "DRAFT" });
+    return res.status(201).json({ success: true, data: profile });
+  }
+
+  async getMine(req: Request, res: Response) {
+    const profile = await accessibleProfile(req, req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    return res.json({ success: true, data: await populateProfile(LabProfileModel.findById(profile._id), "draft").lean() });
+  }
+
+  async saveMine(req: Request, res: Response) {
+    const profile: any = await accessibleProfile(req, req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (profile.status === "PENDING_REVIEW") return res.status(409).json({ success: false, message: "This profile is under review and cannot be changed until a decision is made." });
+    profile.draft = normalizeSnapshot(req.body?.profile || req.body);
+    profile.status = "DRAFT";
+    await profile.save({ validateBeforeSave: false });
+    return res.json({ success: true, data: profile });
+  }
+
+  async submitMine(req: Request, res: Response) {
+    const profile: any = await accessibleProfile(req, req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (!profile.draft) return res.status(400).json({ success: false, message: "Save a draft before submitting." });
+    const errors = validateLabSnapshot(profile.draft.toObject());
+    if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
+    profile.status = "PENDING_REVIEW";
+    profile.submittedAt = new Date();
+    profile.reviewNotes = "";
+    await profile.save();
+    return res.json({ success: true, data: profile });
+  }
+
+  async trackContact(req: Request, res: Response) {
+    const channel = String(req.body?.channel || "").toUpperCase();
+    if (!(LAB_CONTACT_CHANNELS as readonly string[]).includes(channel)) return res.status(400).json({ success: false, message: "Invalid contact channel." });
+    if (role(req) === "admin") return res.status(204).send();
+    if (!Types.ObjectId.isValid(req.params.id) || !Types.ObjectId.isValid(String(req.user?.id || ""))) return res.status(400).json({ success: false, message: "Invalid contact event." });
+    const profile: any = await LabProfileModel.findOne({ _id: req.params.id, published: { $ne: null } }).select("companyId").lean();
+    if (!profile) return res.status(404).json({ success: false, message: "Published lab not found." });
+    let actorCompanyId = "";
+    if (role(req) === "associate") {
+      const actor = await AssociateModel.findById(req.user?.id).select("associateCompany").lean();
+      actorCompanyId = String((actor as any)?.associateCompany || "");
+    }
+    if (actorCompanyId && actorCompanyId === String(profile.companyId)) return res.status(204).send();
+    const now = new Date();
+    await LabContactEventModel.updateOne(
+      { labProfileId: profile._id, actorId: req.user?.id, actorRole: role(req), channel },
+      { $set: { labCompanyId: profile.companyId, lastClickedAt: now }, $setOnInsert: { firstClickedAt: now }, $inc: { clickCount: 1 } },
+      { upsert: true },
+    );
+    return res.status(204).send();
+  }
   async taxonomy(req: Request, res: Response) {
     const filter: any = { isDeleted: { $ne: true }, status: "ACTIVE" };
     if (req.query.kind) filter.kind = String(req.query.kind).toUpperCase();

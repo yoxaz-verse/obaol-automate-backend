@@ -4,6 +4,7 @@ import { AssociateModel } from "../database/models/associate";
 import { ProductBiddingEventModel } from "../database/models/productBiddingEvent";
 import { ProductBidOfferModel } from "../database/models/productBidOffer";
 import { VariantRateModel } from "../database/models/variantRate";
+import { ProductVariantModel } from "../database/models/productVariant";
 import { InquiryModel } from "../database/models/enquiry";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
@@ -63,7 +64,9 @@ export class ProductBiddingController {
     const who = await actor(req);
     if (!who?.companyId || roleOf(req) !== "associate") return fail(res, 403, "An approved buyer company is required.");
     const input = payloadFrom(req.body);
-    if (!input.title || !isId(input.product) || !(Number(input.quantity) > 0) || !["KG", "MT", "Quintal"].includes(String(input.unit))) return fail(res, 400, "Title, product, quantity, and unit are required.");
+    if (!input.title || !isId(input.product) || !isId(input.productVariant) || !(Number(input.quantity) > 0) || !["KG", "MT", "Quintal"].includes(String(input.unit))) return fail(res, 400, "Title, product, variant, quantity, and unit are required.");
+    const variant = await ProductVariantModel.exists({ _id: input.productVariant, product: input.product, isDeleted: { $ne: true }, approvalStatus: { $in: ["APPROVED", null] } });
+    if (!variant) return fail(res, 400, "Select an approved variant belonging to the selected product.");
     const event = await ProductBiddingEventModel.create({ ...input, buyer: who.id, buyerCompany: who.companyId, status: "DRAFT" });
     return res.status(201).json({ success: true, data: baseEvent(event) });
   }

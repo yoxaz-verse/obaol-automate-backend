@@ -1,6 +1,6 @@
 import { canonicalizeCompanyFunctionTaxonomySlug } from "./companyCapabilities";
 
-export const SIDEBAR_PLACEMENTS = ["SEEKING", "PROVIDING", "BOTH", "OTHER_SERVICES"] as const;
+export const SIDEBAR_PLACEMENTS = ["SEEKING", "PROVIDING", "BOTH", "OTHER_SERVICES", "UNASSIGNED"] as const;
 export const SIDEBAR_STATUSES = ["LIVE", "COMING_SOON", "HIDDEN"] as const;
 
 export type SidebarPlacement = typeof SIDEBAR_PLACEMENTS[number];
@@ -74,6 +74,8 @@ type GovernanceMapping = {
 const STATUS_WEIGHT: Record<string, number> = { HIDDEN: 0, COMING_SOON: 1, LIVE: 2 };
 const mergePlacement = (current: string, incoming: string) => {
   if (current === incoming) return current;
+  if (current === "UNASSIGNED") return incoming;
+  if (incoming === "UNASSIGNED") return current;
   if (current === "OTHER_SERVICES") return incoming;
   if (incoming === "OTHER_SERVICES") return current;
   return "BOTH";
@@ -123,18 +125,21 @@ const PROVIDING_ROUTES = new Set(["/dashboard/bidding", "/dashboard/quality-labs
 
 export const createBaselineSidebarMappings = (functionSlugs: string[]) => functionSlugs.flatMap((functionSlug) => {
   const live = new Set([...(LIVE_BY_FUNCTION[functionSlug] || []), ...ALWAYS_LIVE]);
-  return ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath], order) => ({
-    functionSlug,
-    routePath,
-    placement: (routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "PROVIDING" : "OTHER_SERVICES") : SEEKING_ROUTES.has(routePath) ? "SEEKING" : PROVIDING_ROUTES.has(routePath) ? "PROVIDING" : "BOTH") as SidebarPlacement,
-    status: routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "LIVE" : "HIDDEN") as SidebarPageStatus : live.has(routePath) ? "LIVE" as SidebarPageStatus : "HIDDEN" as SidebarPageStatus,
-    order,
-  }));
+  return ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath], order) => {
+    const status = routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "LIVE" : "HIDDEN") as SidebarPageStatus : live.has(routePath) ? "LIVE" as SidebarPageStatus : "HIDDEN" as SidebarPageStatus;
+    const initialPlacement = (routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "PROVIDING" : "OTHER_SERVICES") : SEEKING_ROUTES.has(routePath) ? "SEEKING" : PROVIDING_ROUTES.has(routePath) ? "PROVIDING" : "BOTH") as SidebarPlacement;
+    const placement = initialPlacement === "OTHER_SERVICES" && status === "HIDDEN" ? "UNASSIGNED" as const : initialPlacement;
+    return { functionSlug, routePath, placement, status, order };
+  });
 });
 
 export const normalizeBiddingForSeller = <T extends GovernanceMapping>(mappings: T[]) => mappings.map((row) => row.routePath === "/dashboard/bidding"
-  ? { ...row, placement: row.functionSlug === "seller" ? "PROVIDING" : "OTHER_SERVICES", status: row.functionSlug === "seller" ? "LIVE" : "HIDDEN" }
+  ? { ...row, placement: row.functionSlug === "seller" ? "PROVIDING" : "UNASSIGNED", status: row.functionSlug === "seller" ? "LIVE" : "HIDDEN" }
   : row);
+
+export const migrateUnassignedFallbacks = <T extends GovernanceMapping>(mappings: T[]) => mappings.map((row) => row.placement === "OTHER_SERVICES" && row.status === "HIDDEN"
+  ? { ...row, placement: "UNASSIGNED" }
+  : row) as T[];
 
 export const migrateBiddingSplit = <T extends GovernanceMapping>(mappings: T[]) => {
   if (mappings.some((row) => row.routePath === "/dashboard/bidding/my")) return mappings;

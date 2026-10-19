@@ -3,7 +3,7 @@ import { CompanyFunctionModel } from "../database/models/companyFunction";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { SidebarGovernanceModel } from "../database/models/sidebarGovernance";
-import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_PLACEMENTS, SIDEBAR_RESOLVED_SECTIONS, SIDEBAR_ROUTE_PATHS, SIDEBAR_STATUSES, canonicalizeGovernanceMappings, createBaselineSidebarMappings, createDefaultSidebarSectionOrder, deriveSidebarSectionOrder, normalizeBiddingForSeller } from "../utils/sidebarGovernanceRegistry";
+import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_PLACEMENTS, SIDEBAR_RESOLVED_SECTIONS, SIDEBAR_ROUTE_PATHS, SIDEBAR_STATUSES, canonicalizeGovernanceMappings, createBaselineSidebarMappings, createDefaultSidebarSectionOrder, deriveSidebarSectionOrder, migrateUnassignedFallbacks, normalizeBiddingForSeller } from "../utils/sidebarGovernanceRegistry";
 import { canonicalizeCompanyFunctionTaxonomySlug } from "../utils/companyCapabilities";
 
 const getCanonicalFunctions = async () => {
@@ -46,7 +46,7 @@ const deriveFallbackStatuses = (mappings: any[]) => Object.fromEntries(ASSOCIATE
 const groupPageRules = (mappings: any[], fallbackStatusByRoute: Record<string, string> = {}) => ASSOCIATE_SIDEBAR_ROUTES.map(([id, routePath, label]) => {
   const rows = mappings.filter((row) => row.routePath === routePath);
   const grouped = new Map<string, { placement: string; status: string; functionSlugs: string[] }>();
-  rows.filter((row) => row.placement !== "OTHER_SERVICES").forEach((row) => {
+  rows.filter((row) => row.placement !== "OTHER_SERVICES" && row.placement !== "UNASSIGNED").forEach((row) => {
     const key = `${row.placement}:${row.status}`;
     const rule: { placement: string; status: string; functionSlugs: string[] } = grouped.get(key) || { placement: row.placement, status: row.status, functionSlugs: [] };
     rule.functionSlugs.push(row.functionSlug);
@@ -67,26 +67,30 @@ const ensureConfig = async () => {
       return [...current, ...baseline.filter((row) => !keys.has(`${row.functionSlug}:${row.routePath}`))];
     };
     const needsV2Conversion = Number((existing as any).draft?.resolutionVersion || 1) !== 2;
-    const needsMatrixMigration = Number((existing as any).matrixMigrationVersion || 0) < 3;
+    const matrixMigrationVersion = Number((existing as any).matrixMigrationVersion || 0);
+    const needsBiddingMigration = matrixMigrationVersion < 3;
+    const needsUnassignedMigration = matrixMigrationVersion < 4;
     const currentDraft = canonicalizeGovernanceMappings((existing as any).draft?.mappings || []);
     const completedDraft = addMissing(currentDraft);
-    const draft = needsMatrixMigration ? normalizeBiddingForSeller(completedDraft) : completedDraft;
-    const draftChanged = JSON.stringify(draft) !== JSON.stringify(currentDraft) || needsV2Conversion || needsMatrixMigration;
+    const biddingDraft = needsBiddingMigration ? normalizeBiddingForSeller(completedDraft) : completedDraft;
+    const draft = needsUnassignedMigration ? migrateUnassignedFallbacks(biddingDraft) : biddingDraft;
+    const draftChanged = JSON.stringify(draft) !== JSON.stringify(currentDraft) || needsV2Conversion || needsBiddingMigration || needsUnassignedMigration;
     if (draftChanged) {
       (existing as any).draft.mappings = draft;
       (existing as any).draft.resolutionVersion = 2;
       (existing as any).draft.sectionOrder = deriveSidebarSectionOrder(draft);
       (existing as any).draft.fallbackStatusByRoute = deriveFallbackStatuses(draft);
       (existing as any).draft.revision = Number((existing as any).draft.revision || 0) + 1;
+      (existing as any).draft.updatedAt = new Date();
     }
-    if (needsMatrixMigration) (existing as any).matrixMigrationVersion = 3;
+    if (needsUnassignedMigration) (existing as any).matrixMigrationVersion = 4;
     if (draftChanged) await existing.save();
     return existing;
   }
   const mappings = createBaselineSidebarMappings(await getFunctionSlugs());
   return SidebarGovernanceModel.create({
     key: "associate-sidebar",
-    matrixMigrationVersion: 3,
+    matrixMigrationVersion: 4,
     draft: { revision: 1, resolutionVersion: 2, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
     published: { revision: 1, resolutionVersion: 2, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
   });
@@ -128,6 +132,7 @@ const validateMappings = async (input: any[], requireComplete = false) => {
     if (!SIDEBAR_ROUTE_PATHS.has(routePath as any)) throw new Error(`Unknown dashboard route: ${routePath || index}.`);
     if (!(SIDEBAR_PLACEMENTS as readonly string[]).includes(placement)) throw new Error(`Invalid placement at row ${index + 1}.`);
     if (!(SIDEBAR_STATUSES as readonly string[]).includes(status)) throw new Error(`Invalid status at row ${index + 1}.`);
+    if (placement === "UNASSIGNED" && status !== "HIDDEN") throw new Error(`Unassigned mapping must be Hidden at row ${index + 1}.`);
     if (!Number.isInteger(order) || order < 0) throw new Error(`Invalid order at row ${index + 1}.`);
     const key = `${functionSlug}:${routePath}`;
     if (seen.has(key)) throw new Error(`Duplicate mapping for ${functionSlug} and ${routePath}.`);
@@ -137,10 +142,6 @@ const validateMappings = async (input: any[], requireComplete = false) => {
   if (requireComplete) {
     for (const functionSlug of functionSlugs) for (const routePath of SIDEBAR_ROUTE_PATHS) {
       if (!seen.has(`${functionSlug}:${routePath}`)) throw new Error(`Missing mapping for ${functionSlug} and ${routePath}.`);
-    }
-    for (const routePath of SIDEBAR_ROUTE_PATHS) {
-      const fallbackStatuses = new Set(normalized.filter((row) => row.routePath === routePath && row.placement === "OTHER_SERVICES").map((row) => row.status));
-      if (fallbackStatuses.size > 1) throw new Error(`Other Services fallback for ${routePath} must use one status.`);
     }
   }
   return normalized;
@@ -234,7 +235,7 @@ export class SidebarGovernanceController {
       if (Number(current?.draft?.revision || 0) !== expected) await revisionConflict(expected, "draft");
       const config = await SidebarGovernanceModel.findOneAndUpdate(
         { key: "associate-sidebar", "draft.revision": expected },
-        { $set: { "draft.mappings": current.published?.mappings || [], "draft.resolutionVersion": Number(current.published?.resolutionVersion || 1), "draft.sectionOrder": normalizedSectionOrder(current.published?.sectionOrder, current.published?.mappings || []), "draft.fallbackStatusByRoute": current.published?.fallbackStatusByRoute || {}, "draft.updatedAt": new Date(), "draft.updatedBy": req.user?.id || null }, $inc: { "draft.revision": 1 } },
+        { $set: { "draft.mappings": migrateUnassignedFallbacks(current.published?.mappings || []), "draft.resolutionVersion": Number(current.published?.resolutionVersion || 1), "draft.sectionOrder": normalizedSectionOrder(current.published?.sectionOrder, current.published?.mappings || []), "draft.fallbackStatusByRoute": current.published?.fallbackStatusByRoute || {}, "draft.updatedAt": new Date(), "draft.updatedBy": req.user?.id || null }, $inc: { "draft.revision": 1 } },
         { new: true, runValidators: true },
       );
       if (!config) await revisionConflict(expected, "draft");
@@ -255,7 +256,7 @@ export class SidebarGovernanceController {
           ...((company as any)?.soughtCapabilities || []),
         ].map((value) => canonicalizeCompanyFunctionTaxonomySlug(value))));
       }
-      const mappings = canonicalizeGovernanceMappings(config.published?.mappings as any[]).filter((row: any) => !allowedSlugs || allowedSlugs.includes(String(row.functionSlug)));
+      const mappings = canonicalizeGovernanceMappings(config.published?.mappings as any[]).filter((row: any) => row.placement !== "UNASSIGNED" && (!allowedSlugs || allowedSlugs.includes(String(row.functionSlug))));
       return res.json({ success: true, data: { revision: config.published.revision, updatedAt: config.published.updatedAt, resolutionVersion: Number((config.published as any).resolutionVersion || 1), sectionOrder: normalizedSectionOrder((config.published as any).sectionOrder, mappings), mappings } });
     } catch (error: any) { return res.status(500).json({ success: false, message: error.message || "Failed to load published sidebar governance." }); }
   }

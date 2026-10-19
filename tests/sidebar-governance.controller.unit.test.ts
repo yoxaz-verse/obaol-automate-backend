@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sidebarGovernanceController } from "../src/controllers/sidebarGovernanceController";
 import { CompanyFunctionModel } from "../src/database/models/companyFunction";
 import { SidebarGovernanceModel } from "../src/database/models/sidebarGovernance";
-import { ASSOCIATE_SIDEBAR_ROUTES, createBaselineSidebarMappings, createDefaultSidebarSectionOrder, migrateBiddingSplit } from "../src/utils/sidebarGovernanceRegistry";
+import { ASSOCIATE_SIDEBAR_ROUTES, createBaselineSidebarMappings, createDefaultSidebarSectionOrder, migrateBiddingSplit, migrateUnassignedFallbacks } from "../src/utils/sidebarGovernanceRegistry";
 
 const response = () => {
   const state: { status: number; body?: any } = { status: 200 };
@@ -90,6 +90,61 @@ describe("sidebar governance canonical functions", () => {
     expect(stale.state.body.error).toMatchObject({ code: "SIDEBAR_GOVERNANCE_REVISION_CONFLICT", snapshot: "published", currentRevision: 2 });
   });
 
+  it("saves and publishes complete drafts containing Unassigned mappings", async () => {
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.functionSlug === "buyer" && row.routePath === "/dashboard/marketplace"
+      ? { ...row, placement: "UNASSIGNED" as const, status: "HIDDEN" as const }
+      : row);
+    const saved = response();
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, ...validDraft(mappings) }, user: { id: "000000000000000000000001", role: "admin" } } as any, saved.res);
+    expect(saved.state.status).toBe(200);
+
+    const published = response();
+    await sidebarGovernanceController.publish({ body: { expectedDraftRevision: 2, expectedPublishedRevision: 1 }, user: { id: "000000000000000000000001", role: "admin" } } as any, published.res);
+    expect(published.state.status).toBe(200);
+
+    const read = response();
+    await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, read.res);
+    expect(read.state.status).toBe(200);
+    expect(read.state.body.data.mappings.some((row: any) => row.placement === "UNASSIGNED")).toBe(false);
+  });
+
+  it("rejects visible statuses for Unassigned mappings", async () => {
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.functionSlug === "buyer" && row.routePath === "/dashboard/marketplace"
+      ? { ...row, placement: "UNASSIGNED" as const, status: "LIVE" as const }
+      : row);
+    const result = response();
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, ...validDraft(mappings) }, user: { id: "000000000000000000000001" } } as any, result.res);
+    expect(result.state.status).toBe(400);
+    expect(result.state.body.message).toMatch(/unassigned mapping must be hidden/i);
+  });
+
+  it("allows mixed Other Services statuses for the same page", async () => {
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.routePath === "/dashboard/marketplace"
+      ? { ...row, placement: "OTHER_SERVICES" as const, status: row.functionSlug === "buyer" ? "HIDDEN" as const : "LIVE" as const }
+      : row);
+    const result = response();
+    await sidebarGovernanceController.saveDraft({ body: { expectedDraftRevision: 1, ...validDraft(mappings) }, user: { id: "000000000000000000000001" } } as any, result.res);
+    expect(result.state.status).toBe(200);
+  });
+
+  it("normalizes legacy hidden fallbacks when restoring the published snapshot", async () => {
+    const sectionOrder = createDefaultSidebarSectionOrder();
+    const fallbackStatusByRoute = Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"]));
+    const publishedMappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.functionSlug === "buyer" && row.routePath === "/dashboard/marketplace"
+      ? { ...row, placement: "OTHER_SERVICES" as const, status: "HIDDEN" as const }
+      : row);
+    await SidebarGovernanceModel.create({
+      key: "associate-sidebar",
+      matrixMigrationVersion: 4,
+      draft: { revision: 4, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings: createBaselineSidebarMappings(["buyer", "seller"]) },
+      published: { revision: 3, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings: publishedMappings },
+    });
+    const result = response();
+    await sidebarGovernanceController.resetDraft({ body: { expectedDraftRevision: 4 }, user: { id: "000000000000000000000001" } } as any, result.res);
+    expect(result.state.status).toBe(200);
+    expect(result.state.body.data.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "UNASSIGNED", status: "HIDDEN" }));
+  });
+
   it("normalizes Bidding in the draft once without changing the published snapshot", async () => {
     const legacyMappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.routePath === "/dashboard/bidding" ? { ...row, placement: "BOTH" as const, status: "LIVE" as const } : row);
     const sectionOrder = createDefaultSidebarSectionOrder();
@@ -99,10 +154,10 @@ describe("sidebar governance canonical functions", () => {
     const first = response();
     await sidebarGovernanceController.getAdmin({} as any, first.res);
     const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
-    expect(stored.matrixMigrationVersion).toBe(3);
+    expect(stored.matrixMigrationVersion).toBe(4);
     expect(stored.draft.revision).toBe(5);
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
-    expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "OTHER_SERVICES", status: "HIDDEN" }));
+    expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "UNASSIGNED", status: "HIDDEN" }));
     expect(stored.published.revision).toBe(3);
     expect(stored.published.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "BOTH", status: "LIVE" }));
 
@@ -130,5 +185,22 @@ describe("bidding governance migration", () => {
     expect(migrated).toContainEqual({ functionSlug: "buyer", routePath: "/dashboard/bidding/my", placement: "SEEKING", status: "COMING_SOON", order: 7 });
     expect(migrated).toContainEqual({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "HIDDEN", order: 7 });
     expect(migrated).toContainEqual({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE", order: 4 });
+  });
+});
+
+describe("unassigned fallback migration", () => {
+  it("converts only hidden Other Services fallbacks and is idempotent", () => {
+    const input = [
+      { functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "OTHER_SERVICES", status: "HIDDEN", order: 0 },
+      { functionSlug: "seller", routePath: "/dashboard/bidding", placement: "OTHER_SERVICES", status: "LIVE", order: 0 },
+      { functionSlug: "buyer", routePath: "/dashboard/product", placement: "PROVIDING", status: "HIDDEN", order: 1 },
+    ];
+    const migrated = migrateUnassignedFallbacks(input);
+    expect(migrated).toEqual([
+      { ...input[0], placement: "UNASSIGNED" },
+      input[1],
+      input[2],
+    ]);
+    expect(migrateUnassignedFallbacks(migrated)).toEqual(migrated);
   });
 });

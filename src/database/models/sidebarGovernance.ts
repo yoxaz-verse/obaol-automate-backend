@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const MappingSchema = new mongoose.Schema({
   functionSlug: { type: String, required: true, trim: true, lowercase: true },
   routePath: { type: String, required: true, trim: true },
-  placement: { type: String, enum: ["SEEKING", "PROVIDING", "BOTH", "OTHER_SERVICES"], required: true },
+  placement: { type: String, enum: ["SEEKING", "PROVIDING", "BOTH", "OTHER_SERVICES", "UNASSIGNED"], required: true },
   status: { type: String, enum: ["LIVE", "COMING_SOON", "HIDDEN"], required: true },
   order: { type: Number, required: true, min: 0 },
 }, { _id: false });
@@ -24,7 +24,7 @@ const SnapshotSchema = new mongoose.Schema({
 
 const SidebarGovernanceSchema = new mongoose.Schema({
   key: { type: String, unique: true, default: "associate-sidebar" },
-  matrixMigrationVersion: { type: Number, required: true, default: 0 },
+  matrixMigrationVersion: { type: Number, required: true, default: 4 },
   draft: { type: SnapshotSchema, required: true },
   published: { type: SnapshotSchema, required: true },
 }, { timestamps: true });

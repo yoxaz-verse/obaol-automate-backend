@@ -93,11 +93,14 @@ const LabProfileSchema = new Schema(
     companyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, index: true },
     draft: { type: SnapshotSchema, default: null },
     published: { type: SnapshotSchema, default: null },
-    status: { type: String, enum: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED"], default: "DRAFT", index: true },
+    status: { type: String, enum: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED", "ARCHIVED"], default: "DRAFT", index: true },
+    revision: { type: Number, default: 1, min: 1 },
     reviewNotes: { type: String, default: "", trim: true },
     submittedAt: { type: Date, default: null },
     publishedAt: { type: Date, default: null },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "Admin", default: null },
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: Schema.Types.ObjectId, default: null },
   },
   { timestamps: true }
 );

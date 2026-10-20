@@ -57,6 +57,7 @@ import {
 } from "../utils/executionBidding";
 import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
 import { LabWorkItemModel } from "../database/models/labWorkItem";
+import { LabProfileModel } from "../database/models/labProfile";
 
 /**
  * Inquiry Controller
@@ -1963,7 +1964,7 @@ export class InquiryController {
     async updateExecutionInquiry(req: Request, res: Response, next: NextFunction) {
         try {
             const { id, type } = req.params;
-            const { bidAmount, commitNote, status, committedProvider, bidCompanyId, taskId } = req.body;
+            const { bidAmount, commitNote, status, committedProvider, bidCompanyId, taskId, labProfileId } = req.body;
 
             if (!Types.ObjectId.isValid(id)) {
                 return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
@@ -2221,6 +2222,15 @@ export class InquiryController {
             (inquiry as any).executionInquiries = tasks;
             let insertedLabWorkItem = false;
             if (awardedProviderId && normalizedType === "QUALITY_TESTING") {
+                const eligibleLabs: any[] = await LabProfileModel.find({ companyId: awardedProviderId, published: { $ne: null }, status: "PUBLISHED" }).select("_id").lean();
+                const requestedLabId = String(labProfileId || "");
+                const selectedLab = requestedLabId
+                    ? eligibleLabs.find((row) => String(row._id) === requestedLabId)
+                    : eligibleLabs.length === 1 ? eligibleLabs[0] : null;
+                if (!selectedLab) {
+                    return res.status(400).json({ success: false, message: eligibleLabs.length > 1 ? "Select the laboratory facility that will perform this work." : "The selected provider has no eligible published laboratory facility.", error: { code: eligibleLabs.length > 1 ? "LAB_PROFILE_REQUIRED" : "LAB_PROFILE_UNAVAILABLE", eligibleLabProfileIds: eligibleLabs.map((row) => String(row._id)) } });
+                }
+                task.committedLabProfile = selectedLab._id;
                 const now = new Date();
                 const existingLabWorkItem = await LabWorkItemModel.exists({ inquiryId: inquiry._id, executionTaskId: task._id });
                 await LabWorkItemModel.findOneAndUpdate(
@@ -2228,12 +2238,13 @@ export class InquiryController {
                     {
                         $setOnInsert: {
                             labCompanyId: awardedProviderId,
+                            labProfileId: selectedLab._id,
                             status: "EXPECTED",
                             expectedAt: now,
                             createdBy: req.user!.id,
                             statusHistory: [{ status: "EXPECTED", at: now, by: req.user!.id, note: "Quality testing work awarded." }],
                         },
-                        $set: { labCompanyId: awardedProviderId, updatedBy: req.user!.id },
+                        $set: { labCompanyId: awardedProviderId, labProfileId: selectedLab._id, updatedBy: req.user!.id },
                     },
                     { upsert: true, new: true }
                 );
@@ -2369,6 +2380,7 @@ export class InquiryController {
                     { path: "productId", select: "name" },
                     { path: "executionInquiries.candidateProviders", select: "name providedCapabilities district state country" },
                     { path: "executionInquiries.committedProvider", select: "name" },
+                    { path: "executionInquiries.committedLabProfile", select: "published.displayName published.city published.state status" },
                     { path: "executionInquiries.bids.company", select: "name" },
                 ])
                 .sort({ createdAt: -1 })
@@ -2541,6 +2553,7 @@ export class InquiryController {
                 { path: "pendingHandlerOperatorId", select: "name email phone" },
                     { path: "executionInquiries.candidateProviders", select: "name email phone providedCapabilities" },
                     { path: "executionInquiries.committedProvider", select: "name email phone providedCapabilities" },
+                    { path: "executionInquiries.committedLabProfile", select: "published.displayName published.city published.state status" },
                     { path: "executionInquiries.bids.company", select: "name email phone providedCapabilities" }
                 ])
                 .select("+notes"); // Include notes for access control filtering
@@ -2660,6 +2673,7 @@ export class InquiryController {
                     { path: "pendingHandlerOperatorId", select: "name email phone" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone providedCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone providedCapabilities" },
+                        { path: "executionInquiries.committedLabProfile", select: "published.displayName published.city published.state status" },
                         { path: "executionInquiries.bids.company", select: "name email phone providedCapabilities" }
                     ])
                     .sort({ createdAt: -1 })

@@ -43,6 +43,7 @@ const accessQuery = async (req: Request) => {
 
 const populated = (query: any) => query
   .populate("labCompanyId", "name")
+  .populate("labProfileId", "status published.displayName published.address published.city published.state")
   .populate("inquiryId", "enquiryCode productId productVariant workflowStage status executionContext")
   .sort({ updatedAt: -1 });
 
@@ -51,8 +52,17 @@ export class LabWorkItemController {
     const query: any = await accessQuery(req);
     const state = String(req.query.state || "active").toLowerCase();
     query.status = state === "history" ? { $in: ["COMPLETED", "RELEASED"] } : { $nin: ["COMPLETED", "RELEASED"] };
-    const rows = await populated(LabWorkItemModel.find(query)).lean();
-    return res.json({ success: true, data: rows, meta: { state, count: rows.length } });
+    const status = String(req.query.status || "").toUpperCase();
+    if ((LAB_CUSTODY_STATUSES as readonly string[]).includes(status)) query.status = status;
+    if (Types.ObjectId.isValid(String(req.query.labProfileId || ""))) query.labProfileId = req.query.labProfileId;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const [rows, total, counts] = await Promise.all([
+      populated(LabWorkItemModel.find(query).skip((page - 1) * limit).limit(limit)).lean(),
+      LabWorkItemModel.countDocuments(query),
+      LabWorkItemModel.aggregate([{ $match: await accessQuery(req) }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+    ]);
+    return res.json({ success: true, data: rows, meta: { state, page, limit, total, pages: Math.ceil(total / limit) || 1, counts: Object.fromEntries(counts.map((item: any) => [item._id, item.count])) } });
   }
 
   async detail(req: Request, res: Response) {

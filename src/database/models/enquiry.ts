@@ -351,6 +351,7 @@ const InquirySchema: Schema = new Schema(
                     }
                 ],
                 committedProvider: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null },
+                committedLabProfile: { type: Schema.Types.ObjectId, ref: "LabProfile", default: null },
                 bidAmount: { type: Number, default: null },
                 commitNote: { type: String, default: null },
                 committedAt: { type: Date, default: null },

@@ -13,6 +13,7 @@ const LabWorkItemSchema = new Schema({
   inquiryId: { type: Schema.Types.ObjectId, ref: "Inquiry", required: true, index: true },
   executionTaskId: { type: Schema.Types.ObjectId, required: true },
   labCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, index: true },
+  labProfileId: { type: Schema.Types.ObjectId, ref: "LabProfile", default: null, index: true },
   status: { type: String, enum: LAB_CUSTODY_STATUSES, default: "EXPECTED", index: true },
   notes: { type: String, default: "", trim: true, maxlength: 2000 },
   expectedAt: { type: Date, default: Date.now },

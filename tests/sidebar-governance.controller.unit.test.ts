@@ -42,6 +42,8 @@ describe("sidebar governance canonical functions", () => {
     expect(state.body.data.commonRoutes.map((row: any) => row.path)).toEqual(["/dashboard", "/dashboard/guidance", "/dashboard/settings", "/dashboard/customer-support"]);
     expect(state.body.data.commonRoutes.map((row: any) => row.position)).toEqual(["TOP", "BOTTOM", "BOTTOM", "BOTTOM"]);
     expect(state.body.data.routes.some((row: any) => row.path === "/dashboard")).toBe(false);
+    expect(state.body.data.pageRules).toBeUndefined();
+    expect(state.body.data.config.published.mappings).toBeUndefined();
   });
 
   it("rejects attempts to save code-controlled common routes", async () => {
@@ -106,6 +108,32 @@ describe("sidebar governance canonical functions", () => {
     await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, read.res);
     expect(read.state.status).toBe(200);
     expect(read.state.body.data.mappings.some((row: any) => row.placement === "UNASSIGNED")).toBe(false);
+    expect(read.state.body.data.mappings.some((row: any) => row.status === "HIDDEN")).toBe(false);
+  });
+
+  it("keeps published reads free of draft migrations and writes", async () => {
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]);
+    const sectionOrder = createDefaultSidebarSectionOrder();
+    const fallbackStatusByRoute = Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"]));
+    await SidebarGovernanceModel.create({ key: "associate-sidebar", matrixMigrationVersion: 2, draft: { revision: 4, resolutionVersion: 1, sectionOrder, fallbackStatusByRoute, mappings }, published: { revision: 3, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings } });
+    const before: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+    const result = response();
+    await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
+    const after: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
+    expect(result.state.status).toBe(200);
+    expect(after.matrixMigrationVersion).toBe(before.matrixMigrationVersion);
+    expect(after.draft.revision).toBe(before.draft.revision);
+    expect(after.draft.resolutionVersion).toBe(before.draft.resolutionVersion);
+  });
+
+  it("returns a transient baseline without writing when published governance is absent", async () => {
+    await SidebarGovernanceModel.deleteMany({});
+    const result = response();
+    await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
+    expect(result.state.status).toBe(200);
+    expect(result.state.body.data.revision).toBe(0);
+    expect(result.state.body.data.resolutionVersion).toBe(2);
+    expect(await SidebarGovernanceModel.countDocuments()).toBe(0);
   });
 
   it("rejects visible statuses for Unassigned mappings", async () => {

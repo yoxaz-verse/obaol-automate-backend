@@ -1,11 +1,13 @@
 import { Request, Response } from "express";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { CountryModel } from "../database/models/country";
 import { LabProfileModel } from "../database/models/labProfile";
 import { LAB_CONTACT_CHANNELS, LabContactEventModel } from "../database/models/labContactEvent";
 import { LAB_TAXONOMY_KINDS, LabTaxonomyModel } from "../database/models/labTaxonomy";
+import { LabWorkItemModel } from "../database/models/labWorkItem";
+import { normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 
 const role = (req: Request) => String(req.user?.role || "").toLowerCase();
 const isAdmin = (req: Request) => role(req) === "admin";
@@ -59,6 +61,22 @@ async function ownCompanyId(req: Request) {
   const associate = await AssociateModel.findById(req.user!.id).select("associateCompany").lean();
   return String((associate as any)?.associateCompany || "") || null;
 }
+
+async function managedCompanyId(req: Request) {
+  const companyId = await ownCompanyId(req);
+  if (!companyId || isAdmin(req)) return companyId;
+  const company: any = await AssociateCompanyModel.findById(companyId).select("providedCapabilities isDeleted").lean();
+  const canProvideTesting = normalizeCompanyFunctionSlugs(company?.providedCapabilities || []).includes("testing");
+  return company && company.isDeleted !== true && canProvideTesting ? companyId : null;
+}
+
+const revisionConflict = (res: Response, current: number) => res.status(409).json({
+  success: false,
+  message: "This lab profile changed in another session. Reload before continuing.",
+  error: { code: "LAB_PROFILE_REVISION_CONFLICT", currentRevision: current },
+});
+
+const expectedRevision = (req: Request) => Number(req.body?.expectedRevision);
 
 async function accessibleProfile(req: Request, id: string) {
   if (!Types.ObjectId.isValid(id)) return null;
@@ -216,11 +234,12 @@ export class LabProfileController {
   }
 
   async createMine(req: Request, res: Response) {
-    const companyId = await ownCompanyId(req);
+    const companyId = await managedCompanyId(req);
     if (!companyId) return res.status(403).json({ success: false, message: "Lab owner or admin access required." });
     const company = await AssociateCompanyModel.findById(companyId).select("_id").lean();
     if (!company) return res.status(404).json({ success: false, message: "Associate company not found." });
-    const profile = await LabProfileModel.create({ companyId, draft: null, published: null, status: "DRAFT" });
+    const draft = req.body?.profile ? normalizeSnapshot(req.body.profile) : null;
+    const profile = await LabProfileModel.create({ companyId, draft, published: null, status: "DRAFT", revision: 1 });
     return res.status(201).json({ success: true, data: profile });
   }
 
@@ -233,9 +252,13 @@ export class LabProfileController {
   async saveMine(req: Request, res: Response) {
     const profile: any = await accessibleProfile(req, req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (!isAdmin(req) && String(await managedCompanyId(req)) !== String(profile.companyId)) return res.status(403).json({ success: false, message: "Quality Testing provider access required." });
     if (profile.status === "PENDING_REVIEW") return res.status(409).json({ success: false, message: "This profile is under review and cannot be changed until a decision is made." });
+    if (profile.status === "ARCHIVED") return res.status(409).json({ success: false, message: "Restore this laboratory before editing it." });
+    if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
     profile.draft = normalizeSnapshot(req.body?.profile || req.body);
     profile.status = "DRAFT";
+    profile.revision = Number(profile.revision || 1) + 1;
     await profile.save({ validateBeforeSave: false });
     return res.json({ success: true, data: profile });
   }
@@ -243,12 +266,43 @@ export class LabProfileController {
   async submitMine(req: Request, res: Response) {
     const profile: any = await accessibleProfile(req, req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (!isAdmin(req) && String(await managedCompanyId(req)) !== String(profile.companyId)) return res.status(403).json({ success: false, message: "Quality Testing provider access required." });
     if (!profile.draft) return res.status(400).json({ success: false, message: "Save a draft before submitting." });
+    if (profile.status === "ARCHIVED") return res.status(409).json({ success: false, message: "Restore this laboratory before submitting it." });
+    if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
     const errors = validateLabSnapshot(profile.draft.toObject());
     if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
     profile.status = "PENDING_REVIEW";
     profile.submittedAt = new Date();
     profile.reviewNotes = "";
+    profile.revision = Number(profile.revision || 1) + 1;
+    await profile.save();
+    return res.json({ success: true, data: profile });
+  }
+
+  async archiveMine(req: Request, res: Response) {
+    const profile: any = await accessibleProfile(req, req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
+    const blockingWorkItems = await LabWorkItemModel.countDocuments({ labProfileId: profile._id, status: { $nin: ["COMPLETED", "RELEASED"] } });
+    if (blockingWorkItems) return res.status(409).json({ success: false, message: "Complete or reassign active laboratory work before archiving this facility.", error: { code: "LAB_PROFILE_ACTIVE_WORK", blockingWorkItems } });
+    profile.status = "ARCHIVED";
+    profile.archivedAt = new Date();
+    profile.archivedBy = req.user?.id;
+    profile.revision = Number(profile.revision || 1) + 1;
+    await profile.save();
+    return res.json({ success: true, data: profile });
+  }
+
+  async restoreMine(req: Request, res: Response) {
+    const profile: any = await accessibleProfile(req, req.params.id);
+    if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
+    if (profile.status !== "ARCHIVED") return res.status(409).json({ success: false, message: "This laboratory is not archived." });
+    profile.status = profile.published ? "PUBLISHED" : "DRAFT";
+    profile.archivedAt = null;
+    profile.archivedBy = null;
+    profile.revision = Number(profile.revision || 1) + 1;
     await profile.save();
     return res.json({ success: true, data: profile });
   }
@@ -277,8 +331,12 @@ export class LabProfileController {
   async taxonomy(req: Request, res: Response) {
     const filter: any = { isDeleted: { $ne: true }, status: "ACTIVE" };
     if (req.query.kind) filter.kind = String(req.query.kind).toUpperCase();
+    const companyId = await ownCompanyId(req);
+    const taxonomyFilter: any = companyId && !isAdmin(req)
+      ? { isDeleted: { $ne: true }, ...(req.query.kind ? { kind: String(req.query.kind).toUpperCase() } : {}), $or: [{ status: "ACTIVE" }, { status: "REQUESTED", requestedByCompany: companyId }] }
+      : filter;
     const [items, countries] = await Promise.all([
-      LabTaxonomyModel.find(filter).sort({ kind: 1, name: 1 }).lean(),
+      LabTaxonomyModel.find(taxonomyFilter).sort({ kind: 1, name: 1 }).lean(),
       CountryModel.find({ isDeleted: { $ne: true } }).select("name").sort({ name: 1 }).lean(),
     ]);
     return res.json({ success: true, data: { items, countries, qualityClassifications: ["ORGANIC", "CONVENTIONAL", "IPM"] } });
@@ -293,13 +351,13 @@ export class LabProfileController {
     if (!(LAB_TAXONOMY_KINDS as readonly string[]).includes(kind) || !name) return res.status(400).json({ success: false, message: "Valid kind and name are required." });
     const existing = await LabTaxonomyModel.findOne({ kind, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), isDeleted: { $ne: true } });
     if (existing) {
-      existing.status = "ACTIVE";
+      if (existing.status !== "ACTIVE") existing.status = admin ? "ACTIVE" : "REQUESTED";
       existing.isDeleted = false;
       ids(req.body?.parentIds).forEach((parentId) => { if (!existing.parentIds.some((id) => String(id) === parentId)) existing.parentIds.push(new Types.ObjectId(parentId)); });
       await existing.save();
       return res.json({ success: true, data: existing, existing: true });
     }
-    const item = await LabTaxonomyModel.create({ kind, name, description: req.body?.description, unit: req.body?.unit, method: req.body?.method, parentIds: ids(req.body?.parentIds), status: "ACTIVE", requestedByCompany: companyId || null, requestedBy: req.user?.id });
+    const item = await LabTaxonomyModel.create({ kind, name, description: req.body?.description, unit: req.body?.unit, method: req.body?.method, parentIds: ids(req.body?.parentIds), status: admin ? "ACTIVE" : "REQUESTED", requestedByCompany: companyId || null, requestedBy: req.user?.id });
     return res.status(201).json({ success: true, data: item, existing: false });
   }
 
@@ -387,9 +445,16 @@ export class LabProfileController {
     const action = String(req.body?.action || "").toUpperCase();
     const profile: any = await LabProfileModel.findById(req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
     if (action === "APPROVE") {
       const errors = validateLabSnapshot(profile.draft?.toObject?.() || profile.draft);
       if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
+      const taxonomyIds = [
+        ...(profile.draft?.credentials || []).map((item: any) => item.accreditationId),
+        ...(profile.draft?.productCapabilityTemplates || []).flatMap((item: any) => [item.commodityId, ...(item.testIds || []), ...(item.parameterIds || [])]),
+      ].map(String).filter(Types.ObjectId.isValid);
+      const unresolved = taxonomyIds.length ? await LabTaxonomyModel.find({ _id: { $in: taxonomyIds }, status: { $ne: "ACTIVE" } }).select("kind name status").lean() : [];
+      if (unresolved.length) return res.status(409).json({ success: false, message: "Approve all requested laboratory options before publishing this profile.", error: { code: "LAB_TAXONOMY_PENDING", unresolved } });
       const verifiedCredentialIds = new Set(ids(req.body?.verifiedCredentialIds));
       profile.draft.credentials.forEach((item: any) => {
         if (verifiedCredentialIds.has(String(item._id)) && item.documentUrl) item.verificationStatus = "VERIFIED";
@@ -398,20 +463,27 @@ export class LabProfileController {
       profile.published = profile.draft.toObject();
       profile.status = "PUBLISHED";
       profile.publishedAt = new Date();
-      await AssociateCompanyModel.findByIdAndUpdate(profile.companyId, { $set: { isQualityLabListed: true, labListingState: "LIVE" } });
     } else if (action === "REJECT") {
+      if (!String(req.body?.notes || "").trim()) return res.status(400).json({ success: false, message: "A rejection reason is required." });
       profile.status = "REJECTED";
     } else return res.status(400).json({ success: false, message: "Action must be APPROVE or REJECT." });
     profile.reviewNotes = String(req.body?.notes || "");
     profile.reviewedBy = req.user?.id;
-    await profile.save();
+    profile.revision = Number(profile.revision || 1) + 1;
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await profile.save({ session });
+        if (action === "APPROVE") await AssociateCompanyModel.findByIdAndUpdate(profile.companyId, { $set: { isQualityLabListed: true, labListingState: "LIVE" } }, { session });
+      });
+    } finally { await session.endSession(); }
     return res.json({ success: true, data: profile });
   }
 
   async directory(req: Request, res: Response) {
     const page = pageNumber(req.query.page);
     const limit = Math.min(100, pageNumber(req.query.limit, 20));
-    const query: any = { published: { $ne: null } };
+    const query: any = { published: { $ne: null }, status: { $ne: "ARCHIVED" } };
     const search = String(req.query.search || "").trim();
     if (search) query.$text = { $search: search };
     const physicalCountryIds = ids(req.query.physicalCountryIds);
@@ -464,22 +536,32 @@ export class LabProfileController {
       .sort((a: any, b: any) => String(a.published?.displayName || "").localeCompare(String(b.published?.displayName || "")));
     const total = allRows.length;
     const rows = allRows.slice((page - 1) * limit, page * limit);
-    const markers = allRows.flatMap((row: any) => {
+    const allMarkers = allRows.flatMap((row: any) => {
       const point = coordinates(row.published);
       return point ? [{ _id: row._id, name: row.published.displayName, contactPhone: row.published.contactPhone, whatsappPhone: row.published.whatsappPhone, contactEmail: row.published.contactEmail, location: point, capabilityStatus: row.capabilityStatus, source: row.companyId?.externalListingSource || "" }] : [];
     });
+    const markerLimit = Math.min(1000, Math.max(50, Number(req.query.markerLimit) || 500));
+    const markers = allMarkers.slice(0, markerLimit);
     const [active, countries, countryCounts, productCounts] = await Promise.all([
       LabTaxonomyModel.find({ status: "ACTIVE", isDeleted: { $ne: true } }).select("kind name unit method parentIds").sort({ name: 1 }).lean(),
       CountryModel.find({ isDeleted: { $ne: true } }).select("name").sort({ name: 1 }).lean(),
       LabProfileModel.aggregate([{ $match: { published: { $ne: null } } }, { $unwind: "$published.countryAssignments" }, { $group: { _id: "$published.countryAssignments.countryId", count: { $sum: 1 } } }]),
       LabProfileModel.aggregate([{ $match: { published: { $ne: null } } }, { $unwind: "$published.productCapabilityTemplates" }, { $group: { _id: "$published.productCapabilityTemplates.commodityId", count: { $sum: 1 } } }]),
     ]);
-    return res.json({ success: true, data: rows, markers, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1 }, facets: { taxonomy: active, countries, qualityClassifications: ["ORGANIC", "CONVENTIONAL", "IPM"], counts: { countries: Object.fromEntries(countryCounts.map((item) => [String(item._id), item.count])), products: Object.fromEntries(productCounts.map((item) => [String(item._id), item.count])) } } });
+    return res.json({ success: true, data: rows, markers, markerMeta: { total: allMarkers.length, returned: markers.length, truncated: allMarkers.length > markers.length }, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1 }, facets: { taxonomy: active, countries, qualityClassifications: ["ORGANIC", "CONVENTIONAL", "IPM"], counts: { countries: Object.fromEntries(countryCounts.map((item) => [String(item._id), item.count])), products: Object.fromEntries(productCounts.map((item) => [String(item._id), item.count])) } } });
   }
 
   async detail(req: Request, res: Response) {
-    const profile = await populateProfile(LabProfileModel.findById(req.params.id).populate("companyId", "name isExternalDirectoryListing externalListingSource")).lean();
+    const profile = await populateProfile(LabProfileModel.findOne({ _id: req.params.id, status: { $ne: "ARCHIVED" } }).populate("companyId", "name isExternalDirectoryListing externalListingSource")).lean();
     return profile?.published ? res.json({ success: true, data: profile }) : res.status(404).json({ success: false, message: "Published lab not found." });
+  }
+
+  async providerFacilities(req: Request, res: Response) {
+    if (!Types.ObjectId.isValid(req.params.companyId)) return res.status(400).json({ success: false, message: "Invalid company id." });
+    const rows = await LabProfileModel.find({ companyId: req.params.companyId, status: "PUBLISHED", published: { $ne: null } })
+      .select("published.displayName published.address published.city published.state published.productCapabilityTemplates")
+      .sort({ "published.displayName": 1 }).lean();
+    return res.json({ success: true, data: rows });
   }
 }
 

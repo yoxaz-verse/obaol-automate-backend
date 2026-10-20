@@ -8,6 +8,7 @@ import { LAB_CONTACT_CHANNELS, LabContactEventModel } from "../database/models/l
 import { LAB_TAXONOMY_KINDS, LabTaxonomyModel } from "../database/models/labTaxonomy";
 import { LabWorkItemModel } from "../database/models/labWorkItem";
 import { normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
+import { isParallelArrayIndexError } from "../utils/labProfileIndexes";
 
 const role = (req: Request) => String(req.user?.role || "").toLowerCase();
 const isAdmin = (req: Request) => role(req) === "admin";
@@ -460,7 +461,7 @@ export class LabProfileController {
         if (verifiedCredentialIds.has(String(item._id)) && item.documentUrl) item.verificationStatus = "VERIFIED";
         else if (item.verificationStatus !== "REJECTED") item.verificationStatus = "PENDING";
       });
-      profile.published = profile.draft.toObject();
+      profile.published = normalizeSnapshot(profile.draft.toObject());
       profile.status = "PUBLISHED";
       profile.publishedAt = new Date();
     } else if (action === "REJECT") {
@@ -476,6 +477,15 @@ export class LabProfileController {
         await profile.save({ session });
         if (action === "APPROVE") await AssociateCompanyModel.findByIdAndUpdate(profile.companyId, { $set: { isQualityLabListed: true, labListingState: "LIVE" } }, { session });
       });
+    } catch (error: any) {
+      if (action === "APPROVE" && isParallelArrayIndexError(error)) {
+        return res.status(503).json({
+          success: false,
+          code: "LAB_PROFILE_PUBLICATION_INDEX_CONFLICT",
+          message: "This profile is valid, but publication is temporarily blocked by the lab search index configuration. Run the lab profile index repair, then try publishing again.",
+        });
+      }
+      throw error;
     } finally { await session.endSession(); }
     return res.json({ success: true, data: profile });
   }

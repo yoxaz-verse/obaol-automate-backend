@@ -52,6 +52,25 @@ const OfferingSchema = new Schema({
   notes: String,
 }, { _id: true });
 
+const LocationSchema = new Schema(
+  {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    label: { type: String, trim: true },
+    point: {
+      type: new Schema(
+        {
+          type: { type: String, enum: ["Point"], required: true },
+          coordinates: { type: [Number], required: true, validate: [(value: number[]) => value.length === 2, "GeoJSON coordinates must contain longitude and latitude."] },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
+  },
+  { _id: false },
+);
+
 const SnapshotSchema = new Schema(
   {
     displayName: { type: String, required: true, trim: true },
@@ -63,15 +82,7 @@ const SnapshotSchema = new Schema(
     physicalCountryId: { type: Schema.Types.ObjectId, ref: "Country", required: true },
     state: { type: String, default: "", trim: true },
     city: { type: String, default: "", trim: true },
-    location: {
-      latitude: { type: Number },
-      longitude: { type: Number },
-      label: { type: String, trim: true },
-      point: {
-        type: { type: String, enum: ["Point"] },
-        coordinates: [{ type: Number }],
-      },
-    },
+    location: { type: LocationSchema, default: undefined },
     summary: { type: String, default: "", trim: true },
     credentials: { type: [CredentialSchema], default: [] },
     productCapabilityTemplates: { type: [ProductCapabilityTemplateSchema], default: [] },
@@ -107,7 +118,8 @@ const LabProfileSchema = new Schema(
 
 LabProfileSchema.index({ "published.countryAssignments.countryId": 1, "published.countryAssignments.productTemplateIds": 1 });
 LabProfileSchema.index({ "published.productCapabilityTemplates.commodityId": 1, "published.productCapabilityTemplates.testIds": 1 });
-LabProfileSchema.index({ "published.productCapabilityTemplates.parameterIds": 1, "published.productCapabilityTemplates.qualityClassifications": 1 });
+LabProfileSchema.index({ "published.productCapabilityTemplates.parameterIds": 1 });
+LabProfileSchema.index({ "published.productCapabilityTemplates.qualityClassifications": 1 });
 LabProfileSchema.index({ "published.credentials.accreditationId": 1, "published.credentials.verificationStatus": 1 });
 LabProfileSchema.index({ "published.displayName": "text", "published.address": "text", "published.city": "text", "published.state": "text" });
 LabProfileSchema.index({ "published.location.point": "2dsphere" }, { sparse: true });

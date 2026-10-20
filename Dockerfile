@@ -30,6 +30,7 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 5001
 
 
-# Bring the canonical company-function taxonomy and legacy references forward
-# before accepting traffic. The migration is idempotent and safe on restarts.
-CMD ["sh", "-c", "node dist/scripts/migrateCompanyCapabilityProfiles.js && node dist/index.js"]
+# Repair lab-profile search indexes and bring the canonical company-function
+# taxonomy forward before accepting traffic. Both migrations are idempotent
+# and safe to run again on every deployment or container restart.
+CMD ["sh", "-c", "node dist/scripts/repairLabProfileIndexes.js --apply && node dist/scripts/migrateCompanyCapabilityProfiles.js && node dist/index.js"]

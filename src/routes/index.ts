@@ -128,6 +128,8 @@ router.use(`${prefix}`, companyFunctionRoutes);
 // Approvals (Admin)
 import approvalRoutes from "./v1/approvalRoutes";
 router.use(`${prefix}/approvals`, approvalRoutes);
+import companyCapabilityChangeRequestRoutes from "./v1/companyCapabilityChangeRequestRoutes";
+router.use(`${prefix}/company-capability-change-requests`, companyCapabilityChangeRequestRoutes);
 import dataIntegrityRoutes from "./v1/dataIntegrityRoutes";
 router.use(`${prefix}/admin`, dataIntegrityRoutes);
 

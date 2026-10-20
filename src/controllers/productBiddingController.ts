@@ -10,6 +10,7 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
 import { matchesSellerBiddingView, synchronizeAllProductBiddingLifecycles, synchronizeProductBiddingLifecycle } from "../services/productBiddingService";
 import { notificationService } from "../services/notificationService";
+import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
 
 const idOf = (value: any) => String(value?._id || value || "");
 const isId = (value: any) => mongoose.Types.ObjectId.isValid(String(value || ""));
@@ -33,13 +34,21 @@ const actor = async (req: Request) => {
 const eventFields = ["title", "product", "productVariant", "quantity", "unit", "specifications", "deliveryLocation", "deliveryDate", "buyerNotes"];
 const payloadFrom = (body: any) => Object.fromEntries(eventFields.filter((key) => body?.[key] !== undefined).map((key) => [key, body[key]]));
 
-const validateSchedule = (opensAt: any, closesAt: any) => {
+export const validateProductBiddingSchedule = (opensAt: any, closesAt: any, deliveryDate: any) => {
   const open = new Date(opensAt);
   const close = new Date(closesAt);
+  const delivery = new Date(deliveryDate);
   if (!opensAt || !closesAt || Number.isNaN(open.getTime()) || Number.isNaN(close.getTime())) return "Valid opening and closing times are required.";
   if (close <= open) return "Closing time must be after opening time.";
   if (close <= new Date()) return "Closing time must be in the future.";
+  if (!deliveryDate || Number.isNaN(delivery.getTime())) return "A valid delivery date is required.";
+  if (delivery <= close) return "Delivery date must be after the closing date.";
   return null;
+};
+
+const disclosureError = (input: any) => {
+  const violation = detectOffPlatformDisclosure(input?.title) || detectOffPlatformDisclosure(input?.specifications);
+  return violation?.message || null;
 };
 
 const notifyAssociates = async (ids: any[], event: any, type: string, title: string, body: string, actorId?: string, route = "/dashboard/bidding") => {
@@ -65,6 +74,8 @@ export class ProductBiddingController {
     if (!who?.companyId || roleOf(req) !== "associate") return fail(res, 403, "An approved buyer company is required.");
     const input = payloadFrom(req.body);
     if (!input.title || !isId(input.product) || !isId(input.productVariant) || !(Number(input.quantity) > 0) || !["KG", "MT", "Quintal"].includes(String(input.unit))) return fail(res, 400, "Title, product, variant, quantity, and unit are required.");
+    const disclosureViolation = disclosureError(input);
+    if (disclosureViolation) return fail(res, 400, disclosureViolation);
     const variant = await ProductVariantModel.exists({ _id: input.productVariant, product: input.product, isDeleted: { $ne: true }, approvalStatus: { $in: ["APPROVED", null] } });
     if (!variant) return fail(res, 400, "Select an approved variant belonging to the selected product.");
     const event = await ProductBiddingEventModel.create({ ...input, buyer: who.id, buyerCompany: who.companyId, status: "DRAFT" });
@@ -77,6 +88,8 @@ export class ProductBiddingController {
     if (!event) return fail(res, 404, "Bidding event not found.");
     if (!await canManageEvent(req, event, who?.companyId)) return fail(res, 403, "Forbidden.");
     if (event.status !== "DRAFT") return fail(res, 409, "Only draft bidding events can be edited.");
+    const disclosureViolation = disclosureError(req.body);
+    if (disclosureViolation) return fail(res, 400, disclosureViolation);
     Object.assign(event, payloadFrom(req.body));
     await event.save();
     return res.json({ success: true, data: baseEvent(event) });
@@ -88,7 +101,7 @@ export class ProductBiddingController {
     if (!event) return fail(res, 404, "Bidding event not found.");
     if (!await canManageEvent(req, event, who?.companyId)) return fail(res, 403, "Forbidden.");
     if (event.status !== "DRAFT") return fail(res, 409, "Only a draft can be scheduled.");
-    const scheduleError = validateSchedule(req.body?.opensAt, req.body?.closesAt);
+    const scheduleError = validateProductBiddingSchedule(req.body?.opensAt, req.body?.closesAt, event.deliveryDate);
     if (scheduleError) return fail(res, 400, scheduleError);
     event.opensAt = new Date(req.body.opensAt); event.closesAt = new Date(req.body.closesAt);
     event.status = event.opensAt <= new Date() ? "OPEN" : "SCHEDULED";

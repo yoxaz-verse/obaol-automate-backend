@@ -51,7 +51,7 @@ const notifyAdmins = async (entityType: string, entityId: any, label: string) =>
   await NotificationModel.insertMany(admins.map((admin: any) => ({
     recipientUserId: admin._id, recipientRole: "Admin", type: "APPROVAL_REQUESTED",
     title: "Catalog approval requested", message: `${label} was submitted for catalog approval.`,
-    entityType: "APPROVAL", entityId, route: "/dashboard/catalog-requests", priority: "high",
+    entityType: "APPROVAL", entityId, route: "/dashboard/approvals?workflow=catalog", priority: "high",
     payload: { catalogEntityType: entityType },
   })));
 };

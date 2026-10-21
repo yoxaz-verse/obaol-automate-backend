@@ -5,7 +5,9 @@ import app from "../src/app";
 import { AssociateModel } from "../src/database/models/associate";
 import { OperatorModel } from "../src/database/models/operator";
 import { VerificationModel } from "../src/database/models/verification";
+import { CountryModel } from "../src/database/models/country";
 import { createAssociate, createOperator } from "./helpers/authFixtures";
+import { generateJWTToken } from "../src/utils/tokenUtils";
 
 vi.mock("../src/utils/mailer", async (importOriginal) => {
   const original = await importOriginal<typeof import("../src/utils/mailer")>();
@@ -15,6 +17,24 @@ vi.mock("../src/utils/mailer", async (importOriginal) => {
 const api = request(app);
 const start = (email: string, role: "Associate" | "Operator") =>
   api.post("/api/v1/web/auth/onboarding/start").send({ email, role });
+
+const markEmailVerified = async (user: any, role: "Associate" | "Operator") => {
+  user.isEmailVerified = true;
+  await user.save();
+  await VerificationModel.create({
+    userId: String(user._id),
+    userType: role,
+    method: "email",
+    code: "246810",
+    expiresAt: new Date(Date.now() + 60_000),
+    verified: true,
+  });
+};
+
+const authCookieFor = (user: any, role: "Associate" | "Operator") => {
+  const token = generateJWTToken({ ...user.toObject(), role } as any, "2h");
+  return `auth_token=${token}`;
+};
 
 describe("onboarding existing accounts", () => {
   it("starts onboarding for a new email", async () => {
@@ -96,5 +116,72 @@ describe("onboarding existing accounts", () => {
 
     expect(response.status).toBe(200);
     expect(response.body?.role).toBeUndefined();
+  });
+
+  it("stores an Associate onboarding password once and accepts it at sign-in", async () => {
+    const user = await createAssociate({ onboardingComplete: false });
+    await markEmailVerified(user, "Associate");
+    const password = "FreshPassw0rd!";
+
+    const completed = await api
+      .post("/api/v1/web/auth/onboarding")
+      .set("Cookie", authCookieFor(user, "Associate"))
+      .send({
+        role: "Associate",
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        hasCompany: true,
+        companyMode: "existing",
+        associateCompanyId: new mongoose.Types.ObjectId(),
+        password,
+      });
+
+    expect(completed.status).toBe(200);
+    const refreshed = await AssociateModel.findById(user._id);
+    expect(await refreshed!.comparePassword(password)).toBe(true);
+
+    const incorrect = await api
+      .post("/api/v1/web/auth/unified/password")
+      .send({ email: user.email, password: "IncorrectPassw0rd!" });
+    expect(incorrect.status).toBe(401);
+    expect(incorrect.body).toMatchObject({ code: "INVALID_CREDENTIALS" });
+
+    const login = await api
+      .post("/api/v1/web/auth/unified/password")
+      .send({ email: user.email, password });
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({ success: true, user: { role: "Associate" } });
+  });
+
+  it("stores an Operator onboarding password once and accepts it at sign-in", async () => {
+    const user = await createOperator({ onboardingComplete: false });
+    await markEmailVerified(user, "Operator");
+    const country = await CountryModel.create({ code: "AE", name: "United Arab Emirates" });
+    const password = "FreshPassw0rd!";
+
+    const completed = await api
+      .post("/api/v1/web/auth/onboarding")
+      .set("Cookie", authCookieFor(user, "Operator"))
+      .send({
+        role: "Operator",
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        geoType: "INTERNATIONAL",
+        country: country._id,
+        password,
+      });
+
+    expect(completed.status).toBe(200);
+    const refreshed = await OperatorModel.findById(user._id);
+    expect(await refreshed!.comparePassword(password)).toBe(true);
+
+    const login = await api
+      .post("/api/v1/web/auth/unified/password")
+      .send({ email: user.email, password });
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({ success: true, user: { role: "Operator" } });
   });
 });

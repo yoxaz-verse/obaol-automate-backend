@@ -20,7 +20,7 @@ import { JobRoleModel } from "../database/models/jobRole";
 import { JobTypeModel } from "../database/models/jobType";
 import { LanguageModel } from "../database/models/language";
 import { CompanyFunctionMappingModel } from "../database/models/companyFunctionMapping";
-import { comparePasswords, hashPassword } from "../utils/passwordUtils";
+import { comparePasswords } from "../utils/passwordUtils";
 import { createAuthSession } from "../utils/authSession";
 import { AuthSessionModel } from "../database/models/authSession";
 import { generateEmailVerificationToken, generateJWTToken } from "../utils/tokenUtils";
@@ -759,6 +759,7 @@ export const completePasswordReset = async (req: Request, res: Response) => {
 
         user.password = newPassword;
         await user.save();
+        await resetLoginCooldown(user);
 
         res.json({ success: true, message: "Password reset successful" });
     } catch (error: any) {
@@ -1749,8 +1750,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 if (!isStrongAssociatePassword(password)) {
                     return res.status(400).json({ success: false, message: ASSOCIATE_PASSWORD_ERROR });
                 }
-                const hashed = await hashPassword(String(password));
-                (associate as any).password = hashed;
+                (associate as any).password = String(password);
             }
 
             const normalizedPrimary = normalizePhoneInput({
@@ -2006,8 +2006,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 if (!password) {
                     return res.status(400).json({ success: false, message: "Password is required." });
                 }
-                const hashed = await hashPassword(String(password));
-                (operator as any).password = hashed;
+                (operator as any).password = String(password);
             }
 
             const normalizedPrimary = normalizePhoneInput({

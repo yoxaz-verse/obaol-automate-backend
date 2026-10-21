@@ -122,6 +122,44 @@ describe("Auth API", () => {
     expect((await api.get("/api/v1/web/verify-token").set("Cookie", other.headers["set-cookie"])).status).toBe(401);
     expect((await api.get("/api/v1/web/verify-token").set("Cookie", current.headers["set-cookie"])).status).toBe(200);
   });
+
+  it("resets a password once and clears password-login cooldown state", async () => {
+    const user = await createAssociate({
+      failedLoginAttempts: 5,
+      loginLockedUntil: new Date(Date.now() + 5 * 60 * 1000),
+      lastFailedLoginAt: new Date(),
+      loginLockoutLevel: 2,
+    });
+    await VerificationModel.create({
+      userId: String(user._id),
+      userType: "Associate",
+      method: "email",
+      code: "654321",
+      expiresAt: new Date(Date.now() + 60_000),
+      verified: false,
+    });
+
+    const reset = await api.post("/api/v1/web/auth/reset-password").send({
+      email: user.email,
+      role: "Associate",
+      code: "654321",
+      newPassword: "RecoveredPassw0rd!",
+    });
+
+    expect(reset.status).toBe(200);
+    const refreshed = await AssociateModel.findById(user._id);
+    expect(await refreshed!.comparePassword("RecoveredPassw0rd!")).toBe(true);
+    expect(refreshed?.failedLoginAttempts).toBe(0);
+    expect(refreshed?.loginLockedUntil).toBeNull();
+    expect(refreshed?.lastFailedLoginAt).toBeNull();
+    expect(refreshed?.loginLockoutLevel).toBe(0);
+
+    const login = await api.post("/api/v1/web/auth/unified/password").send({
+      email: user.email,
+      password: "RecoveredPassw0rd!",
+    });
+    expect(login.status).toBe(200);
+  });
   it("returns the complete ordered company-function taxonomy", async () => {
     await seedCompanyFunctions();
     const res = await api.get("/api/v1/web/auth/register/options");

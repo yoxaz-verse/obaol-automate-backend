@@ -8,6 +8,7 @@ import { VerificationModel } from "../src/database/models/verification";
 import { CountryModel } from "../src/database/models/country";
 import { createAssociate, createOperator } from "./helpers/authFixtures";
 import { generateJWTToken } from "../src/utils/tokenUtils";
+import { sendOtpEmail } from "../src/utils/mailer";
 
 vi.mock("../src/utils/mailer", async (importOriginal) => {
   const original = await importOriginal<typeof import("../src/utils/mailer")>();
@@ -37,6 +38,10 @@ const authCookieFor = (user: any, role: "Associate" | "Operator") => {
 };
 
 describe("onboarding existing accounts", () => {
+  beforeEach(() => {
+    vi.mocked(sendOtpEmail).mockClear();
+  });
+
   it("starts onboarding for a new email", async () => {
     const email = `new.${new mongoose.Types.ObjectId().toHexString()}@example.com`;
     const response = await start(email, "Associate");
@@ -44,6 +49,7 @@ describe("onboarding existing accounts", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ success: true, message: "If this email is eligible, a verification code has been sent." });
     expect(await AssociateModel.exists({ email })).toBeTruthy();
+    expect(sendOtpEmail).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -88,12 +94,20 @@ describe("onboarding existing accounts", () => {
     expect(session.body?.user).toMatchObject({ email, role, onboardingComplete: false, verified: { email: true } });
   });
 
-  it("does not disclose the matching role for a completed account", async () => {
+  it("rejects a completed account without sending signup OTP or exposing its role", async () => {
     const associate = await createAssociate();
     const response = await start(associate.email, "Associate");
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      success: false,
+      code: "ACCOUNT_EXISTS",
+      message: "An account already exists for this email. Please sign in.",
+    });
     expect(response.body?.role).toBeUndefined();
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    expect(sendOtpEmail).not.toHaveBeenCalled();
+    expect(await VerificationModel.countDocuments({ userId: String(associate._id) })).toBe(0);
     expect(await AssociateModel.exists({ _id: associate._id })).toBeTruthy();
   });
 
@@ -105,8 +119,10 @@ describe("onboarding existing accounts", () => {
     });
     const response = await start(associate.email, "Operator");
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
+    expect(response.body?.code).toBe("ACCOUNT_EXISTS");
     expect(response.body?.role).toBeUndefined();
+    expect(sendOtpEmail).not.toHaveBeenCalled();
     expect(await AssociateModel.exists({ _id: associate._id })).toBeTruthy();
   });
 
@@ -114,8 +130,41 @@ describe("onboarding existing accounts", () => {
     const operator = await createOperator();
     const response = await start(operator.email, "Associate");
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
+    expect(response.body?.code).toBe("ACCOUNT_EXISTS");
     expect(response.body?.role).toBeUndefined();
+    expect(sendOtpEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(["Associate", "Operator"] as const)("restarts only a recent unverified same-role %s draft", async (role) => {
+    const model = role === "Associate" ? AssociateModel : OperatorModel;
+    const create = role === "Associate" ? createAssociate : createOperator;
+    const draft = await create({
+      onboardingComplete: false,
+      isEmailVerified: false,
+      authProvider: "LOCAL",
+      registrationSource: "SELF_REGISTERED",
+      createdAt: new Date(),
+    });
+
+    const response = await start(draft.email, role);
+    const replacement: any = await model.findOne({ email: draft.email }).lean();
+
+    expect(response.status).toBe(200);
+    expect(String(replacement?._id)).not.toBe(String(draft._id));
+    expect(sendOtpEmail).toHaveBeenCalledTimes(1);
+    expect(await VerificationModel.countDocuments({ userId: String(replacement?._id), verified: false })).toBe(1);
+  });
+
+  it.each(["Associate", "Operator"] as const)("does not restart a verified %s draft", async (role) => {
+    const create = role === "Associate" ? createAssociate : createOperator;
+    const draft = await create({ onboardingComplete: false, isEmailVerified: true, createdAt: new Date() });
+
+    const response = await start(draft.email, role);
+
+    expect(response.status).toBe(409);
+    expect(response.body?.code).toBe("ACCOUNT_EXISTS");
+    expect(sendOtpEmail).not.toHaveBeenCalled();
   });
 
   it("stores an Associate onboarding password once and accepts it at sign-in", async () => {

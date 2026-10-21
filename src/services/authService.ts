@@ -892,13 +892,11 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
 
         if (intent === "register") {
             if (existingRole) {
-                const rejectedExisting =
-                    (role === "Operator" && String((operatorExisting as any)?.registrationStatus || "").toUpperCase() === "REJECTED")
-                    || (role === "Associate" && String((associateExisting as any)?.registrationStatus || "").toUpperCase() === "REJECTED");
-                if (rejectedExisting) {
-                    return sendRejectedAccountResponse(res, role === "Operator" ? operatorExisting : associateExisting);
-                }
-                return res.status(409).json({ success: false, message: "Account already exists — sign in." });
+                return res.status(409).json({
+                    success: false,
+                    code: "ACCOUNT_EXISTS",
+                    message: "An account already exists for this email. Please sign in.",
+                });
             }
             const displayName = String(googlePayload.name || "").trim() || deriveDisplayName(email);
             const generatedPassword = generateRandomPassword();
@@ -1558,6 +1556,11 @@ export const startOnboarding = async (req: Request, res: Response) => {
         const now = Date.now();
         const draftWindowMs = 2 * 60 * 60 * 1000; // 2 hours
         const safeResponse = { success: true, message: "If this email is eligible, a verification code has been sent." };
+        const accountExistsResponse = {
+            success: false,
+            code: "ACCOUNT_EXISTS",
+            message: "An account already exists for this email. Please sign in.",
+        };
 
         if (!emailRaw || !role) {
             return res.status(400).json({ success: false, message: "Email and role are required." });
@@ -1571,14 +1574,14 @@ export const startOnboarding = async (req: Request, res: Response) => {
             ProjectManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
             InventoryManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
             CustomerSupportAgentModel.findOne({ email: emailRaw }).select("_id").lean(),
-            OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt registrationStatus reviewNotes isActive isDeleted").lean(),
+            OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes isActive isDeleted").lean(),
             AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes isActive isDeleted").lean(),
         ]);
 
-        const isDraftWithinWindow = (user: any, checkEmailVerified: boolean) => {
+        const isDraftWithinWindow = (user: any) => {
             if (!user) return false;
             if (user.onboardingComplete) return false;
-            if (checkEmailVerified && user.isEmailVerified === true) return false;
+            if (user.isEmailVerified === true) return false;
             if (String(user.authProvider || "LOCAL").toUpperCase() !== "LOCAL") return false;
             if (String(user.registrationSource || "SELF_REGISTERED").toUpperCase() !== "SELF_REGISTERED") return false;
             if (!user.createdAt) return false;
@@ -1589,7 +1592,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
         let operatorDoc: any = operator;
         let associateDoc: any = associate;
 
-        if (role === "Operator" && operatorDoc && isDraftWithinWindow(operatorDoc, false)) {
+        if (role === "Operator" && operatorDoc && isDraftWithinWindow(operatorDoc)) {
             await Promise.all([
                 OperatorModel.deleteOne({ _id: operatorDoc._id }),
                 VerificationModel.deleteMany({ userId: String(operatorDoc._id) }),
@@ -1597,7 +1600,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
             operatorDoc = null;
         }
 
-        if (role === "Associate" && associateDoc && isDraftWithinWindow(associateDoc, true)) {
+        if (role === "Associate" && associateDoc && isDraftWithinWindow(associateDoc)) {
             await Promise.all([
                 AgentModel.deleteOne({ _id: associateDoc._id }),
                 VerificationModel.deleteMany({ userId: String(associateDoc._id) }),
@@ -1613,22 +1616,8 @@ export const startOnboarding = async (req: Request, res: Response) => {
             : associateDoc ? "Associate"
             : null;
         if (existingRole) {
-            const existingUser: any = operatorDoc || associateDoc;
-            if (existingUser && (existingRole === "Associate" || existingRole === "Operator") && !toBlockedResponsePayload(existingUser)) {
-                issueEmailVerificationCookie(res, { ...existingUser, _id: existingUser._id, email: emailRaw, role: existingRole });
-                await verificationService.initiateVerification(
-                    String(existingUser._id),
-                    existingRole,
-                    "email",
-                    String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown"),
-                    String(req.headers["user-agent"] || "unknown"),
-                    emailRaw,
-                    req.language,
-                    { authEmailType: "signin_otp" }
-                );
-            }
             res.setHeader("Cache-Control", "no-store");
-            return res.json(safeResponse);
+            return res.status(409).json(accountExistsResponse);
         }
 
         const displayName = deriveDisplayName(emailRaw);
@@ -1679,6 +1668,14 @@ export const startOnboarding = async (req: Request, res: Response) => {
         );
         return res.json(safeResponse);
     } catch (error: any) {
+        if (error?.code === 11000) {
+            res.setHeader("Cache-Control", "no-store");
+            return res.status(409).json({
+                success: false,
+                code: "ACCOUNT_EXISTS",
+                message: "An account already exists for this email. Please sign in.",
+            });
+        }
         return res.status(500).json({ success: false, message: error?.message || "Failed to start onboarding." });
     }
 };

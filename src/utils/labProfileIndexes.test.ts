@@ -6,6 +6,8 @@ import {
   LAB_CLASSIFICATION_INDEX_NAME,
   LAB_PARAMETER_INDEX_KEY,
   LAB_PARAMETER_INDEX_NAME,
+  LAB_COMPANY_STATUS_UPDATED_INDEX_NAME,
+  LAB_COMPANY_UPDATED_INDEX_NAME,
   isParallelArrayIndexError,
   repairLabProfileIndexes,
 } from "./labProfileIndexes";
@@ -14,6 +16,10 @@ const invalidIndex = {
   name: "published.productCapabilityTemplates.parameterIds_1_published.productCapabilityTemplates.qualityClassifications_1",
   key: { [LAB_PARAMETER_INDEX_KEY]: 1, [LAB_CLASSIFICATION_INDEX_KEY]: 1 },
 };
+const desiredCompanyIndexes = [
+  { name: LAB_COMPANY_UPDATED_INDEX_NAME, key: { companyId: 1, updatedAt: -1 } },
+  { name: LAB_COMPANY_STATUS_UPDATED_INDEX_NAME, key: { companyId: 1, status: 1, updatedAt: -1 } },
+];
 
 describe("lab profile search indexes", () => {
   it("declares separate indexes for parameter and classification arrays", () => {
@@ -48,7 +54,7 @@ describe("lab profile search indexes", () => {
   });
 
   it("reports the repair without changing indexes in dry-run mode", async () => {
-    const collection = { indexes: vi.fn().mockResolvedValue([invalidIndex]), dropIndex: vi.fn(), createIndex: vi.fn() };
+    const collection = { indexes: vi.fn().mockResolvedValue([invalidIndex, ...desiredCompanyIndexes]), dropIndex: vi.fn(), createIndex: vi.fn() };
     const report = await repairLabProfileIndexes(collection, false);
     expect(report).toMatchObject({ mode: "dry-run", invalidIndexes: [invalidIndex.name], missingIndexes: [LAB_PARAMETER_INDEX_NAME, LAB_CLASSIFICATION_INDEX_NAME] });
     expect(collection.dropIndex).not.toHaveBeenCalled();
@@ -56,7 +62,7 @@ describe("lab profile search indexes", () => {
   });
 
   it("drops the invalid index and creates idempotent replacements", async () => {
-    const collection = { indexes: vi.fn().mockResolvedValue([invalidIndex]), dropIndex: vi.fn(), createIndex: vi.fn() };
+    const collection = { indexes: vi.fn().mockResolvedValue([invalidIndex, ...desiredCompanyIndexes]), dropIndex: vi.fn(), createIndex: vi.fn() };
     const report = await repairLabProfileIndexes(collection, true);
     expect(collection.dropIndex).toHaveBeenCalledWith(invalidIndex.name);
     expect(collection.createIndex).toHaveBeenCalledTimes(2);
@@ -66,6 +72,7 @@ describe("lab profile search indexes", () => {
       indexes: vi.fn().mockResolvedValue([
         { name: LAB_PARAMETER_INDEX_NAME, key: { [LAB_PARAMETER_INDEX_KEY]: 1 } },
         { name: LAB_CLASSIFICATION_INDEX_NAME, key: { [LAB_CLASSIFICATION_INDEX_KEY]: 1 } },
+        ...desiredCompanyIndexes,
       ]),
       dropIndex: vi.fn(),
       createIndex: vi.fn(),
@@ -74,6 +81,16 @@ describe("lab profile search indexes", () => {
     expect(rerun).toMatchObject({ invalidIndexes: [], missingIndexes: [], droppedIndexes: [], createdIndexes: [] });
     expect(repaired.dropIndex).not.toHaveBeenCalled();
     expect(repaired.createIndex).not.toHaveBeenCalled();
+  });
+
+  it("removes the legacy unique company index and creates non-unique company indexes", async () => {
+    const legacy = { name: "companyId_1", key: { companyId: 1 }, unique: true };
+    const collection = { indexes: vi.fn().mockResolvedValue([legacy, { name: LAB_PARAMETER_INDEX_NAME, key: { [LAB_PARAMETER_INDEX_KEY]: 1 } }, { name: LAB_CLASSIFICATION_INDEX_NAME, key: { [LAB_CLASSIFICATION_INDEX_KEY]: 1 } }]), dropIndex: vi.fn(), createIndex: vi.fn() };
+    const report = await repairLabProfileIndexes(collection, true);
+    expect(collection.dropIndex).toHaveBeenCalledWith("companyId_1");
+    expect(collection.createIndex).toHaveBeenCalledWith({ companyId: 1, updatedAt: -1 }, { name: LAB_COMPANY_UPDATED_INDEX_NAME });
+    expect(collection.createIndex).toHaveBeenCalledWith({ companyId: 1, status: 1, updatedAt: -1 }, { name: LAB_COMPANY_STATUS_UPDATED_INDEX_NAME });
+    expect(report.invalidIndexes).toContain("companyId_1");
   });
 
   it("recognizes MongoDB parallel-array failures without matching unrelated errors", () => {

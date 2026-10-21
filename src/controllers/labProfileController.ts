@@ -350,7 +350,7 @@ export class LabProfileController {
       : filter;
     const [items, countries] = await Promise.all([
       LabTaxonomyModel.find(taxonomyFilter).sort({ kind: 1, name: 1 }).lean(),
-      CountryModel.find({ isDeleted: { $ne: true } }).select("name").sort({ name: 1 }).lean(),
+      CountryModel.find({ isDeleted: { $ne: true } }).select("name code").sort({ name: 1 }).lean(),
     ]);
     return res.json({ success: true, data: { items, countries, qualityClassifications: ["ORGANIC", "CONVENTIONAL", "IPM"] } });
   }
@@ -570,7 +570,7 @@ export class LabProfileController {
     const markers = allMarkers.slice(0, markerLimit);
     const [active, countries, countryCounts, productCounts] = await Promise.all([
       LabTaxonomyModel.find({ status: "ACTIVE", isDeleted: { $ne: true } }).select("kind name unit method parentIds").sort({ name: 1 }).lean(),
-      CountryModel.find({ isDeleted: { $ne: true } }).select("name").sort({ name: 1 }).lean(),
+      CountryModel.find({ isDeleted: { $ne: true } }).select("name code").sort({ name: 1 }).lean(),
       LabProfileModel.aggregate([{ $match: { published: { $ne: null } } }, { $unwind: "$published.countryAssignments" }, { $group: { _id: "$published.countryAssignments.countryId", count: { $sum: 1 } } }]),
       LabProfileModel.aggregate([{ $match: { published: { $ne: null } } }, { $unwind: "$published.productCapabilityTemplates" }, { $group: { _id: "$published.productCapabilityTemplates.commodityId", count: { $sum: 1 } } }]),
     ]);

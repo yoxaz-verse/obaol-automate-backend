@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Types } from "mongoose";
-import { buildLabOfferingFilter, hasCapabilityFilters, legacyProfile, validateLabSnapshot } from "./labProfileController";
+import { buildLabOfferingFilter, hasCapabilityFilters, legacyProfile, normalizeSnapshot, validateLabSnapshot } from "./labProfileController";
 
 const id = () => new Types.ObjectId().toString();
-const base = () => ({ displayName: "Lab", contactEmail: "lab@example.com", contactPhone: "1", address: "Address", physicalCountryId: id(), credentials: [] });
+const base = () => ({ displayName: "Lab", contactEmail: "lab@example.com", contactPhone: "1", address: "Address", physicalCountryId: id(), location: { latitude: 10.25, longitude: 76.5, label: "Lab" }, credentials: [] });
 
 describe("country-first lab profile rules", () => {
   it("publishes basic country and product coverage without optional testing details", () => {
@@ -31,6 +31,19 @@ describe("country-first lab profile rules", () => {
     const countryId = id(), templateId = id();
     const errors = validateLabSnapshot({ ...base(), productCapabilityTemplates: [{ _id: templateId, name: "Product", commodityId: id(), credentialIds: [] }], countryAssignments: [{ countryId, productTemplateIds: [templateId] }, { countryId, productTemplateIds: [id()] }] });
     expect(errors).toEqual(expect.arrayContaining([expect.stringContaining("duplicates a country"), expect.stringContaining("missing product template")]));
+  });
+
+  it("requires an exact map location", () => {
+    const templateId = id();
+    const snapshot: any = { ...base(), productCapabilityTemplates: [{ _id: templateId, commodityId: id(), credentialIds: [] }], countryAssignments: [{ countryId: id(), productTemplateIds: [templateId] }] };
+    delete snapshot.location;
+    expect(validateLabSnapshot(snapshot)).toContain("Select the laboratory’s exact location on the map before publishing");
+  });
+
+  it("generates GeoJSON from coordinates and removes malformed client points", () => {
+    expect(normalizeSnapshot({ ...base(), location: { latitude: 10.25, longitude: 76.5, point: { type: "Point", coordinates: [] } } }).location.point).toEqual({ type: "Point", coordinates: [76.5, 10.25] });
+    expect(normalizeSnapshot({ ...base(), location: { point: { coordinates: [] } } }).location).toBeUndefined();
+    expect(normalizeSnapshot({ ...base(), location: { latitude: 200, longitude: 76.5, point: { type: "Point", coordinates: [76.5, 200] } } }).location?.point).toBeUndefined();
   });
 
   it("builds all optional filters into one product-template match", () => {

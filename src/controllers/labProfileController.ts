@@ -87,15 +87,18 @@ async function accessibleProfile(req: Request, id: string) {
   return LabProfileModel.findOne({ _id: id, companyId });
 }
 
-function normalizeSnapshot(raw: any) {
+export function normalizeSnapshot(raw: any) {
   const snapshot = { ...raw };
-  const latitude = Number(snapshot?.location?.latitude);
-  const longitude = Number(snapshot?.location?.longitude);
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  const rawLatitude = snapshot?.location?.latitude;
+  const rawLongitude = snapshot?.location?.longitude;
+  const latitude = Number(rawLatitude);
+  const longitude = Number(rawLongitude);
+  const hasValidCoordinates = rawLatitude !== null && rawLatitude !== undefined && rawLatitude !== "" && rawLongitude !== null && rawLongitude !== undefined && rawLongitude !== "" && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+  if (hasValidCoordinates) {
     snapshot.location = { ...snapshot.location, latitude, longitude, point: { type: "Point", coordinates: [longitude, latitude] } };
   } else if (snapshot.location) {
     const { point, ...location } = snapshot.location;
-    snapshot.location = location;
+    snapshot.location = Object.values(location).some((value) => value !== undefined && value !== null && value !== "") ? location : undefined;
   }
   snapshot.credentials = Array.isArray(snapshot.credentials) ? snapshot.credentials : [];
   snapshot.productCapabilityTemplates = Array.isArray(snapshot.productCapabilityTemplates) ? snapshot.productCapabilityTemplates : [];
@@ -126,6 +129,13 @@ export function validateLabSnapshot(snapshot: any): string[] {
   ["displayName", "contactEmail", "contactPhone", "address", "physicalCountryId"].forEach((key) => {
     if (!String(snapshot?.[key] || "").trim()) errors.push(`${key} is required`);
   });
+  const rawLatitude = snapshot?.location?.latitude;
+  const rawLongitude = snapshot?.location?.longitude;
+  const latitude = Number(rawLatitude);
+  const longitude = Number(rawLongitude);
+  if (rawLatitude === null || rawLatitude === undefined || rawLatitude === "" || rawLongitude === null || rawLongitude === undefined || rawLongitude === "" || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    errors.push("Select the laboratory’s exact location on the map before publishing");
+  }
   if (!snapshot.productCapabilityTemplates?.length) errors.push("At least one product capability is required");
   if (!snapshot.countryAssignments?.length) errors.push("At least one export country assignment is required");
   snapshot.credentials?.forEach((item: any, index: number) => {
@@ -271,7 +281,9 @@ export class LabProfileController {
     if (!profile.draft) return res.status(400).json({ success: false, message: "Save a draft before submitting." });
     if (profile.status === "ARCHIVED") return res.status(409).json({ success: false, message: "Restore this laboratory before submitting it." });
     if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
-    const errors = validateLabSnapshot(profile.draft.toObject());
+    const normalizedDraft = normalizeSnapshot(profile.draft.toObject());
+    profile.draft = normalizedDraft;
+    const errors = validateLabSnapshot(normalizedDraft);
     if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
     profile.status = "PENDING_REVIEW";
     profile.submittedAt = new Date();
@@ -425,7 +437,9 @@ export class LabProfileController {
     if (!companyId) return res.status(403).json({ success: false, message: "Lab owner or admin access required." });
     const profile: any = await LabProfileModel.findOne({ companyId });
     if (!profile?.draft) return res.status(400).json({ success: false, message: "Save a draft before submitting." });
-    const errors = validateLabSnapshot(profile.draft.toObject());
+    const normalizedDraft = normalizeSnapshot(profile.draft.toObject());
+    profile.draft = normalizedDraft;
+    const errors = validateLabSnapshot(normalizedDraft);
     if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
     profile.status = "PENDING_REVIEW";
     profile.submittedAt = new Date();
@@ -448,8 +462,10 @@ export class LabProfileController {
     if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
     if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
     if (action === "APPROVE") {
-      const errors = validateLabSnapshot(profile.draft?.toObject?.() || profile.draft);
-      if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
+      const normalizedDraft = normalizeSnapshot(profile.draft?.toObject?.() || profile.draft);
+      profile.draft = normalizedDraft;
+      const errors = validateLabSnapshot(normalizedDraft);
+      if (errors.length) return res.status(400).json({ success: false, code: errors.some((message) => message.includes("exact location")) ? "LAB_PROFILE_LOCATION_REQUIRED" : "LAB_PROFILE_VALIDATION_FAILED", message: errors.join("; "), errors });
       const taxonomyIds = [
         ...(profile.draft?.credentials || []).map((item: any) => item.accreditationId),
         ...(profile.draft?.productCapabilityTemplates || []).flatMap((item: any) => [item.commodityId, ...(item.testIds || []), ...(item.parameterIds || [])]),
@@ -461,7 +477,7 @@ export class LabProfileController {
         if (verifiedCredentialIds.has(String(item._id)) && item.documentUrl) item.verificationStatus = "VERIFIED";
         else if (item.verificationStatus !== "REJECTED") item.verificationStatus = "PENDING";
       });
-      profile.published = normalizeSnapshot(profile.draft.toObject());
+      profile.published = normalizeSnapshot(normalizedDraft);
       profile.status = "PUBLISHED";
       profile.publishedAt = new Date();
     } else if (action === "REJECT") {

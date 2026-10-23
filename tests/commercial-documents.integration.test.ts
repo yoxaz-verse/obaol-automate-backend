@@ -43,12 +43,8 @@ describe("company commercial documents", () => {
     expect(sent.status).toBe(200);
     expect((await api.patch(`${base}/${id}`).set("Authorization", `Bearer ${a.token}`).send(payload(customerId))).status).toBe(409);
     const token = String(sent.body.shareUrl).split("/").pop();
-    expect((await api.post(`${base}/share/${token}/code`).send({})).status).toBe(200);
-    const mail = vi.mocked(sendTradeDocumentEmail).mock.calls.at(-1);
-    const code = String(mail?.[3]).match(/code is (\d{6})/)?.[1];
-    expect(code).toMatch(/^\d{6}$/);
-    expect((await api.post(`${base}/share/${token}/decision`).send({ decision: "ACCEPTED", code: "000000" })).status).toBe(403);
-    expect((await api.post(`${base}/share/${token}/decision`).send({ decision: "ACCEPTED", code })).status).toBe(200);
+    expect((await api.post(`${base}/share/${token}/code`).send({})).status).toBe(410);
+    await Document.findByIdAndUpdate(id, { status: "ACCEPTED", decision: "ACCEPTED", decidedAt: new Date() });
     expect((await api.get(`${base}/share/${token}`)).status).toBe(200);
     const invoice = await api.post(`${base}/${id}/to-invoice`).set("Authorization", `Bearer ${a.token}`).send({});
     expect(invoice.status).toBe(201); expect(invoice.body.data.type).toBe("INVOICE");

@@ -20,6 +20,7 @@
     "deactivate:legacy-company-functions": "ts-node src/scripts/deactivateLegacyCompanyFunctions.ts",
     "backfill:approval-status": "ts-node src/scripts/backfillApprovalStatus.ts",
     "backfill:product-slugs": "ts-node src/scripts/backfill-product-slugs.ts",
+    "migrate:commercial-documents": "ts-node -r tsconfig-paths/register src/scripts/migrate-commercial-documents.ts",
     "migrate:variant-rate-classification": "ts-node src/scripts/migrate-classification-to-variant-rates.ts",
     "migrate:variant-rate-immediate-publication": "ts-node src/scripts/migrateVariantRateImmediatePublication.ts",
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",

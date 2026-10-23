@@ -43,6 +43,12 @@ export interface ITradeDocumentLineItem {
   ratePerKg?: number;
   commissionPerKg?: number;
   amount?: number; // subtotal for item (ratePerKg * quantityKG)
+  description?: string;
+  quantity?: number;
+  unitPrice?: number;
+  taxRate?: number;
+  taxAmount?: number;
+  total?: number;
 }
 
 export interface ITradeDocumentTotals {
@@ -50,6 +56,7 @@ export interface ITradeDocumentTotals {
   subtotal?: number;
   commissionTotal?: number;
   taxAmount?: number;
+  discountAmount?: number;
   grandTotal?: number;
 }
 
@@ -62,9 +69,17 @@ export interface ITradeDocumentTerms {
 }
 
 export interface ITradeDocument extends Document {
+  ownerCompanyId?: Types.ObjectId | null;
+  customerId?: Types.ObjectId | null;
   type: TradeDocumentType;
   status: TradeDocumentStatus;
   documentNumber: string;
+  revision?: number;
+  revisionOf?: Types.ObjectId | null;
+  sourceQuotationId?: Types.ObjectId | null;
+  issueDate?: Date;
+  validUntil?: Date | null;
+  dueDate?: Date | null;
   fileUrl?: string | null;
   uploadedBy?: Types.ObjectId | null;
   verifiedStatus?: TradeDocumentVerifiedStatus;

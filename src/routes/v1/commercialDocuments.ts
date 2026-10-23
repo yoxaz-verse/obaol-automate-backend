@@ -1,11 +1,10 @@
 import { Router, Request, Response } from "express";
-import { randomBytes, randomInt, createHash, timingSafeEqual } from "crypto";
+import { randomBytes, createHash, timingSafeEqual } from "crypto";
 import { Types } from "mongoose";
 import authenticateToken from "../../middlewares/auth";
 import { AssociateModel } from "../../database/models/associate";
 import { AssociateCompanyModel } from "../../database/models/associateCompany";
 import { CommercialCustomerModel as Customer, CommercialDocumentModel as Document, CommercialSequenceModel as Sequence } from "../../database/models/commercialDocument";
-import { sendTradeDocumentEmail } from "../../utils/mailer";
 
 const router = Router();
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -102,7 +101,6 @@ router.post("/:id/send", authenticateToken, safe(async (req, res) => {
   const result = await owned(req, res); if (!result) return; const { doc } = result;
   if (!["DRAFT", "SENT"].includes(doc.status)) return bad(res, 409, "Document cannot be sent.");
   const token = randomBytes(32).toString("hex"), url = `${String(process.env.BASE_URL || "http://localhost:3000").replace(/\/+$/, "")}/documents/share/${token}`;
-  await sendTradeDocumentEmail(doc.recipient.email, `${doc.issuer.name}: ${doc.type.toLowerCase()} ${doc.number}`, `<p>${doc.issuer.name} shared ${doc.type.toLowerCase()} ${doc.number}.</p><p><a href="${url}">View document</a></p>`, `View ${doc.type.toLowerCase()} ${doc.number}: ${url}`);
   doc.status = "SENT"; doc.sentAt = new Date(); doc.shareTokenHash = hash(token); doc.shareExpiresAt = new Date(Date.now() + 30 * 86400000); doc.shareRevokedAt = null; await doc.save();
   res.json({ success: true, data: expose(doc), shareUrl: url });
 }));
@@ -128,10 +126,7 @@ async function shared(req: Request, res: Response) {
 }
 router.get("/share/:token", safe(async (req, res) => { const doc = await shared(req, res); if (doc) res.json({ success: true, data: expose(doc) }); }));
 router.post("/share/:token/code", safe(async (req, res) => {
-  const doc = await shared(req, res); if (!doc) return; if (doc.type !== "QUOTATION" || doc.status !== "SENT") return bad(res, 409, "Quotation is no longer awaiting a decision.");
-  if (doc.codeSentAt && Date.now() - doc.codeSentAt.getTime() < 60000) return bad(res, 429, "Wait one minute before requesting another code.");
-  const code = String(randomInt(100000, 1000000)); await sendTradeDocumentEmail(doc.recipient.email, `Pure verification: ${doc.number}`, `<p>Your code is <strong>${code}</strong>. It expires in 10 minutes.</p>`, `Your code is ${code}. It expires in 10 minutes.`);
-  doc.codeHash = hash(code); doc.codeExpiresAt = new Date(Date.now() + 600000); doc.codeSentAt = new Date(); doc.codeAttempts = 0; await doc.save(); res.json({ success: true, message: "Code sent to recipient email." });
+  return bad(res, 410, "Email verification is disabled. Use the OBAOL buyer invitation flow.");
 }));
 router.post("/share/:token/decision", safe(async (req, res) => {
   const doc = await shared(req, res); if (!doc) return; if (doc.type !== "QUOTATION" || doc.status !== "SENT") return bad(res, 409, "Quotation is no longer awaiting a decision.");

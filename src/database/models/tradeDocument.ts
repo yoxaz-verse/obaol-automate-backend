@@ -25,6 +25,12 @@ const LineItemSchema = new Schema(
     unit: { type: String, default: "MT" },
     ratePerKg: { type: Number, default: 0 },
     commissionPerKg: { type: Number, default: 0 },
+    description: { type: String, default: "" },
+    quantity: { type: Number, default: 0 },
+    unitPrice: { type: Number, default: 0 },
+    taxRate: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    total: { type: Number, default: 0 },
     amount: { type: Number, default: 0 },
   },
   { _id: false }
@@ -36,6 +42,7 @@ const TotalsSchema = new Schema(
     subtotal: { type: Number, default: 0 },
     commissionTotal: { type: Number, default: 0 },
     taxAmount: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 },
     grandTotal: { type: Number, default: 0 },
   },
   { _id: false }
@@ -54,6 +61,8 @@ const TermsSchema = new Schema(
 
 const TradeDocumentSchema: Schema = new Schema(
   {
+    ownerCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null, index: true },
+    customerId: { type: Schema.Types.ObjectId, ref: "CommercialCustomer", default: null, index: true },
     type: {
       type: String,
       enum: [
@@ -85,6 +94,14 @@ const TradeDocumentSchema: Schema = new Schema(
       index: true,
     },
     documentNumber: { type: String, required: true, index: true },
+    revision: { type: Number, default: 1 },
+    revisionOf: { type: Schema.Types.ObjectId, ref: "TradeDocument", default: null, index: true },
+    sourceQuotationId: { type: Schema.Types.ObjectId, ref: "TradeDocument", default: null, index: true },
+    issueDate: { type: Date, default: Date.now },
+    validUntil: { type: Date, default: null },
+    dueDate: { type: Date, default: null },
+    templateSnapshot: { type: Schema.Types.Mixed, default: null },
+    issuedAt: { type: Date, default: null },
     fileUrl: { type: String, default: null },
     uploadedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     verifiedStatus: {
@@ -101,6 +118,21 @@ const TradeDocumentSchema: Schema = new Schema(
     lineItems: { type: [LineItemSchema], default: [] },
     totals: { type: TotalsSchema, default: {} },
     terms: { type: TermsSchema, default: {} },
+    payments: {
+      type: [{ amount: { type: Number, required: true }, paidAt: { type: Date, required: true }, reference: { type: String, default: "" }, notes: { type: String, default: "" }, recordedBy: { type: Schema.Types.ObjectId, default: null } }],
+      default: [],
+    },
+    decision: { type: String, enum: ["ACCEPTED", "REJECTED", null], default: null },
+    decidedAt: { type: Date, default: null },
+    decisionSource: { type: String, enum: ["PORTAL", "SELLER_RECORDED", null], default: null },
+    decisionReference: { type: String, default: "" },
+    decisionNotes: { type: String, default: "" },
+    decisionProofUrl: { type: String, default: null },
+    inviteTokenHash: { type: String, default: null, select: false },
+    inviteExpiresAt: { type: Date, default: null },
+    inviteRevokedAt: { type: Date, default: null },
+    auditEvents: { type: [{ action: String, actorId: { type: Schema.Types.ObjectId, default: null }, actorRole: String, metadata: Schema.Types.Mixed, createdAt: { type: Date, default: Date.now } }], default: [] },
+    legacyCommercialDocumentId: { type: Schema.Types.ObjectId, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     audienceScope: {
       type: String,
@@ -118,6 +150,10 @@ const TradeDocumentSchema: Schema = new Schema(
 
 TradeDocumentSchema.index({ enquiryId: 1, type: 1 });
 TradeDocumentSchema.index({ orderId: 1, type: 1 });
+TradeDocumentSchema.index({ ownerCompanyId: 1, createdAt: -1 });
+TradeDocumentSchema.index({ inviteTokenHash: 1 }, { sparse: true });
+TradeDocumentSchema.index({ ownerCompanyId: 1, sourceQuotationId: 1 }, { unique: true, partialFilterExpression: { sourceQuotationId: { $type: "objectId" } } });
+TradeDocumentSchema.index({ legacyCommercialDocumentId: 1 }, { unique: true, partialFilterExpression: { legacyCommercialDocumentId: { $type: "objectId" } } });
 
 export const TradeDocumentModel = mongoose.model<ITradeDocument>(
   "TradeDocument",

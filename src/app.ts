@@ -12,8 +12,10 @@ import path from "path";
 import apiLogger from "./middlewares/apiLogger";
 import { registerAllHooks } from "./core/hooks"; // Ensure this path is correct
 import mongoose from "mongoose";
+import { requestContext } from "./middlewares/requestContext";
 
 const app = express();
+app.use(requestContext);
 
 export const getReadinessStatus = (mongoReadyState: number) => {
   const ready = mongoReadyState === 1;
@@ -113,8 +115,11 @@ app.get("/health/ready", (_req, res) => {
 // 404 Handler
 app.use((req, res) => {
   res.status(404).json({
+    success: false,
     status: 404,
+    code: "NOT_FOUND",
     message: "Resource not found",
+    requestId: req.requestId,
   });
 });
 

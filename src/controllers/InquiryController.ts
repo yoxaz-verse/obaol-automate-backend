@@ -58,6 +58,11 @@ import {
 import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
 import { LabWorkItemModel } from "../database/models/labWorkItem";
 import { LabProfileModel } from "../database/models/labProfile";
+import {
+    buildInquiryAccessContext,
+    getPartyLocation,
+    resolveTradeInputContributor,
+} from "../core/inquiry/inquiryParticipants";
 
 /**
  * Inquiry Controller
@@ -120,21 +125,11 @@ export class InquiryController {
     }
 
     private buildAccessContext(req: Request): InquiryAccessContext {
-        return {
-            userId: req.user!.id,
-            userRole: req.user!.role,
-            associateId: (req.user as any).associateId || (req.user!.role === UserRole.ASSOCIATE ? req.user!.id : null),
-            associateCompanyId: (req.user as any)?.associateCompany || null,
-        };
+        return buildInquiryAccessContext(req.user);
     }
 
     private tradeInputContributor(req: Request, inquiry: any): "BUYER" | "SELLER" | "OBAOL" {
-        const role = String(req.user?.role || "").toLowerCase();
-        if (role === "admin" || role === "operator" || role === "team") return "OBAOL";
-        const actorId = String((req.user as any)?.associateId || req.user?.id || "");
-        if (String(inquiry?.buyerAssociateId?._id || inquiry?.buyerAssociateId || "") === actorId) return "BUYER";
-        if (String(inquiry?.sellerAssociateId?._id || inquiry?.sellerAssociateId || "") === actorId) return "SELLER";
-        return "OBAOL";
+        return resolveTradeInputContributor(req.user, inquiry);
     }
 
     private setTradeInputAttribution(inquiry: any, key: "specifications" | "packagingSpecifications" | "routeNotes" | "inlandTransportSegments", contributor: "BUYER" | "SELLER" | "OBAOL") {
@@ -142,10 +137,7 @@ export class InquiryController {
     }
 
     private partyLocation(associate: any, companyOverride?: any): { district: string | null; state: string | null; label: string } {
-        const company = companyOverride || associate?.associateCompany;
-        const district = String(company?.district?.name || associate?.district?.name || "").trim() || null;
-        const state = String(company?.state?.name || associate?.state?.name || "").trim() || null;
-        return { district, state, label: [district, state].filter(Boolean).join(", ") || "Location not provided" };
+        return getPartyLocation(associate, companyOverride);
     }
 
     private async companyDisclosureNames(companyId: any): Promise<string[]> {

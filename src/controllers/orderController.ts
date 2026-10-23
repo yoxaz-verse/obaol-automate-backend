@@ -18,6 +18,7 @@ import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { buildPaymentPlanFromTermId, applyPaymentPlanStageUpdate } from "../utils/paymentPlan";
 import { AssociateReferralService } from "../services/associateReferral.service";
 import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
+import { prepareExternalOrder } from "../services/orders/externalOrder.service";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -226,149 +227,23 @@ export class OrderController {
                 return res.status(403).json({ success: false, message: "Not allowed." });
             }
 
-            const externalBuyer = req.body?.externalBuyer || {};
-            const externalSeller = req.body?.externalSeller || {};
-            const externalProduct = req.body?.externalProduct || {};
-            const externalTradeType = String(req.body?.externalTradeType || "").toUpperCase();
-            const externalRole = String(req.body?.externalRole || "").toUpperCase();
-            const executionContext = req.body?.executionContext || {};
-            const packagingSpecifications = String(req.body?.packagingSpecifications || "").trim();
-            const responsibilitiesRaw = req.body?.responsibilities || {};
-            const responsibilities = Object.entries(responsibilitiesRaw).reduce((acc, [key, value]) => {
-                const normalized = String(value || "").trim().toLowerCase();
-                if (!normalized) return acc;
-                acc[key] = normalized;
-                return acc;
-            }, {} as Record<string, string>);
-            const incotermId = req.body?.incotermId || null;
-            const paymentTermId = req.body?.paymentTermId || null;
-
-            if (!externalBuyer?.name || !externalSeller?.name || !externalProduct?.name || !externalTradeType) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Buyer name, seller name, product name, and trade type are required."
-                });
-            }
-            const buyerName = String(externalBuyer?.name || "").trim();
-            const sellerName = String(externalSeller?.name || "").trim();
-            if (!buyerName || !sellerName || buyerName.toLowerCase() === "undisclosed" || sellerName.toLowerCase() === "undisclosed") {
-                return res.status(400).json({
-                    success: false,
-                    message: "Buyer and seller must be disclosed to create an external order."
-                });
-            }
-            if (!["DOMESTIC", "INTERNATIONAL"].includes(externalTradeType)) {
-                return res.status(400).json({ success: false, message: "Invalid trade type." });
-            }
-            if (!["BUYER", "SELLER", "MEDIATOR"].includes(externalRole)) {
-                return res.status(400).json({ success: false, message: "External role is required." });
-            }
-            if (!packagingSpecifications) {
-                return res.status(400).json({ success: false, message: "Packaging specifications are required." });
-            }
-            const contextTradeType = String(executionContext?.tradeType || externalTradeType).toUpperCase();
-            if (!["DOMESTIC", "INTERNATIONAL"].includes(contextTradeType)) {
-                return res.status(400).json({ success: false, message: "Execution context trade type is required." });
-            }
-            if (contextTradeType === "DOMESTIC") {
-                if (!executionContext.originState || !executionContext.originDistrict || !executionContext.destinationState || !executionContext.destinationDistrict) {
-                    return res.status(400).json({ success: false, message: "Domestic execution context requires origin/destination state and district." });
-                }
-            } else {
-                if (!executionContext.originCountry || !executionContext.originPort || !executionContext.destinationCountry || !executionContext.destinationPort) {
-                    return res.status(400).json({ success: false, message: "International execution context requires origin/destination country and port." });
-                }
-            }
-
-            const allowedOwners = new Set(["buyer", "seller", "obaol"]);
-            const allowedBuyerOnly = new Set(["buyer"]);
-            const allowedBuyerOrObaol = new Set(["buyer", "obaol"]);
-            const allowedObaolOnly = new Set(["obaol"]);
-            const requiredKeys = contextTradeType === "INTERNATIONAL"
-                ? ["procurementBy", "qualityTestingBy", "packagingBy", "transportBy", "shippingBy", "certificateBy"]
-                : ["procurementBy", "qualityTestingBy", "packagingBy", "transportBy"];
-            const hasRequired = requiredKeys.every((k) => allowedOwners.has(String(responsibilities?.[k] || "")));
-            if (!hasRequired) {
-                return res.status(400).json({ success: false, message: "Responsibilities are incomplete or invalid." });
-            }
-            const responsibilityValidators: Record<string, (value: string) => boolean> = {
-                procurementBy: (v) => allowedOwners.has(v),
-                certificateBy: (v) => allowedOwners.has(v),
-                transportBy: (v) => allowedOwners.has(v),
-                shippingBy: (v) => allowedOwners.has(v),
-                packagingBy: (v) => allowedOwners.has(v),
-                qualityTestingBy: (v) => allowedOwners.has(v),
-                cargoInsuranceBy: (v) => allowedOwners.has(v),
-                exportCustomsBy: (v) => allowedOwners.has(v),
-                importCustomsBy: (v) => allowedBuyerOrObaol.has(v),
-                dutiesTaxesBy: (v) => allowedBuyerOnly.has(v),
-                portHandlingBy: (v) => allowedBuyerOrObaol.has(v),
-                destinationInlandTransportBy: (v) => allowedBuyerOrObaol.has(v),
-                destinationInspectionBy: (v) => allowedBuyerOrObaol.has(v),
-                finalDeliveryConfirmationBy: (v) => allowedObaolOnly.has(v),
-            };
-            const invalidEntry = Object.entries(responsibilityValidators).find(([key, validator]) => {
-                const raw = String(responsibilities?.[key] || "");
-                if (!raw) return false;
-                return !validator(raw);
-            });
-            if (invalidEntry) {
-                return res.status(400).json({ success: false, message: "Invalid responsibility selection." });
-            }
+            const prepared = prepareExternalOrder(req.body, req.user?.id);
+            if (!prepared.ok) return res.status(400).json({ success: false, message: prepared.message });
 
             await ensureDefaultFlowRules();
             const firstStage = await FlowRuleModel.findOne({
                 flowType: "TRADE_ORDER",
                 isDeleted: { $ne: true },
                 isActive: true,
-                tradeType: { $in: [externalTradeType, "BOTH"] },
+                tradeType: { $in: [prepared.payload.externalTradeType, "BOTH"] },
             }).sort({ sortOrder: 1 }).lean();
 
-            const payload: any = {
-                enquiry: null,
-                isExternal: true,
-                externalCreatedBy: req.user?.id || null,
-                externalTradeType,
-                externalRole,
-                externalBuyer: {
-                    name: String(externalBuyer.name || "").trim(),
-                    email: String(externalBuyer.email || "").trim(),
-                    phone: String(externalBuyer.phone || "").trim(),
-                },
-                externalSeller: {
-                    name: String(externalSeller.name || "").trim(),
-                    email: String(externalSeller.email || "").trim(),
-                    phone: String(externalSeller.phone || "").trim(),
-                },
-                externalProduct: {
-                    name: String(externalProduct.name || "").trim(),
-                    variant: String(externalProduct.variant || "").trim(),
-                    quantity: externalProduct.quantity ?? null,
-                    unit: String(externalProduct.unit || "").trim(),
-                },
-                executionContext: {
-                    tradeType: contextTradeType,
-                    originCountry: executionContext.originCountry || null,
-                    originState: executionContext.originState || null,
-                    originDistrict: executionContext.originDistrict || null,
-                    originPort: executionContext.originPort || null,
-                    destinationCountry: executionContext.destinationCountry || null,
-                    destinationState: executionContext.destinationState || null,
-                    destinationDistrict: executionContext.destinationDistrict || null,
-                    destinationPort: executionContext.destinationPort || null,
-                    routeNotes: executionContext.routeNotes || null,
-                },
-                packagingSpecifications,
-                responsibilities,
-                incotermId,
-                paymentTermId,
-                workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"),
-                status: "Procuring",
-            };
+            const payload = prepared.payload;
+            payload.workflowStage = String(firstStage?.stageKey || "ORDER_CREATED");
 
-            if (!payload.paymentPlan && paymentTermId) {
-                const termId = new Types.ObjectId(String(paymentTermId));
-                const paymentPlan = await buildPaymentPlanFromTermId(termId, contextTradeType);
+            if (prepared.paymentTermId) {
+                const termId = new Types.ObjectId(String(prepared.paymentTermId));
+                const paymentPlan = await buildPaymentPlanFromTermId(termId, prepared.tradeType);
                 if (paymentPlan) payload.paymentPlan = paymentPlan;
             }
 

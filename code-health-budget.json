@@ -1,7 +1,7 @@
 {
-  "maxFilesOver500Lines": 15,
-  "maxExplicitAny": 2120,
+  "maxFilesOver500Lines": 14,
+  "maxExplicitAny": 2114,
   "maxDirectAxiosErrorParsing": 0,
-  "maxDuplicatedErrorResponses": 1209,
-  "maxConsoleCalls": 180
+  "maxDuplicatedErrorResponses": 1204,
+  "maxConsoleCalls": 179
 }

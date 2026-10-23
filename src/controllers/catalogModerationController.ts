@@ -13,6 +13,7 @@ import {
   MODERATED_ENTITY_MODELS, ModeratedEntityType, assertAccessibleParent, assertNoDuplicate,
   CATALOG_ITEM_LOCKED, catalogModerationSummary, getApprovedAssociateContext, getCatalogChain, getParent, pickEntityFields,
 } from "../services/catalogModeration.service";
+import { conflict } from "../core/errors/AppError";
 
 const ENTITY_TYPES = ["category", "subCategory", "product", "productVariant"] as const;
 const parseEntityType = (value: unknown): ModeratedEntityType => {
@@ -102,7 +103,34 @@ export class CatalogModerationController {
       const merged = { ...row.toObject(), ...changes };
       await assertAccessibleParent(entityType, merged, String(context.associateId));
       await assertNoDuplicate(entityType, merged, String(row._id));
-      if (String(row.approvalStatus || "APPROVED") === "APPROVED") throw lockedError();
+      if (String(row.approvalStatus || "APPROVED") === "APPROVED") {
+        const pending = await CatalogRevisionModel.findOne({
+          entityType,
+          entityId: row._id,
+          createdByAssociate: context.associateId,
+          status: "PENDING_REVIEW",
+        });
+        if (pending) throw conflict("This revision is already awaiting review.");
+        const existing = await CatalogRevisionModel.findOne({
+          entityType,
+          entityId: row._id,
+          createdByAssociate: context.associateId,
+          status: { $in: ["DRAFT", "REJECTED"] },
+        });
+        const revision = existing || new CatalogRevisionModel({
+          entityType,
+          entityId: row._id,
+          createdByAssociate: context.associateId,
+          createdByCompany: context.companyId,
+        });
+        revision.proposedChanges = { ...(existing?.proposedChanges || {}), ...changes };
+        revision.status = "DRAFT";
+        revision.reviewNotes = "";
+        revision.approvalRequestedAt = null;
+        revision.baseUpdatedAt = row.updatedAt;
+        await revision.save();
+        return res.json({ success: true, data: revision });
+      }
       Object.assign(row, changes, { approvalStatus: "DRAFT", reviewNotes: "", approvalRequestedAt: null });
       await row.save();
       return res.json({ success: true, data: { ...row.toObject(), moderation: await catalogModerationSummary(entityType, row.toObject()) } });
@@ -115,7 +143,25 @@ export class CatalogModerationController {
       const context = await getApprovedAssociateContext(String(req.user?.id || ""));
       const row: any = await MODERATED_ENTITY_MODELS[entityType].findOne({ _id: req.params.id, ...ownerQuery(String(context.associateId)), isDeleted: { $ne: true } });
       if (!row) return res.status(404).json({ success: false, message: "Catalog proposal was not found." });
-      if (String(row.approvalStatus || "APPROVED") === "APPROVED") throw lockedError();
+      if (String(row.approvalStatus || "APPROVED") === "APPROVED") {
+        const revision = await CatalogRevisionModel.findOne({
+          entityType,
+          entityId: row._id,
+          createdByAssociate: context.associateId,
+          status: { $in: ["DRAFT", "REJECTED", "PENDING_REVIEW"] },
+        }).sort({ updatedAt: -1 });
+        if (!revision) throw lockedError();
+        if (revision.status === "PENDING_REVIEW") {
+          throw conflict("This proposal is already awaiting review.");
+        }
+        await assertAccessibleParent(entityType, { ...row.toObject(), ...revision.proposedChanges }, String(context.associateId));
+        revision.status = "PENDING_REVIEW";
+        revision.approvalRequestedAt = new Date();
+        revision.reviewNotes = "";
+        await revision.save();
+        await notifyAdmins(entityType, revision._id, row.name || "Commodity listing revision");
+        return res.json({ success: true, data: revision, message: "Submitted for admin review." });
+      }
       if (!['DRAFT', 'REJECTED'].includes(String(row.approvalStatus))) {
         return res.status(409).json({ success: false, message: "This proposal is already awaiting review." });
       }

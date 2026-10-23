@@ -10,19 +10,9 @@ import { SubCategoryModel } from "../database/models/subCategory";
 import { ProductModel } from "../database/models/product";
 import { ProductVariantModel } from "../database/models/productVariant";
 import { assertVariantRateEligible } from "../services/catalogModeration.service";
+import { getCatalogHierarchyOptions, normalizeCatalogName } from "../services/catalog/catalogHierarchy.service";
 
 export class CatalogController {
-
-    private static canReadCatalogNode(row: any, req: Request) {
-        const role = String(req.user?.role || "").toLowerCase();
-        return role === "admin"
-            || String(row?.approvalStatus || "APPROVED") === "APPROVED"
-            || (role === "associate" && String(row?.createdByAssociate || "") === String(req.user?.id || ""));
-    }
-
-    private static normalizeCatalogName(value: unknown) {
-        return String(value || "").normalize("NFKC").trim().toLocaleLowerCase("en");
-    }
 
     static async getHierarchyOptions(req: Request, res: Response, next: NextFunction) {
         try {
@@ -32,66 +22,7 @@ export class CatalogController {
                 Expires: "0",
             });
 
-            const filters = ["category", "subCategory", "product"]
-                .filter((key) => String(req.query?.[key] || "").trim());
-            if (filters.length > 1) {
-                return res.status(400).json({ success: false, message: "Provide only one catalog parent filter." });
-            }
-
-            const parentKey = filters[0];
-            const parentId = parentKey ? String(req.query[parentKey] || "").trim() : "";
-            if (parentId && !mongoose.Types.ObjectId.isValid(parentId)) {
-                return res.status(400).json({ success: false, message: `Invalid ${parentKey} id.` });
-            }
-
-            let rows: any[] = [];
-            let level: "category" | "subCategory" | "product" | "productVariant" = "category";
-            let parentName: string | null = null;
-            if (!parentKey) {
-                const visibility = String(req.user?.role || "").toLowerCase() === "admin" ? {} : {
-                    $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }],
-                };
-                rows = await CategoryModel.find(visibility).select("_id name approvalStatus createdByAssociate reviewNotes").lean();
-            } else if (parentKey === "category") {
-                level = "subCategory";
-                const parent = await CategoryModel.findById(parentId).select("name approvalStatus createdByAssociate").lean();
-                if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Category was not found." });
-                parentName = String((parent as any).name || "").normalize("NFKC").trim();
-                rows = await SubCategoryModel.find({ category: parentId, isDeleted: { $ne: true }, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) }).select("_id name category approvalStatus createdByAssociate reviewNotes").lean();
-            } else if (parentKey === "subCategory") {
-                level = "product";
-                const parent = await SubCategoryModel.findOne({ _id: parentId, isDeleted: { $ne: true } }).select("name approvalStatus createdByAssociate").lean();
-                if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Subcategory was not found." });
-                parentName = String((parent as any).name || "").normalize("NFKC").trim();
-                rows = await ProductModel.find({ subCategory: parentId, isDeleted: { $ne: true }, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) })
-                    .select("_id name subCategory approvalStatus createdByAssociate reviewNotes").lean();
-            } else {
-                level = "productVariant";
-                const parent = await ProductModel.findOne({ _id: parentId, isDeleted: { $ne: true } }).select("name approvalStatus createdByAssociate").lean();
-                if (!parent || !CatalogController.canReadCatalogNode(parent, req)) return res.status(404).json({ success: false, message: "Product was not found." });
-                parentName = String((parent as any).name || "").normalize("NFKC").trim();
-                rows = await ProductVariantModel.find({ product: parentId, isDeleted: { $ne: true }, ...(String(req.user?.role || "").toLowerCase() === "admin" ? {} : { $or: [{ approvalStatus: { $in: ["APPROVED", null] } }, { createdByAssociate: req.user?.id }] }) })
-                    .select("_id name product approvalStatus createdByAssociate reviewNotes").lean();
-            }
-
-            const options = rows
-                .map((row: any) => ({
-                    id: String(row._id),
-                    name: String(row.name || "").normalize("NFKC").trim(),
-                    level,
-                    parentId: parentKey ? String(row[parentKey] || "") : null,
-                    parentName,
-                    approvalStatus: String(row.approvalStatus || "APPROVED"),
-                    reviewNotes: String(row.reviewNotes || ""),
-                }))
-                .filter((row) => row.id && row.name)
-                .sort((a, b) => CatalogController.normalizeCatalogName(a.name).localeCompare(CatalogController.normalizeCatalogName(b.name), "en"));
-            console.info("[catalog-hierarchy] options", {
-                role: String(req.user?.role || "unknown").toLowerCase(),
-                level,
-                parentId: parentId || null,
-                resultCount: options.length,
-            });
+            const options = await getCatalogHierarchyOptions({ query: req.query, actor: req.user });
             return res.status(200).json({ success: true, data: options });
         } catch (error) {
             return next(error);
@@ -112,7 +43,7 @@ export class CatalogController {
             const duplicateGroups = (rows: any[], parentKey?: string) => {
                 const groups = new Map<string, string[]>();
                 rows.forEach((row: any) => {
-                    const key = `${parentKey ? String(row[parentKey] || "") : "root"}:${CatalogController.normalizeCatalogName(row.name)}`;
+                    const key = `${parentKey ? String(row[parentKey] || "") : "root"}:${normalizeCatalogName(row.name)}`;
                     groups.set(key, [...(groups.get(key) || []), String(row._id)]);
                 });
                 return Array.from(groups.entries()).filter(([, ids]) => ids.length > 1).map(([key, ids]) => ({ key, ids }));

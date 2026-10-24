@@ -9,13 +9,13 @@ const ImportReservationSchema: Schema = new Schema(
     quantityRequested: { type: Number, required: true, min: 0 },
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "LOCKED", "ACCEPTED"],
+      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "LOCKED", "ACCEPTED", "EXPIRED"],
       default: "PENDING",
       index: true,
     },
     reservationStatus: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "LOCKED", "ACCEPTED"],
+      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "LOCKED", "ACCEPTED", "EXPIRED"],
       default: "PENDING",
       index: true,
     },
@@ -24,6 +24,7 @@ const ImportReservationSchema: Schema = new Schema(
     acceptedAt: { type: Date, default: null },
     rejectedAt: { type: Date, default: null },
     cancelledAt: { type: Date, default: null },
+    expiredAt: { type: Date, default: null },
     isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
@@ -31,6 +32,7 @@ const ImportReservationSchema: Schema = new Schema(
 
 ImportReservationSchema.index({ listingId: 1, createdAt: -1 });
 ImportReservationSchema.index({ buyerAssociateId: 1, createdAt: -1 });
+ImportReservationSchema.index({ status: 1, updatedAt: 1 });
 
 export const ImportReservationModel = mongoose.model<IImportReservation>(
   "ImportReservation",

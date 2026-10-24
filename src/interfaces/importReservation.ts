@@ -6,7 +6,8 @@ export type ImportReservationStatus =
   | "REJECTED"
   | "CANCELLED"
   | "LOCKED"
-  | "ACCEPTED";
+  | "ACCEPTED"
+  | "EXPIRED";
 
 export interface IImportReservation extends Document {
   listingId: Types.ObjectId;
@@ -20,6 +21,7 @@ export interface IImportReservation extends Document {
   acceptedAt?: Date | null;
   rejectedAt?: Date | null;
   cancelledAt?: Date | null;
+  expiredAt?: Date | null;
   isDeleted?: boolean;
   createdAt: Date;
   updatedAt: Date;

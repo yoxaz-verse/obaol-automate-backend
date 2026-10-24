@@ -12,6 +12,7 @@ import { InquiryModel } from "../database/models/enquiry";
 import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
 import { createInquiryEvent, InquiryEventType } from "../database/models/InquiryEvent";
 import { getCalculationConfig } from "../utils/calculationConfig";
+import { getImportReservationExpiryCutoff } from "../utils/importReservationExpiry";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -41,6 +42,39 @@ const normalizeReservationStatus = (value: any) => {
 };
 
 export class ImportController {
+  private async expireStalePendingReservations(options: { listingId?: string; reservationId?: string } = {}) {
+    const cutoff = getImportReservationExpiryCutoff();
+    const query: any = {
+      isDeleted: { $ne: true },
+      status: "PENDING",
+      updatedAt: { $lte: cutoff },
+      $or: [
+        { reservationStatus: "PENDING" },
+        { reservationStatus: { $exists: false } },
+        { reservationStatus: null },
+      ],
+    };
+
+    if (options.listingId && Types.ObjectId.isValid(options.listingId)) {
+      query.listingId = new Types.ObjectId(options.listingId);
+    }
+    if (options.reservationId && Types.ObjectId.isValid(options.reservationId)) {
+      query._id = new Types.ObjectId(options.reservationId);
+    }
+
+    const staleReservations = await ImportReservationModel.find(query).select("_id listingId").lean();
+    if (!staleReservations.length) return;
+
+    const expiredAt = new Date();
+    await ImportReservationModel.updateMany(
+      { _id: { $in: staleReservations.map((reservation: any) => reservation._id) }, status: "PENDING" },
+      { $set: { status: "EXPIRED", reservationStatus: "EXPIRED", expiredAt } }
+    );
+
+    const listingIds = [...new Set(staleReservations.map((reservation: any) => String(reservation.listingId)))];
+    await Promise.all(listingIds.map((listingId) => this.recomputeListingState(new Types.ObjectId(listingId))));
+  }
+
   private async resolveAssociateCompany(userId: string): Promise<string | null> {
     const associate = await AssociateModel.findById(userId)
       .select("_id associateCompany")
@@ -244,6 +278,7 @@ export class ImportController {
 
   async listListings(req: Request, res: Response, next: NextFunction) {
     try {
+      await this.expireStalePendingReservations();
       const role = normalizeRole(req.user?.role);
       const userId = String(req.user?.id || "").trim();
       const page = Math.max(parseInt(String(req.query?.page || "1"), 10), 1);
@@ -489,6 +524,7 @@ export class ImportController {
       if (!Types.ObjectId.isValid(listingId)) {
         return res.status(400).json({ success: false, message: "Invalid listing id." });
       }
+      await this.expireStalePendingReservations({ listingId });
 
       const quantityRequested = toNumber(req.body?.quantityRequested);
       if (!quantityRequested || quantityRequested <= 0) {
@@ -616,6 +652,7 @@ export class ImportController {
       const status = String(req.query?.status || "").toUpperCase();
       const mine = String(req.query?.mine || "").toLowerCase() === "true";
       const listingId = String(req.query?.listingId || "").trim();
+      await this.expireStalePendingReservations({ listingId: Types.ObjectId.isValid(listingId) ? listingId : undefined });
 
       const query: any = { isDeleted: { $ne: true } };
       if (status) query.status = status;
@@ -713,6 +750,7 @@ export class ImportController {
       const userId = String(req.user?.id || "").trim();
       const id = String(req.params?.id || "");
       if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid reservation id." });
+      await this.expireStalePendingReservations({ reservationId: id });
 
       const reservation = await ImportReservationModel.findById(id);
       if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
@@ -785,6 +823,7 @@ export class ImportController {
       const userId = String(req.user?.id || "").trim();
       const id = String(req.params?.id || "");
       if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid reservation id." });
+      await this.expireStalePendingReservations({ reservationId: id });
 
       const reservation = await ImportReservationModel.findById(id);
       if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
@@ -820,6 +859,7 @@ export class ImportController {
       const userId = String(req.user?.id || "").trim();
       const id = String(req.params?.id || "");
       if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid reservation id." });
+      await this.expireStalePendingReservations({ reservationId: id });
 
       const reservation = await ImportReservationModel.findById(id);
       if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
@@ -856,6 +896,7 @@ export class ImportController {
       if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(reservationId)) {
         return res.status(400).json({ success: false, message: "Invalid reservation id." });
       }
+      await this.expireStalePendingReservations({ reservationId });
 
       const reservation = await ImportReservationModel.findById(reservationId);
       if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });
@@ -921,6 +962,7 @@ export class ImportController {
       if (!Types.ObjectId.isValid(listingId) || !Types.ObjectId.isValid(reservationId)) {
         return res.status(400).json({ success: false, message: "Invalid reservation id." });
       }
+      await this.expireStalePendingReservations({ reservationId });
 
       const reservation = await ImportReservationModel.findById(reservationId);
       if (!reservation) return res.status(404).json({ success: false, message: "Reservation not found." });

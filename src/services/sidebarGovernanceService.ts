@@ -33,9 +33,17 @@ const getFunctionSlugs = async () => (await getCanonicalSidebarFunctions()).map(
 
 export const normalizeSidebarSectionOrder = (value: any, mappings: any[]) => {
   const routeCount = ASSOCIATE_SIDEBAR_ROUTES.length;
-  return SIDEBAR_RESOLVED_SECTIONS.every((section) => Array.isArray(value?.[section]) && value[section].length === routeCount)
-    ? value
-    : deriveSidebarSectionOrder(mappings);
+  const expected = new Set(ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath]) => routePath));
+  const derived = deriveSidebarSectionOrder(mappings);
+  return Object.fromEntries(SIDEBAR_RESOLVED_SECTIONS.map((section) => [
+    section,
+    Array.isArray(value?.[section])
+      && value[section].length === routeCount
+      && new Set(value[section]).size === routeCount
+      && value[section].every((routePath: string) => expected.has(routePath as any))
+      ? value[section]
+      : derived[section],
+  ]));
 };
 
 const normalizeFallbackStatuses = (value: any) => value instanceof Map ? Object.fromEntries(value.entries()) : (value || {});
@@ -65,16 +73,24 @@ export const ensureAdminSidebarConfig = async () => {
     const migrationVersion = Number((existing as any).matrixMigrationVersion || 0);
     const biddingDraft = migrationVersion < 3 ? normalizeBiddingForSeller(completedDraft) : completedDraft;
     const draft = migrationVersion < 4 ? migrateUnassignedFallbacks(biddingDraft) : biddingDraft;
-    const needsV2 = Number((existing as any).draft?.resolutionVersion || 1) !== 2;
-    const changed = JSON.stringify(draft) !== JSON.stringify(currentDraft) || needsV2 || migrationVersion < 4;
+    const needsV3 = Number((existing as any).draft?.resolutionVersion || 1) !== 3;
+    const publishedNeedsV3 = Number((existing as any).published?.resolutionVersion || 1) !== 3;
+    const changed = JSON.stringify(draft) !== JSON.stringify(currentDraft) || needsV3 || publishedNeedsV3 || migrationVersion < 5;
     if (changed) {
       (existing as any).draft.mappings = draft;
-      (existing as any).draft.resolutionVersion = 2;
-      (existing as any).draft.sectionOrder = deriveSidebarSectionOrder(draft);
+      (existing as any).draft.resolutionVersion = 3;
+      (existing as any).draft.sectionOrder = normalizeSidebarSectionOrder((existing as any).draft.sectionOrder, draft);
       (existing as any).draft.fallbackStatusByRoute = deriveFallbackStatuses(draft);
       (existing as any).draft.revision = Number((existing as any).draft.revision || 0) + 1;
       (existing as any).draft.updatedAt = new Date();
-      (existing as any).matrixMigrationVersion = 4;
+      if (publishedNeedsV3 || migrationVersion < 5) {
+        const publishedMappings = canonicalizeGovernanceMappings((existing as any).published?.mappings || []);
+        (existing as any).published.resolutionVersion = 3;
+        (existing as any).published.sectionOrder = normalizeSidebarSectionOrder((existing as any).published.sectionOrder, publishedMappings);
+        (existing as any).published.revision = Number((existing as any).published.revision || 0) + 1;
+        (existing as any).published.updatedAt = new Date();
+      }
+      (existing as any).matrixMigrationVersion = 5;
       await existing.save();
     }
     return existing;
@@ -83,20 +99,20 @@ export const ensureAdminSidebarConfig = async () => {
   const mappings = createBaselineSidebarMappings(await getFunctionSlugs());
   return SidebarGovernanceModel.create({
     key: "associate-sidebar",
-    matrixMigrationVersion: 4,
-    draft: { revision: 1, resolutionVersion: 2, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
-    published: { revision: 1, resolutionVersion: 2, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
+    matrixMigrationVersion: 5,
+    draft: { revision: 1, resolutionVersion: 3, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
+    published: { revision: 1, resolutionVersion: 3, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
   });
 };
 
 export const getPublishedSidebarConfig = async () => {
-  const current = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).select("published").lean();
-  if (current) return current;
+  const current = await SidebarGovernanceModel.exists({ key: "associate-sidebar" });
+  if (current) return ensureAdminSidebarConfig();
   const mappings = createBaselineSidebarMappings(await getFunctionSlugs());
   return {
     published: {
       revision: 0,
-      resolutionVersion: 2,
+      resolutionVersion: 3,
       sectionOrder: createDefaultSidebarSectionOrder(),
       fallbackStatusByRoute: deriveFallbackStatuses(mappings),
       mappings,

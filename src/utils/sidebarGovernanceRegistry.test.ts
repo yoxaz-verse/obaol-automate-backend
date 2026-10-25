@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUTE_PATHS, canonicalizeGovernanceMappings, createBaselineSidebarMappings } from "./sidebarGovernanceRegistry";
+import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUTE_PATHS, canonicalizeGovernanceMappings, createBaselineSidebarMappings, deriveSidebarSectionOrder } from "./sidebarGovernanceRegistry";
 
 describe("sidebar governance registry", () => {
   it("creates a complete unique baseline for every function", () => {
@@ -50,5 +50,14 @@ describe("sidebar governance registry", () => {
       { functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "BOTH", status: "LIVE", order: 3 },
       { functionSlug: "seller", routePath: "/dashboard/product", placement: "PROVIDING", status: "HIDDEN", order: 4 },
     ]);
+  });
+
+  it("derives an Important order for routes assigned to both work perspectives", () => {
+    const order = deriveSidebarSectionOrder([
+      { routePath: "/dashboard/orders", placement: "SEEKING", order: 8 },
+      { routePath: "/dashboard/orders", placement: "PROVIDING", order: 3 },
+      { routePath: "/dashboard/sample-requests", placement: "BOTH", order: 1 },
+    ]);
+    expect(order.IMPORTANT.slice(0, 2)).toEqual(["/dashboard/sample-requests", "/dashboard/orders"]);
   });
 });

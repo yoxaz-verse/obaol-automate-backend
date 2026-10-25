@@ -10,8 +10,9 @@ const MappingSchema = new mongoose.Schema({
 
 const SnapshotSchema = new mongoose.Schema({
   revision: { type: Number, required: true, default: 0 },
-  resolutionVersion: { type: Number, enum: [1, 2], required: true, default: 1 },
+  resolutionVersion: { type: Number, enum: [1, 2, 3], required: true, default: 1 },
   sectionOrder: {
+    IMPORTANT: { type: [String], default: [] },
     SEEKING: { type: [String], default: [] },
     PROVIDING: { type: [String], default: [] },
     OTHER_SERVICES: { type: [String], default: [] },
@@ -24,7 +25,7 @@ const SnapshotSchema = new mongoose.Schema({
 
 const SidebarGovernanceSchema = new mongoose.Schema({
   key: { type: String, unique: true, default: "associate-sidebar" },
-  matrixMigrationVersion: { type: Number, required: true, default: 4 },
+  matrixMigrationVersion: { type: Number, required: true, default: 5 },
   draft: { type: SnapshotSchema, required: true },
   published: { type: SnapshotSchema, required: true },
 }, { timestamps: true });

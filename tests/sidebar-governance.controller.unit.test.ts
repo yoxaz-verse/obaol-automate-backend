@@ -14,7 +14,7 @@ const response = () => {
 };
 
 const validDraft = (mappings = createBaselineSidebarMappings(["buyer", "seller"])) => ({
-  resolutionVersion: 2,
+  resolutionVersion: 3,
   sectionOrder: createDefaultSidebarSectionOrder(),
   fallbackStatusByRoute: Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"])),
   mappings,
@@ -111,19 +111,22 @@ describe("sidebar governance canonical functions", () => {
     expect(read.state.body.data.mappings.some((row: any) => row.status === "HIDDEN")).toBe(false);
   });
 
-  it("keeps published reads free of draft migrations and writes", async () => {
+  it("lazily upgrades draft and published snapshots to resolution v3", async () => {
     const mappings = createBaselineSidebarMappings(["buyer", "seller"]);
     const sectionOrder = createDefaultSidebarSectionOrder();
     const fallbackStatusByRoute = Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"]));
     await SidebarGovernanceModel.create({ key: "associate-sidebar", matrixMigrationVersion: 2, draft: { revision: 4, resolutionVersion: 1, sectionOrder, fallbackStatusByRoute, mappings }, published: { revision: 3, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings } });
-    const before: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
     const result = response();
     await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
     const after: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
     expect(result.state.status).toBe(200);
-    expect(after.matrixMigrationVersion).toBe(before.matrixMigrationVersion);
-    expect(after.draft.revision).toBe(before.draft.revision);
-    expect(after.draft.resolutionVersion).toBe(before.draft.resolutionVersion);
+    expect(after.matrixMigrationVersion).toBe(5);
+    expect(after.draft.revision).toBe(5);
+    expect(after.published.revision).toBe(4);
+    expect(after.draft.resolutionVersion).toBe(3);
+    expect(after.published.resolutionVersion).toBe(3);
+    expect(after.draft.sectionOrder.IMPORTANT).toEqual(createDefaultSidebarSectionOrder().IMPORTANT);
+    expect(after.published.sectionOrder.IMPORTANT).toEqual(createDefaultSidebarSectionOrder().IMPORTANT);
   });
 
   it("returns a transient baseline without writing when published governance is absent", async () => {
@@ -132,7 +135,7 @@ describe("sidebar governance canonical functions", () => {
     await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
     expect(result.state.status).toBe(200);
     expect(result.state.body.data.revision).toBe(0);
-    expect(result.state.body.data.resolutionVersion).toBe(2);
+    expect(result.state.body.data.resolutionVersion).toBe(3);
     expect(await SidebarGovernanceModel.countDocuments()).toBe(0);
   });
 
@@ -168,7 +171,7 @@ describe("sidebar governance canonical functions", () => {
       published: { revision: 3, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings: publishedMappings },
     });
     const result = response();
-    await sidebarGovernanceController.resetDraft({ body: { expectedDraftRevision: 4 }, user: { id: "000000000000000000000001" } } as any, result.res);
+    await sidebarGovernanceController.resetDraft({ body: { expectedDraftRevision: 5 }, user: { id: "000000000000000000000001" } } as any, result.res);
     expect(result.state.status).toBe(200);
     expect(result.state.body.data.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "UNASSIGNED", status: "HIDDEN" }));
   });
@@ -182,11 +185,12 @@ describe("sidebar governance canonical functions", () => {
     const first = response();
     await sidebarGovernanceController.getAdmin({} as any, first.res);
     const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
-    expect(stored.matrixMigrationVersion).toBe(4);
+    expect(stored.matrixMigrationVersion).toBe(5);
     expect(stored.draft.revision).toBe(5);
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "UNASSIGNED", status: "HIDDEN" }));
-    expect(stored.published.revision).toBe(3);
+    expect(stored.published.revision).toBe(4);
+    expect(stored.published.resolutionVersion).toBe(3);
     expect(stored.published.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "BOTH", status: "LIVE" }));
 
     const second = response();

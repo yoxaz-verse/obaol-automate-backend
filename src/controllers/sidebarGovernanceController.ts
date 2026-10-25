@@ -61,12 +61,12 @@ export class SidebarGovernanceController {
       const mappings = await validateSidebarMappings(req.body?.mappings, true);
       const sectionOrder = validateSidebarSectionOrder(req.body?.sectionOrder);
       const fallbackStatusByRoute = validateSidebarFallbackStatuses(req.body?.fallbackStatusByRoute);
-      if (Number(req.body?.resolutionVersion) !== 2) throw new Error("Page-first drafts require resolutionVersion 2.");
+      if (Number(req.body?.resolutionVersion) !== 3) throw new Error("Page-first drafts require resolutionVersion 3.");
       await ensureAdminSidebarConfig();
       const expected = parseExpectedSidebarRevision(req.body?.expectedDraftRevision, "expectedDraftRevision");
       const config = await SidebarGovernanceModel.findOneAndUpdate(
         { key: "associate-sidebar", "draft.revision": expected },
-        { $set: { "draft.mappings": mappings, "draft.resolutionVersion": 2, "draft.sectionOrder": sectionOrder, "draft.fallbackStatusByRoute": fallbackStatusByRoute, "draft.updatedAt": new Date(), "draft.updatedBy": req.user?.id || null }, $inc: { "draft.revision": 1 } },
+        { $set: { "draft.mappings": mappings, "draft.resolutionVersion": 3, "draft.sectionOrder": sectionOrder, "draft.fallbackStatusByRoute": fallbackStatusByRoute, "draft.updatedAt": new Date(), "draft.updatedBy": req.user?.id || null }, $inc: { "draft.revision": 1 } },
         { new: true, runValidators: true },
       );
       if (!config) await sidebarRevisionConflict(expected, "draft");
@@ -88,7 +88,7 @@ export class SidebarGovernanceController {
       const sectionOrder = validateSidebarSectionOrder(current.draft?.sectionOrder);
       const config = await SidebarGovernanceModel.findOneAndUpdate(
         { key: "associate-sidebar", "draft.revision": expectedDraft, "published.revision": expectedPublished },
-        { $set: { "published.mappings": mappings, "published.resolutionVersion": Number(current.draft?.resolutionVersion || 2), "published.sectionOrder": sectionOrder, "published.fallbackStatusByRoute": current.draft?.fallbackStatusByRoute || {}, "published.updatedAt": new Date(), "published.updatedBy": req.user?.id || null }, $inc: { "published.revision": 1 } },
+        { $set: { "published.mappings": mappings, "published.resolutionVersion": Number(current.draft?.resolutionVersion || 3), "published.sectionOrder": sectionOrder, "published.fallbackStatusByRoute": current.draft?.fallbackStatusByRoute || {}, "published.updatedAt": new Date(), "published.updatedBy": req.user?.id || null }, $inc: { "published.revision": 1 } },
         { new: true, runValidators: true },
       );
       if (!config) await sidebarRevisionConflict(expectedDraft, "draft");

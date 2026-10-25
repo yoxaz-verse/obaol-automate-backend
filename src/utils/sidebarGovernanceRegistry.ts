@@ -3,6 +3,13 @@ import { canonicalizeCompanyFunctionTaxonomySlug } from "./companyCapabilities";
 export const SIDEBAR_PLACEMENTS = ["SEEKING", "PROVIDING", "BOTH", "OTHER_SERVICES", "UNASSIGNED"] as const;
 export const SIDEBAR_STATUSES = ["LIVE", "COMING_SOON", "HIDDEN"] as const;
 
+export const DOCUMENTATION_ROUTE = "/dashboard/documentation";
+export const LEGACY_DOCUMENT_STUDIO_ROUTE = "/dashboard/commercial-documents";
+export const canonicalizeSidebarRoutePath = (value: unknown) => {
+  const routePath = String(value || "").trim();
+  return routePath === LEGACY_DOCUMENT_STUDIO_ROUTE ? DOCUMENTATION_ROUTE : routePath;
+};
+
 export type SidebarPlacement = typeof SIDEBAR_PLACEMENTS[number];
 export type SidebarPageStatus = typeof SIDEBAR_STATUSES[number];
 
@@ -25,7 +32,7 @@ export const ASSOCIATE_SIDEBAR_ROUTES = [
   ["sample-requests", "/dashboard/sample-requests", "Sample Requests"],
   ["orders", "/dashboard/orders", "Internal Orders"],
   ["documents", "/dashboard/documents", "Documents"],
-  ["commercial-documents", "/dashboard/commercial-documents", "Document Studio"],
+  ["documentation", DOCUMENTATION_ROUTE, "Documentation"],
   ["import-opportunities", "/dashboard/imports", "Import Opportunities"],
   ["my-import-listings", "/dashboard/imports/my-listings", "My Import Listings"],
   ["my-import-reservations", "/dashboard/imports/reservations", "My Reservations"],
@@ -99,7 +106,7 @@ export const canonicalizeGovernanceMappings = <T extends GovernanceMapping>(mapp
   for (const input of mappings) {
     const row: GovernanceMapping = {
       functionSlug: canonicalizeCompanyFunctionTaxonomySlug(input.functionSlug),
-      routePath: String(input.routePath || ""),
+      routePath: canonicalizeSidebarRoutePath(input.routePath),
       placement: String(input.placement || "BOTH").toUpperCase(),
       status: String(input.status || "HIDDEN").toUpperCase(),
       order: Number(input.order || 0),
@@ -125,7 +132,7 @@ const LIVE_BY_FUNCTION: Record<string, string[]> = {
   packaging: ["/dashboard/packaging", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/documents"],
   testing: ["/dashboard/quality-labs", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/sample-requests", "/dashboard/documents"],
   "warehouse-storage": ["/dashboard/warehouses", "/dashboard/warehouses/operations", "/dashboard/inventory", "/dashboard/warehouse-rent"],
-  "finance-risk": ["/dashboard/orders", "/dashboard/commercial-documents"],
+  "finance-risk": ["/dashboard/orders", DOCUMENTATION_ROUTE],
   "importing-to-india": ["/dashboard/imports", "/dashboard/imports/my-listings", "/dashboard/imports/reservations", "/dashboard/orders", "/dashboard/documents", "/dashboard/execution-enquiries"],
   "exporting-from-india": ["/dashboard/product", "/dashboard/orders", "/dashboard/documents", "/dashboard/execution-enquiries"],
   "freight-forwarding": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/documents"],

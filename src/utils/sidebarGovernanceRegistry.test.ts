@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUTE_PATHS, canonicalizeGovernanceMappings, createBaselineSidebarMappings, deriveSidebarSectionOrder } from "./sidebarGovernanceRegistry";
+import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUTE_PATHS, canonicalizeGovernanceMappings, canonicalizeSidebarRoutePath, createBaselineSidebarMappings, deriveSidebarSectionOrder } from "./sidebarGovernanceRegistry";
 
 describe("sidebar governance registry", () => {
   it("creates a complete unique baseline for every function", () => {
@@ -50,6 +50,18 @@ describe("sidebar governance registry", () => {
       { functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "BOTH", status: "LIVE", order: 3 },
       { functionSlug: "seller", routePath: "/dashboard/product", placement: "PROVIDING", status: "HIDDEN", order: 4 },
     ]);
+  });
+
+  it("canonicalizes and deduplicates legacy Document Studio mappings", () => {
+    const mappings = canonicalizeGovernanceMappings([
+      { functionSlug: "buyer", routePath: "/dashboard/commercial-documents", placement: "SEEKING", status: "COMING_SOON", order: 7 },
+      { functionSlug: "buyer", routePath: "/dashboard/documentation", placement: "PROVIDING", status: "LIVE", order: 3 },
+    ]);
+    expect(canonicalizeSidebarRoutePath("/dashboard/commercial-documents")).toBe("/dashboard/documentation");
+    expect(mappings).toEqual([
+      { functionSlug: "buyer", routePath: "/dashboard/documentation", placement: "BOTH", status: "LIVE", order: 3 },
+    ]);
+    expect(canonicalizeGovernanceMappings(mappings)).toEqual(mappings);
   });
 
   it("derives an Important order for routes assigned to both work perspectives", () => {

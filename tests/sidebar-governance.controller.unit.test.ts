@@ -112,21 +112,28 @@ describe("sidebar governance canonical functions", () => {
   });
 
   it("lazily upgrades draft and published snapshots to resolution v3", async () => {
-    const mappings = createBaselineSidebarMappings(["buyer", "seller"]);
-    const sectionOrder = createDefaultSidebarSectionOrder();
-    const fallbackStatusByRoute = Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"]));
+    const mappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.routePath === "/dashboard/documentation"
+      ? { ...row, routePath: "/dashboard/commercial-documents", placement: "SEEKING" as const, status: "COMING_SOON" as const, order: 2 }
+      : row);
+    const sectionOrder = Object.fromEntries(Object.entries(createDefaultSidebarSectionOrder()).map(([section, paths]) => [section,
+      paths.map((path) => path === "/dashboard/documentation" ? "/dashboard/commercial-documents" : path),
+    ]));
+    const fallbackStatusByRoute = Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path === "/dashboard/documentation" ? "/dashboard/commercial-documents" : path, path === "/dashboard/documentation" ? "COMING_SOON" : "HIDDEN"]));
     await SidebarGovernanceModel.create({ key: "associate-sidebar", matrixMigrationVersion: 2, draft: { revision: 4, resolutionVersion: 1, sectionOrder, fallbackStatusByRoute, mappings }, published: { revision: 3, resolutionVersion: 2, sectionOrder, fallbackStatusByRoute, mappings } });
     const result = response();
     await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
     const after: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
     expect(result.state.status).toBe(200);
-    expect(after.matrixMigrationVersion).toBe(5);
+    expect(after.matrixMigrationVersion).toBe(6);
     expect(after.draft.revision).toBe(5);
     expect(after.published.revision).toBe(4);
     expect(after.draft.resolutionVersion).toBe(3);
     expect(after.published.resolutionVersion).toBe(3);
     expect(after.draft.sectionOrder.IMPORTANT).toEqual(createDefaultSidebarSectionOrder().IMPORTANT);
     expect(after.published.sectionOrder.IMPORTANT).toEqual(createDefaultSidebarSectionOrder().IMPORTANT);
+    expect(after.draft.mappings).toContainEqual(expect.objectContaining({ routePath: "/dashboard/documentation", placement: "SEEKING", status: "COMING_SOON", order: 2 }));
+    expect(after.published.mappings.some((row: any) => row.routePath === "/dashboard/commercial-documents")).toBe(false);
+    expect(after.published.fallbackStatusByRoute["/dashboard/documentation"]).toBe("COMING_SOON");
   });
 
   it("returns a transient baseline without writing when published governance is absent", async () => {
@@ -185,7 +192,7 @@ describe("sidebar governance canonical functions", () => {
     const first = response();
     await sidebarGovernanceController.getAdmin({} as any, first.res);
     const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
-    expect(stored.matrixMigrationVersion).toBe(5);
+    expect(stored.matrixMigrationVersion).toBe(6);
     expect(stored.draft.revision).toBe(5);
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "UNASSIGNED", status: "HIDDEN" }));

@@ -25,9 +25,17 @@ const isAssociateRole = (role: string) => role === "associate";
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 
-const exposeDocument = (row: any) => {
+const activityTimeline = (events: any[] = []) => events.map((event: any) => ({
+  action: String(event?.action || ""),
+  createdAt: event?.createdAt || null,
+})).filter((event: any) => event.action);
+
+const exposeDocument = (row: any, includeActivity = true) => {
   const doc = row?.toObject ? row.toObject() : { ...row };
   delete doc.inviteTokenHash;
+  const events = Array.isArray(doc.auditEvents) ? doc.auditEvents : [];
+  delete doc.auditEvents;
+  if (includeActivity) doc.activityTimeline = activityTimeline(events);
   const amountPaid = round2((doc.payments || []).reduce((sum: number, payment: any) => sum + Number(payment?.amount || 0), 0));
   const total = Number(doc?.totals?.grandTotal || 0);
   const balanceDue = Math.max(0, round2(total - amountPaid));
@@ -48,6 +56,43 @@ const exposeDocument = (row: any) => {
   return doc;
 };
 
+const exposeSharedDocument = (row: any) => {
+  const doc = exposeDocument(row, false);
+  for (const key of ["ownerCompanyId", "customerId", "createdBy", "uploadedBy", "enquiryId", "orderId", "inventoryReservationId", "legacyCommercialDocumentId", "demoCreatedBy"]) delete doc[key];
+  const publicParty = (party: any) => { const value = { ...(party || {}) }; delete value.associateId; delete value.companyId; return value; };
+  doc.buyer = publicParty(doc.buyer); doc.seller = publicParty(doc.seller); doc.recipient = publicParty(doc.recipient); doc.issuer = publicParty(doc.issuer);
+  return doc;
+};
+
+const STUDIO_TYPES = new Set([
+  "LOI", "QUOTATION", "PROFORMA_INVOICE", "INVOICE", "PURCHASE_ORDER",
+  "SALES_CONTRACT", "PACKING_LIST", "QUALITY_CERTIFICATE",
+]);
+
+const cleanText = (value: unknown, max = 500) => String(value || "").trim().slice(0, max);
+const standaloneDocumentData = (type: string, value: any) => {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  if (type === "PACKING_LIST") {
+    const packages = Array.isArray(input.packages) ? input.packages.slice(0, 100).map((row: any) => ({
+      description: cleanText(row?.description, 250), packageType: cleanText(row?.packageType, 80),
+      packageCount: Math.max(0, Number(row?.packageCount || 0)), grossWeight: Math.max(0, Number(row?.grossWeight || 0)),
+      netWeight: Math.max(0, Number(row?.netWeight || 0)), dimensions: cleanText(row?.dimensions, 100), marks: cleanText(row?.marks, 200),
+    })) : [];
+    if (!packages.length || packages.some((row: any) => !row.description || !row.packageType || row.packageCount <= 0)) throw new Error("Add at least one valid package.");
+    return { shipmentReference: cleanText(input.shipmentReference, 120), packages };
+  }
+  if (type === "QUALITY_CERTIFICATE") {
+    const tests = Array.isArray(input.tests) ? input.tests.slice(0, 100).map((row: any) => ({
+      parameter: cleanText(row?.parameter, 150), result: cleanText(row?.result, 150), unit: cleanText(row?.unit, 50),
+      method: cleanText(row?.method, 150), limit: cleanText(row?.limit, 100),
+    })) : [];
+    const data = { commodity: cleanText(input.commodity, 200), sampleId: cleanText(input.sampleId, 100), batchLot: cleanText(input.batchLot, 100), conclusion: cleanText(input.conclusion, 1000), authorizedSignatory: cleanText(input.authorizedSignatory, 150), tests };
+    if (!data.commodity || !data.sampleId || !data.batchLot || !data.tests.length || data.tests.some((row: any) => !row.parameter || !row.result)) throw new Error("Complete the sample, batch and test result details.");
+    return data;
+  }
+  return { reference: cleanText(input.reference, 120) };
+};
+
 const approvedAssociateCompany = async (req: Request, res: Response) => {
   if (!isAssociateRole(normalizeRole(req.user?.role)) || !Types.ObjectId.isValid(String(req.user?.id || ""))) {
     res.status(403).json({ success: false, message: "A verified company account is required." });
@@ -64,8 +109,8 @@ const approvedAssociateCompany = async (req: Request, res: Response) => {
 const snapshotParty = (row: any, associateId?: any) => ({
   associateId: associateId && Types.ObjectId.isValid(String(associateId)) ? associateId : null,
   companyId: row?._id && Types.ObjectId.isValid(String(row._id)) ? row._id : row?.linkedCompanyId || null,
-  name: String(row?.name || "").trim(), email: String(row?.email || "").trim().toLowerCase(),
-  phone: String(row?.phone || "").trim(), address: String(row?.address || row?.billingAddress || "").trim(), gstin: String(row?.gstin || "").trim(),
+  name: String(row?.name || "").trim(), contactName: String(row?.contactName || "").trim(), email: String(row?.email || "").trim().toLowerCase(),
+  phone: String(row?.phone || "").trim(), address: String(row?.address || row?.billingAddress || "").trim(), gstin: String(row?.gstin || "").trim(), logo: String(row?.logo || "").trim(),
 });
 
 const commercialItems = (body: any) => {
@@ -83,6 +128,7 @@ const commercialItems = (body: any) => {
 const pdfEscape = (value: unknown) => String(value ?? "").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 const buildDocumentPdf = (doc: any) => {
   const rows = (doc.lineItems || []).slice(0, 18);
+  const studio = doc.documentData || {};
   const letterhead = doc?.templateSnapshot?.letterheadConfig || {};
   const lines = [
     ...(letterhead?.enabled ? [`${letterhead?.name || doc.seller?.name || "OBAOL"}${letterhead?.watermark ? ` - ${letterhead.watermark}` : ""}`] : []),
@@ -94,6 +140,8 @@ const buildDocumentPdf = (doc: any) => {
     "",
     "Description | Quantity | Unit | Unit price | Tax | Total",
     ...rows.map((item: any) => `${item.description || item.productName || "-"} | ${item.quantity || item.quantityMT || 0} | ${item.unit || "-"} | ${item.unitPrice || item.ratePerKg || 0} | ${item.taxAmount || 0} | ${item.total || item.amount || 0}`),
+    ...(doc.type === "PACKING_LIST" ? ["", `Shipment reference: ${studio.shipmentReference || "-"}`, "Description | Package | Count | Gross | Net | Dimensions | Marks", ...(studio.packages || []).slice(0, 18).map((item: any) => `${item.description || "-"} | ${item.packageType || "-"} | ${item.packageCount || 0} | ${item.grossWeight || 0} | ${item.netWeight || 0} | ${item.dimensions || "-"} | ${item.marks || "-"}`)] : []),
+    ...(doc.type === "QUALITY_CERTIFICATE" ? ["", `Commodity: ${studio.commodity || "-"} | Sample: ${studio.sampleId || "-"} | Batch/lot: ${studio.batchLot || "-"}`, "Parameter | Result | Unit | Method | Limit", ...(studio.tests || []).slice(0, 18).map((item: any) => `${item.parameter || "-"} | ${item.result || "-"} | ${item.unit || "-"} | ${item.method || "-"} | ${item.limit || "-"}`), `Conclusion: ${studio.conclusion || "-"}`, `Authorized signatory: ${studio.authorizedSignatory || "-"}`] : []),
     "",
     `Subtotal: ${doc.totals?.currency || "INR"} ${doc.totals?.subtotal || 0}`,
     `Tax: ${doc.totals?.taxAmount || 0}`,
@@ -428,14 +476,18 @@ export class TradeDocumentController {
         }
         enquiry = await InquiryModel.findById(order.enquiry);
       }
-      if (!enquiryId && !orderId && ["QUOTATION", "INVOICE"].includes(type)) {
+      if (!enquiryId && !orderId && STUDIO_TYPES.has(type)) {
         const issuer = await approvedAssociateCompany(req, res);
         if (!issuer) return;
         const customerId = toObjectId(req.body?.customerId);
         const customer: any = customerId ? await CommercialCustomerModel.findOne({ _id: customerId, ownerCompanyId: issuer._id }).lean() : null;
         if (!customer) return res.status(404).json({ success: false, message: "Customer not found." });
-        let items: any[];
-        try { items = commercialItems(req.body); } catch (error: any) { return res.status(400).json({ success: false, message: error.message }); }
+        let items: any[] = [];
+        let documentData: Record<string, unknown> = {};
+        try {
+          if (!["PACKING_LIST", "QUALITY_CERTIFICATE"].includes(type)) items = commercialItems(req.body);
+          documentData = standaloneDocumentData(type, req.body?.documentData);
+        } catch (error: any) { return res.status(400).json({ success: false, message: error.message }); }
         const issueDate = new Date(req.body?.issueDate || Date.now());
         const validUntil = req.body?.validUntil ? new Date(req.body.validUntil) : null;
         const dueDate = req.body?.dueDate ? new Date(req.body.dueDate) : null;
@@ -455,7 +507,7 @@ export class TradeDocumentController {
           buyer: snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }), seller: snapshotParty(issuer, req.user?.id),
           lineItems: items, totals: { currency, subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) },
           terms: { paymentTerms: String(req.body?.terms || req.body?.paymentTerms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), notes: String(req.body?.notes || "") },
-          issueDate, validUntil, dueDate, createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
+          issueDate, validUntil, dueDate, documentData, createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
           templateSnapshot: template ? JSON.parse(JSON.stringify(template)) : null,
           auditEvents: [{ action: "CREATED", actorId: req.user?.id || null, actorRole: role, metadata: { standalone: true } }],
         });
@@ -624,6 +676,9 @@ export class TradeDocumentController {
       const enquiryId = toObjectId(req.query?.enquiryId);
       const orderId = toObjectId(req.query?.orderId);
       const companyId = toObjectId(req.query?.companyId);
+      const customerId = toObjectId(req.query?.customerId);
+      const from = req.query?.from ? new Date(String(req.query.from)) : null;
+      const to = req.query?.to ? new Date(String(req.query.to)) : null;
 
       const query: any = { isDeleted: { $ne: true } };
       if (status) query.status = status;
@@ -631,6 +686,12 @@ export class TradeDocumentController {
       if (enquiryId) query.enquiryId = enquiryId;
       if (orderId) query.orderId = orderId;
       if (companyId) query["seller.companyId"] = companyId;
+      if (customerId) query.customerId = customerId;
+      if ((from && !Number.isNaN(from.getTime())) || (to && !Number.isNaN(to.getTime()))) {
+        query.issueDate = {};
+        if (from && !Number.isNaN(from.getTime())) query.issueDate.$gte = from;
+        if (to && !Number.isNaN(to.getTime())) { to.setHours(23, 59, 59, 999); query.issueDate.$lte = to; }
+      }
 
       if (isAdminRole(role)) {
         // full access
@@ -729,7 +790,7 @@ export class TradeDocumentController {
       return res.status(200).json({
         success: true,
         data: {
-          data: filteredRows.map(exposeDocument),
+          data: filteredRows.map((row: any) => exposeDocument(row)),
           total: filteredRows.length,
           page,
           limit,
@@ -850,6 +911,14 @@ export class TradeDocumentController {
       const subtotal = Number(nextTotals.subtotal || 0);
       const commissionTotal = Number(nextTotals.commissionTotal || 0);
       nextTotals.grandTotal = subtotal + commissionTotal + taxAmount;
+      if (canEditStandalone) {
+        const issueDate = new Date(req.body?.issueDate || (existing as any).issueDate);
+        const validUntil = req.body?.validUntil ? new Date(req.body.validUntil) : null;
+        const dueDate = req.body?.dueDate ? new Date(req.body.dueDate) : null;
+        const currency = String(req.body?.currency || (existing as any)?.totals?.currency || "INR").toUpperCase();
+        if (Number.isNaN(issueDate.getTime()) || (validUntil && (Number.isNaN(validUntil.getTime()) || validUntil < issueDate)) || (dueDate && (Number.isNaN(dueDate.getTime()) || dueDate < issueDate))) return res.status(400).json({ success: false, message: "Check document dates." });
+        if (!/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ success: false, message: "Enter a three-letter currency code." });
+      }
 
       const updatePayload: any = isPrivileged
         ? {
@@ -858,11 +927,13 @@ export class TradeDocumentController {
           totals: nextTotals,
         }
         : canEditStandalone ? (() => {
-          const items = commercialItems(req.body);
+          const docType = String((existing as any).type || "");
+          const items = ["PACKING_LIST", "QUALITY_CERTIFICATE"].includes(docType) ? [] : commercialItems(req.body);
+          const documentData = standaloneDocumentData(docType, req.body?.documentData);
           const subtotal = round2(items.reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
           const taxAmount = round2(items.reduce((sum: number, item: any) => sum + Number(item.taxAmount || 0), 0));
           const discountAmount = round2(Number(req.body?.discountAmount || 0));
-          return { lineItems: items, totals: { currency: String(req.body?.currency || (existing as any)?.totals?.currency || "INR").toUpperCase(), subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) }, terms: { paymentTerms: String(req.body?.terms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), notes: String(req.body?.notes || "") }, issueDate: req.body?.issueDate || (existing as any).issueDate, validUntil: req.body?.validUntil || null, dueDate: req.body?.dueDate || null, auditEvents: [...((existing as any).auditEvents || []), { action: "DRAFT_UPDATED", actorId: req.user?.id || null, actorRole: role }] };
+          return { lineItems: items, documentData, totals: { currency: String(req.body?.currency || (existing as any)?.totals?.currency || "INR").toUpperCase(), subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) }, terms: { paymentTerms: String(req.body?.terms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), notes: String(req.body?.notes || "") }, issueDate: req.body?.issueDate || (existing as any).issueDate, validUntil: req.body?.validUntil || null, dueDate: req.body?.dueDate || null, auditEvents: [...((existing as any).auditEvents || []), { action: "DRAFT_UPDATED", actorId: req.user?.id || null, actorRole: role }] };
         })() : {};
       if (req.body?.fileUrl !== undefined) {
         updatePayload.fileUrl = req.body.fileUrl || null;
@@ -873,6 +944,13 @@ export class TradeDocumentController {
       }
       if (req.body?.orderId && Types.ObjectId.isValid(String(req.body.orderId))) {
         updatePayload.orderId = new Types.ObjectId(String(req.body.orderId));
+      }
+      if (canEditStandalone && req.body?.customerId) {
+        const customerId = toObjectId(req.body.customerId);
+        const customer: any = customerId ? await CommercialCustomerModel.findOne({ _id: customerId, ownerCompanyId: standaloneOwner!._id }).lean() : null;
+        if (!customer) return res.status(404).json({ success: false, message: "Customer not found." });
+        updatePayload.customerId = customer._id;
+        updatePayload.buyer = snapshotParty({ ...customer, _id: customer.linkedCompanyId || null });
       }
 
       const updated = await TradeDocumentModel.findByIdAndUpdate(id, updatePayload, { new: true });
@@ -922,12 +1000,27 @@ export class TradeDocumentController {
     } catch (error) { next(error); }
   }
 
+  async listRecipientDirectory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const issuer = await approvedAssociateCompany(req, res); if (!issuer) return;
+      const rows = await AssociateCompanyModel.find({
+        referredByCompanyId: issuer._id,
+        registrationStatus: "APPROVED",
+        isDeleted: { $ne: true },
+      }).sort({ name: 1 }).select("name email phone address gstin logo").limit(500).lean();
+      return res.json({ success: true, data: rows.map((row: any) => ({
+        id: row._id, name: row.name || "", email: row.email || "", phone: row.phone || "",
+        billingAddress: row.address || "", gstin: row.gstin || "", logo: row.logo || "",
+      })) });
+    } catch (error) { next(error); }
+  }
+
   async createCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const issuer = await approvedAssociateCompany(req, res); if (!issuer) return;
       const input = { name: String(req.body?.name || "").trim(), contactName: String(req.body?.contactName || "").trim(), email: String(req.body?.email || "").trim().toLowerCase(), billingAddress: String(req.body?.billingAddress || "").trim(), phone: String(req.body?.phone || "").trim(), gstin: String(req.body?.gstin || "").trim(), linkedCompanyId: toObjectId(req.body?.linkedCompanyId) };
       if (!input.name || !input.contactName || !/^\S+@\S+\.\S+$/.test(input.email) || !input.billingAddress) return res.status(400).json({ success: false, message: "Customer name, contact, email and billing address are required." });
-      if (input.linkedCompanyId && !await AssociateCompanyModel.exists({ _id: input.linkedCompanyId, registrationStatus: "APPROVED", isDeleted: { $ne: true } })) return res.status(400).json({ success: false, message: "Linked OBAOL company is unavailable." });
+      if (input.linkedCompanyId && !await AssociateCompanyModel.exists({ _id: input.linkedCompanyId, referredByCompanyId: issuer._id, registrationStatus: "APPROVED", isDeleted: { $ne: true } })) return res.status(400).json({ success: false, message: "Only a directly referred company can be linked." });
       const created = await CommercialCustomerModel.create({ ...input, ownerCompanyId: issuer._id });
       return res.status(201).json({ success: true, data: created });
     } catch (error) { next(error); }
@@ -939,6 +1032,7 @@ export class TradeDocumentController {
       if (!Types.ObjectId.isValid(String(req.params.id || ""))) return res.status(400).json({ success: false, message: "Invalid customer id." });
       const input = { name: String(req.body?.name || "").trim(), contactName: String(req.body?.contactName || "").trim(), email: String(req.body?.email || "").trim().toLowerCase(), billingAddress: String(req.body?.billingAddress || "").trim(), phone: String(req.body?.phone || "").trim(), gstin: String(req.body?.gstin || "").trim(), linkedCompanyId: toObjectId(req.body?.linkedCompanyId) };
       if (!input.name || !input.contactName || !/^\S+@\S+\.\S+$/.test(input.email) || !input.billingAddress) return res.status(400).json({ success: false, message: "Customer name, contact, email and billing address are required." });
+      if (input.linkedCompanyId && !await AssociateCompanyModel.exists({ _id: input.linkedCompanyId, referredByCompanyId: issuer._id, registrationStatus: "APPROVED", isDeleted: { $ne: true } })) return res.status(400).json({ success: false, message: "Only a directly referred company can be linked." });
       const updated = await CommercialCustomerModel.findOneAndUpdate({ _id: req.params.id, ownerCompanyId: issuer._id }, input, { new: true, runValidators: true });
       return updated ? res.json({ success: true, data: updated }) : res.status(404).json({ success: false, message: "Customer not found." });
     } catch (error) { next(error); }
@@ -979,7 +1073,27 @@ export class TradeDocumentController {
       if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ success: false, message: "Invitation not found." });
       const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: tokenHash(token), isDeleted: { $ne: true } }).select("+inviteTokenHash");
       if (!doc || !doc.inviteExpiresAt || doc.inviteExpiresAt.getTime() < Date.now() || doc.inviteRevokedAt || doc.status === "DRAFT") return res.status(404).json({ success: false, message: "Invitation expired or unavailable." });
-      return res.json({ success: true, data: exposeDocument(doc) });
+      const now = new Date();
+      doc.firstViewedAt = doc.firstViewedAt || now; doc.lastViewedAt = now; doc.viewCount = Number(doc.viewCount || 0) + 1;
+      doc.auditEvents.push({ action: "RECIPIENT_VIEWED", actorId: null, actorRole: "recipient" });
+      await doc.save();
+      return res.json({ success: true, data: exposeSharedDocument(doc) });
+    } catch (error) { next(error); }
+  }
+
+  async sharedPdf(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = String(req.params.token || "");
+      if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ success: false, message: "Invitation not found." });
+      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: tokenHash(token), isDeleted: { $ne: true } }).select("+inviteTokenHash");
+      if (!doc || !doc.inviteExpiresAt || doc.inviteExpiresAt.getTime() < Date.now() || doc.inviteRevokedAt || doc.status === "DRAFT") return res.status(404).json({ success: false, message: "Invitation expired or unavailable." });
+      doc.lastDownloadedAt = new Date(); doc.downloadCount = Number(doc.downloadCount || 0) + 1;
+      doc.auditEvents.push({ action: "RECIPIENT_PDF_DOWNLOADED", actorId: null, actorRole: "recipient" });
+      await doc.save();
+      const pdf = buildDocumentPdf(doc.toObject());
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${String(doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf"`);
+      return res.send(pdf);
     } catch (error) { next(error); }
   }
 
@@ -1020,7 +1134,7 @@ export class TradeDocumentController {
   }
 
   async revisions(req: Request, res: Response, next: NextFunction) {
-    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const root = result.doc.revisionOf || result.doc._id; const rows = await TradeDocumentModel.find({ ownerCompanyId: result.issuer._id, $or: [{ _id: root }, { revisionOf: root }] }).sort({ revision: 1 }).lean(); return res.json({ success: true, data: rows.map(exposeDocument) }); } catch (error) { next(error); }
+    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const root = result.doc.revisionOf || result.doc._id; const rows = await TradeDocumentModel.find({ ownerCompanyId: result.issuer._id, $or: [{ _id: root }, { revisionOf: root }] }).sort({ revision: 1 }).lean(); return res.json({ success: true, data: rows.map((row: any) => exposeDocument(row)) }); } catch (error) { next(error); }
   }
 
   async toInvoice(req: Request, res: Response, next: NextFunction) {

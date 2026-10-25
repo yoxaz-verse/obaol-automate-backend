@@ -26,10 +26,12 @@ export interface ITradeDocumentPartySnapshot {
   associateId?: Types.ObjectId | null;
   companyId?: Types.ObjectId | null;
   name?: string;
+  contactName?: string;
   email?: string;
   phone?: string;
   address?: string;
   gstin?: string;
+  logo?: string;
 }
 
 export interface ITradeDocumentLineItem {
@@ -80,6 +82,13 @@ export interface ITradeDocument extends Document {
   issueDate?: Date;
   validUntil?: Date | null;
   dueDate?: Date | null;
+  templateSnapshot?: unknown;
+  documentData?: Record<string, unknown>;
+  firstViewedAt?: Date | null;
+  lastViewedAt?: Date | null;
+  viewCount?: number;
+  lastDownloadedAt?: Date | null;
+  downloadCount?: number;
   fileUrl?: string | null;
   uploadedBy?: Types.ObjectId | null;
   verifiedStatus?: TradeDocumentVerifiedStatus;

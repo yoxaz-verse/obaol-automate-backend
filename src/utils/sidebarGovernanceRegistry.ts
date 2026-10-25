@@ -25,7 +25,7 @@ export const ASSOCIATE_SIDEBAR_ROUTES = [
   ["sample-requests", "/dashboard/sample-requests", "Sample Requests"],
   ["orders", "/dashboard/orders", "Internal Orders"],
   ["documents", "/dashboard/documents", "Documents"],
-  ["commercial-documents", "/dashboard/commercial-documents", "Pure Documents"],
+  ["commercial-documents", "/dashboard/commercial-documents", "Document Studio"],
   ["import-opportunities", "/dashboard/imports", "Import Opportunities"],
   ["my-import-listings", "/dashboard/imports/my-listings", "My Import Listings"],
   ["my-import-reservations", "/dashboard/imports/reservations", "My Reservations"],

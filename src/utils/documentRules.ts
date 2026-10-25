@@ -15,6 +15,12 @@ export const DEFAULT_DOCUMENT_RULES = [
   { docType: "BILL_OF_LADING", stageType: "ORDER", stageKey: "SHIPPED", responsibleRole: "SHIPPING", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 80 },
   { docType: "AIR_WAYBILL", stageType: "ORDER", stageKey: "SHIPPED", responsibleRole: "SHIPPING", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: false, sortOrder: 81 },
   { docType: "INSURANCE_CERTIFICATE", stageType: "ORDER", stageKey: "SHIPPED", responsibleRole: "OBAOL", actionType: "UPLOAD", visibility: "BOTH", tradeType: "INTERNATIONAL", isRequired: true, sortOrder: 82 },
+  { docType: "SHIPPING_BILL", stageType: "ORDER", stageKey: "READY_FOR_SHIPMENT", responsibleRole: "SHIPPING", actionType: "UPLOAD", visibility: "BOTH", tradeType: "INTERNATIONAL", isRequired: true, sortOrder: 83 },
+  { docType: "CERTIFICATE_OF_ORIGIN", stageType: "ORDER", stageKey: "COMPLIANCE_APPROVED", responsibleRole: "OBAOL", actionType: "UPLOAD", visibility: "BOTH", tradeType: "INTERNATIONAL", isRequired: true, sortOrder: 84 },
+  { docType: "DISPATCH_CHALLAN", stageType: "ORDER", stageKey: "READY_FOR_SHIPMENT", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: false, sortOrder: 85 },
+  { docType: "BILL_OF_ENTRY", stageType: "ORDER", stageKey: "DELIVERED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "BOTH", tradeType: "INTERNATIONAL", isRequired: true, sortOrder: 86 },
+  { docType: "CUSTOMS_CLEARANCE", stageType: "ORDER", stageKey: "DELIVERED", responsibleRole: "OBAOL", actionType: "UPLOAD", visibility: "BOTH", tradeType: "INTERNATIONAL", isRequired: true, sortOrder: 87 },
+  { docType: "GOODS_RECEIPT", stageType: "ORDER", stageKey: "DELIVERED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 88 },
   { docType: "INVOICE", stageType: "ORDER", stageKey: "PAYMENT_PENDING", responsibleRole: "SELLER", actionType: "CREATE", visibility: "BOTH", tradeType: "BOTH", isRequired: true, sortOrder: 90 },
   { docType: "PAYMENT_ADVICE", stageType: "ORDER", stageKey: "PAYMENT_COMPLETED", responsibleRole: "BUYER", actionType: "UPLOAD", visibility: "SELLER", tradeType: "BOTH", isRequired: true, sortOrder: 100 },
 ];

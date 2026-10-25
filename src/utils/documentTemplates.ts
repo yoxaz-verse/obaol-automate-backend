@@ -21,6 +21,12 @@ export const TRADE_DOC_TYPES: TradeDocumentType[] = [
   "PAYMENT_ADVICE",
   "LORRY_RECEIPT",
   "LCL_DRAFT",
+  "SHIPPING_BILL",
+  "CERTIFICATE_OF_ORIGIN",
+  "DISPATCH_CHALLAN",
+  "BILL_OF_ENTRY",
+  "CUSTOMS_CLEARANCE",
+  "GOODS_RECEIPT",
 ];
 
 const ALLOWED_BLOCK_TYPES = new Set<DocumentTemplateBlockType>([
@@ -62,7 +68,7 @@ const DEFAULT_BLOCKS = (docType: string) => {
     ];
   }
 
-  if (["BILL_OF_LADING", "AIR_WAYBILL", "LORRY_RECEIPT", "LCL_DRAFT"].includes(upper)) {
+  if (["BILL_OF_LADING", "AIR_WAYBILL", "LORRY_RECEIPT", "LCL_DRAFT", "SHIPPING_BILL", "BILL_OF_ENTRY", "CUSTOMS_CLEARANCE", "DISPATCH_CHALLAN", "GOODS_RECEIPT"].includes(upper)) {
     return [
       { id: "header", type: "HEADER", label: "Header", x: 24, y: 24, width: 746, height: 110, visible: true, zIndex: 1, locked: false, bindingKey: "header" },
       { id: "shipping", type: "SHIPPING", label: "Shipping Body", x: 24, y: 150, width: 746, height: 760, visible: true, zIndex: 2, locked: false, bindingKey: "shipping" },

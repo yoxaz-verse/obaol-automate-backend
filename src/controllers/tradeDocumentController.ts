@@ -17,6 +17,9 @@ import { FlowRuleModel } from "../database/models/flowRule";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { getCalculationConfig } from "../utils/calculationConfig";
 import { getOperatorPerspective, OperatorPerspective } from "../core/inquiry/inquiryAccessControl";
+import path from "path";
+import { DocumentExtractionJobModel } from "../database/models/documentExtractionJob";
+import { processDocumentExtraction } from "../services/documentExtractionService";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -66,7 +69,10 @@ const exposeSharedDocument = (row: any) => {
 
 const STUDIO_TYPES = new Set([
   "LOI", "QUOTATION", "PROFORMA_INVOICE", "INVOICE", "PURCHASE_ORDER",
-  "SALES_CONTRACT", "PACKING_LIST", "QUALITY_CERTIFICATE",
+  "SALES_CONTRACT", "PACKING_LIST", "QUALITY_CERTIFICATE", "INSPECTION_CERTIFICATE",
+  "PHYTOSANITARY_CERTIFICATE", "FUMIGATION_CERTIFICATE", "BILL_OF_LADING", "AIR_WAYBILL",
+  "INSURANCE_CERTIFICATE", "PAYMENT_ADVICE", "LORRY_RECEIPT", "LCL_DRAFT", "SHIPPING_BILL",
+  "CERTIFICATE_OF_ORIGIN", "DISPATCH_CHALLAN", "BILL_OF_ENTRY", "CUSTOMS_CLEARANCE", "GOODS_RECEIPT",
 ]);
 
 const cleanText = (value: unknown, max = 500) => String(value || "").trim().slice(0, max);
@@ -201,6 +207,12 @@ const typeShort: Record<string, string> = {
   PAYMENT_ADVICE: "PAY",
   LORRY_RECEIPT: "LR",
   LCL_DRAFT: "LCL",
+  SHIPPING_BILL: "SB",
+  CERTIFICATE_OF_ORIGIN: "COO",
+  DISPATCH_CHALLAN: "DC",
+  BILL_OF_ENTRY: "BOE",
+  CUSTOMS_CLEARANCE: "CC",
+  GOODS_RECEIPT: "GR",
 };
 
 const resolveInquiryWorkflowStage = (enquiry: any) => {
@@ -456,6 +468,7 @@ export class TradeDocumentController {
         "PAYMENT_ADVICE",
         "LORRY_RECEIPT",
         "LCL_DRAFT"
+        ,"SHIPPING_BILL", "CERTIFICATE_OF_ORIGIN", "DISPATCH_CHALLAN", "BILL_OF_ENTRY", "CUSTOMS_CLEARANCE", "GOODS_RECEIPT"
       ]);
       if (!allowedTypes.has(type)) {
         return res.status(400).json({ success: false, message: "Invalid document type." });
@@ -508,7 +521,7 @@ export class TradeDocumentController {
           lineItems: items, totals: { currency, subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) },
           terms: { paymentTerms: String(req.body?.terms || req.body?.paymentTerms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), notes: String(req.body?.notes || "") },
           issueDate, validUntil, dueDate, documentData, createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
-          templateSnapshot: template ? JSON.parse(JSON.stringify(template)) : null,
+          templateSnapshot: template ? JSON.parse(JSON.stringify(template)) : null, sourceMode: "CREATED", extractionStatus: "NOT_REQUIRED",
           auditEvents: [{ action: "CREATED", actorId: req.user?.id || null, actorRole: role, metadata: { standalone: true } }],
         });
         return res.status(201).json({ success: true, data: exposeDocument(created) });
@@ -663,6 +676,117 @@ export class TradeDocumentController {
     } catch (error) {
       next(error);
     }
+  }
+
+  async uploadAndExtract(req: Request, res: Response, next: NextFunction) {
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ success: false, message: "Choose a PDF, PNG, or JPEG document." });
+      const role = normalizeRole(req.user?.role);
+      const type = String(req.body?.type || "").toUpperCase();
+      if (!STUDIO_TYPES.has(type)) return res.status(400).json({ success: false, message: "Choose a supported document type." });
+
+      let company: any = null;
+      if (isAssociateRole(role)) company = await approvedAssociateCompany(req, res);
+      else if ((isAdminRole(role) || isOperatorRole(role)) && Types.ObjectId.isValid(String(req.body?.companyId || ""))) {
+        company = await AssociateCompanyModel.findById(req.body.companyId).select("name slug email phone address gstin logo").lean();
+      }
+      if (!company) return res.status(400).json({ success: false, message: "A valid owner company is required." });
+      const customerId = toObjectId(req.body?.customerId);
+      const customer: any = customerId ? await CommercialCustomerModel.findOne({ _id: customerId, ownerCompanyId: company._id }).lean() : null;
+      const documentNumber = await generateDocumentNumber(company._id, type, buildCompanyCode(company));
+      const created: any = await TradeDocumentModel.create({
+        type, status: "DRAFT", documentNumber, ownerCompanyId: company._id, customerId: customer?._id || null,
+        seller: snapshotParty(company, req.user?.id), buyer: customer ? snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }) : {},
+        enquiryId: toObjectId(req.body?.enquiryId), orderId: toObjectId(req.body?.orderId), inventoryReservationId: toObjectId(req.body?.inventoryReservationId),
+        sourceMode: "UPLOADED", originalFileName: file.originalname, fileMimeType: file.mimetype, fileSize: file.size,
+        fileUrl: "", uploadedBy: req.user?.id || null, extractionStatus: "QUEUED", verifiedStatus: "PENDING",
+        createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
+        auditEvents: [{ action: "FILE_UPLOADED", actorId: req.user?.id || null, actorRole: role, metadata: { name: file.originalname, mimeType: file.mimetype, size: file.size } }],
+      });
+      created.fileUrl = `/v1/web/trade-documents/${created._id}/file`;
+      const job: any = await DocumentExtractionJobModel.create({ documentId: created._id, ownerCompanyId: company._id, requestedBy: req.user?.id, documentType: type, filePath: path.resolve(file.path), mimeType: file.mimetype });
+      created.extractionJobId = job._id; await created.save();
+      setImmediate(() => { processDocumentExtraction(String(job._id)).catch(() => undefined); });
+      return res.status(202).json({ success: true, data: exposeDocument(created), extractionJob: { id: job._id, status: job.status } });
+    } catch (error) { next(error); }
+  }
+
+  async extraction(req: Request, res: Response, next: NextFunction) {
+    try {
+      const job: any = await DocumentExtractionJobModel.findOne({ _id: req.params.jobId }).lean();
+      if (!job) return res.status(404).json({ success: false, message: "Extraction job not found." });
+      if (!isAdminRole(normalizeRole(req.user?.role)) && String(job.requestedBy) !== String(req.user?.id)) return res.status(403).json({ success: false, message: "Access denied." });
+      return res.json({ success: true, data: job });
+    } catch (error) { next(error); }
+  }
+
+  async confirmExtraction(req: Request, res: Response, next: NextFunction) {
+    try {
+      const job: any = await DocumentExtractionJobModel.findOne({ _id: req.params.jobId }).select("+rawText");
+      if (!job) return res.status(404).json({ success: false, message: "Extraction job not found." });
+      if (!isAdminRole(normalizeRole(req.user?.role)) && String(job.requestedBy) !== String(req.user?.id)) return res.status(403).json({ success: false, message: "Access denied." });
+      if (!["REVIEW_REQUIRED", "FAILED"].includes(job.status)) return res.status(409).json({ success: false, message: "Extraction is not ready for review." });
+      const patch: any = { extractionStatus: "COMPLETED", extractionReviewedAt: new Date(), extractionReviewedBy: req.user?.id, documentData: req.body?.documentData || {}, terms: req.body?.terms || {}, auditEvents: [] };
+      if (req.body?.buyer) patch.buyer = req.body.buyer;
+      if (req.body?.seller) patch.seller = req.body.seller;
+      if (Array.isArray(req.body?.lineItems)) patch.lineItems = req.body.lineItems;
+      if (req.body?.totals) patch.totals = req.body.totals;
+      const doc: any = await TradeDocumentModel.findById(job.documentId);
+      if (!doc) return res.status(404).json({ success: false, message: "Document not found." });
+      Object.assign(doc, patch); doc.auditEvents.push({ action: "EXTRACTION_REVIEWED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { jobId: job._id } }); await doc.save();
+      job.status = "COMPLETED"; await job.save();
+      return res.json({ success: true, data: exposeDocument(doc) });
+    } catch (error) { next(error); }
+  }
+
+  async retryExtraction(req: Request, res: Response, next: NextFunction) {
+    try {
+      const job: any = await DocumentExtractionJobModel.findById(req.params.jobId);
+      if (!job) return res.status(404).json({ success: false, message: "Extraction job not found." });
+      if (!isAdminRole(normalizeRole(req.user?.role)) && String(job.requestedBy) !== String(req.user?.id)) return res.status(403).json({ success: false, message: "Access denied." });
+      if (job.status !== "FAILED") return res.status(409).json({ success: false, message: "Only failed extraction jobs can be retried." });
+      job.status = "QUEUED"; job.error = ""; job.startedAt = null; job.completedAt = null; await job.save();
+      await TradeDocumentModel.findByIdAndUpdate(job.documentId, { extractionStatus: "QUEUED" });
+      setImmediate(() => { processDocumentExtraction(String(job._id)).catch(() => undefined); });
+      return res.status(202).json({ success: true, data: { id: job._id, status: job.status } });
+    } catch (error) { next(error); }
+  }
+
+  async file(req: Request, res: Response, next: NextFunction) {
+    try {
+      const doc: any = await TradeDocumentModel.findById(req.params.id).lean();
+      if (!doc || !doc.extractionJobId) return res.status(404).json({ success: false, message: "File not found." });
+      const role = normalizeRole(req.user?.role);
+      if (!isAdminRole(role) && String(doc.createdBy || doc.uploadedBy) !== String(req.user?.id)) {
+        const associate: any = isAssociateRole(role) ? await AssociateModel.findById(req.user?.id).select("associateCompany").lean() : null;
+        const sameCompany = associate?.associateCompany && [doc.ownerCompanyId, doc.buyer?.companyId, doc.seller?.companyId].some((value: any) => String(value || "") === String(associate.associateCompany));
+        if (!sameCompany) return res.status(403).json({ success: false, message: "Access denied." });
+      }
+      const job: any = await DocumentExtractionJobModel.findById(doc.extractionJobId).select("+filePath");
+      if (!job?.filePath) return res.status(404).json({ success: false, message: "File not found." });
+      res.type(doc.fileMimeType || "application/octet-stream");
+      return res.sendFile(path.resolve(job.filePath));
+    } catch (error) { next(error); }
+  }
+
+  async summary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const role = normalizeRole(req.user?.role), userId = String(req.user?.id || "");
+      const query: any = { isDeleted: { $ne: true } };
+      if (isAssociateRole(role)) {
+        const associate: any = await AssociateModel.findById(userId).select("associateCompany").lean();
+        if (!associate?.associateCompany) return res.json({ success: true, data: { total: 0, drafts: 0, pendingVerification: 0, shared: 0, extractionReview: 0 } });
+        query.$or = [{ ownerCompanyId: associate.associateCompany }, { "buyer.companyId": associate.associateCompany }, { "seller.companyId": associate.associateCompany }];
+      } else if (!isAdminRole(role) && !isOperatorRole(role)) return res.status(403).json({ success: false, message: "Access denied." });
+      const [total, drafts, pendingVerification, shared, extractionReview] = await Promise.all([
+        TradeDocumentModel.countDocuments(query), TradeDocumentModel.countDocuments({ ...query, status: "DRAFT" }),
+        TradeDocumentModel.countDocuments({ ...query, verifiedStatus: "PENDING", sourceMode: "UPLOADED" }),
+        TradeDocumentModel.countDocuments({ ...query, status: { $in: ["SENT", "ACCEPTED", "REJECTED"] } }),
+        TradeDocumentModel.countDocuments({ ...query, extractionStatus: { $in: ["REVIEW_REQUIRED", "FAILED"] } }),
+      ]);
+      return res.json({ success: true, data: { total, drafts, pendingVerification, shared, extractionReview } });
+    } catch (error) { next(error); }
   }
 
   async list(req: Request, res: Response, next: NextFunction) {
@@ -941,6 +1065,7 @@ export class TradeDocumentController {
       }
       if (isPrivileged && req.body?.verifiedStatus) {
         updatePayload.verifiedStatus = req.body.verifiedStatus;
+        updatePayload.auditEvents = [...((existing as any).auditEvents || []), { action: req.body.verifiedStatus === "VERIFIED" ? "UPLOAD_VERIFIED" : "UPLOAD_REJECTED", actorId: req.user?.id || null, actorRole: role }];
       }
       if (req.body?.orderId && Types.ObjectId.isValid(String(req.body.orderId))) {
         updatePayload.orderId = new Types.ObjectId(String(req.body.orderId));

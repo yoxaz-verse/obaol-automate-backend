@@ -17,10 +17,18 @@ export type TradeDocumentType =
   | "INSURANCE_CERTIFICATE"
   | "PAYMENT_ADVICE"
   | "LORRY_RECEIPT"
-  | "LCL_DRAFT";
+  | "LCL_DRAFT"
+  | "SHIPPING_BILL"
+  | "CERTIFICATE_OF_ORIGIN"
+  | "DISPATCH_CHALLAN"
+  | "BILL_OF_ENTRY"
+  | "CUSTOMS_CLEARANCE"
+  | "GOODS_RECEIPT";
 export type TradeDocumentStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLED";
 export type TradeDocumentVerifiedStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type TradeDocumentAudienceScope = "SELLER_OBAOL" | "OBAOL_BUYER";
+export type TradeDocumentSourceMode = "CREATED" | "UPLOADED";
+export type TradeDocumentExtractionStatus = "NOT_REQUIRED" | "QUEUED" | "PROCESSING" | "REVIEW_REQUIRED" | "COMPLETED" | "FAILED";
 
 export interface ITradeDocumentPartySnapshot {
   associateId?: Types.ObjectId | null;
@@ -90,6 +98,14 @@ export interface ITradeDocument extends Document {
   lastDownloadedAt?: Date | null;
   downloadCount?: number;
   fileUrl?: string | null;
+  sourceMode?: TradeDocumentSourceMode;
+  originalFileName?: string;
+  fileMimeType?: string;
+  fileSize?: number;
+  extractionJobId?: Types.ObjectId | null;
+  extractionStatus?: TradeDocumentExtractionStatus;
+  extractionReviewedAt?: Date | null;
+  extractionReviewedBy?: Types.ObjectId | null;
   uploadedBy?: Types.ObjectId | null;
   verifiedStatus?: TradeDocumentVerifiedStatus;
   enquiryId?: Types.ObjectId | null;

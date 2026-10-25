@@ -12,6 +12,7 @@ import { seedCompanyFunctions } from "./seeds/companyFunctions.seed";
 import { seedIncoterms } from "./seeds/incoterms.seed";
 import { seedPaymentTerms } from "./seeds/paymentTerms.seed";
 import { verifySmtpTransport } from "./utils/mailer";
+import { resumeDocumentExtractionJobs } from "./services/documentExtractionService";
 const PORTD = Number(PORT) || 5001;
 const shouldRunStartupSeeds = process.env.RUN_STARTUP_SEEDS === "true";
 const shouldLogStartupDiagnostics = NODE_ENV !== "production" || process.env.STARTUP_DEBUG_LOGS === "true";
@@ -46,6 +47,7 @@ async function startServer() {
       await verifySmtpTransport("auth");
     }
     await connectDB();
+    void resumeDocumentExtractionJobs().catch((error) => console.error("Document extraction recovery failed:", error));
     // Canonical company functions are application schema, not optional demo data.
     await seedCompanyFunctions();
     if (shouldRunStartupSeeds) {

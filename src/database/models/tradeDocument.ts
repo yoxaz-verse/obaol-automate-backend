@@ -56,6 +56,7 @@ const TermsSchema = new Schema(
     incotermCode: { type: String },
     paymentTerms: { type: String, default: "" },
     deliveryTerms: { type: String, default: "" },
+    termsAndConditions: { type: String, default: "" },
     notes: { type: String, default: "" },
   },
   { _id: false }

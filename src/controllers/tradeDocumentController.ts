@@ -26,6 +26,7 @@ const isAdminRole = (role: string) => role === "admin";
 const isOperatorRole = (role: string) => role === "operator" || role === "team";
 const isAssociateRole = (role: string) => role === "associate";
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+const formatMoney = (value: unknown, currency = "INR") => `${currency} ${new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))}`;
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 
 const activityTimeline = (events: any[] = []) => events.map((event: any) => ({
@@ -47,8 +48,10 @@ const exposeDocument = (row: any, includeActivity = true) => {
   doc.balanceDue = balanceDue;
   doc.paymentStatus = balanceDue <= 0 && total > 0 ? "PAID" : amountPaid > 0 ? "PARTIALLY_PAID" : overdue ? "OVERDUE" : "UNPAID";
   doc.number = doc.documentNumber;
-  doc.recipient = { ...(doc.buyer || {}), billingAddress: doc.buyer?.address || "" };
-  doc.issuer = { ...(doc.seller || {}), billingAddress: doc.seller?.address || "" };
+  const recipientParty = ["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(doc.type || "")) ? doc.seller : doc.buyer;
+  const issuerParty = ["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(doc.type || "")) ? doc.buyer : doc.seller;
+  doc.recipient = { ...(recipientParty || {}), billingAddress: recipientParty?.address || "" };
+  doc.issuer = { ...(issuerParty || {}), billingAddress: issuerParty?.address || "" };
   doc.items = (doc.lineItems || []).map((item: any) => ({ ...item, description: item.description || item.productName || "", quantity: item.quantity || item.quantityMT || item.quantityKG || 0, unitPrice: item.unitPrice || item.ratePerKg || 0, subtotal: item.amount || 0 }));
   doc.currency = doc.totals?.currency || "INR";
   doc.subtotal = doc.totals?.subtotal || 0;
@@ -74,6 +77,12 @@ const STUDIO_TYPES = new Set([
   "INSURANCE_CERTIFICATE", "PAYMENT_ADVICE", "LORRY_RECEIPT", "LCL_DRAFT", "SHIPPING_BILL",
   "CERTIFICATE_OF_ORIGIN", "DISPATCH_CHALLAN", "BILL_OF_ENTRY", "CUSTOMS_CLEARANCE", "GOODS_RECEIPT",
 ]);
+const SELLER_RECIPIENT_TYPES = new Set(["PURCHASE_ORDER", "GOODS_RECEIPT"]);
+const recipientPartyRole = (type: string) => SELLER_RECIPIENT_TYPES.has(type) ? "SELLER" : "BUYER";
+const exposeCustomer = (row: any) => {
+  const value = row?.toObject ? row.toObject() : { ...row };
+  return { ...value, recipientRole: value.recipientRole || "BOTH", source: value.linkedCompanyId ? "REFERRED_COMPANY" : "EXTERNAL_CONTACT" };
+};
 
 const cleanText = (value: unknown, max = 500) => String(value || "").trim().slice(0, max);
 const standaloneDocumentData = (type: string, value: any) => {
@@ -149,11 +158,13 @@ const buildDocumentPdf = (doc: any) => {
     ...(doc.type === "PACKING_LIST" ? ["", `Shipment reference: ${studio.shipmentReference || "-"}`, "Description | Package | Count | Gross | Net | Dimensions | Marks", ...(studio.packages || []).slice(0, 18).map((item: any) => `${item.description || "-"} | ${item.packageType || "-"} | ${item.packageCount || 0} | ${item.grossWeight || 0} | ${item.netWeight || 0} | ${item.dimensions || "-"} | ${item.marks || "-"}`)] : []),
     ...(doc.type === "QUALITY_CERTIFICATE" ? ["", `Commodity: ${studio.commodity || "-"} | Sample: ${studio.sampleId || "-"} | Batch/lot: ${studio.batchLot || "-"}`, "Parameter | Result | Unit | Method | Limit", ...(studio.tests || []).slice(0, 18).map((item: any) => `${item.parameter || "-"} | ${item.result || "-"} | ${item.unit || "-"} | ${item.method || "-"} | ${item.limit || "-"}`), `Conclusion: ${studio.conclusion || "-"}`, `Authorized signatory: ${studio.authorizedSignatory || "-"}`] : []),
     "",
-    `Subtotal: ${doc.totals?.currency || "INR"} ${doc.totals?.subtotal || 0}`,
-    `Tax: ${doc.totals?.taxAmount || 0}`,
-    `Discount: ${doc.totals?.discountAmount || 0}`,
-    `Total: ${doc.totals?.currency || "INR"} ${doc.totals?.grandTotal || 0}`,
+    `Subtotal: ${formatMoney(doc.totals?.subtotal, doc.totals?.currency || "INR")}`,
+    `Tax: ${formatMoney(doc.totals?.taxAmount, doc.totals?.currency || "INR")}`,
+    `Discount: ${formatMoney(doc.totals?.discountAmount, doc.totals?.currency || "INR")}`,
+    `Total: ${formatMoney(doc.totals?.grandTotal, doc.totals?.currency || "INR")}`,
     `Payment terms: ${doc.terms?.paymentTerms || "-"}`,
+    `Delivery terms: ${doc.terms?.deliveryTerms || "-"}`,
+    `Terms and conditions: ${doc.terms?.termsAndConditions || "-"}`,
     `Notes: ${doc.terms?.notes || "-"}`,
   ];
   const stream = `BT\n/F1 11 Tf\n50 790 Td\n${lines.map((line, index) => `${index ? "0 -20 Td\n" : ""}(${pdfEscape(line)}) Tj`).join("\n")}\nET`;
@@ -517,9 +528,10 @@ export class TradeDocumentController {
         const documentNumber = await generateDocumentNumber(issuer._id, type, buildCompanyCode(issuer));
         const created = await TradeDocumentModel.create({
           type, status: "DRAFT", documentNumber, ownerCompanyId: issuer._id, customerId: customer._id,
-          buyer: snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }), seller: snapshotParty(issuer, req.user?.id),
+          buyer: recipientPartyRole(type) === "BUYER" ? snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }) : snapshotParty(issuer, req.user?.id),
+          seller: recipientPartyRole(type) === "SELLER" ? snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }) : snapshotParty(issuer, req.user?.id),
           lineItems: items, totals: { currency, subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) },
-          terms: { paymentTerms: String(req.body?.terms || req.body?.paymentTerms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), notes: String(req.body?.notes || "") },
+          terms: { paymentTerms: String(req.body?.terms || req.body?.paymentTerms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), termsAndConditions: String(req.body?.termsAndConditions || ""), notes: String(req.body?.notes || "") },
           issueDate, validUntil, dueDate, documentData, createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
           templateSnapshot: template ? JSON.parse(JSON.stringify(template)) : null, sourceMode: "CREATED", extractionStatus: "NOT_REQUIRED",
           auditEvents: [{ action: "CREATED", actorId: req.user?.id || null, actorRole: role, metadata: { standalone: true } }],
@@ -1057,7 +1069,7 @@ export class TradeDocumentController {
           const subtotal = round2(items.reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
           const taxAmount = round2(items.reduce((sum: number, item: any) => sum + Number(item.taxAmount || 0), 0));
           const discountAmount = round2(Number(req.body?.discountAmount || 0));
-          return { lineItems: items, documentData, totals: { currency: String(req.body?.currency || (existing as any)?.totals?.currency || "INR").toUpperCase(), subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) }, terms: { paymentTerms: String(req.body?.terms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), notes: String(req.body?.notes || "") }, issueDate: req.body?.issueDate || (existing as any).issueDate, validUntil: req.body?.validUntil || null, dueDate: req.body?.dueDate || null, auditEvents: [...((existing as any).auditEvents || []), { action: "DRAFT_UPDATED", actorId: req.user?.id || null, actorRole: role }] };
+          return { lineItems: items, documentData, totals: { currency: String(req.body?.currency || (existing as any)?.totals?.currency || "INR").toUpperCase(), subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) }, terms: { paymentTerms: String(req.body?.terms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), termsAndConditions: String(req.body?.termsAndConditions || ""), notes: String(req.body?.notes || "") }, issueDate: req.body?.issueDate || (existing as any).issueDate, validUntil: req.body?.validUntil || null, dueDate: req.body?.dueDate || null, auditEvents: [...((existing as any).auditEvents || []), { action: "DRAFT_UPDATED", actorId: req.user?.id || null, actorRole: role }] };
         })() : {};
       if (req.body?.fileUrl !== undefined) {
         updatePayload.fileUrl = req.body.fileUrl || null;
@@ -1075,7 +1087,10 @@ export class TradeDocumentController {
         const customer: any = customerId ? await CommercialCustomerModel.findOne({ _id: customerId, ownerCompanyId: standaloneOwner!._id }).lean() : null;
         if (!customer) return res.status(404).json({ success: false, message: "Customer not found." });
         updatePayload.customerId = customer._id;
-        updatePayload.buyer = snapshotParty({ ...customer, _id: customer.linkedCompanyId || null });
+        const recipient = snapshotParty({ ...customer, _id: customer.linkedCompanyId || null });
+        const issuer = snapshotParty(standaloneOwner, req.user?.id);
+        updatePayload.buyer = recipientPartyRole(String((existing as any).type || "")) === "BUYER" ? recipient : issuer;
+        updatePayload.seller = recipientPartyRole(String((existing as any).type || "")) === "SELLER" ? recipient : issuer;
       }
 
       const updated = await TradeDocumentModel.findByIdAndUpdate(id, updatePayload, { new: true });
@@ -1121,7 +1136,8 @@ export class TradeDocumentController {
   async listCustomers(req: Request, res: Response, next: NextFunction) {
     try {
       const issuer = await approvedAssociateCompany(req, res); if (!issuer) return;
-      return res.json({ success: true, data: await CommercialCustomerModel.find({ ownerCompanyId: issuer._id }).sort({ updatedAt: -1 }).limit(500).lean() });
+      const rows = await CommercialCustomerModel.find({ ownerCompanyId: issuer._id }).sort({ updatedAt: -1 }).limit(500).lean();
+      return res.json({ success: true, data: rows.map(exposeCustomer) });
     } catch (error) { next(error); }
   }
 
@@ -1143,11 +1159,13 @@ export class TradeDocumentController {
   async createCustomer(req: Request, res: Response, next: NextFunction) {
     try {
       const issuer = await approvedAssociateCompany(req, res); if (!issuer) return;
-      const input = { name: String(req.body?.name || "").trim(), contactName: String(req.body?.contactName || "").trim(), email: String(req.body?.email || "").trim().toLowerCase(), billingAddress: String(req.body?.billingAddress || "").trim(), phone: String(req.body?.phone || "").trim(), gstin: String(req.body?.gstin || "").trim(), linkedCompanyId: toObjectId(req.body?.linkedCompanyId) };
+      const recipientRole = String(req.body?.recipientRole || "BOTH").toUpperCase();
+      const input = { name: String(req.body?.name || "").trim(), contactName: String(req.body?.contactName || "").trim(), email: String(req.body?.email || "").trim().toLowerCase(), billingAddress: String(req.body?.billingAddress || "").trim(), phone: String(req.body?.phone || "").trim(), gstin: String(req.body?.gstin || "").trim(), linkedCompanyId: toObjectId(req.body?.linkedCompanyId), recipientRole };
       if (!input.name || !input.contactName || !/^\S+@\S+\.\S+$/.test(input.email) || !input.billingAddress) return res.status(400).json({ success: false, message: "Customer name, contact, email and billing address are required." });
+      if (!["BUYER", "SELLER", "BOTH"].includes(recipientRole)) return res.status(400).json({ success: false, message: "Choose Buyer, Seller, or Both." });
       if (input.linkedCompanyId && !await AssociateCompanyModel.exists({ _id: input.linkedCompanyId, referredByCompanyId: issuer._id, registrationStatus: "APPROVED", isDeleted: { $ne: true } })) return res.status(400).json({ success: false, message: "Only a directly referred company can be linked." });
       const created = await CommercialCustomerModel.create({ ...input, ownerCompanyId: issuer._id });
-      return res.status(201).json({ success: true, data: created });
+      return res.status(201).json({ success: true, data: exposeCustomer(created) });
     } catch (error) { next(error); }
   }
 
@@ -1155,11 +1173,13 @@ export class TradeDocumentController {
     try {
       const issuer = await approvedAssociateCompany(req, res); if (!issuer) return;
       if (!Types.ObjectId.isValid(String(req.params.id || ""))) return res.status(400).json({ success: false, message: "Invalid customer id." });
-      const input = { name: String(req.body?.name || "").trim(), contactName: String(req.body?.contactName || "").trim(), email: String(req.body?.email || "").trim().toLowerCase(), billingAddress: String(req.body?.billingAddress || "").trim(), phone: String(req.body?.phone || "").trim(), gstin: String(req.body?.gstin || "").trim(), linkedCompanyId: toObjectId(req.body?.linkedCompanyId) };
+      const recipientRole = String(req.body?.recipientRole || "BOTH").toUpperCase();
+      const input = { name: String(req.body?.name || "").trim(), contactName: String(req.body?.contactName || "").trim(), email: String(req.body?.email || "").trim().toLowerCase(), billingAddress: String(req.body?.billingAddress || "").trim(), phone: String(req.body?.phone || "").trim(), gstin: String(req.body?.gstin || "").trim(), linkedCompanyId: toObjectId(req.body?.linkedCompanyId), recipientRole };
       if (!input.name || !input.contactName || !/^\S+@\S+\.\S+$/.test(input.email) || !input.billingAddress) return res.status(400).json({ success: false, message: "Customer name, contact, email and billing address are required." });
+      if (!["BUYER", "SELLER", "BOTH"].includes(recipientRole)) return res.status(400).json({ success: false, message: "Choose Buyer, Seller, or Both." });
       if (input.linkedCompanyId && !await AssociateCompanyModel.exists({ _id: input.linkedCompanyId, referredByCompanyId: issuer._id, registrationStatus: "APPROVED", isDeleted: { $ne: true } })) return res.status(400).json({ success: false, message: "Only a directly referred company can be linked." });
       const updated = await CommercialCustomerModel.findOneAndUpdate({ _id: req.params.id, ownerCompanyId: issuer._id }, input, { new: true, runValidators: true });
-      return updated ? res.json({ success: true, data: updated }) : res.status(404).json({ success: false, message: "Customer not found." });
+      return updated ? res.json({ success: true, data: exposeCustomer(updated) }) : res.status(404).json({ success: false, message: "Customer not found." });
     } catch (error) { next(error); }
   }
 

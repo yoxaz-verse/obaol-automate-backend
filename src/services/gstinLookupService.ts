@@ -14,9 +14,51 @@ const cache = new Map<string, { expiresAt: number; value: GstinLookupResult }>()
 export const clearGstinLookupCache = () => cache.clear();
 const clean = (value: unknown) => String(value || "").trim();
 const cleanList = (value: unknown) => Array.isArray(value) ? value.map(clean).filter(Boolean).slice(0, 30) : [];
+const positiveNumber = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 const proofSecret = () => process.env.GST_LOOKUP_PROOF_SECRET || process.env.JWT_SECRET || "";
 const isActive = (status: string) => ["ACTIVE", "ACT", "VALID"].includes(status.toUpperCase());
 const sign = (value: string) => crypto.createHmac("sha256", proofSecret()).update(value).digest("base64url");
+
+type GstLookupMethod = "GET" | "POST";
+
+const configuredMethod = (): GstLookupMethod => clean(process.env.GST_LOOKUP_METHOD).toUpperCase() === "POST" ? "POST" : "GET";
+
+const buildProviderRequest = (gstin: string, signal: AbortSignal): { url: string; init: RequestInit } => {
+  const template = clean(process.env.GST_LOOKUP_URL);
+  if (!template) throw Object.assign(new Error("GST verification is not configured yet."), { code: "PROVIDER_UNAVAILABLE", status: 503 });
+
+  const method = configuredMethod();
+  const hasPlaceholder = template.includes("{gstin}");
+  const url = hasPlaceholder
+    ? template.split("{gstin}").join(encodeURIComponent(gstin))
+    : method === "GET"
+      ? `${template.replace(/\/$/, "")}/${encodeURIComponent(gstin)}`
+      : template;
+  const headers: Record<string, string> = { Accept: "application/json" };
+  const apiKey = clean(process.env.GST_LOOKUP_API_KEY);
+  if (apiKey) {
+    const header = clean(process.env.GST_LOOKUP_API_KEY_HEADER || "Authorization");
+    const prefix = clean(process.env.GST_LOOKUP_API_KEY_PREFIX);
+    headers[header] = prefix ? `${prefix} ${apiKey}` : apiKey;
+  }
+
+  if (method === "POST") {
+    headers["Content-Type"] = "application/json";
+    const bodyTemplate = clean(process.env.GST_LOOKUP_BODY_TEMPLATE || '{"gstin":"{gstin}"}');
+    let body: string;
+    try {
+      body = JSON.stringify(JSON.parse(bodyTemplate.split("{gstin}").join(gstin)));
+    } catch {
+      throw Object.assign(new Error("GST lookup request template is invalid JSON."), { code: "PROVIDER_CONFIGURATION_ERROR", status: 503 });
+    }
+    return { url, init: { method, headers, body, signal } };
+  }
+
+  return { url, init: { method, headers, signal } };
+};
 
 export const createGstinProof = (result: GstinLookupResult) => {
   if (!proofSecret()) throw new Error("GST lookup proof secret is not configured.");
@@ -64,22 +106,22 @@ export const lookupGstin = async (value: unknown): Promise<GstinLookupResult> =>
   if (!GST_REGEX.test(gstin) || !hasValidGstinChecksum(gstin)) throw Object.assign(new Error("Enter a valid GSTIN."), { code: "INVALID_GSTIN", status: 400 });
   const cached = cache.get(gstin);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
-  const template = clean(process.env.GST_LOOKUP_URL);
-  if (!template) throw Object.assign(new Error("GST verification is not configured yet."), { code: "PROVIDER_UNAVAILABLE", status: 503 });
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(process.env.GST_LOOKUP_TIMEOUT_MS || 8000));
+  const timeout = setTimeout(() => controller.abort(), positiveNumber(process.env.GST_LOOKUP_TIMEOUT_MS, 8000));
   try {
-    const url = template.includes("{gstin}") ? template.replace("{gstin}", encodeURIComponent(gstin)) : `${template.replace(/\/$/, "")}/${encodeURIComponent(gstin)}`;
-    const apiKey = clean(process.env.GST_LOOKUP_API_KEY);
-    const response = await fetch(url, { headers: apiKey ? { [clean(process.env.GST_LOOKUP_API_KEY_HEADER || "Authorization")]: apiKey } : {}, signal: controller.signal });
+    const { url, init } = buildProviderRequest(gstin, controller.signal);
+    const response = await fetch(url, init);
     if (response.status === 404) throw Object.assign(new Error("No GST registration was found for this GSTIN."), { code: "NOT_FOUND", status: 404 });
+    if (response.status === 401 || response.status === 403) throw Object.assign(new Error("GST verification provider credentials were rejected."), { code: "PROVIDER_AUTH_FAILED", status: 503 });
+    if (response.status === 429) throw Object.assign(new Error("GST verification provider rate limit was reached. Please retry later."), { code: "PROVIDER_RATE_LIMITED", status: 503 });
     if (!response.ok) throw Object.assign(new Error("GST verification provider is temporarily unavailable."), { code: "PROVIDER_ERROR", status: 502 });
     const result = normalizeProviderResponse(gstin, await response.json());
-    cache.set(gstin, { value: result, expiresAt: Date.now() + 6 * 60 * 60 * 1000 });
+    cache.set(gstin, { value: result, expiresAt: Date.now() + positiveNumber(process.env.GST_LOOKUP_CACHE_TTL_MS, 6 * 60 * 60 * 1000) });
     logger.info("GSTIN lookup completed", { gstinSuffix: gstin.slice(-4), provider: result.provider, status: result.registrationStatus });
     return result;
   } catch (error: any) {
     if (error?.name === "AbortError") throw Object.assign(new Error("GST verification timed out. Please retry."), { code: "PROVIDER_TIMEOUT", status: 504 });
+    if (!error?.code) throw Object.assign(new Error("GST verification provider could not be reached."), { code: "PROVIDER_ERROR", status: 502 });
     throw error;
   } finally { clearTimeout(timeout); }
 };

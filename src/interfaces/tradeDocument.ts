@@ -75,6 +75,7 @@ export interface ITradeDocumentTerms {
   incotermCode?: string;
   paymentTerms?: string;
   deliveryTerms?: string;
+  termsAndConditions?: string;
   notes?: string;
 }
 

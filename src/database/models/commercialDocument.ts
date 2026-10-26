@@ -9,6 +9,7 @@ export const CommercialCustomerModel = mongoose.model("CommercialCustomer", new 
   billingAddress: { type: String, required: true },
   gstin: { type: String, default: "" },
   contactName: { type: String, required: true },
+  recipientRole: { type: String, enum: ["BUYER", "SELLER", "BOTH"], default: "BOTH", index: true },
 }, { timestamps: true }));
 
 const sequenceSchema = new Schema({

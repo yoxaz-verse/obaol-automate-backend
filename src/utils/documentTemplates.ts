@@ -256,8 +256,30 @@ export const ensureDefaultDocumentTemplate = async (documentType: string) => {
   return resolveTemplateForRender(upper);
 };
 
-export const resolveTemplateForRender = async (documentType: string, companyId?: string) => {
+export const resolveTemplateForRender = async (documentType: string, companyId?: string, selectedTemplateId?: string) => {
   const upper = String(documentType || "").toUpperCase();
+
+  if (selectedTemplateId) {
+    if (!/^[a-f\d]{24}$/i.test(selectedTemplateId)) return null;
+    const selected = await DocumentTemplateModel.findOne({
+      _id: selectedTemplateId,
+      documentType: upper,
+      status: "PUBLISHED",
+      stage: "LIVE",
+      isActive: true,
+      isDeleted: { $ne: true },
+      $and: [
+        { $or: [{ activationMode: "IMMEDIATE" }, { activationMode: "SCHEDULED", activationAt: { $lte: new Date() } }] },
+        { $or: [
+          { scope: "GLOBAL", companyId: null },
+          ...(companyId && /^[a-f\d]{24}$/i.test(companyId)
+            ? [{ scope: "COMPANY_OVERRIDE", companyId }]
+            : []),
+        ] },
+      ],
+    }).lean();
+    return selected || null;
+  }
 
   if (companyId && /^[a-f\d]{24}$/i.test(companyId)) {
     const companyLive = await DocumentTemplateModel.findOne({

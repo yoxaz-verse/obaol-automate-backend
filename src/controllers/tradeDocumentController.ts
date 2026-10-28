@@ -550,13 +550,12 @@ export class TradeDocumentController {
       if (enquiryId) {
         enquiry = await InquiryModel.findById(enquiryId);
       } else if (orderId) {
-        order = await OrderModel.findById(orderId).select("enquiry workflowStage status").lean();
-        if (!order?.enquiry) {
-          return res.status(404).json({ success: false, message: "Order not found or missing enquiry." });
-        }
-        enquiry = await InquiryModel.findById(order.enquiry);
+        order = await OrderModel.findById(orderId).select("enquiry workflowStage status isExternal").lean();
+        if (!order) return res.status(404).json({ success: false, message: "Order not found." });
+        if (order.enquiry) enquiry = await InquiryModel.findById(order.enquiry);
+        else if (!order.isExternal) return res.status(404).json({ success: false, message: "Order is missing its trade context." });
       }
-      if (!enquiryId && !orderId && STUDIO_TYPES.has(type)) {
+      if (!enquiryId && (!orderId || (order?.isExternal && !order?.enquiry)) && STUDIO_TYPES.has(type)) {
         const issuer = await approvedAssociateCompany(req, res);
         if (!issuer) return;
         const customerId = toObjectId(req.body?.customerId);
@@ -581,7 +580,11 @@ export class TradeDocumentController {
         const discountAmount = round2(Number(req.body?.discountAmount || 0));
         if (!Number.isFinite(discountAmount) || discountAmount < 0 || discountAmount > subtotal + taxAmount) return res.status(400).json({ success: false, message: "Discount is invalid." });
         await ensureDefaultDocumentTemplate(type);
-        const template: any = await resolveTemplateForRender(type, String(issuer._id));
+        const requestedTemplateId = String(req.body?.selectedTemplateId || "").trim();
+        const template: any = await resolveTemplateForRender(type, String(issuer._id), requestedTemplateId || undefined);
+        if (requestedTemplateId && !template) {
+          return res.status(400).json({ success: false, message: "Selected template is not published, active, compatible with this document type, or available to your company." });
+        }
         const documentNumber = await generateDocumentNumber(issuer._id, type, buildCompanyCode(issuer));
         const created = await TradeDocumentModel.create({
           type, status: "DRAFT", documentNumber, ownerCompanyId: issuer._id, customerId: customer._id,
@@ -589,10 +592,10 @@ export class TradeDocumentController {
           seller: recipientPartyRole(type) === "SELLER" ? snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }) : snapshotParty(issuer, req.user?.id),
           lineItems: items, totals: { currency, subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) },
           terms: { paymentTerms: String(req.body?.terms || req.body?.paymentTerms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), termsAndConditions: String(req.body?.termsAndConditions || ""), notes: String(req.body?.notes || "") },
-          issueDate, validUntil, dueDate, documentData, createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
+          issueDate, validUntil, dueDate, documentData, orderId: orderId || null, createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
           selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null,
           templateSnapshot: null, sourceMode: "CREATED", extractionStatus: "NOT_REQUIRED",
-          auditEvents: [{ action: "CREATED", actorId: req.user?.id || null, actorRole: role, metadata: { standalone: true } }],
+          auditEvents: [{ action: "CREATED", actorId: req.user?.id || null, actorRole: role, metadata: { standalone: !orderId, externalOrderId: orderId || null } }],
         });
         return res.status(201).json({ success: true, data: exposeDocument(created) });
       }

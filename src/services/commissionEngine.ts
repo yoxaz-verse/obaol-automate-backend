@@ -5,8 +5,9 @@ import { CommissionRuleModel } from "../database/models/commissionRule";
 import { OrderModel } from "../database/models/order";
 import { InquiryModel } from "../database/models/enquiry";
 import { AssociateReferralEarningModel } from "../database/models/associateReferralEarning";
-import { AssociateReferralService } from "./associateReferral.service";
+import { AssociateReferralService, indiaMonthWindow } from "./associateReferral.service";
 import { OperatorHierarchyService } from "./operatorHierarchy.service";
+import { AssociateReferralActivityModel } from "../database/models/associateReferralActivity";
 
 type PayoutRow = {
   operatorId: mongoose.Types.ObjectId;
@@ -75,12 +76,23 @@ export class CommissionEngine {
       }
     }
 
-    const companies: any[] = participantCompanyIds.length
+    const completedAt = order.updatedAt || new Date();
+    await Promise.all(participantCompanyIds.map((companyId: mongoose.Types.ObjectId) =>
+      AssociateReferralService.recordCompanyActivity(companyId, "ORDER_COMPLETED", order._id, completedAt)
+    ));
+    const monthWindow = indiaMonthWindow(completedAt);
+    const activeCompanyIds = participantCompanyIds.length
+      ? await AssociateReferralActivityModel.distinct("companyId", {
+          companyId: { $in: participantCompanyIds },
+          occurredAt: { $gte: monthWindow.start, $lte: completedAt },
+        })
+      : [];
+
+    const companies: any[] = activeCompanyIds.length
       ? await AssociateCompanyModel.find({
-          _id: { $in: participantCompanyIds },
+          _id: { $in: activeCompanyIds },
           referredByCompanyId: { $ne: null },
-          referralActivatedAt: { $ne: null, $lte: order.updatedAt || new Date() },
-        }).select("_id referredByCompanyId referralActivatedAt").lean()
+        }).select("_id referredByCompanyId").lean()
       : [];
 
     const grouped = new Map<string, string[]>();

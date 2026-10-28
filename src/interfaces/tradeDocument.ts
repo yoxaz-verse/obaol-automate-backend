@@ -98,6 +98,9 @@ export interface ITradeDocument extends Document {
   selectedTemplateId?: Types.ObjectId | null;
   selectedTemplateVersion?: number | null;
   documentData?: Record<string, unknown>;
+  inviteIdempotencyKey?: string | null;
+  inviteExpiresAt?: Date | null;
+  inviteRevokedAt?: Date | null;
   firstViewedAt?: Date | null;
   lastViewedAt?: Date | null;
   viewCount?: number;

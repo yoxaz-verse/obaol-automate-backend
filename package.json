@@ -27,6 +27,7 @@
     "backfill:variant-rate-commission": "ts-node src/scripts/backfill-variant-rate-commission.ts",
     "backfill:catalog-moderation": "ts-node src/scripts/backfill-catalog-moderation.ts",
     "backfill:associate-referral-codes": "ts-node src/scripts/backfill-associate-referral-codes.ts",
+    "backfill:associate-referral-activities": "ts-node src/scripts/backfillAssociateReferralActivities.ts",
     "backfill:quality-lab-profiles": "ts-node src/scripts/backfillQualityLabProfiles.ts",
     "migrate:structured-lab-profiles": "ts-node src/scripts/migrateStructuredLabProfiles.ts",
     "migrate:lab-profile-indexes": "ts-node src/scripts/repairLabProfileIndexes.ts",

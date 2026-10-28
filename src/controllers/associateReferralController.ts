@@ -5,7 +5,8 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { AssociateReferralEarningModel } from "../database/models/associateReferralEarning";
 import { AssociateReferralInvitationModel } from "../database/models/associateReferralInvitation";
 import { CommissionRuleModel } from "../database/models/commissionRule";
-import { AssociateReferralService } from "../services/associateReferral.service";
+import { AssociateReferralService, indiaMonthWindow } from "../services/associateReferral.service";
+import { AssociateReferralActivityModel } from "../database/models/associateReferralActivity";
 
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
@@ -30,13 +31,12 @@ export class AssociateReferralController {
       if (!company) return res.status(404).json({ success: false, message: "Associate company not found." });
       const referralCode = company.referralCode || await AssociateReferralService.ensureCompanyCode(companyId);
 
-      const [referrals, referralCount, activeCount, earningRows, earningCount, totalAgg, invitations, commissionRule] = await Promise.all([
+      const [referrals, referralCount, earningRows, earningCount, totalAgg, invitations, commissionRule] = await Promise.all([
         AssociateCompanyModel.find({ referredByCompanyId: company._id })
           .sort({ createdAt: -1 })
           .select("name registrationStatus isApproved referralCapturedAt referralActivatedAt referralActivationEvent createdAt")
           .lean(),
         AssociateCompanyModel.countDocuments({ referredByCompanyId: company._id }),
-        AssociateCompanyModel.countDocuments({ referredByCompanyId: company._id, referralActivatedAt: { $ne: null } }),
         AssociateReferralEarningModel.find({ referrerCompanyId: company._id })
           .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit)
           .select("orderId referredCompanyIds poolPercent amount status createdAt").lean(),
@@ -52,6 +52,22 @@ export class AssociateReferralController {
         CommissionRuleModel.findOne({ isDefault: true, isActive: { $ne: false } }).select("associateReferralPercent").lean(),
       ]);
 
+      const eligibilityWindow = indiaMonthWindow();
+      const referredCompanyIds = referrals.map((row: any) => row._id);
+      const currentActivities: any[] = referredCompanyIds.length
+        ? await AssociateReferralActivityModel.find({
+            companyId: { $in: referredCompanyIds },
+            occurredAt: { $gte: eligibilityWindow.start, $lt: eligibilityWindow.end },
+          }).sort({ occurredAt: -1 }).lean()
+        : [];
+      const latestActivityByCompany = new Map<string, any>();
+      currentActivities.forEach((activity: any) => {
+        const id = String(activity.companyId);
+        if (!latestActivityByCompany.has(id)) latestActivityByCompany.set(id, activity);
+      });
+      const activeCompanyIds = new Set(latestActivityByCompany.keys());
+      const activeCount = activeCompanyIds.size;
+
       const joinedCompanyIds = invitations.map((row: any) => row.joinedCompanyId?._id).filter(Boolean);
       const earnedCompanyIds = new Set<string>();
       if (joinedCompanyIds.length) {
@@ -65,7 +81,7 @@ export class AssociateReferralController {
         const joinedId = String(joined?._id || "");
         const status = joinedId && earnedCompanyIds.has(joinedId)
           ? "EARNED"
-          : joined?.referralActivatedAt
+          : activeCompanyIds.has(joinedId)
             ? "ACTIVE"
             : joinedId
               ? "JOINED"
@@ -73,7 +89,12 @@ export class AssociateReferralController {
         return {
           id: row._id, recipientName: row.recipientName, channel: row.channel, destination: row.destination,
           status, joinedAt: row.joinedAt, createdAt: row.createdAt,
-          company: joinedId ? { id: joined._id, name: joined.name, registrationStatus: joined.registrationStatus } : null,
+          company: joinedId ? {
+            id: joined._id, name: joined.name, registrationStatus: joined.registrationStatus,
+            activeThisMonth: activeCompanyIds.has(joinedId),
+            lastActivityAt: latestActivityByCompany.get(joinedId)?.occurredAt || null,
+            lastActivityType: latestActivityByCompany.get(joinedId)?.type || null,
+          } : null,
         };
       });
       const invitationSummary = invitationRows.reduce((acc: Record<string, number>, row: any) => {
@@ -84,6 +105,7 @@ export class AssociateReferralController {
       return res.json({ success: true, data: {
         company: { id: company._id, name: company.name, referralCode },
         rewardPercent: Number((commissionRule as any)?.associateReferralPercent ?? 10),
+        eligibilityWindow: { start: eligibilityWindow.start, end: eligibilityWindow.end, timeZone: "Asia/Kolkata" },
         summary: {
           totalReferrals: referralCount,
           activeReferrals: activeCount,
@@ -91,6 +113,11 @@ export class AssociateReferralController {
           totalEarnings: round2(totalAgg?.[0]?.total || 0),
         },
         referrals: referrals.map((row: any) => ({
+          ...(latestActivityByCompany.has(String(row._id)) ? {
+            activeThisMonth: true,
+            lastActivityAt: latestActivityByCompany.get(String(row._id)).occurredAt,
+            lastActivityType: latestActivityByCompany.get(String(row._id)).type,
+          } : { activeThisMonth: false, lastActivityAt: null, lastActivityType: null }),
           id: row._id, name: row.name, registrationStatus: row.registrationStatus,
           referralCapturedAt: row.referralCapturedAt, referralActivatedAt: row.referralActivatedAt,
           activationType: row.referralActivationEvent?.type || null, createdAt: row.createdAt,

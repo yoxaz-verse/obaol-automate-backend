@@ -13,6 +13,7 @@ import { InquiryStatus } from "../core/inquiry/inquiryStateMachine";
 import { createInquiryEvent, InquiryEventType } from "../database/models/InquiryEvent";
 import { getCalculationConfig } from "../utils/calculationConfig";
 import { getImportReservationExpiryCutoff } from "../utils/importReservationExpiry";
+import { AssociateReferralService } from "../services/associateReferral.service";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -797,6 +798,13 @@ export class ImportController {
       reservation.acceptedAt = new Date();
       await reservation.save();
 
+      await AssociateReferralService.recordCompanyActivity(
+        reservation.buyerCompanyId,
+        "RESERVATION_CONFIRMED",
+        reservation._id,
+        reservation.acceptedAt
+      );
+
       await this.recomputeListingState(listing._id);
 
       const populated = await ImportReservationModel.findById(reservation._id)
@@ -1054,6 +1062,12 @@ export class ImportController {
       reservation.reservationStatus = "LOCKED";
       reservation.linkedEnquiryId = enquiry._id;
       await reservation.save();
+
+      await AssociateReferralService.recordCompanyActivity(
+        reservation.buyerCompanyId,
+        "RESERVATION_CONFIRMED",
+        reservation._id
+      );
 
       listing.importStatus = "ENQUIRY_CREATED";
       await listing.save();

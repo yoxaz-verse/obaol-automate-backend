@@ -7,6 +7,7 @@ import { CommissionRuleModel } from "../src/database/models/commissionRule";
 import { OrderModel } from "../src/database/models/order";
 import { AssociateReferralService } from "../src/services/associateReferral.service";
 import { CommissionEngine } from "../src/services/commissionEngine";
+import { AssociateReferralActivityModel } from "../src/database/models/associateReferralActivity";
 
 const createCompany = (overrides: Record<string, any> = {}) => AssociateCompanyModel.create({
   name: `Company ${new mongoose.Types.ObjectId().toHexString()}`,
@@ -58,18 +59,22 @@ describe("one-level associate referrals", () => {
     await expect(AssociateReferralService.validateInvitation(token, other._id)).rejects.toThrow("does not match");
   });
 
-  it("resolves company codes and activates only once after an approved qualifying activity", async () => {
+  it("records monthly qualifying activities idempotently while preserving first activation", async () => {
     const referrer = await createCompany({ referralCode: "REFER123" });
     const referred = await createCompany({ referredByCompanyId: referrer._id, referralCodeUsed: "REFER123" });
     const resolved = await AssociateReferralService.resolveCode("refer123");
     expect(resolved.type).toBe("associate_company");
 
-    const first = await AssociateReferralService.activateCompany(referred._id, "LIVE_SUPPLY", new mongoose.Types.ObjectId());
+    const listingId = new mongoose.Types.ObjectId();
+    const first = await AssociateReferralService.activateCompany(referred._id, "LIVE_SUPPLY", listingId);
+    const duplicate = await AssociateReferralService.activateCompany(referred._id, "LIVE_SUPPLY", listingId);
     const second = await AssociateReferralService.activateCompany(referred._id, "INQUIRY_CREATED", new mongoose.Types.ObjectId());
     expect(first).toBe(true);
-    expect(second).toBe(false);
+    expect(duplicate).toBe(false);
+    expect(second).toBe(true);
     const saved: any = await AssociateCompanyModel.findById(referred._id).lean();
     expect(saved.referralActivationEvent.type).toBe("LIVE_SUPPLY");
+    expect(await AssociateReferralActivityModel.countDocuments({ companyId: referred._id })).toBe(2);
   });
 
   it("splits one 10% pool between unique referrers and remains idempotent", async () => {
@@ -108,13 +113,13 @@ describe("one-level associate referrals", () => {
     expect(rows[0].referredCompanyIds).toHaveLength(2);
   });
 
-  it("does not pay inactive referrals and seals the order against retroactive rewards", async () => {
+  it("counts completed-order participation as monthly activity and remains idempotent", async () => {
     const referrer = await createCompany();
     const referred = await createCompany({ referredByCompanyId: referrer._id, referralActivatedAt: null });
     const order = await OrderModel.create({ status: "COMPLETED", profit: 1000, participantCompanyIds: [referred._id] });
     await CommissionEngine.processAssociateReferralCommission(String(order._id));
-    await AssociateCompanyModel.updateOne({ _id: referred._id }, { $set: { referralActivatedAt: new Date() } });
     await CommissionEngine.processAssociateReferralCommission(String(order._id));
-    expect(await AssociateReferralEarningModel.countDocuments({ orderId: order._id })).toBe(0);
+    expect(await AssociateReferralEarningModel.countDocuments({ orderId: order._id })).toBe(1);
+    expect(await AssociateReferralActivityModel.countDocuments({ companyId: referred._id, type: "ORDER_COMPLETED" })).toBe(1);
   });
 });

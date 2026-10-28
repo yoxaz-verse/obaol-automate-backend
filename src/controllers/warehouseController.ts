@@ -9,6 +9,7 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { WarehouseAssignmentModel } from "../database/models/warehouseAssignment";
 import { getOperatorCompanyScope } from "../core/hooks/operatorScope";
 import { getCalculationConfig } from "../utils/calculationConfig";
+import { AssociateReferralService } from "../services/associateReferral.service";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -483,6 +484,14 @@ export class WarehouseController {
         .populate("warehouseId", "name address category listingType isRentalActive isActive")
         .populate("companyId", "name email assignedOperator")
         .lean();
+
+      if (bookingStatus === "BOOKED") {
+        await AssociateReferralService.recordCompanyActivity(
+          companyObjectId,
+          "WAREHOUSE_BOOKING",
+          assignment!._id
+        );
+      }
 
       return res.status(200).json({ success: true, data: assignment });
     } catch (error) {

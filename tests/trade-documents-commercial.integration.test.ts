@@ -27,7 +27,14 @@ describe("canonical standalone trade documents", () => {
     expect(quotation.body.data.total).toBe(200);
     const id = quotation.body.data._id;
     expect((await api.post(`${base}/${id}/issue`).set("Authorization", `Bearer ${seller.token}`).send({})).status).toBe(200);
-    const invitation = await api.post(`${base}/${id}/invite`).set("Authorization", `Bearer ${seller.token}`).send({});
+    const invitation = await api.post(`${base}/${id}/invite`).set("Authorization", `Bearer ${seller.token}`).send({ expiresInDays: 7, idempotencyKey: "quotation-share-1" });
+    expect(invitation.status).toBe(200);
+    expect(invitation.body.emailDelivery).toBe("notRequested");
+    expect(invitation.body.data).not.toHaveProperty("inviteIdempotencyKey");
+    expect(new Date(invitation.body.expiresAt).getTime()).toBeGreaterThan(Date.now() + 6 * 86400000);
+    const repeatedInvitation = await api.post(`${base}/${id}/invite`).set("Authorization", `Bearer ${seller.token}`).send({ expiresInDays: 7, idempotencyKey: "quotation-share-1" });
+    expect(repeatedInvitation.body.reused).toBe(true);
+    expect(repeatedInvitation.body.inviteUrl).toBe(invitation.body.inviteUrl);
     const inviteToken = String(invitation.body.inviteUrl).split("/").pop();
     const shared = await api.get(`${base}/share/${inviteToken}`);
     expect(shared.status).toBe(200);

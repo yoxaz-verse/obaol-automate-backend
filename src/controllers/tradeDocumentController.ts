@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Types } from "mongoose";
-import { createHash, randomBytes } from "crypto";
+import { createHash, createHmac, randomBytes } from "crypto";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { SystemConfigModel } from "../database/models/systemConfig";
 import { DocumentSequenceModel } from "../database/models/documentSequence";
@@ -24,6 +24,8 @@ import { DocumentExtractionJobModel } from "../database/models/documentExtractio
 import { processDocumentExtraction } from "../services/documentExtractionService";
 import { DocumentConversionRuleModel } from "../database/models/documentConversionRule";
 import { prepareExternalOrder } from "../services/orders/externalOrder.service";
+import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEmail";
+import { sendTradeDocumentEmail } from "../utils/mailer";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -32,6 +34,7 @@ const isAssociateRole = (role: string) => role === "associate";
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const formatMoney = (value: unknown, currency = "INR") => `${currency} ${new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))}`;
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
+const invitationToken = (documentId: unknown, idempotencyKey: string) => createHmac("sha256", String(process.env.JWT_SECRET || "obaol-invitation-secret")).update(`${documentId}:${idempotencyKey}`).digest("hex");
 
 const activityTimeline = (events: any[] = []) => events.map((event: any) => ({
   action: String(event?.action || ""),
@@ -41,6 +44,7 @@ const activityTimeline = (events: any[] = []) => events.map((event: any) => ({
 const exposeDocument = (row: any, includeActivity = true) => {
   const doc = row?.toObject ? row.toObject() : { ...row };
   delete doc.inviteTokenHash;
+  delete doc.inviteIdempotencyKey;
   const events = Array.isArray(doc.auditEvents) ? doc.auditEvents : [];
   delete doc.auditEvents;
   if (includeActivity) doc.activityTimeline = activityTimeline(events);
@@ -195,7 +199,7 @@ const ownedCommercialDocument = async (req: Request, res: Response, includeInvit
     return null;
   }
   const query = TradeDocumentModel.findOne({ _id: req.params.id, ownerCompanyId: issuer._id, isDeleted: { $ne: true } });
-  if (includeInvite) query.select("+inviteTokenHash");
+  if (includeInvite) query.select("+inviteTokenHash +inviteIdempotencyKey");
   const doc: any = await query;
   if (!doc) {
     res.status(404).json({ success: false, message: "Document not found." });
@@ -1256,12 +1260,42 @@ export class TradeDocumentController {
     try {
       const result = await ownedCommercialDocument(req, res, true); if (!result) return;
       if (result.doc.status === "DRAFT") return res.status(409).json({ success: false, message: "Issue the document before creating an invitation." });
-      const token = randomBytes(32).toString("hex");
-      result.doc.inviteTokenHash = tokenHash(token); result.doc.inviteExpiresAt = new Date(Date.now() + 30 * 86400000); result.doc.inviteRevokedAt = null;
-      result.doc.auditEvents.push({ action: "INVITE_LINK_CREATED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role) });
+      const expiresInDays = Number(req.body?.expiresInDays ?? 30);
+      if (!Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 90) return res.status(400).json({ success: false, message: "Invitation expiry must be between 1 and 90 days." });
+      const sendEmail = req.body?.sendEmail === true;
+      const recipientParty = ["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(result.doc.type || "")) ? result.doc.seller : result.doc.buyer;
+      const recipientEmail = String(req.body?.recipientEmail || recipientParty?.email || "").trim().toLowerCase();
+      if (sendEmail && !/^\S+@\S+\.\S+$/.test(recipientEmail)) return res.status(400).json({ success: false, message: "Enter a valid recipient email address." });
+      const message = String(req.body?.message || "").trim();
+      if (message.length > 1000) return res.status(400).json({ success: false, message: "Invitation message cannot exceed 1000 characters." });
+      const idempotencyKey = String(req.body?.idempotencyKey || randomBytes(16).toString("hex")).trim();
+      if (!idempotencyKey || idempotencyKey.length > 200) return res.status(400).json({ success: false, message: "Invalid invitation idempotency key." });
+      const token = invitationToken(result.doc._id, idempotencyKey);
+      const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/+$/, "");
+      const inviteUrl = `${frontendUrl}/documents/share/${token}`;
+      if (result.doc.inviteIdempotencyKey === idempotencyKey && result.doc.inviteTokenHash === tokenHash(token) && !result.doc.inviteRevokedAt) {
+        return res.json({ success: true, data: exposeDocument(result.doc), inviteUrl, emailDelivery: "notRequested", expiresAt: result.doc.inviteExpiresAt, reused: true });
+      }
+      const replacing = Boolean(result.doc.inviteTokenHash && !result.doc.inviteRevokedAt);
+      result.doc.inviteIdempotencyKey = idempotencyKey;
+      result.doc.inviteTokenHash = tokenHash(token); result.doc.inviteExpiresAt = new Date(Date.now() + expiresInDays * 86400000); result.doc.inviteRevokedAt = null;
+      result.doc.firstViewedAt = null; result.doc.lastViewedAt = null; result.doc.viewCount = 0; result.doc.lastDownloadedAt = null; result.doc.downloadCount = 0;
+      result.doc.auditEvents.push({ action: replacing ? "INVITE_LINK_REPLACED" : "INVITE_LINK_CREATED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { expiresInDays } });
       await result.doc.save();
-      const base = String(process.env.BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
-      return res.json({ success: true, data: exposeDocument(result.doc), inviteUrl: `${base}/documents/share/${token}` });
+      let emailDelivery: "notRequested" | "sent" | "failed" = "notRequested", emailWarning = "";
+      if (sendEmail) {
+        try {
+          const template = buildTradeDocumentEmail({ docType: result.doc.type, documentNumber: result.doc.documentNumber, status: result.doc.status, buyerName: result.doc.buyer?.name, sellerName: result.doc.seller?.name, recipientName: recipientParty?.contactName || recipientParty?.name, invitationUrl: inviteUrl, expiresAt: result.doc.inviteExpiresAt.toISOString(), message });
+          await sendTradeDocumentEmail(recipientEmail, template.subject, template.htmlPart, template.textPart);
+          emailDelivery = "sent";
+          result.doc.auditEvents.push({ action: "INVITATION_EMAIL_SENT", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { recipientEmail } });
+        } catch {
+          emailDelivery = "failed"; emailWarning = "The secure link was created, but the email could not be sent. Copy the link and share it manually.";
+          result.doc.auditEvents.push({ action: "INVITATION_EMAIL_FAILED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { recipientEmail } });
+        }
+        await result.doc.save();
+      }
+      return res.json({ success: true, data: exposeDocument(result.doc), inviteUrl, emailDelivery, ...(emailWarning ? { emailWarning } : {}), expiresAt: result.doc.inviteExpiresAt, reused: false });
     } catch (error) { next(error); }
   }
 

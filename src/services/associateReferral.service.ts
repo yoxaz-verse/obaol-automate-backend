@@ -4,10 +4,26 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { AssociateModel } from "../database/models/associate";
 import { OperatorModel } from "../database/models/operator";
 import { AssociateReferralInvitationModel } from "../database/models/associateReferralInvitation";
+import {
+  AssociateReferralActivityModel,
+  ReferralActivityType,
+} from "../database/models/associateReferralActivity";
 
 const CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-export type ReferralActivationType = "LIVE_SUPPLY" | "INQUIRY_CREATED" | "INQUIRY_TAKEN";
+export type ReferralActivationType = ReferralActivityType;
+
+const INDIA_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+export const indiaMonthWindow = (value: Date = new Date()) => {
+  const indiaTime = new Date(value.getTime() + INDIA_OFFSET_MS);
+  const year = indiaTime.getUTCFullYear();
+  const month = indiaTime.getUTCMonth();
+  return {
+    start: new Date(Date.UTC(year, month, 1) - INDIA_OFFSET_MS),
+    end: new Date(Date.UTC(year, month + 1, 1) - INDIA_OFFSET_MS),
+  };
+};
 
 const randomCode = (length = 8) =>
   Array.from({ length }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
@@ -153,6 +169,22 @@ export class AssociateReferralService {
     entityId: string | mongoose.Types.ObjectId
   ) {
     if (!companyId || !mongoose.Types.ObjectId.isValid(String(companyId))) return false;
+    if (!entityId || !mongoose.Types.ObjectId.isValid(String(entityId))) return false;
+    const company: any = await AssociateCompanyModel.findOne({
+      _id: companyId,
+      referredByCompanyId: { $ne: null },
+      registrationStatus: "APPROVED",
+      isApproved: true,
+    }).select("_id referralActivatedAt").lean();
+    if (!company) return false;
+
+    const activityResult = await AssociateReferralActivityModel.updateOne(
+      { companyId: company._id, type, sourceEntityId: entityId },
+      { $setOnInsert: { companyId: company._id, type, sourceEntityId: entityId, occurredAt: new Date() } },
+      { upsert: true }
+    );
+
+    if (company.referralActivatedAt) return activityResult.upsertedCount > 0;
     const result = await AssociateCompanyModel.updateOne(
       {
         _id: companyId,
@@ -169,6 +201,35 @@ export class AssociateReferralService {
       }
     );
     return result.modifiedCount > 0;
+  }
+
+  static async recordCompanyActivity(
+    companyId: string | mongoose.Types.ObjectId | null | undefined,
+    type: ReferralActivityType,
+    entityId: string | mongoose.Types.ObjectId,
+    occurredAt: Date = new Date()
+  ) {
+    if (!companyId || !mongoose.Types.ObjectId.isValid(String(companyId))) return false;
+    if (!entityId || !mongoose.Types.ObjectId.isValid(String(entityId))) return false;
+    const company: any = await AssociateCompanyModel.findOne({
+      _id: companyId,
+      referredByCompanyId: { $ne: null },
+      registrationStatus: "APPROVED",
+      isApproved: true,
+    }).select("_id referralActivatedAt").lean();
+    if (!company) return false;
+    const activityResult = await AssociateReferralActivityModel.updateOne(
+      { companyId: company._id, type, sourceEntityId: entityId },
+      { $setOnInsert: { companyId: company._id, type, sourceEntityId: entityId, occurredAt } },
+      { upsert: true }
+    );
+    if (!company.referralActivatedAt) {
+      await AssociateCompanyModel.updateOne(
+        { _id: company._id, referralActivatedAt: null },
+        { $set: { referralActivatedAt: occurredAt, referralActivationEvent: { type, entityId } } }
+      );
+    }
+    return activityResult.upsertedCount > 0;
   }
 
   static async activateForAssociate(

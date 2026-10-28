@@ -152,6 +152,7 @@ const TradeDocumentSchema: Schema = new Schema(
     decisionNotes: { type: String, default: "" },
     decisionProofUrl: { type: String, default: null },
     inviteTokenHash: { type: String, default: null, select: false },
+    inviteIdempotencyKey: { type: String, default: null, select: false },
     inviteExpiresAt: { type: Date, default: null },
     inviteRevokedAt: { type: Date, default: null },
     firstViewedAt: { type: Date, default: null },

@@ -111,7 +111,7 @@ const AssociateCompanySchema = new mongoose.Schema(
     referralCapturedAt: { type: Date, default: null, immutable: true },
     referralActivatedAt: { type: Date, default: null, index: true },
     referralActivationEvent: {
-      type: { type: String, enum: ["LIVE_SUPPLY", "INQUIRY_CREATED", "INQUIRY_TAKEN", null], default: null },
+      type: { type: String, enum: ["LIVE_SUPPLY", "INQUIRY_CREATED", "INQUIRY_TAKEN", "RESERVATION_CONFIRMED", "WAREHOUSE_BOOKING", "ORDER_COMPLETED", null], default: null },
       entityId: { type: mongoose.Schema.Types.ObjectId, default: null },
     },
     slug: { type: String, unique: true, sparse: true, trim: true }, // For improved SEO & catalog URLs

@@ -87,6 +87,9 @@ logRouteMount(`[routes] mounted ${prefix}/trade-documents`);
 import documentRuleRoutes from "./v1/documentRuleRoutes";
 router.use(`${prefix}/document-rules`, documentRuleRoutes);
 logRouteMount(`[routes] mounted ${prefix}/document-rules`);
+import documentConversionRuleRoutes from "./v1/documentConversionRuleRoutes";
+router.use(`${prefix}/document-conversion-rules`, documentConversionRuleRoutes);
+logRouteMount(`[routes] mounted ${prefix}/document-conversion-rules`);
 // Document templates
 import documentTemplateRoutes from "./v1/documentTemplateRoutes";
 router.use(`${prefix}/document-templates`, documentTemplateRoutes);

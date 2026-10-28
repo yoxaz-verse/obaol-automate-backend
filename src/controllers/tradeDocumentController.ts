@@ -22,6 +22,8 @@ import { getOperatorPerspective, OperatorPerspective } from "../core/inquiry/inq
 import path from "path";
 import { DocumentExtractionJobModel } from "../database/models/documentExtractionJob";
 import { processDocumentExtraction } from "../services/documentExtractionService";
+import { DocumentConversionRuleModel } from "../database/models/documentConversionRule";
+import { prepareExternalOrder } from "../services/orders/externalOrder.service";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -1243,7 +1245,7 @@ export class TradeDocumentController {
         result.doc.selectedTemplateId = template._id;
         result.doc.selectedTemplateVersion = template.version;
       }
-      result.doc.status = "SENT"; result.doc.issuedAt = new Date();
+      result.doc.status = "SENT"; result.doc.issuedAt = new Date(); result.doc.revisionOpenKey = null;
       result.doc.auditEvents.push({ action: "ISSUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role) });
       await result.doc.save();
       return res.json({ success: true, data: exposeDocument(result.doc) });
@@ -1336,17 +1338,32 @@ export class TradeDocumentController {
   }
 
   async revise(req: Request, res: Response, next: NextFunction) {
+    let revisionOpenKey = "";
     try {
       const result = await ownedCommercialDocument(req, res); if (!result) return;
       if (result.doc.status === "DRAFT") return res.status(409).json({ success: false, message: "Edit the draft directly." });
       const root = result.doc.revisionOf || result.doc._id;
-      const revision = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, documentNumber: await generateDocumentNumber(result.issuer._id, result.doc.type, buildCompanyCode(result.issuer)), revision: Number(result.doc.revision || 1) + 1, revisionOf: root, status: "DRAFT", issuedAt: null, decision: null, decidedAt: null, decisionSource: null, payments: [], inviteTokenHash: null, inviteExpiresAt: null, inviteRevokedAt: null, auditEvents: [{ action: "REVISION_CREATED", actorId: req.user?.id || null, actorRole: "seller", metadata: { sourceId: result.doc._id } }] });
-      return res.status(201).json({ success: true, data: exposeDocument(revision) });
-    } catch (error) { next(error); }
+      revisionOpenKey = `${String(result.issuer._id)}:${String(root)}`;
+      let existingDraft = await TradeDocumentModel.findOne({ revisionOpenKey, status: "DRAFT", isDeleted: { $ne: true } });
+      if (!existingDraft) {
+        existingDraft = await TradeDocumentModel.findOne({ ownerCompanyId: result.issuer._id, revisionOf: root, status: "DRAFT", isDeleted: { $ne: true } }).sort({ createdAt: -1 });
+        if (existingDraft) { existingDraft.revisionOpenKey = revisionOpenKey; await existingDraft.save(); }
+      }
+      if (existingDraft) return res.json({ success: true, data: exposeDocument(existingDraft), reused: true });
+      const latest: any = await TradeDocumentModel.findOne({ ownerCompanyId: result.issuer._id, $or: [{ _id: root }, { revisionOf: root }], isDeleted: { $ne: true } }).sort({ revision: -1 }).select("revision").lean();
+      const revision = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, documentNumber: await generateDocumentNumber(result.issuer._id, result.doc.type, buildCompanyCode(result.issuer)), revision: Number(latest?.revision || result.doc.revision || 1) + 1, revisionOf: root, revisionOpenKey, status: "DRAFT", issuedAt: null, decision: null, decidedAt: null, decisionSource: null, payments: [], inviteTokenHash: null, inviteExpiresAt: null, inviteRevokedAt: null, auditEvents: [{ action: "REVISION_CREATED", actorId: req.user?.id || null, actorRole: "seller", metadata: { sourceId: result.doc._id } }] });
+      return res.status(201).json({ success: true, data: exposeDocument(revision), reused: false });
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        const existing = revisionOpenKey ? await TradeDocumentModel.findOne({ status: "DRAFT", revisionOpenKey, isDeleted: { $ne: true } }) : null;
+        if (existing) return res.json({ success: true, data: exposeDocument(existing), reused: true });
+      }
+      next(error);
+    }
   }
 
   async revisions(req: Request, res: Response, next: NextFunction) {
-    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const root = result.doc.revisionOf || result.doc._id; const rows = await TradeDocumentModel.find({ ownerCompanyId: result.issuer._id, $or: [{ _id: root }, { revisionOf: root }] }).sort({ revision: 1 }).lean(); return res.json({ success: true, data: rows.map((row: any) => exposeDocument(row)) }); } catch (error) { next(error); }
+    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const root = result.doc.revisionOf || result.doc._id; const rows = await TradeDocumentModel.find({ ownerCompanyId: result.issuer._id, $or: [{ _id: root }, { revisionOf: root }] }).sort({ createdAt: 1 }).lean(); return res.json({ success: true, data: rows.map((row: any, index: number) => ({ ...exposeDocument(row), revision: index + 1, storedRevision: row.revision })) }); } catch (error) { next(error); }
   }
 
   async toInvoice(req: Request, res: Response, next: NextFunction) {
@@ -1359,6 +1376,46 @@ export class TradeDocumentController {
       const invoice = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, type: "INVOICE", documentNumber: await generateDocumentNumber(result.issuer._id, "INVOICE", buildCompanyCode(result.issuer)), revision: 1, revisionOf: null, sourceQuotationId: result.doc._id, status: "DRAFT", validUntil: null, dueDate: req.body?.dueDate || null, issuedAt: null, selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null, templateSnapshot: null, decision: null, decidedAt: null, decisionSource: null, payments: [], inviteTokenHash: null, inviteExpiresAt: null, inviteRevokedAt: null, auditEvents: [{ action: "CREATED_FROM_QUOTATION", actorId: req.user?.id || null, actorRole: "seller", metadata: { quotationId: result.doc._id } }] });
       return res.status(201).json({ success: true, data: exposeDocument(invoice) });
     } catch (error: any) { if (error?.code === 11000) { const existing = await TradeDocumentModel.findOne({ sourceQuotationId: req.params.id }); return res.json({ success: true, data: exposeDocument(existing) }); } next(error); }
+  }
+
+  async convert(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await ownedCommercialDocument(req, res); if (!result) return;
+      const rule: any = await DocumentConversionRuleModel.findOne({ _id: req.params.ruleId, sourceType: result.doc.type, sourceStatuses: result.doc.status, isActive: true, isDeleted: { $ne: true } }).lean();
+      if (!rule) return res.status(409).json({ success: false, message: "This conversion is not available for the document's current type and status." });
+      if (rule.targetKind === "DOCUMENT") {
+        const existing = await TradeDocumentModel.findOne({ ownerCompanyId: result.issuer._id, sourceDocumentId: result.doc._id, conversionRuleId: rule._id, isDeleted: { $ne: true } });
+        if (existing) return res.json({ success: true, data: exposeDocument(existing), targetKind: "DOCUMENT", reused: true });
+        await ensureDefaultDocumentTemplate(rule.targetDocumentType);
+        const template: any = await resolveTemplateForRender(rule.targetDocumentType, String(result.issuer._id));
+        const converted = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, type: rule.targetDocumentType, documentNumber: await generateDocumentNumber(result.issuer._id, rule.targetDocumentType, buildCompanyCode(result.issuer)), revision: 1, revisionOf: null, revisionOpenKey: null, sourceQuotationId: null, sourceDocumentId: result.doc._id, conversionRuleId: rule._id, status: "DRAFT", issuedAt: null, selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null, templateSnapshot: null, decision: null, decidedAt: null, decisionSource: null, payments: [], inviteTokenHash: null, inviteExpiresAt: null, inviteRevokedAt: null, auditEvents: [{ action: "DOCUMENT_CONVERTED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { sourceDocumentId: result.doc._id, conversionRuleId: rule._id } }] });
+        return res.status(201).json({ success: true, data: exposeDocument(converted), targetKind: "DOCUMENT", reused: false });
+      }
+      const existingOrder: any = await OrderModel.findOne({ sourceTradeDocumentId: result.doc._id, documentConversionRuleId: rule._id });
+      if (existingOrder) return res.json({ success: true, data: existingOrder, targetKind: "ORDER", route: `/dashboard/orders/${existingOrder._id}`, reused: true });
+      const item = result.doc.lineItems?.[0] || {};
+      const configured = result.doc.documentData?.conversionOrder || {};
+      const prepared = prepareExternalOrder({
+        ...configured,
+        externalBuyer: configured.externalBuyer || { name: result.doc.buyer?.name, email: result.doc.buyer?.email, phone: result.doc.buyer?.phone },
+        externalSeller: configured.externalSeller || { name: result.doc.seller?.name, email: result.doc.seller?.email, phone: result.doc.seller?.phone },
+        externalProduct: configured.externalProduct || { name: item.description || item.productName, variant: item.productVariantName || "", quantity: item.quantity || item.quantityKG || item.quantityMT, unit: item.unit || "" },
+        externalTradeType: configured.externalTradeType || result.doc.documentData?.tradeType,
+        executionContext: configured.executionContext || result.doc.documentData?.executionContext,
+        packagingSpecifications: configured.packagingSpecifications || result.doc.documentData?.packagingSpecifications,
+        responsibilities: configured.responsibilities || result.doc.documentData?.responsibilities,
+        externalRole: configured.externalRole || "SELLER",
+      }, req.user?.id);
+      if (!prepared.ok) return res.status(422).json({ success: false, code: "CONVERSION_REVIEW_REQUIRED", message: prepared.message });
+      await ensureDefaultFlowRules();
+      const firstStage: any = await FlowRuleModel.findOne({ flowType: "TRADE_ORDER", isDeleted: { $ne: true }, isActive: true, tradeType: { $in: [prepared.tradeType, "BOTH"] } }).sort({ sortOrder: 1 }).lean();
+      const order = await OrderModel.create({ ...prepared.payload, workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"), associateCompanyId: result.issuer._id, sourceTradeDocumentId: result.doc._id, documentConversionRuleId: rule._id });
+      result.doc.auditEvents.push({ action: "CONVERTED_TO_ORDER", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { orderId: order._id, conversionRuleId: rule._id } }); await result.doc.save();
+      return res.status(201).json({ success: true, data: order, targetKind: "ORDER", route: `/dashboard/orders/${order._id}`, reused: false });
+    } catch (error: any) {
+      if (error?.code === 11000) return res.status(409).json({ success: false, message: "This conversion has already been created. Refresh to open it." });
+      next(error);
+    }
   }
 
   async addPayment(req: Request, res: Response, next: NextFunction) {

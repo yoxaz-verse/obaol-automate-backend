@@ -81,6 +81,8 @@ export interface IOrderMilestones {
 }
 
 export interface IOrder extends Document {
+    sourceTradeDocumentId?: Types.ObjectId | null;
+    documentConversionRuleId?: Types.ObjectId | null;
     enquiry?: Types.ObjectId | null;
     status: string;
     workflowStage?: string;

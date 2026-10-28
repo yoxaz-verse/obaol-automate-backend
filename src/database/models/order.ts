@@ -77,6 +77,8 @@ const PaymentPlanSchema = new Schema(
 const OrderSchema: Schema = new Schema(
     {
         enquiry: { type: Schema.Types.ObjectId, ref: "Inquiry", default: null },
+        sourceTradeDocumentId: { type: Schema.Types.ObjectId, ref: "TradeDocument", default: null, index: true },
+        documentConversionRuleId: { type: Schema.Types.ObjectId, ref: "DocumentConversionRule", default: null },
         status: { type: String, default: "Procuring" },
         workflowStage: { type: String, default: "ORDER_CREATED", index: true },
         isExternal: { type: Boolean, default: false, index: true },
@@ -168,5 +170,6 @@ OrderSchema.index({ dealCloserOperatorId: 1, updatedAt: -1, createdAt: -1 });
 OrderSchema.index({ createdBy: 1, updatedAt: -1, createdAt: -1 });
 OrderSchema.index({ status: 1, updatedAt: -1, createdAt: -1 });
 OrderSchema.index({ associateCompanyId: 1, status: 1, updatedAt: -1, createdAt: -1 });
+OrderSchema.index({ sourceTradeDocumentId: 1, documentConversionRuleId: 1 }, { unique: true, partialFilterExpression: { sourceTradeDocumentId: { $type: "objectId" }, documentConversionRuleId: { $type: "objectId" } } });
 
 export const OrderModel = mongoose.model<IOrder>("Order", OrderSchema);

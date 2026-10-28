@@ -105,7 +105,10 @@ const TradeDocumentSchema: Schema = new Schema(
     documentNumber: { type: String, required: true, index: true },
     revision: { type: Number, default: 1 },
     revisionOf: { type: Schema.Types.ObjectId, ref: "TradeDocument", default: null, index: true },
+    revisionOpenKey: { type: String, default: null },
     sourceQuotationId: { type: Schema.Types.ObjectId, ref: "TradeDocument", default: null, index: true },
+    sourceDocumentId: { type: Schema.Types.ObjectId, ref: "TradeDocument", default: null, index: true },
+    conversionRuleId: { type: Schema.Types.ObjectId, ref: "DocumentConversionRule", default: null, index: true },
     issueDate: { type: Date, default: Date.now },
     validUntil: { type: Date, default: null },
     dueDate: { type: Date, default: null },
@@ -178,6 +181,8 @@ TradeDocumentSchema.index({ orderId: 1, type: 1 });
 TradeDocumentSchema.index({ ownerCompanyId: 1, createdAt: -1 });
 TradeDocumentSchema.index({ inviteTokenHash: 1 }, { sparse: true });
 TradeDocumentSchema.index({ ownerCompanyId: 1, sourceQuotationId: 1 }, { unique: true, partialFilterExpression: { sourceQuotationId: { $type: "objectId" } } });
+TradeDocumentSchema.index({ ownerCompanyId: 1, sourceDocumentId: 1, conversionRuleId: 1 }, { unique: true, partialFilterExpression: { sourceDocumentId: { $type: "objectId" }, conversionRuleId: { $type: "objectId" } } });
+TradeDocumentSchema.index({ revisionOpenKey: 1 }, { unique: true, partialFilterExpression: { revisionOpenKey: { $type: "string" } } });
 TradeDocumentSchema.index({ legacyCommercialDocumentId: 1 }, { unique: true, partialFilterExpression: { legacyCommercialDocumentId: { $type: "objectId" } } });
 
 export const TradeDocumentModel = mongoose.model<ITradeDocument>(

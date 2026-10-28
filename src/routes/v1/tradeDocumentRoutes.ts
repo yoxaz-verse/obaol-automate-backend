@@ -29,6 +29,7 @@ router.post("/:id/decision", authenticateToken, controller.recordDecision.bind(c
 router.post("/:id/revise", authenticateToken, controller.revise.bind(controller));
 router.get("/:id/revisions", authenticateToken, controller.revisions.bind(controller));
 router.post("/:id/to-invoice", authenticateToken, controller.toInvoice.bind(controller));
+router.post("/:id/conversions/:ruleId", authenticateToken, controller.convert.bind(controller));
 router.post("/:id/payments", authenticateToken, controller.addPayment.bind(controller));
 router.patch("/:id/template", authenticateToken, controller.selectTemplate.bind(controller));
 router.get("/:id/render", authenticateToken, controller.render.bind(controller));

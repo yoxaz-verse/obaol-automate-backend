@@ -87,7 +87,10 @@ export interface ITradeDocument extends Document {
   documentNumber: string;
   revision?: number;
   revisionOf?: Types.ObjectId | null;
+  revisionOpenKey?: string | null;
   sourceQuotationId?: Types.ObjectId | null;
+  sourceDocumentId?: Types.ObjectId | null;
+  conversionRuleId?: Types.ObjectId | null;
   issueDate?: Date;
   validUntil?: Date | null;
   dueDate?: Date | null;

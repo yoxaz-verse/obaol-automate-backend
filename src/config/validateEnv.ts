@@ -8,7 +8,16 @@ const envSchema = Joi.object({
   MONGODB_URI: Joi.string().uri().required(),
   UPLOAD_DIR: Joi.string().default("uploads"),
   BASE_URL: Joi.string().uri().required(),
-  FRONTEND_URL: Joi.string().uri().when("NODE_ENV", { is: "production", then: Joi.required(), otherwise: Joi.optional() }),
+  FRONTEND_URL: Joi.string().uri().when("NODE_ENV", {
+    is: "production",
+    then: Joi.string().uri({ scheme: ["https"] }).custom((value, helpers) => {
+      const host = new URL(value).hostname.toLowerCase();
+      return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host)
+        ? helpers.error("any.invalid")
+        : value;
+    }).required(),
+    otherwise: Joi.optional(),
+  }),
   JWT_SECRET: Joi.string().min(6).required(),
   SMTP_HOST: Joi.string().hostname().required(),
   SMTP_PORT: Joi.number().port().required(),

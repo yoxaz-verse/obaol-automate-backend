@@ -1,5 +1,6 @@
 import { Router } from "express";
 import authenticateToken from "../../middlewares/auth";
+import { optionallyAuthenticateToken } from "../../middlewares/auth";
 import { TradeDocumentController } from "../../controllers/tradeDocumentController";
 import { documentUpload } from "../../middlewares/documentUpload";
 
@@ -18,7 +19,9 @@ router.post("/extractions/:jobId/retry", authenticateToken, controller.retryExtr
 router.get("/share/:token", controller.getShared.bind(controller));
 router.get("/share/:token/render", controller.sharedRender.bind(controller));
 router.get("/share/:token/pdf", controller.sharedPdf.bind(controller));
-router.post("/share/:token/decision", authenticateToken, controller.buyerDecision.bind(controller));
+router.post("/share/:token/otp/request", controller.requestDecisionOtp.bind(controller));
+router.post("/share/:token/otp/verify", controller.verifyDecisionOtp.bind(controller));
+router.post("/share/:token/decision", optionallyAuthenticateToken, controller.buyerDecision.bind(controller));
 router.post("/", authenticateToken, controller.create.bind(controller));
 router.get("/", authenticateToken, controller.list.bind(controller));
 router.post("/:id/email", authenticateToken, controller.emailDocument.bind(controller));

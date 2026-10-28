@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Types } from "mongoose";
-import { createHash, createHmac, randomBytes } from "crypto";
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { SystemConfigModel } from "../database/models/systemConfig";
 import { DocumentSequenceModel } from "../database/models/documentSequence";
@@ -26,6 +26,8 @@ import { DocumentConversionRuleModel } from "../database/models/documentConversi
 import { prepareExternalOrder } from "../services/orders/externalOrder.service";
 import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEmail";
 import { sendTradeDocumentEmail } from "../utils/mailer";
+import { TradeDocumentDecisionOtpModel } from "../database/models/tradeDocumentDecisionOtp";
+import { resolvePublicFrontendUrl } from "../utils/publicFrontendUrl";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -35,6 +37,16 @@ const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILO
 const formatMoney = (value: unknown, currency = "INR") => `${currency} ${new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))}`;
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 const invitationToken = (documentId: unknown, idempotencyKey: string) => createHmac("sha256", String(process.env.JWT_SECRET || "obaol-invitation-secret")).update(`${documentId}:${idempotencyKey}`).digest("hex");
+const decisionSecretHash = (value: string, documentId: unknown) => createHmac("sha256", String(process.env.JWT_SECRET || "obaol-decision-secret")).update(`${documentId}:${value}`).digest("hex");
+const secureHashEqual = (left: string, right: string) => {
+  const a = Buffer.from(left, "hex"), b = Buffer.from(right, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+const maskedEmail = (value: string) => {
+  const [name, domain] = String(value || "").split("@");
+  if (!name || !domain) return "the invited email";
+  return `${name.slice(0, 2)}${"*".repeat(Math.max(2, name.length - 2))}@${domain}`;
+};
 
 const activityTimeline = (events: any[] = []) => events.map((event: any) => ({
   action: String(event?.action || ""),
@@ -1271,7 +1283,7 @@ export class TradeDocumentController {
       const idempotencyKey = String(req.body?.idempotencyKey || randomBytes(16).toString("hex")).trim();
       if (!idempotencyKey || idempotencyKey.length > 200) return res.status(400).json({ success: false, message: "Invalid invitation idempotency key." });
       const token = invitationToken(result.doc._id, idempotencyKey);
-      const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/+$/, "");
+      const frontendUrl = resolvePublicFrontendUrl();
       const inviteUrl = `${frontendUrl}/documents/share/${token}`;
       if (result.doc.inviteIdempotencyKey === idempotencyKey && result.doc.inviteTokenHash === tokenHash(token) && !result.doc.inviteRevokedAt) {
         return res.json({ success: true, data: exposeDocument(result.doc), inviteUrl, emailDelivery: "notRequested", expiresAt: result.doc.inviteExpiresAt, reused: true });
@@ -1279,6 +1291,7 @@ export class TradeDocumentController {
       const replacing = Boolean(result.doc.inviteTokenHash && !result.doc.inviteRevokedAt);
       result.doc.inviteIdempotencyKey = idempotencyKey;
       result.doc.inviteTokenHash = tokenHash(token); result.doc.inviteExpiresAt = new Date(Date.now() + expiresInDays * 86400000); result.doc.inviteRevokedAt = null;
+      result.doc.invitationSentAt = sendEmail ? new Date() : null;
       result.doc.firstViewedAt = null; result.doc.lastViewedAt = null; result.doc.viewCount = 0; result.doc.lastDownloadedAt = null; result.doc.downloadCount = 0;
       result.doc.auditEvents.push({ action: replacing ? "INVITE_LINK_REPLACED" : "INVITE_LINK_CREATED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { expiresInDays } });
       await result.doc.save();
@@ -1317,6 +1330,59 @@ export class TradeDocumentController {
     } catch (error) { next(error); }
   }
 
+  async requestDecisionOtp(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = String(req.params.token || "");
+      if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ success: false, message: "Invitation not found." });
+      const invitationHash = tokenHash(token);
+      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: invitationHash, type: "QUOTATION", status: "SENT", inviteRevokedAt: null, inviteExpiresAt: { $gt: new Date() }, isDeleted: { $ne: true } }).select("+inviteTokenHash");
+      if (!doc) return res.status(404).json({ success: false, message: "This quotation invitation is expired or unavailable." });
+      const recipientEmail = String(doc.buyer?.email || "").trim().toLowerCase();
+      if (!/^\S+@\S+\.\S+$/.test(recipientEmail)) return res.status(409).json({ success: false, message: "The quotation does not have a valid recipient email." });
+      const latest: any = await TradeDocumentDecisionOtpModel.findOne({ documentId: doc._id, invitationHash }).sort({ createdAt: -1 }).lean();
+      if (latest?.resendAvailableAt && new Date(latest.resendAvailableAt).getTime() > Date.now()) {
+        const retryAfter = Math.ceil((new Date(latest.resendAvailableAt).getTime() - Date.now()) / 1000);
+        res.setHeader("Retry-After", String(retryAfter));
+        return res.status(429).json({ success: false, code: "OTP_COOLDOWN", message: `Wait ${retryAfter} seconds before requesting another code.`, retryAfter });
+      }
+      const code = randomInt(100000, 1000000).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+      await TradeDocumentDecisionOtpModel.create({ documentId: doc._id, invitationHash, recipientEmail, otpHash: decisionSecretHash(code, doc._id), expiresAt, resendAvailableAt: new Date(Date.now() + 60 * 1000) });
+      try {
+        await sendTradeDocumentEmail(recipientEmail, `Verification code for ${doc.documentNumber}`, `<div style="font-family:Arial,sans-serif"><h2>Confirm your quotation decision</h2><p>Use this code to respond to <strong>${String(doc.documentNumber).replace(/[<>&]/g, "")}</strong>.</p><p style="font-size:26px;letter-spacing:6px;font-weight:700">${code}</p><p>This code expires in 5 minutes. Do not share it.</p></div>`, `Your verification code for ${doc.documentNumber} is ${code}. It expires in 5 minutes.`);
+      } catch (error) {
+        await TradeDocumentDecisionOtpModel.deleteMany({ documentId: doc._id, invitationHash, otpHash: decisionSecretHash(code, doc._id) });
+        throw error;
+      }
+      doc.auditEvents.push({ action: "RECIPIENT_DECISION_OTP_SENT", actorId: null, actorRole: "recipient", metadata: { recipientEmail: maskedEmail(recipientEmail) } });
+      await doc.save();
+      return res.json({ success: true, data: { maskedEmail: maskedEmail(recipientEmail), expiresInSeconds: 300, resendInSeconds: 60 } });
+    } catch (error) { next(error); }
+  }
+
+  async verifyDecisionOtp(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = String(req.params.token || ""), code = String(req.body?.code || "").trim();
+      if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ success: false, message: "Invitation not found." });
+      if (!/^\d{6}$/.test(code)) return res.status(400).json({ success: false, message: "Enter the 6-digit verification code." });
+      const invitationHash = tokenHash(token);
+      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: invitationHash, type: "QUOTATION", status: "SENT", inviteRevokedAt: null, inviteExpiresAt: { $gt: new Date() }, isDeleted: { $ne: true } }).select("+inviteTokenHash");
+      if (!doc) return res.status(404).json({ success: false, message: "This quotation invitation is expired or unavailable." });
+      const record: any = await TradeDocumentDecisionOtpModel.findOne({ documentId: doc._id, invitationHash, verifiedAt: null, usedAt: null, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }).select("+otpHash");
+      if (!record || Number(record.attempts || 0) >= Number(record.maxAttempts || 5)) return res.status(400).json({ success: false, code: "OTP_EXPIRED", message: "The verification code is invalid or expired." });
+      const matches = secureHashEqual(String(record.otpHash || ""), decisionSecretHash(code, doc._id));
+      if (!matches) {
+        record.attempts = Number(record.attempts || 0) + 1; await record.save();
+        doc.auditEvents.push({ action: "RECIPIENT_DECISION_OTP_FAILED", actorId: null, actorRole: "recipient" }); await doc.save();
+        return res.status(400).json({ success: false, code: "OTP_INVALID", message: "The verification code is invalid or expired.", attemptsRemaining: Math.max(0, Number(record.maxAttempts || 5) - record.attempts) });
+      }
+      const decisionToken = randomBytes(32).toString("hex");
+      record.verifiedAt = new Date(); record.decisionTokenHash = decisionSecretHash(decisionToken, doc._id); record.decisionTokenExpiresAt = new Date(Date.now() + 10 * 60 * 1000); await record.save();
+      doc.auditEvents.push({ action: "RECIPIENT_DECISION_OTP_VERIFIED", actorId: null, actorRole: "recipient" }); await doc.save();
+      return res.json({ success: true, data: { decisionToken, expiresInSeconds: 600 } });
+    } catch (error) { next(error); }
+  }
+
   async sharedPdf(req: Request, res: Response, next: NextFunction) {
     try {
       const token = String(req.params.token || "");
@@ -1350,11 +1416,26 @@ export class TradeDocumentController {
       const decision = String(req.body?.decision || "").toUpperCase();
       if (!["ACCEPTED", "REJECTED"].includes(decision)) return res.status(400).json({ success: false, message: "Choose ACCEPTED or REJECTED." });
       const token = String(req.params.token || "");
-      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: tokenHash(token), type: "QUOTATION", status: "SENT", inviteRevokedAt: null, inviteExpiresAt: { $gt: new Date() } }).select("+inviteTokenHash");
+      const invitationHash = tokenHash(token);
+      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: invitationHash, type: "QUOTATION", status: { $in: ["SENT", "ACCEPTED", "REJECTED"] }, inviteRevokedAt: null, inviteExpiresAt: { $gt: new Date() } }).select("+inviteTokenHash");
       if (!doc) return res.status(404).json({ success: false, message: "Invitation expired or unavailable." });
-      const associate: any = await AssociateModel.findById(req.user?.id).select("associateCompany").lean();
-      if (!associate?.associateCompany || String(associate.associateCompany) !== String(doc.buyer?.companyId || "")) return res.status(403).json({ success: false, message: "This quotation is assigned to another buyer company." });
-      doc.status = decision; doc.decision = decision; doc.decidedAt = new Date(); doc.decisionSource = "PORTAL";
+      if (["ACCEPTED", "REJECTED"].includes(doc.status)) {
+        return doc.status === decision
+          ? res.json({ success: true, data: exposeDocument(doc), reused: true })
+          : res.status(409).json({ success: false, message: `This quotation was already ${String(doc.status).toLowerCase()}.` });
+      }
+      let decisionSource: "PORTAL" | "EMAIL_OTP" = "PORTAL";
+      if (req.user?.id) {
+        const associate: any = await AssociateModel.findById(req.user.id).select("associateCompany").lean();
+        if (!associate?.associateCompany || String(associate.associateCompany) !== String(doc.buyer?.companyId || "")) return res.status(403).json({ success: false, message: "This quotation is assigned to another buyer company." });
+      } else {
+        const decisionToken = String(req.body?.decisionToken || "");
+        if (!/^[a-f0-9]{64}$/.test(decisionToken)) return res.status(401).json({ success: false, code: "DECISION_VERIFICATION_REQUIRED", message: "Verify the invited email before responding." });
+        const record: any = await TradeDocumentDecisionOtpModel.findOneAndUpdate({ documentId: doc._id, invitationHash, verifiedAt: { $ne: null }, usedAt: null, decisionTokenExpiresAt: { $gt: new Date() }, decisionTokenHash: decisionSecretHash(decisionToken, doc._id) }, { $set: { usedAt: new Date() } }, { new: true }).select("+decisionTokenHash");
+        if (!record) return res.status(401).json({ success: false, code: "DECISION_TOKEN_EXPIRED", message: "Decision verification expired. Request a new code." });
+        decisionSource = "EMAIL_OTP";
+      }
+      doc.status = decision; doc.decision = decision; doc.decidedAt = new Date(); doc.decisionSource = decisionSource;
       doc.auditEvents.push({ action: `QUOTATION_${decision}`, actorId: req.user?.id || null, actorRole: "buyer" }); await doc.save();
       return res.json({ success: true, data: exposeDocument(doc) });
     } catch (error) { next(error); }
@@ -1428,12 +1509,22 @@ export class TradeDocumentController {
       const existingOrder: any = await OrderModel.findOne({ sourceTradeDocumentId: result.doc._id, documentConversionRuleId: rule._id });
       if (existingOrder) return res.json({ success: true, data: existingOrder, targetKind: "ORDER", route: `/dashboard/orders/${existingOrder._id}`, reused: true });
       const item = result.doc.lineItems?.[0] || {};
-      const configured = result.doc.documentData?.conversionOrder || {};
+      const storedConversion = result.doc.documentData?.conversionOrder || {};
+      const submittedConversion = req.body?.conversionOrder && typeof req.body.conversionOrder === "object" ? req.body.conversionOrder : {};
+      const configured = {
+        ...storedConversion,
+        ...submittedConversion,
+        externalBuyer: { ...(storedConversion.externalBuyer || {}), ...(submittedConversion.externalBuyer || {}) },
+        externalSeller: { ...(storedConversion.externalSeller || {}), ...(submittedConversion.externalSeller || {}) },
+        externalProduct: { ...(storedConversion.externalProduct || {}), ...(submittedConversion.externalProduct || {}) },
+        executionContext: { ...(storedConversion.executionContext || {}), ...(submittedConversion.executionContext || {}) },
+        responsibilities: { ...(storedConversion.responsibilities || {}), ...(submittedConversion.responsibilities || {}) },
+      };
       const prepared = prepareExternalOrder({
         ...configured,
-        externalBuyer: configured.externalBuyer || { name: result.doc.buyer?.name, email: result.doc.buyer?.email, phone: result.doc.buyer?.phone },
-        externalSeller: configured.externalSeller || { name: result.doc.seller?.name, email: result.doc.seller?.email, phone: result.doc.seller?.phone },
-        externalProduct: configured.externalProduct || { name: item.description || item.productName, variant: item.productVariantName || "", quantity: item.quantity || item.quantityKG || item.quantityMT, unit: item.unit || "" },
+        externalBuyer: { name: result.doc.buyer?.name, email: result.doc.buyer?.email, phone: result.doc.buyer?.phone, ...configured.externalBuyer },
+        externalSeller: { name: result.doc.seller?.name, email: result.doc.seller?.email, phone: result.doc.seller?.phone, ...configured.externalSeller },
+        externalProduct: { name: item.description || item.productName, variant: item.productVariantName || "", quantity: item.quantity || item.quantityKG || item.quantityMT, unit: item.unit || "", ...configured.externalProduct },
         externalTradeType: configured.externalTradeType || result.doc.documentData?.tradeType,
         executionContext: configured.executionContext || result.doc.documentData?.executionContext,
         packagingSpecifications: configured.packagingSpecifications || result.doc.documentData?.packagingSpecifications,

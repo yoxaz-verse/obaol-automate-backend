@@ -101,6 +101,7 @@ export interface ITradeDocument extends Document {
   inviteIdempotencyKey?: string | null;
   inviteExpiresAt?: Date | null;
   inviteRevokedAt?: Date | null;
+  invitationSentAt?: Date | null;
   firstViewedAt?: Date | null;
   lastViewedAt?: Date | null;
   viewCount?: number;

@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
 const DocumentConversionRuleSchema = new Schema({
+  seedKey: { type: String, default: null },
   name: { type: String, required: true, trim: true },
   sourceType: { type: String, required: true, index: true },
   sourceStatuses: { type: [String], default: ["ACCEPTED"] },
@@ -16,5 +17,6 @@ const DocumentConversionRuleSchema = new Schema({
 }, { timestamps: true });
 
 DocumentConversionRuleSchema.index({ sourceType: 1, targetKind: 1, targetDocumentType: 1, isDeleted: 1 });
+DocumentConversionRuleSchema.index({ seedKey: 1 }, { unique: true, sparse: true });
 
 export const DocumentConversionRuleModel = mongoose.model("DocumentConversionRule", DocumentConversionRuleSchema);

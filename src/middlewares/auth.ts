@@ -124,6 +124,12 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
   }
 };
 
+export const optionallyAuthenticateToken = async (req: Request, res: Response, next: NextFunction) => {
+  const token = req.cookies?.auth_token || req.cookies?.token || req.headers.authorization?.split(" ")[1];
+  if (!token) return next();
+  return authenticateToken(req, res, next);
+};
+
 export const authenticateEmailVerificationToken = async (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.auth_token || req.cookies.token || req.headers.authorization?.split(" ")[1];
   if (!token) {

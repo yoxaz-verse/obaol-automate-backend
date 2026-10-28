@@ -171,17 +171,12 @@ export const validateLayoutSchema = (layoutSchema: IDocumentTemplateLayoutSchema
 };
 
 export const seedDefaultDocumentTemplates = async (force = false) => {
+  const presets = [
+    { name: "Classic Standard", visualStyle: "CLASSIC", displayOrder: 10, isDefault: true },
+    { name: "Modern Business", visualStyle: "MODERN", displayOrder: 20, isDefault: false },
+    { name: "Compact Trade", visualStyle: "COMPACT", displayOrder: 30, isDefault: false },
+  ] as const;
   for (const docType of TRADE_DOC_TYPES) {
-    const existingLive = await DocumentTemplateModel.findOne({
-      documentType: docType,
-      scope: "GLOBAL",
-      stage: "LIVE",
-      isDeleted: { $ne: true },
-      isActive: true,
-    }).lean();
-
-    if (existingLive && !force) continue;
-
     if (force) {
       await DocumentTemplateModel.updateMany(
         { documentType: docType, isDeleted: { $ne: true } },
@@ -189,8 +184,12 @@ export const seedDefaultDocumentTemplates = async (force = false) => {
       );
     }
 
-    if (!existingLive || force) {
+    for (const preset of presets) {
+      const existing = await DocumentTemplateModel.findOne({ documentType: docType, scope: "GLOBAL", companyId: null, stage: "LIVE", visualStyle: preset.visualStyle, isDeleted: { $ne: true } }).lean();
+      if (existing && !force) continue;
       await DocumentTemplateModel.create({
+        ...preset,
+        description: `${preset.name} format for ${String(docType).replace(/_/g, " ").toLowerCase()}.`,
         documentType: docType,
         docType,
         category: "TRADE",
@@ -237,29 +236,24 @@ export const seedDefaultDocumentTemplates = async (force = false) => {
 
 export const ensureDefaultDocumentTemplate = async (documentType: string) => {
   const upper = String(documentType || "").toUpperCase();
-  let current = await resolveTemplateForRender(upper);
-
-  if (!current) {
-    await DocumentTemplateModel.create({
-      documentType: upper,
-      docType: upper,
-      category: "TRADE",
-      status: "PUBLISHED",
-      stage: "LIVE",
-      version: 1,
-      scope: "GLOBAL",
-      companyId: null,
-      activationMode: "IMMEDIATE",
-      activationAt: null,
-      isActive: true,
+  const presets = [
+    { name: "Classic Standard", visualStyle: "CLASSIC", displayOrder: 10, isDefault: true },
+    { name: "Modern Business", visualStyle: "MODERN", displayOrder: 20, isDefault: false },
+    { name: "Compact Trade", visualStyle: "COMPACT", displayOrder: 30, isDefault: false },
+  ];
+  for (const preset of presets) {
+    const exists = await DocumentTemplateModel.exists({ documentType: upper, scope: "GLOBAL", companyId: null, stage: "LIVE", visualStyle: preset.visualStyle, isDeleted: { $ne: true } });
+    if (!exists) await DocumentTemplateModel.create({
+      ...preset,
+      description: `${preset.name} format for ${upper.replace(/_/g, " ").toLowerCase()}.`,
+      documentType: upper, docType: upper, category: "TRADE", status: "PUBLISHED", stage: "LIVE", version: 1,
+      scope: "GLOBAL", companyId: null, activationMode: "IMMEDIATE", activationAt: null, isActive: true,
       layoutSchema: buildDefaultLayoutSchema(upper),
       letterheadConfig: { enabled: false, presetId: null, firstPageOnly: true, watermark: "" },
       bindingConfig: { tokenMap: {}, manualFields: [] },
     });
-    current = await resolveTemplateForRender(upper);
   }
-
-  return current;
+  return resolveTemplateForRender(upper);
 };
 
 export const resolveTemplateForRender = async (documentType: string, companyId?: string) => {
@@ -278,7 +272,7 @@ export const resolveTemplateForRender = async (documentType: string, companyId?:
         { activationMode: "SCHEDULED", activationAt: { $lte: new Date() } },
       ],
     })
-      .sort({ version: -1 })
+      .sort({ isDefault: -1, displayOrder: 1, version: -1 })
       .lean();
     if (companyLive) return companyLive;
   }
@@ -294,7 +288,7 @@ export const resolveTemplateForRender = async (documentType: string, companyId?:
       { activationMode: "SCHEDULED", activationAt: { $lte: new Date() } },
     ],
   })
-    .sort({ version: -1 })
+    .sort({ isDefault: -1, displayOrder: 1, version: -1 })
     .lean();
 
   return globalLive || null;

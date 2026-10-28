@@ -1005,6 +1005,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
             associateDivision,
             associatePincodeEntry,
             referralCode,
+            referralInvitationToken,
         } = req.body;
 
         // Input validation
@@ -1116,17 +1117,16 @@ export const registerAssociate = async (req: Request, res: Response) => {
             designationId = String(designationExists._id);
         }
 
-        let assignedOperatorId: any = null;
-        if (referralCode && String(referralCode).trim()) {
-            const operator = await OperatorModel.findOne({ referralCode: String(referralCode).trim().toUpperCase() }).select("_id");
-            if (operator) {
-                assignedOperatorId = operator._id;
-            } else {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid referral code. Please check and try again."
-                });
+        const resolvedReferral = await AssociateReferralService.resolveCode(referralCode);
+        if (resolvedReferral.type === "invalid") {
+            return res.status(400).json({ success: false, message: "Invalid referral code. Please check and try again." });
+        }
+        const assignedOperatorId: any = resolvedReferral.type === "operator" ? resolvedReferral.operatorId : null;
+        if (referralInvitationToken) {
+            if (resolvedReferral.type !== "associate_company" || companyMode !== "new") {
+                return res.status(400).json({ success: false, message: "Referral invitations can only be used while registering a new company." });
             }
+            await AssociateReferralService.validateInvitation(referralInvitationToken, resolvedReferral.companyId);
         }
 
         let linkedCompanyId: any = null;
@@ -1323,6 +1323,9 @@ export const registerAssociate = async (req: Request, res: Response) => {
 
                 const duplicateCompanyByEmail = await AssociateCompanyModel.findOne({ email: companyEmail }).select("_id");
                 if (duplicateCompanyByEmail) {
+                    if (resolvedReferral.type === "associate_company") {
+                        return res.status(400).json({ success: false, message: "This company already exists and cannot be assigned a new associate referrer." });
+                    }
                     linkedCompanyId = duplicateCompanyByEmail._id;
                 } else {
                     const normalizedCompanySecondaryPhone = normalizePhoneInput({
@@ -1361,7 +1364,16 @@ export const registerAssociate = async (req: Request, res: Response) => {
                         registrationStatus: "PENDING_REVIEW",
                         isApproved: false,
                         assignedOperator: assignedOperatorId || undefined,
+                        ...(resolvedReferral.type === "associate_company" ? {
+                            referralCode: await AssociateReferralService.generateCompanyReferralCode(),
+                            referredByCompanyId: resolvedReferral.companyId,
+                            referralCodeUsed: resolvedReferral.code,
+                            referralCapturedAt: new Date(),
+                        } : {}),
                     });
+                    if (referralInvitationToken && resolvedReferral.type === "associate_company") {
+                        await AssociateReferralService.claimInvitation(referralInvitationToken, resolvedReferral.companyId, createdCompany._id);
+                    }
                     linkedCompanyId = createdCompany._id;
                     createdCompanyId = createdCompany._id;
                     createdCompanyNotice = {
@@ -1720,6 +1732,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 associateDivision,
                 associatePincodeEntry,
                 referralCode,
+                referralInvitationToken,
                 password,
             } = req.body || {};
             let createdCompanyNotice: { id: string; name: string; email: string } | null = null;
@@ -1806,6 +1819,12 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                     success: false,
                     message: "Associate referral codes can only be applied while registering a new company."
                 });
+            }
+            if (referralInvitationToken) {
+                if (associate.companyMode !== "new" || resolvedReferral.type !== "associate_company") {
+                    return res.status(400).json({ success: false, message: "Referral invitations can only be used while registering a new company." });
+                }
+                await AssociateReferralService.validateInvitation(referralInvitationToken, resolvedReferral.companyId);
             }
             if (!associate.hasCompany) {
                 associate.associateCompany = null;
@@ -1911,6 +1930,9 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                             referralCapturedAt: new Date(),
                         } : {}),
                     });
+                    if (referralInvitationToken && resolvedReferral.type === "associate_company") {
+                        await AssociateReferralService.claimInvitation(referralInvitationToken, resolvedReferral.companyId, createdCompany._id);
+                    }
                     associate.associateCompany = createdCompany._id;
                     createdCompanyNotice = {
                         id: String(createdCompany._id),

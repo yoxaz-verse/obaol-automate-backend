@@ -20,6 +20,11 @@ FROM node:24-alpine
 
 WORKDIR /app
 ENV NODE_ENV=production
+ENV CHROMIUM_PATH=/usr/bin/chromium-browser
+
+# Canonical document preview/PDF renderer. puppeteer-core does not download a
+# browser, so the same pinned application image supplies Chromium at runtime.
+RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
 # Copy only runtime artifacts
 COPY --from=builder /app/package.json ./

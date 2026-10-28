@@ -80,6 +80,7 @@
     "node-cron": "^3.0.3",
     "node-mailjet": "^6.0.8",
     "nodemailer": "^6.9.15",
+    "puppeteer-core": "^24.26.1",
     "sanitize-filename": "^1.6.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",

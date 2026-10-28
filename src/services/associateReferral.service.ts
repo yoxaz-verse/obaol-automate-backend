@@ -1,7 +1,9 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { AssociateModel } from "../database/models/associate";
 import { OperatorModel } from "../database/models/operator";
+import { AssociateReferralInvitationModel } from "../database/models/associateReferralInvitation";
 
 const CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -11,6 +13,73 @@ const randomCode = (length = 8) =>
   Array.from({ length }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
 
 export class AssociateReferralService {
+  static tokenForInvitation(invitationId: string | mongoose.Types.ObjectId) {
+    const secret = process.env.JWT_SECRET || "secret";
+    return crypto.createHmac("sha256", secret).update(`associate-referral:${String(invitationId)}`).digest("hex");
+  }
+
+  static hashInvitationToken(token: string) {
+    return crypto.createHash("sha256").update(String(token || "")).digest("hex");
+  }
+
+  static normalizeInvitationDestination(channel: string, value: unknown) {
+    const destination = String(value || "").trim();
+    if (channel === "LINK") return "";
+    if (channel === "EMAIL") {
+      const email = destination.toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw Object.assign(new Error("Enter a valid email address."), { status: 400 });
+      return email;
+    }
+    const phone = destination.replace(/[\s()-]/g, "");
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) throw Object.assign(new Error("Enter a WhatsApp number with its international country code."), { status: 400 });
+    return phone;
+  }
+
+  static async createInvitation(params: { referrerCompanyId: string; recipientName: unknown; channel: unknown; destination?: unknown; idempotencyKey: unknown }) {
+    const recipientName = String(params.recipientName || "").trim();
+    const channel = String(params.channel || "").trim().toUpperCase();
+    const idempotencyKey = String(params.idempotencyKey || "").trim();
+    if (!recipientName || recipientName.length > 160) throw Object.assign(new Error("Recipient name is required."), { status: 400 });
+    if (!["EMAIL", "WHATSAPP", "LINK"].includes(channel)) throw Object.assign(new Error("Choose email, WhatsApp, or personal link."), { status: 400 });
+    if (!idempotencyKey || idempotencyKey.length > 100) throw Object.assign(new Error("A valid idempotency key is required."), { status: 400 });
+    const destination = this.normalizeInvitationDestination(channel, params.destination);
+    let invitation: any = await AssociateReferralInvitationModel.findOne({ referrerCompanyId: params.referrerCompanyId, idempotencyKey });
+    if (!invitation) {
+      const _id = new mongoose.Types.ObjectId();
+      const token = this.tokenForInvitation(_id);
+      try {
+        invitation = await AssociateReferralInvitationModel.create({
+          _id, referrerCompanyId: params.referrerCompanyId, recipientName, channel, destination,
+          idempotencyKey, tokenHash: this.hashInvitationToken(token),
+        });
+      } catch (error: any) {
+        if (error?.code !== 11000) throw error;
+        invitation = await AssociateReferralInvitationModel.findOne({ referrerCompanyId: params.referrerCompanyId, idempotencyKey });
+      }
+    }
+    return { invitation, token: this.tokenForInvitation(invitation._id) };
+  }
+
+  static async validateInvitation(token: unknown, expectedReferrerCompanyId: string | mongoose.Types.ObjectId) {
+    const normalized = String(token || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(normalized)) throw Object.assign(new Error("Invalid referral invitation."), { status: 400 });
+    const invitation: any = await AssociateReferralInvitationModel.findOne({ tokenHash: this.hashInvitationToken(normalized) }).select("+tokenHash");
+    if (!invitation || String(invitation.referrerCompanyId) !== String(expectedReferrerCompanyId)) {
+      throw Object.assign(new Error("This invitation does not match the referral code."), { status: 400 });
+    }
+    if (invitation.joinedCompanyId) throw Object.assign(new Error("This referral invitation has already been used."), { status: 409 });
+    return invitation;
+  }
+
+  static async claimInvitation(token: unknown, expectedReferrerCompanyId: string | mongoose.Types.ObjectId, joinedCompanyId: string | mongoose.Types.ObjectId) {
+    const invitation = await this.validateInvitation(token, expectedReferrerCompanyId);
+    const result = await AssociateReferralInvitationModel.updateOne(
+      { _id: invitation._id, joinedCompanyId: null },
+      { $set: { joinedCompanyId, joinedAt: new Date() } }
+    );
+    if (result.modifiedCount !== 1) throw Object.assign(new Error("This referral invitation has already been used."), { status: 409 });
+    return invitation;
+  }
   static normalizeCode(value: unknown) {
     return String(value || "").trim().toUpperCase();
   }

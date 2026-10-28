@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { describe, expect, it } from "vitest";
 import { AssociateCompanyModel } from "../src/database/models/associateCompany";
 import { AssociateReferralEarningModel } from "../src/database/models/associateReferralEarning";
+import { AssociateReferralInvitationModel } from "../src/database/models/associateReferralInvitation";
 import { CommissionRuleModel } from "../src/database/models/commissionRule";
 import { OrderModel } from "../src/database/models/order";
 import { AssociateReferralService } from "../src/services/associateReferral.service";
@@ -18,6 +19,45 @@ const createCompany = (overrides: Record<string, any> = {}) => AssociateCompanyM
 });
 
 describe("one-level associate referrals", () => {
+  it("normalizes invitation destinations and rejects malformed values", () => {
+    expect(AssociateReferralService.normalizeInvitationDestination("EMAIL", " Person@Example.COM ")).toBe("person@example.com");
+    expect(AssociateReferralService.normalizeInvitationDestination("WHATSAPP", "+91 98765-43210")).toBe("+919876543210");
+    expect(() => AssociateReferralService.normalizeInvitationDestination("EMAIL", "not-an-email")).toThrow("valid email");
+    expect(() => AssociateReferralService.normalizeInvitationDestination("WHATSAPP", "9876543210")).toThrow("international country code");
+  });
+
+  it("creates idempotent personalized invitations and allows exactly one matching company claim", async () => {
+    const referrer = await createCompany({ referralCode: "INVITE10" });
+    const first = await AssociateReferralService.createInvitation({
+      referrerCompanyId: String(referrer._id), recipientName: "Acme Foods", channel: "EMAIL",
+      destination: "hello@acme.test", idempotencyKey: "request-1",
+    });
+    const retry = await AssociateReferralService.createInvitation({
+      referrerCompanyId: String(referrer._id), recipientName: "Acme Foods", channel: "EMAIL",
+      destination: "hello@acme.test", idempotencyKey: "request-1",
+    });
+    expect(String(first.invitation._id)).toBe(String(retry.invitation._id));
+    expect(first.token).toBe(retry.token);
+    expect(await AssociateReferralInvitationModel.countDocuments()).toBe(1);
+    const publicRow: any = await AssociateReferralInvitationModel.findById(first.invitation._id).lean();
+    expect(publicRow.tokenHash).toBeUndefined();
+
+    const joined = await createCompany({ referredByCompanyId: referrer._id, referralCodeUsed: "INVITE10" });
+    await AssociateReferralService.claimInvitation(first.token, referrer._id, joined._id);
+    const saved: any = await AssociateReferralInvitationModel.findById(first.invitation._id).lean();
+    expect(String(saved.joinedCompanyId)).toBe(String(joined._id));
+    await expect(AssociateReferralService.claimInvitation(first.token, referrer._id, new mongoose.Types.ObjectId())).rejects.toThrow("already been used");
+  });
+
+  it("rejects an invitation token used with another company's referral code", async () => {
+    const owner = await createCompany();
+    const other = await createCompany();
+    const { token } = await AssociateReferralService.createInvitation({
+      referrerCompanyId: String(owner._id), recipientName: "Mismatch", channel: "LINK", idempotencyKey: "request-2",
+    });
+    await expect(AssociateReferralService.validateInvitation(token, other._id)).rejects.toThrow("does not match");
+  });
+
   it("resolves company codes and activates only once after an approved qualifying activity", async () => {
     const referrer = await createCompany({ referralCode: "REFER123" });
     const referred = await createCompany({ referredByCompanyId: referrer._id, referralCodeUsed: "REFER123" });

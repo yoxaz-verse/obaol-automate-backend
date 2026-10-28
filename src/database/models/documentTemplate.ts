@@ -105,6 +105,12 @@ const ManualFieldSchema = new Schema(
 
 const DocumentTemplateSchema: Schema = new Schema(
   {
+    name: { type: String, default: "Standard Template", trim: true },
+    description: { type: String, default: "", trim: true },
+    visualStyle: { type: String, enum: ["CLASSIC", "MODERN", "COMPACT", "CUSTOM"], default: "CUSTOM", index: true },
+    displayOrder: { type: Number, default: 0 },
+    thumbnailUrl: { type: String, default: "" },
+    isDefault: { type: Boolean, default: false, index: true },
     docType: { type: String, index: true },
     documentType: { type: String, required: true, index: true },
     category: { type: String, enum: ["TRADE", "LEGAL", "GENERAL"], default: "TRADE", index: true },
@@ -135,6 +141,7 @@ const DocumentTemplateSchema: Schema = new Schema(
 );
 
 DocumentTemplateSchema.index({ documentType: 1, scope: 1, companyId: 1, stage: 1, isDeleted: 1, isActive: 1 });
+DocumentTemplateSchema.index({ documentType: 1, scope: 1, companyId: 1, isDefault: 1, stage: 1 });
 DocumentTemplateSchema.index({ docType: 1, status: 1, isDeleted: 1, isActive: 1 });
 
 export const DocumentTemplateModel = mongoose.model<IDocumentTemplate>("DocumentTemplate", DocumentTemplateSchema);

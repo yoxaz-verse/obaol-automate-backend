@@ -110,6 +110,8 @@ const TradeDocumentSchema: Schema = new Schema(
     validUntil: { type: Date, default: null },
     dueDate: { type: Date, default: null },
     templateSnapshot: { type: Schema.Types.Mixed, default: null },
+    selectedTemplateId: { type: Schema.Types.ObjectId, ref: "DocumentTemplate", default: null, index: true },
+    selectedTemplateVersion: { type: Number, default: null },
     documentData: { type: Schema.Types.Mixed, default: {} },
     issuedAt: { type: Date, default: null },
     fileUrl: { type: String, default: null },

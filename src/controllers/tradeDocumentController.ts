@@ -9,7 +9,9 @@ import { OrderModel } from "../database/models/order";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { AssociateModel } from "../database/models/associate";
 import { CommercialCustomerModel } from "../database/models/commercialDocument";
-import { resolveTemplateForRender } from "../utils/documentTemplates";
+import { ensureDefaultDocumentTemplate, resolveTemplateForRender } from "../utils/documentTemplates";
+import { DocumentTemplateModel } from "../database/models/documentTemplate";
+import { renderDocumentHtml, renderDocumentPdf } from "../services/documentRenderService";
 import { IInquiry } from "../interfaces/enquiry";
 import { DocumentRuleModel } from "../database/models/documentRule";
 import { applyPaymentPlanDocUpdate } from "../utils/paymentPlan";
@@ -198,6 +200,42 @@ const ownedCommercialDocument = async (req: Request, res: Response, includeInvit
     return null;
   }
   return { issuer, doc };
+};
+
+const templateAccessQuery = (doc: any, templateId?: unknown) => ({
+  ...(templateId && Types.ObjectId.isValid(String(templateId)) ? { _id: templateId } : {}),
+  documentType: doc.type,
+  stage: "LIVE",
+  isDeleted: { $ne: true },
+  $or: [
+    { scope: "GLOBAL" },
+    ...(doc.ownerCompanyId ? [{ scope: "COMPANY_OVERRIDE", companyId: doc.ownerCompanyId }] : []),
+  ],
+});
+
+const resolveDocumentTemplate = async (doc: any, requireActive = false) => {
+  if (doc.selectedTemplateId) {
+    const selected: any = await DocumentTemplateModel.findOne({
+      ...templateAccessQuery(doc, doc.selectedTemplateId),
+      ...(doc.selectedTemplateVersion ? { version: doc.selectedTemplateVersion } : {}),
+      ...(requireActive ? { isActive: true } : {}),
+    }).lean();
+    if (selected) return selected;
+  }
+  if (doc.templateSnapshot) return doc.templateSnapshot;
+  await ensureDefaultDocumentTemplate(String(doc.type || ""));
+  return resolveTemplateForRender(String(doc.type || ""), String(doc.ownerCompanyId || "") || undefined);
+};
+
+const renderPdfForDocument = async (doc: any) => {
+  const template = await resolveDocumentTemplate(doc);
+  const html = renderDocumentHtml(doc?.toObject ? doc.toObject() : doc, template);
+  try {
+    return await renderDocumentPdf(html);
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") return buildDocumentPdf(doc?.toObject ? doc.toObject() : doc);
+    throw error;
+  }
 };
 
 const typeShort: Record<string, string> = {
@@ -524,7 +562,8 @@ export class TradeDocumentController {
         const taxAmount = round2(items.reduce((sum, item) => sum + Number(item.taxAmount || 0), 0));
         const discountAmount = round2(Number(req.body?.discountAmount || 0));
         if (!Number.isFinite(discountAmount) || discountAmount < 0 || discountAmount > subtotal + taxAmount) return res.status(400).json({ success: false, message: "Discount is invalid." });
-        const template = await resolveTemplateForRender(type, String(issuer._id));
+        await ensureDefaultDocumentTemplate(type);
+        const template: any = await resolveTemplateForRender(type, String(issuer._id));
         const documentNumber = await generateDocumentNumber(issuer._id, type, buildCompanyCode(issuer));
         const created = await TradeDocumentModel.create({
           type, status: "DRAFT", documentNumber, ownerCompanyId: issuer._id, customerId: customer._id,
@@ -533,7 +572,8 @@ export class TradeDocumentController {
           lineItems: items, totals: { currency, subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) },
           terms: { paymentTerms: String(req.body?.terms || req.body?.paymentTerms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), termsAndConditions: String(req.body?.termsAndConditions || ""), notes: String(req.body?.notes || "") },
           issueDate, validUntil, dueDate, documentData, createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
-          templateSnapshot: template ? JSON.parse(JSON.stringify(template)) : null, sourceMode: "CREATED", extractionStatus: "NOT_REQUIRED",
+          selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null,
+          templateSnapshot: null, sourceMode: "CREATED", extractionStatus: "NOT_REQUIRED",
           auditEvents: [{ action: "CREATED", actorId: req.user?.id || null, actorRole: role, metadata: { standalone: true } }],
         });
         return res.status(201).json({ success: true, data: exposeDocument(created) });
@@ -605,6 +645,9 @@ export class TradeDocumentController {
       const obaolCompanyCode = buildCompanyCode(obaolCompany);
       const sellerDocNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), type, sellerCompanyCode);
       const obaolDocNumber = await generateDocumentNumber(obaolCompanyId, type, obaolCompanyCode);
+      await ensureDefaultDocumentTemplate(type);
+      const sellerTemplate: any = await resolveTemplateForRender(type, String(sellerCompanyId));
+      const obaolTemplate: any = await resolveTemplateForRender(type, String(obaolCompanyId));
 
       const obaolSnapshot = {
         associateId: null,
@@ -634,6 +677,8 @@ export class TradeDocumentController {
       const createdSellerObaol = await TradeDocumentModel.create({
         ...basePayload,
         documentNumber: sellerDocNumber,
+        selectedTemplateId: sellerTemplate?._id || null,
+        selectedTemplateVersion: sellerTemplate?.version || null,
         buyer: obaolSnapshot,
         seller: snapshot.seller,
         audienceScope: "SELLER_OBAOL",
@@ -642,6 +687,8 @@ export class TradeDocumentController {
       const createdObaolBuyer = await TradeDocumentModel.create({
         ...basePayload,
         documentNumber: obaolDocNumber,
+        selectedTemplateId: obaolTemplate?._id || null,
+        selectedTemplateVersion: obaolTemplate?.version || null,
         buyer: snapshot.buyer,
         seller: obaolSnapshot,
         audienceScope: "OBAOL_BUYER",
@@ -707,6 +754,8 @@ export class TradeDocumentController {
       const customerId = toObjectId(req.body?.customerId);
       const customer: any = customerId ? await CommercialCustomerModel.findOne({ _id: customerId, ownerCompanyId: company._id }).lean() : null;
       const documentNumber = await generateDocumentNumber(company._id, type, buildCompanyCode(company));
+      await ensureDefaultDocumentTemplate(type);
+      const template: any = await resolveTemplateForRender(type, String(company._id));
       const created: any = await TradeDocumentModel.create({
         type, status: "DRAFT", documentNumber, ownerCompanyId: company._id, customerId: customer?._id || null,
         seller: snapshotParty(company, req.user?.id), buyer: customer ? snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }) : {},
@@ -714,6 +763,7 @@ export class TradeDocumentController {
         sourceMode: "UPLOADED", originalFileName: file.originalname, fileMimeType: file.mimetype, fileSize: file.size,
         fileUrl: "", uploadedBy: req.user?.id || null, extractionStatus: "QUEUED", verifiedStatus: "PENDING",
         createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
+        selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null,
         auditEvents: [{ action: "FILE_UPLOADED", actorId: req.user?.id || null, actorRole: role, metadata: { name: file.originalname, mimeType: file.mimetype, size: file.size } }],
       });
       created.fileUrl = `/v1/web/trade-documents/${created._id}/file`;
@@ -1187,7 +1237,12 @@ export class TradeDocumentController {
     try {
       const result = await ownedCommercialDocument(req, res); if (!result) return;
       if (result.doc.status !== "DRAFT") return res.status(409).json({ success: false, message: "Only a draft can be issued." });
-      if (!result.doc.templateSnapshot) result.doc.templateSnapshot = await resolveTemplateForRender(result.doc.type, String(result.issuer._id));
+      const template: any = await resolveDocumentTemplate(result.doc, true);
+      if (!template) return res.status(409).json({ success: false, message: "Choose an available published template before issuing." });
+      if (template._id) {
+        result.doc.selectedTemplateId = template._id;
+        result.doc.selectedTemplateVersion = template.version;
+      }
       result.doc.status = "SENT"; result.doc.issuedAt = new Date();
       result.doc.auditEvents.push({ action: "ISSUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role) });
       await result.doc.save();
@@ -1235,10 +1290,22 @@ export class TradeDocumentController {
       doc.lastDownloadedAt = new Date(); doc.downloadCount = Number(doc.downloadCount || 0) + 1;
       doc.auditEvents.push({ action: "RECIPIENT_PDF_DOWNLOADED", actorId: null, actorRole: "recipient" });
       await doc.save();
-      const pdf = buildDocumentPdf(doc.toObject());
+      const pdf = await renderPdfForDocument(doc);
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${String(doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf"`);
       return res.send(pdf);
+    } catch (error) { next(error); }
+  }
+
+  async sharedRender(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = String(req.params.token || "");
+      if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).send("Invitation not found.");
+      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: tokenHash(token), isDeleted: { $ne: true } }).select("+inviteTokenHash");
+      if (!doc || !doc.inviteExpiresAt || doc.inviteExpiresAt.getTime() < Date.now() || doc.inviteRevokedAt || doc.status === "DRAFT") return res.status(404).send("Invitation expired or unavailable.");
+      const template = await resolveDocumentTemplate(doc);
+      res.type("html").setHeader("Cache-Control", "private, no-store");
+      return res.send(renderDocumentHtml(doc.toObject(), template));
     } catch (error) { next(error); }
   }
 
@@ -1287,8 +1354,9 @@ export class TradeDocumentController {
       const result = await ownedCommercialDocument(req, res); if (!result) return;
       if (result.doc.type !== "QUOTATION" || result.doc.status !== "ACCEPTED") return res.status(409).json({ success: false, message: "An accepted quotation is required." });
       const existing = await TradeDocumentModel.findOne({ ownerCompanyId: result.issuer._id, sourceQuotationId: result.doc._id }); if (existing) return res.json({ success: true, data: exposeDocument(existing) });
-      const template = await resolveTemplateForRender("INVOICE", String(result.issuer._id));
-      const invoice = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, type: "INVOICE", documentNumber: await generateDocumentNumber(result.issuer._id, "INVOICE", buildCompanyCode(result.issuer)), revision: 1, revisionOf: null, sourceQuotationId: result.doc._id, status: "DRAFT", validUntil: null, dueDate: req.body?.dueDate || null, issuedAt: null, templateSnapshot: template ? JSON.parse(JSON.stringify(template)) : null, decision: null, decidedAt: null, decisionSource: null, payments: [], inviteTokenHash: null, inviteExpiresAt: null, inviteRevokedAt: null, auditEvents: [{ action: "CREATED_FROM_QUOTATION", actorId: req.user?.id || null, actorRole: "seller", metadata: { quotationId: result.doc._id } }] });
+      await ensureDefaultDocumentTemplate("INVOICE");
+      const template: any = await resolveTemplateForRender("INVOICE", String(result.issuer._id));
+      const invoice = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, type: "INVOICE", documentNumber: await generateDocumentNumber(result.issuer._id, "INVOICE", buildCompanyCode(result.issuer)), revision: 1, revisionOf: null, sourceQuotationId: result.doc._id, status: "DRAFT", validUntil: null, dueDate: req.body?.dueDate || null, issuedAt: null, selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null, templateSnapshot: null, decision: null, decidedAt: null, decisionSource: null, payments: [], inviteTokenHash: null, inviteExpiresAt: null, inviteRevokedAt: null, auditEvents: [{ action: "CREATED_FROM_QUOTATION", actorId: req.user?.id || null, actorRole: "seller", metadata: { quotationId: result.doc._id } }] });
       return res.status(201).json({ success: true, data: exposeDocument(invoice) });
     } catch (error: any) { if (error?.code === 11000) { const existing = await TradeDocumentModel.findOne({ sourceQuotationId: req.params.id }); return res.json({ success: true, data: exposeDocument(existing) }); } next(error); }
   }
@@ -1306,7 +1374,32 @@ export class TradeDocumentController {
   }
 
   async pdf(req: Request, res: Response, next: NextFunction) {
-    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const pdf = buildDocumentPdf(result.doc.toObject()); res.setHeader("Content-Type", "application/pdf"); res.setHeader("Content-Disposition", `attachment; filename="${String(result.doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf"`); return res.send(pdf); } catch (error) { next(error); }
+    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const pdf = await renderPdfForDocument(result.doc); res.setHeader("Content-Type", "application/pdf"); res.setHeader("Content-Disposition", `attachment; filename="${String(result.doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf"`); return res.send(pdf); } catch (error) { next(error); }
+  }
+
+  async render(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await ownedCommercialDocument(req, res); if (!result) return;
+      const template = await resolveDocumentTemplate(result.doc);
+      res.type("html").setHeader("Cache-Control", "private, no-store");
+      return res.send(renderDocumentHtml(result.doc.toObject(), template));
+    } catch (error) { next(error); }
+  }
+
+  async selectTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await ownedCommercialDocument(req, res); if (!result) return;
+      if (result.doc.status !== "DRAFT") return res.status(409).json({ success: false, message: "Issued documents keep their frozen template." });
+      const templateId = String(req.body?.templateId || "");
+      if (!Types.ObjectId.isValid(templateId)) return res.status(400).json({ success: false, message: "Choose a valid template." });
+      const template: any = await DocumentTemplateModel.findOne({ ...templateAccessQuery(result.doc, templateId), isActive: true }).lean();
+      if (!template) return res.status(404).json({ success: false, message: "Published template not found or unavailable for this company." });
+      result.doc.selectedTemplateId = template._id;
+      result.doc.selectedTemplateVersion = template.version;
+      result.doc.auditEvents.push({ action: "TEMPLATE_SELECTED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { templateId: template._id, version: template.version } });
+      await result.doc.save();
+      return res.json({ success: true, data: exposeDocument(result.doc) });
+    } catch (error) { next(error); }
   }
 
   async emailDocument(_req: Request, res: Response, _next: NextFunction) {
@@ -1398,6 +1491,9 @@ export class TradeDocumentController {
     const obaolCompanyCode = buildCompanyCode(obaolCompany);
     const sellerDocNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "QUOTATION", sellerCompanyCode);
     const obaolDocNumber = await generateDocumentNumber(obaolCompanyId, "QUOTATION", obaolCompanyCode);
+    await ensureDefaultDocumentTemplate("QUOTATION");
+    const sellerTemplate: any = await resolveTemplateForRender("QUOTATION", String(sellerCompanyId));
+    const obaolTemplate: any = await resolveTemplateForRender("QUOTATION", String(obaolCompanyId));
 
     const obaolSnapshot = {
       associateId: null,
@@ -1425,6 +1521,8 @@ export class TradeDocumentController {
       : await TradeDocumentModel.create({
           ...basePayload,
           documentNumber: sellerDocNumber,
+          selectedTemplateId: sellerTemplate?._id || null,
+          selectedTemplateVersion: sellerTemplate?.version || null,
           buyer: obaolSnapshot,
           seller: snapshot.seller,
           audienceScope: "SELLER_OBAOL",
@@ -1434,6 +1532,8 @@ export class TradeDocumentController {
       await TradeDocumentModel.create({
         ...basePayload,
         documentNumber: obaolDocNumber,
+        selectedTemplateId: obaolTemplate?._id || null,
+        selectedTemplateVersion: obaolTemplate?.version || null,
         buyer: snapshot.buyer,
         seller: obaolSnapshot,
         audienceScope: "OBAOL_BUYER",
@@ -1470,6 +1570,9 @@ export class TradeDocumentController {
     const obaolCompanyCode = buildCompanyCode(obaolCompany);
     const sellerDocNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "LOI", sellerCompanyCode);
     const obaolDocNumber = await generateDocumentNumber(obaolCompanyId, "LOI", obaolCompanyCode);
+    await ensureDefaultDocumentTemplate("LOI");
+    const sellerTemplate: any = await resolveTemplateForRender("LOI", String(sellerCompanyId));
+    const obaolTemplate: any = await resolveTemplateForRender("LOI", String(obaolCompanyId));
 
     const obaolSnapshot = {
       associateId: null,
@@ -1497,6 +1600,8 @@ export class TradeDocumentController {
       : await TradeDocumentModel.create({
           ...basePayload,
           documentNumber: sellerDocNumber,
+          selectedTemplateId: sellerTemplate?._id || null,
+          selectedTemplateVersion: sellerTemplate?.version || null,
           buyer: obaolSnapshot,
           seller: snapshot.seller,
           audienceScope: "SELLER_OBAOL",
@@ -1506,6 +1611,8 @@ export class TradeDocumentController {
       await TradeDocumentModel.create({
         ...basePayload,
         documentNumber: obaolDocNumber,
+        selectedTemplateId: obaolTemplate?._id || null,
+        selectedTemplateVersion: obaolTemplate?.version || null,
         buyer: snapshot.buyer,
         seller: obaolSnapshot,
         audienceScope: "OBAOL_BUYER",

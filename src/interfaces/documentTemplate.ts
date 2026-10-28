@@ -114,6 +114,12 @@ export interface IDocumentTemplateBindingConfig {
 }
 
 export interface IDocumentTemplate extends Document {
+  name?: string;
+  description?: string;
+  visualStyle?: "CLASSIC" | "MODERN" | "COMPACT" | "CUSTOM";
+  displayOrder?: number;
+  thumbnailUrl?: string;
+  isDefault?: boolean;
   docType?: string; // legacy alias
   documentType: string;
   category?: "TRADE" | "LEGAL" | "GENERAL";

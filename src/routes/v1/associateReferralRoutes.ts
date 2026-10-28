@@ -5,4 +5,5 @@ import { AssociateReferralController } from "../../controllers/associateReferral
 const router = Router();
 router.get("/me", authenticateToken, AssociateReferralController.getDashboard);
 router.get("/company/:companyId", authenticateToken, AssociateReferralController.getDashboard);
+router.post("/invitations", authenticateToken, AssociateReferralController.createInvitation);
 export default router;

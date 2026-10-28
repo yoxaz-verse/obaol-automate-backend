@@ -92,6 +92,8 @@ export interface ITradeDocument extends Document {
   validUntil?: Date | null;
   dueDate?: Date | null;
   templateSnapshot?: unknown;
+  selectedTemplateId?: Types.ObjectId | null;
+  selectedTemplateVersion?: number | null;
   documentData?: Record<string, unknown>;
   firstViewedAt?: Date | null;
   lastViewedAt?: Date | null;

@@ -16,6 +16,7 @@ router.get("/extractions/:jobId", authenticateToken, controller.extraction.bind(
 router.post("/extractions/:jobId/confirm", authenticateToken, controller.confirmExtraction.bind(controller));
 router.post("/extractions/:jobId/retry", authenticateToken, controller.retryExtraction.bind(controller));
 router.get("/share/:token", controller.getShared.bind(controller));
+router.get("/share/:token/render", controller.sharedRender.bind(controller));
 router.get("/share/:token/pdf", controller.sharedPdf.bind(controller));
 router.post("/share/:token/decision", authenticateToken, controller.buyerDecision.bind(controller));
 router.post("/", authenticateToken, controller.create.bind(controller));
@@ -29,6 +30,8 @@ router.post("/:id/revise", authenticateToken, controller.revise.bind(controller)
 router.get("/:id/revisions", authenticateToken, controller.revisions.bind(controller));
 router.post("/:id/to-invoice", authenticateToken, controller.toInvoice.bind(controller));
 router.post("/:id/payments", authenticateToken, controller.addPayment.bind(controller));
+router.patch("/:id/template", authenticateToken, controller.selectTemplate.bind(controller));
+router.get("/:id/render", authenticateToken, controller.render.bind(controller));
 router.get("/:id/pdf", authenticateToken, controller.pdf.bind(controller));
 router.get("/:id/file", authenticateToken, controller.file.bind(controller));
 router.get("/:id", authenticateToken, controller.getById.bind(controller));

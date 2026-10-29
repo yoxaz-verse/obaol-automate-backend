@@ -16,7 +16,7 @@ type CreateNotificationParams = {
   type: string;
   title: string;
   message: string;
-  entityType: "INQUIRY" | "ORDER" | "INVENTORY" | "VARIANT_RATE" | "APPROVAL" | "SYSTEM";
+  entityType: "INQUIRY" | "ORDER" | "INVENTORY" | "VARIANT_RATE" | "APPROVAL" | "SYSTEM" | "DOCUMENT";
   entityId: any;
   route: string;
   payload?: Record<string, any>;

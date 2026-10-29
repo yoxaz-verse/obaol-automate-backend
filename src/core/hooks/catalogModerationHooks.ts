@@ -108,6 +108,17 @@ export const associateVariantRateModerationPreWriteHook: HookFunction = async (p
       createdByCompany: context.companyId,
     };
   }
+  // Publication status belongs to the listing owner and does not revise the
+  // approved catalog data. Ownership is checked by the preceding hook, while
+  // the listing lock separately guarantees this is the only mutable field.
+  if (
+    mode === ExecutionMode.UPDATE &&
+    Object.keys(payload || {}).length === 1 &&
+    Object.prototype.hasOwnProperty.call(payload || {}, "isLive")
+  ) {
+    const isLive = payload.isLive === true || String(payload.isLive).toLowerCase() === "true";
+    return { ...payload, isLive };
+  }
   const err: any = new Error("Use the catalog proposal workflow to revise an Associate listing.");
   err.status = 403; err.statusCode = 403; throw err;
 };

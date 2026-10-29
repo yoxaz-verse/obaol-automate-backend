@@ -63,4 +63,11 @@ describe("external order preparation", () => {
     const result = prepareExternalOrder({ ...base, externalBuyer: { name: "Undisclosed" } }, "actor-1");
     expect(result).toEqual({ ok: false, message: "Buyer and seller must be disclosed to create an external order." });
   });
+
+  it("requires a positive product quantity and unit", () => {
+    expect(prepareExternalOrder({ ...base, externalProduct: { name: "Pepper", quantity: 0, unit: "MT" } }, "actor-1"))
+      .toEqual({ ok: false, message: "Product quantity and unit are required." });
+    expect(prepareExternalOrder({ ...base, externalProduct: { name: "Pepper", quantity: 2, unit: "" } }, "actor-1"))
+      .toEqual({ ok: false, message: "Product quantity and unit are required." });
+  });
 });

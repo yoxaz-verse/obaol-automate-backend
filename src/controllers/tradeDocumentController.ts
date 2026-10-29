@@ -28,6 +28,8 @@ import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEm
 import { sendTradeDocumentEmail } from "../utils/mailer";
 import { TradeDocumentDecisionOtpModel } from "../database/models/tradeDocumentDecisionOtp";
 import { resolvePublicFrontendUrl } from "../utils/publicFrontendUrl";
+import { notificationService } from "../services/notificationService";
+import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -51,6 +53,7 @@ const maskedEmail = (value: string) => {
 const activityTimeline = (events: any[] = []) => events.map((event: any) => ({
   action: String(event?.action || ""),
   createdAt: event?.createdAt || null,
+  actorRole: event?.actorRole ? String(event.actorRole) : null,
 })).filter((event: any) => event.action);
 
 const exposeDocument = (row: any, includeActivity = true) => {
@@ -203,14 +206,23 @@ const buildDocumentPdf = (doc: any) => {
   return Buffer.from(pdf);
 };
 
-const ownedCommercialDocument = async (req: Request, res: Response, includeInvite = false) => {
-  const issuer = await approvedAssociateCompany(req, res);
-  if (!issuer) return null;
+const ownedCommercialDocument = async (req: Request, res: Response, includeInvite = false, allowAdmin = false) => {
   if (!Types.ObjectId.isValid(String(req.params.id || ""))) {
     res.status(400).json({ success: false, message: "Invalid document id." });
     return null;
   }
-  const query = TradeDocumentModel.findOne({ _id: req.params.id, ownerCompanyId: issuer._id, isDeleted: { $ne: true } });
+  const role = normalizeRole(req.user?.role);
+  let issuer: any = null;
+  let documentFilter: any = { _id: req.params.id, isDeleted: { $ne: true } };
+  if (allowAdmin && isAdminRole(role)) {
+    const owned: any = await TradeDocumentModel.findOne(documentFilter).select("ownerCompanyId").lean();
+    issuer = owned?.ownerCompanyId ? await AssociateCompanyModel.findById(owned.ownerCompanyId).select("name slug email phone address gstin logo") : null;
+  } else {
+    issuer = await approvedAssociateCompany(req, res);
+    if (issuer) documentFilter.ownerCompanyId = issuer._id;
+  }
+  if (!issuer) return null;
+  const query = TradeDocumentModel.findOne(documentFilter);
   if (includeInvite) query.select("+inviteTokenHash +inviteIdempotencyKey");
   const doc: any = await query;
   if (!doc) {
@@ -1067,7 +1079,19 @@ export class TradeDocumentController {
         return res.status(403).json({ success: false, message: "Access denied." });
       }
 
-      return res.status(200).json({ success: true, data: exposeDocument(doc) });
+      const linkedOrder: any = await OrderModel.findOne({ sourceTradeDocumentId: (doc as any)._id })
+        .select("_id status workflowStage createdAt")
+        .lean();
+      const exposed = exposeDocument(doc);
+      exposed.convertedOrder = linkedOrder ? {
+        id: linkedOrder._id,
+        status: linkedOrder.status,
+        workflowStage: linkedOrder.workflowStage,
+        createdAt: linkedOrder.createdAt,
+        route: `/dashboard/orders/${linkedOrder._id}`,
+      } : null;
+      exposed.conversionReady = exposed.type === "QUOTATION" && exposed.status === "ACCEPTED" && !linkedOrder;
+      return res.status(200).json({ success: true, data: exposed });
     } catch (error) {
       next(error);
     }
@@ -1440,6 +1464,20 @@ export class TradeDocumentController {
       }
       doc.status = decision; doc.decision = decision; doc.decidedAt = new Date(); doc.decisionSource = decisionSource;
       doc.auditEvents.push({ action: `QUOTATION_${decision}`, actorId: req.user?.id || null, actorRole: "buyer" }); await doc.save();
+      const ownerRecipients = new Map<string, "Associate">();
+      const owners: any[] = await AssociateModel.find({ associateCompany: doc.ownerCompanyId, isDeleted: { $ne: true }, isActive: { $ne: false } }).select("_id").lean();
+      owners.forEach((owner: any) => notificationService.addRecipient(ownerRecipients, owner._id, "Associate"));
+      await notificationService.createNotifications({
+        recipientMap: ownerRecipients,
+        type: NotificationTypes.QUOTATION_DECIDED,
+        title: `Quotation ${decision === "ACCEPTED" ? "accepted" : "rejected"}`,
+        message: `${doc.documentNumber} was ${decision.toLowerCase()} by the recipient.${decision === "ACCEPTED" ? " Review it and convert it to an order when ready." : " Create a revision if updated terms are needed."}`,
+        entityType: NotificationEntityTypes.DOCUMENT,
+        entityId: doc._id,
+        route: `/dashboard/documentation/${doc._id}`,
+        payload: { documentId: doc._id, decision },
+        priority: decision === "ACCEPTED" ? "high" : "medium",
+      }).catch(() => []);
       return res.json({ success: true, data: exposeDocument(doc) });
     } catch (error) { next(error); }
   }
@@ -1469,7 +1507,7 @@ export class TradeDocumentController {
       }
       if (existingDraft) return res.json({ success: true, data: exposeDocument(existingDraft), reused: true });
       const latest: any = await TradeDocumentModel.findOne({ ownerCompanyId: result.issuer._id, $or: [{ _id: root }, { revisionOf: root }], isDeleted: { $ne: true } }).sort({ revision: -1 }).select("revision").lean();
-      const revision = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, documentNumber: await generateDocumentNumber(result.issuer._id, result.doc.type, buildCompanyCode(result.issuer)), revision: Number(latest?.revision || result.doc.revision || 1) + 1, revisionOf: root, revisionOpenKey, status: "DRAFT", issuedAt: null, decision: null, decidedAt: null, decisionSource: null, payments: [], inviteTokenHash: null, inviteExpiresAt: null, inviteRevokedAt: null, auditEvents: [{ action: "REVISION_CREATED", actorId: req.user?.id || null, actorRole: "seller", metadata: { sourceId: result.doc._id } }] });
+      const revision = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, documentNumber: await generateDocumentNumber(result.issuer._id, result.doc.type, buildCompanyCode(result.issuer)), revision: Number(latest?.revision || result.doc.revision || 1) + 1, revisionOf: root, revisionOpenKey, status: "DRAFT", orderId: null, issuedAt: null, decision: null, decidedAt: null, decisionSource: null, decisionReference: "", decisionNotes: "", decisionProofUrl: null, payments: [], inviteTokenHash: null, inviteIdempotencyKey: null, inviteExpiresAt: null, inviteRevokedAt: null, invitationSentAt: null, firstViewedAt: null, lastViewedAt: null, viewCount: 0, lastDownloadedAt: null, downloadCount: 0, auditEvents: [{ action: "REVISION_CREATED", actorId: req.user?.id || null, actorRole: "seller", metadata: { sourceId: result.doc._id } }] });
       return res.status(201).json({ success: true, data: exposeDocument(revision), reused: false });
     } catch (error: any) {
       if (error?.code === 11000) {
@@ -1498,7 +1536,7 @@ export class TradeDocumentController {
 
   async convert(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await ownedCommercialDocument(req, res); if (!result) return;
+      const result = await ownedCommercialDocument(req, res, false, true); if (!result) return;
       const rule: any = await DocumentConversionRuleModel.findOne({ _id: req.params.ruleId, sourceType: result.doc.type, sourceStatuses: result.doc.status, isActive: true, isDeleted: { $ne: true } }).lean();
       if (!rule) return res.status(409).json({ success: false, message: "This conversion is not available for the document's current type and status." });
       if (rule.targetKind === "DOCUMENT") {
@@ -1510,7 +1548,13 @@ export class TradeDocumentController {
         return res.status(201).json({ success: true, data: exposeDocument(converted), targetKind: "DOCUMENT", reused: false });
       }
       const existingOrder: any = await OrderModel.findOne({ sourceTradeDocumentId: result.doc._id, documentConversionRuleId: rule._id });
-      if (existingOrder) return res.json({ success: true, data: existingOrder, targetKind: "ORDER", route: `/dashboard/orders/${existingOrder._id}`, reused: true });
+      if (existingOrder) {
+        if (String(result.doc.orderId || "") !== String(existingOrder._id)) {
+          result.doc.orderId = existingOrder._id;
+          await result.doc.save();
+        }
+        return res.json({ success: true, data: existingOrder, targetKind: "ORDER", route: `/dashboard/orders/${existingOrder._id}`, reused: true });
+      }
       const item = result.doc.lineItems?.[0] || {};
       const storedConversion = result.doc.documentData?.conversionOrder || {};
       const submittedConversion = req.body?.conversionOrder && typeof req.body.conversionOrder === "object" ? req.body.conversionOrder : {};
@@ -1538,10 +1582,14 @@ export class TradeDocumentController {
       await ensureDefaultFlowRules();
       const firstStage: any = await FlowRuleModel.findOne({ flowType: "TRADE_ORDER", isDeleted: { $ne: true }, isActive: true, tradeType: { $in: [prepared.tradeType, "BOTH"] } }).sort({ sortOrder: 1 }).lean();
       const order = await OrderModel.create({ ...prepared.payload, workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"), associateCompanyId: result.issuer._id, sourceTradeDocumentId: result.doc._id, documentConversionRuleId: rule._id });
+      result.doc.orderId = order._id;
       result.doc.auditEvents.push({ action: "CONVERTED_TO_ORDER", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { orderId: order._id, conversionRuleId: rule._id } }); await result.doc.save();
       return res.status(201).json({ success: true, data: order, targetKind: "ORDER", route: `/dashboard/orders/${order._id}`, reused: false });
     } catch (error: any) {
-      if (error?.code === 11000) return res.status(409).json({ success: false, message: "This conversion has already been created. Refresh to open it." });
+      if (error?.code === 11000) {
+        const existing: any = await OrderModel.findOne({ sourceTradeDocumentId: req.params.id, documentConversionRuleId: req.params.ruleId });
+        if (existing) return res.json({ success: true, data: existing, targetKind: "ORDER", route: `/dashboard/orders/${existing._id}`, reused: true });
+      }
       next(error);
     }
   }

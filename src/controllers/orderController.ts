@@ -272,7 +272,20 @@ export class OrderController {
         try {
             const result = await this.engine.findOne(req, { _id: req.params.id });
             if (!result) return res.status(404).json({ success: false, message: "Order not found" });
-            res.json({ success: true, data: result });
+            const sourceId = (result as any)?.sourceTradeDocumentId;
+            const sourceQuotation: any = sourceId
+                ? await TradeDocumentModel.findById(sourceId).select("_id documentNumber status decidedAt totals").lean()
+                : null;
+            const data = (result as any)?.toObject ? (result as any).toObject() : { ...(result as any) };
+            data.sourceQuotation = sourceQuotation ? {
+                id: sourceQuotation._id,
+                documentNumber: sourceQuotation.documentNumber,
+                status: sourceQuotation.status,
+                decidedAt: sourceQuotation.decidedAt,
+                totals: sourceQuotation.totals,
+                route: `/dashboard/documentation/${sourceQuotation._id}`,
+            } : null;
+            res.json({ success: true, data });
         } catch (error: any) {
             logError(error, req, "OrderController.getById");
             res.status(500).json({ success: false, message: error.message });

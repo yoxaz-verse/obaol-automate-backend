@@ -51,6 +51,10 @@ export const prepareExternalOrder = (body: unknown, actorId: unknown): ExternalO
   if (!text(buyer.name) || !text(seller.name) || !text(product.name) || !externalTradeType) {
     return { ok: false, message: "Buyer name, seller name, product name, and trade type are required." };
   }
+  const productQuantity = Number(product.quantity);
+  if (!Number.isFinite(productQuantity) || productQuantity <= 0 || !text(product.unit)) {
+    return { ok: false, message: "Product quantity and unit are required." };
+  }
   const buyerName = text(buyer.name);
   const sellerName = text(seller.name);
   if (buyerName.toLowerCase() === "undisclosed" || sellerName.toLowerCase() === "undisclosed") {
@@ -101,7 +105,7 @@ export const prepareExternalOrder = (body: unknown, actorId: unknown): ExternalO
       externalRole,
       externalBuyer: { name: buyerName, email: text(buyer.email), phone: text(buyer.phone) },
       externalSeller: { name: sellerName, email: text(seller.email), phone: text(seller.phone) },
-      externalProduct: { name: text(product.name), variant: text(product.variant), quantity: product.quantity ?? null, unit: text(product.unit) },
+      externalProduct: { name: text(product.name), variant: text(product.variant), quantity: productQuantity, unit: text(product.unit) },
       executionContext: {
         tradeType: contextTradeType,
         originCountry: execution.originCountry || null, originState: execution.originState || null,

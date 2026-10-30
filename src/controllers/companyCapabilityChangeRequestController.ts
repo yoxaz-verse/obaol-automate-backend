@@ -11,6 +11,42 @@ import { CANONICAL_COMPANY_FUNCTION_SLUGS } from "../utils/companyCapabilities";
 
 const objectIds = (value: unknown) => Array.from(new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean)));
 const role = (req: Request) => String(req.user?.role || "").toLowerCase();
+export const COMPANY_CAPABILITY_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+type SubmissionEligibility = {
+  canSubmit: boolean;
+  reason: "PENDING_REVIEW" | "APPROVAL_COOLDOWN" | null;
+  nextEligibleAt: string | null;
+  pendingRequestId: string | null;
+};
+
+const submissionEligibility = async (companyId: string, now = new Date()): Promise<SubmissionEligibility> => {
+  const pending = await CompanyCapabilityChangeRequestModel.findOne({ companyId, status: "PENDING_REVIEW", isDeleted: false })
+    .select("_id")
+    .lean();
+  if (pending) {
+    return { canSubmit: false, reason: "PENDING_REVIEW", nextEligibleAt: null, pendingRequestId: String(pending._id) };
+  }
+
+  const latestDecision = await CompanyCapabilityChangeRequestModel.findOne({
+    companyId,
+    status: { $in: ["APPROVED", "REJECTED"] },
+    isDeleted: false,
+  })
+    .select("status reviewedAt createdAt")
+    .sort({ reviewedAt: -1, createdAt: -1 })
+    .lean();
+
+  if (latestDecision?.status === "APPROVED") {
+    const approvedAt = new Date((latestDecision as any).reviewedAt || (latestDecision as any).createdAt);
+    const nextEligibleAt = new Date(approvedAt.getTime() + COMPANY_CAPABILITY_CHANGE_COOLDOWN_MS);
+    if (!Number.isNaN(nextEligibleAt.getTime()) && now < nextEligibleAt) {
+      return { canSubmit: false, reason: "APPROVAL_COOLDOWN", nextEligibleAt: nextEligibleAt.toISOString(), pendingRequestId: null };
+    }
+  }
+
+  return { canSubmit: true, reason: null, nextEligibleAt: null, pendingRequestId: null };
+};
 
 const validateSelection = (ids: string[], priorities: string[], label: string) => {
   if (ids.length < 1 || ids.length > 6 || ids.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
@@ -40,8 +76,13 @@ export class CompanyCapabilityChangeRequestController {
       const allIds = Array.from(new Set([...providedIds, ...soughtIds]));
       const validCount = await CompanyFunctionModel.countDocuments({ _id: { $in: allIds }, isActive: true, slug: { $in: CANONICAL_COMPANY_FUNCTION_SLUGS } });
       if (validCount !== allIds.length) return res.status(400).json({ success: false, message: "One or more company categories are unavailable." });
-      const existing = await CompanyCapabilityChangeRequestModel.findOne({ companyId, status: "PENDING_REVIEW", isDeleted: false }).select("_id").lean();
-      if (existing) return res.status(409).json({ success: false, message: "This company already has a capability change awaiting review." });
+      const eligibility = await submissionEligibility(companyId);
+      if (!eligibility.canSubmit) {
+        const message = eligibility.reason === "PENDING_REVIEW"
+          ? "This company already has a capability change awaiting review."
+          : `Company capabilities can be changed again after ${new Date(String(eligibility.nextEligibleAt)).toLocaleString()}.`;
+        return res.status(409).json({ success: false, code: eligibility.reason, message, nextEligibleAt: eligibility.nextEligibleAt });
+      }
 
       const created = await CompanyCapabilityChangeRequestModel.create({
         requesterAssociateId: requesterId,
@@ -61,7 +102,11 @@ export class CompanyCapabilityChangeRequestController {
       return res.status(201).json({ success: true, data: created });
     } catch (error: any) {
       const status = error?.code === 11000 ? 409 : Number(error?.status || 500);
-      return res.status(status).json({ success: false, message: error?.code === 11000 ? "This company already has a capability change awaiting review." : error?.message || "Failed to create capability request." });
+      return res.status(status).json({
+        success: false,
+        ...(error?.code === 11000 ? { code: "PENDING_REVIEW" } : {}),
+        message: error?.code === 11000 ? "This company already has a capability change awaiting review." : error?.message || "Failed to create capability request.",
+      });
     }
   }
 
@@ -94,12 +139,15 @@ export class CompanyCapabilityChangeRequestController {
           .populate("companyId", "name email")
           .populate("requesterAssociateId", "name email")
           .populate("reviewedBy", "name email")
-          .sort({ createdAt: 1 })
+          .sort({ createdAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit)
           .lean(),
       ]);
-      return res.json({ success: true, data: rows, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1 } });
+      const eligibility = currentRole === "associate"
+        ? await submissionEligibility(String(query.companyId))
+        : null;
+      return res.json({ success: true, data: rows, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1, eligibility } });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error?.message || "Failed to load capability requests." });
     }

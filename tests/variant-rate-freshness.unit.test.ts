@@ -11,7 +11,11 @@ import { ExecutionMode } from "../src/core/types";
 import { VariantRateModel } from "../src/database/models/variantRate";
 import { CatalogItemModel } from "../src/database/models/catalogItem";
 import { DisplayedRateModel } from "../src/database/models/displayedRate";
-import { findLatestVariantRatesForProductTable } from "../src/services/variantRateProductTableService";
+import { CategoryModel } from "../src/database/models/category";
+import { SubCategoryModel } from "../src/database/models/subCategory";
+import { ProductModel } from "../src/database/models/product";
+import { ProductVariantModel } from "../src/database/models/productVariant";
+import { addProductTablePublicationMetadata, findLatestVariantRatesForProductTable } from "../src/services/variantRateProductTableService";
 
 describe("variant-rate freshness", () => {
   const now = new Date("2026-10-12T12:00:00.000Z");
@@ -21,6 +25,10 @@ describe("variant-rate freshness", () => {
       VariantRateModel.deleteMany({}),
       CatalogItemModel.deleteMany({}),
       DisplayedRateModel.deleteMany({}),
+      CategoryModel.deleteMany({}),
+      SubCategoryModel.deleteMany({}),
+      ProductModel.deleteMany({}),
+      ProductVariantModel.deleteMany({}),
     ]);
   });
 
@@ -156,5 +164,48 @@ describe("variant-rate freshness", () => {
     expect(live.totalCount).toBe(1);
     expect(String(live.data[0].productVariant)).toBe(String(freshVariant));
     expect(live.data[0].__effectiveIsLive).toBe(true);
+  });
+
+  it("explains the first catalog approval blocker without changing the requested live state", async () => {
+    const category = await CategoryModel.create({ name: "Pulses", approvalStatus: "APPROVED" });
+    const subCategory = await SubCategoryModel.create({ name: "Chickpeas", category: category._id, approvalStatus: "APPROVED" });
+    const product = await ProductModel.create({ name: "Chickpeas", description: "Chickpeas", subCategory: subCategory._id, approvalStatus: "APPROVED" });
+    const variant = await ProductVariantModel.create({
+      name: "White Chickpeas",
+      description: "White Chickpeas",
+      product: product._id,
+      approvalStatus: "PENDING_REVIEW",
+      reviewNotes: "Confirm the commodity specification.",
+    });
+
+    const [pending] = await addProductTablePublicationMetadata([{
+      _id: new Types.ObjectId(),
+      productVariant: variant._id,
+      isLive: true,
+      approvalStatus: "APPROVED",
+    }]);
+    expect(pending.isLive).toBe(true);
+    expect(pending.publiclyVisible).toBe(false);
+    expect(pending.publicationBlocker).toMatchObject({
+      entityType: "productVariant",
+      name: "White Chickpeas",
+      approvalStatus: "PENDING_REVIEW",
+      reviewNotes: "Confirm the commodity specification.",
+    });
+
+    await CategoryModel.updateOne({ _id: category._id }, { approvalStatus: "REJECTED", reviewNotes: "Use the existing category." });
+    await ProductVariantModel.updateOne({ _id: variant._id }, { approvalStatus: "APPROVED" });
+    const [rejected] = await addProductTablePublicationMetadata([{ productVariant: variant._id, isLive: true, approvalStatus: "APPROVED" }]);
+    expect(rejected.publicationBlocker).toMatchObject({ entityType: "category", approvalStatus: "REJECTED", reviewNotes: "Use the existing category." });
+
+    await CategoryModel.updateOne({ _id: category._id }, { approvalStatus: "APPROVED" });
+    const [visible, offline] = await addProductTablePublicationMetadata([
+      { productVariant: variant._id, isLive: true, approvalStatus: "APPROVED" },
+      { productVariant: variant._id, isLive: false, approvalStatus: "APPROVED" },
+    ]);
+    expect(visible.publiclyVisible).toBe(true);
+    expect(visible.publicationBlocker).toBeNull();
+    expect(offline.publiclyVisible).toBe(false);
+    expect(offline.publicationBlocker).toBeNull();
   });
 });

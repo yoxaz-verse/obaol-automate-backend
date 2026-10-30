@@ -6,7 +6,7 @@ import { HookDispatcher } from "../hooks/hook.dispatcher";
 import { ExecutionMode } from "../types";
 import { getEntityConfig } from "../registry/entities";
 import { buildRegexSearchTerms } from "./searchableFields";
-import { findLatestVariantRatesForProductTable } from "../../services/variantRateProductTableService";
+import { addProductTablePublicationMetadata, findLatestVariantRatesForProductTable } from "../../services/variantRateProductTableService";
 
 export class CrudEngine extends BaseService {
     private repository: GenericRepository<any>;
@@ -111,6 +111,7 @@ export class CrudEngine extends BaseService {
                 "giName",
                 "giCertificateNumber",
                 "giDocumentUrl",
+                ...(view === "product-table" ? ["approvalStatus", "reviewNotes"] : []),
               ].join(" ");
             populate = [
                 {
@@ -268,6 +269,9 @@ export class CrudEngine extends BaseService {
                 )
                 : await this.repository.findAll(filterQuery, pagination, sortOption, populate, select);
         result.data = await HookDispatcher.resolveAfterRead(this.entityName, result.data);
+        if (this.entityName === "variant-rates" && requestedView === "product-table") {
+            result.data = await addProductTablePublicationMetadata(result.data || []);
+        }
         const roleLower = String((req as any)?.user?.role || "").toLowerCase();
         if (
             this.entityName === "variant-rates" &&

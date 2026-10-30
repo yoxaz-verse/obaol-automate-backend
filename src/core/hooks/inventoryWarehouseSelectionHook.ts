@@ -56,15 +56,18 @@ export const inventoryWarehouseSelectionHook: HookFunction = async (payload, mod
 
   const role = normalizeRole(req?.user?.role);
   const userId = String(req?.user?.id || "").trim();
+  let expectedCompanyId = String(nextPayload.associateCompany || "").trim();
   if (role === "associate") {
     const companyId = await resolveAssociateCompany(userId);
     if (!companyId) {
       throw new Error("Associate company not found.");
     }
-    if (location === "MY") {
-      if (String((warehouse as any).ownerCompanyId || "") !== String(companyId)) {
-        throw new Error("You can only select your own warehouses.");
-      }
+    expectedCompanyId = companyId;
+  }
+
+  if (location === "MY") {
+    if (!expectedCompanyId || String((warehouse as any).ownerCompanyId || "") !== expectedCompanyId) {
+      throw new Error("You can only select a warehouse owned by the inventory company.");
     }
   }
 

@@ -1082,6 +1082,11 @@ export class TradeDocumentController {
       const linkedOrder: any = await OrderModel.findOne({ sourceTradeDocumentId: (doc as any)._id })
         .select("_id status workflowStage createdAt")
         .lean();
+      const linkedInvoice: any = String((doc as any)?.type || "") === "QUOTATION"
+        ? await TradeDocumentModel.findOne({ ownerCompanyId: (doc as any).ownerCompanyId, sourceQuotationId: (doc as any)._id, isDeleted: { $ne: true } })
+          .select("_id documentNumber status createdAt")
+          .lean()
+        : null;
       const exposed = exposeDocument(doc);
       exposed.convertedOrder = linkedOrder ? {
         id: linkedOrder._id,
@@ -1089,6 +1094,13 @@ export class TradeDocumentController {
         workflowStage: linkedOrder.workflowStage,
         createdAt: linkedOrder.createdAt,
         route: `/dashboard/orders/${linkedOrder._id}`,
+      } : null;
+      exposed.convertedInvoice = linkedInvoice ? {
+        id: linkedInvoice._id,
+        documentNumber: linkedInvoice.documentNumber,
+        status: linkedInvoice.status,
+        createdAt: linkedInvoice.createdAt,
+        route: `/dashboard/documentation/${linkedInvoice._id}`,
       } : null;
       exposed.conversionReady = exposed.type === "QUOTATION" && exposed.status === "ACCEPTED" && !linkedOrder;
       return res.status(200).json({ success: true, data: exposed });

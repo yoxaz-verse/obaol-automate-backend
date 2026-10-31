@@ -55,6 +55,13 @@ describe("canonical standalone trade documents", () => {
     const duplicate = await api.post(`${base}/${id}/to-invoice`).set("Authorization", `Bearer ${seller.token}`).send({});
     expect(duplicate.body.data._id).toBe(invoice.body.data._id);
     const invoiceId = invoice.body.data._id;
+    const convertedQuotation = await api.get(`${base}/${id}`).set("Authorization", `Bearer ${seller.token}`);
+    expect(convertedQuotation.body.data.convertedInvoice).toMatchObject({
+      id: invoiceId,
+      documentNumber: invoice.body.data.documentNumber,
+      status: "DRAFT",
+      route: `/dashboard/documentation/${invoiceId}`,
+    });
     await api.post(`${base}/${invoiceId}/issue`).set("Authorization", `Bearer ${seller.token}`).send({});
     const payment = await api.post(`${base}/${invoiceId}/payments`).set("Authorization", `Bearer ${seller.token}`).send({ amount: 75, reference: "BANK-75" });
     expect(payment.body.data.paymentStatus).toBe("PARTIALLY_PAID");

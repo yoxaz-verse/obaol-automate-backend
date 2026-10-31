@@ -1027,7 +1027,6 @@ export const authenticateApple = async (req: Request, res: Response) => {
             const registrationStatus = String(user.registrationStatus || (role === "Operator" ? "APPROVED" : "PENDING_REVIEW")).toUpperCase();
             if (registrationStatus === "REJECTED") return sendRejectedAccountResponse(res, user);
             if (registrationStatus === "APPROVED" && user.isActive === false) return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
-            user.authProvider = "APPLE";
             user.isEmailVerified = user.isEmailVerified || applePayload.email_verified;
             user.lastLoginAt = new Date();
             await user.save();

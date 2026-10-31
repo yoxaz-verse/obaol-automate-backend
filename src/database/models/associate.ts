@@ -35,7 +35,7 @@ const associateSchema = new mongoose.Schema(
         authProvider: { type: String, enum: ["LOCAL", "GOOGLE", "APPLE"], default: "LOCAL" },
         googleSub: { type: String, default: null },
         googleEmailVerified: { type: Boolean, default: false },
-        appleSub: { type: String, default: null, sparse: true },
+        appleSub: { type: String, unique: true, sparse: true },
         appleEmailVerified: { type: Boolean, default: false },
         isActive: { type: Boolean, default: true },
         isDeleted: { type: Boolean, default: false },

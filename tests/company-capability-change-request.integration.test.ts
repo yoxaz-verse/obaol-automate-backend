@@ -2,7 +2,7 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import app from "../src/app";
-import { createAssociate } from "./helpers/authFixtures";
+import { createAdmin, createAssociate } from "./helpers/authFixtures";
 import { AssociateCompanyModel } from "../src/database/models/associateCompany";
 import { CompanyFunctionModel } from "../src/database/models/companyFunction";
 import { CompanyCapabilityChangeRequestModel } from "../src/database/models/companyCapabilityChangeRequest";
@@ -11,6 +11,10 @@ const api = request(app);
 const endpoint = "/api/v1/web/company-capability-change-requests";
 const cookieFor = (user: any) => `auth_token=${jwt.sign(
   { id: String(user._id), email: user.email, role: "Associate" },
+  process.env.JWT_SECRET as string
+)}`;
+const adminCookieFor = (user: any) => `auth_token=${jwt.sign(
+  { id: String(user._id), email: user.email, role: "Admin" },
   process.env.JWT_SECRET as string
 )}`;
 
@@ -110,5 +114,50 @@ describe("company capability change submission eligibility", () => {
     ]);
     expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
     expect(await CompanyCapabilityChangeRequestModel.countDocuments({ companyId: concurrent.company._id, status: "PENDING_REVIEW" })).toBe(1);
+  });
+});
+
+describe("admin capability management", () => {
+  it("applies admin capability edits immediately even during the associate cooldown", async () => {
+    const context = await setupCompany();
+    const admin = await createAdmin();
+    await createDecision({ ...context, status: "APPROVED", reviewedAt: new Date() });
+
+    const response = await api.put("/api/v1/web/auth/company-interests")
+      .set("Cookie", adminCookieFor(admin))
+      .send({
+        associateCompanyId: String(context.company._id),
+        providedFunctionIds: context.body.requestedProvidedFunctionIds,
+        soughtFunctionIds: context.body.requestedSoughtFunctionIds,
+        providedFunctionPriorities: context.body.requestedProvidedFunctionPriorities,
+        soughtFunctionPriorities: context.body.requestedSoughtFunctionPriorities,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      providedCapabilities: ["buyer"],
+      soughtCapabilities: ["seller"],
+    });
+  });
+
+  it("requires a pending capability request to be resolved before a direct edit", async () => {
+    const context = await setupCompany();
+    const admin = await createAdmin();
+    const pending = await createDecision({ ...context, status: "PENDING_REVIEW" });
+
+    const response = await api.put("/api/v1/web/auth/company-interests")
+      .set("Cookie", adminCookieFor(admin))
+      .send({
+        associateCompanyId: String(context.company._id),
+        providedFunctionIds: context.body.requestedProvidedFunctionIds,
+        soughtFunctionIds: context.body.requestedSoughtFunctionIds,
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      success: false,
+      code: "CAPABILITY_REQUEST_PENDING",
+      pendingRequestId: String(pending._id),
+    });
   });
 });

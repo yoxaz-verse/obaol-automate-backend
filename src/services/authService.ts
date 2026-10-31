@@ -9,6 +9,7 @@ import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 import { DesignationModel } from "../database/models/designation";
 import { CompanyInterestProfileModel } from "../database/models/companyInterestProfile";
+import { CompanyCapabilityChangeRequestModel } from "../database/models/companyCapabilityChangeRequest";
 import { StateModel } from "../database/models/state";
 import { DistrictModel } from "../database/models/district";
 import { DivisionModel } from "../database/models/division";
@@ -2557,6 +2558,20 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
         const company = await AssociateCompanyModel.findById(associateCompanyId).select("_id");
         if (!company) {
             return res.status(404).json({ success: false, message: "Associate company not found." });
+        }
+
+        const pendingCapabilityRequest = await CompanyCapabilityChangeRequestModel.findOne({
+            companyId: associateCompanyId,
+            status: "PENDING_REVIEW",
+            isDeleted: false,
+        }).select("_id").lean();
+        if (pendingCapabilityRequest) {
+            return res.status(409).json({
+                success: false,
+                code: "CAPABILITY_REQUEST_PENDING",
+                message: "Resolve the pending company capability request before editing active capabilities.",
+                pendingRequestId: String(pendingCapabilityRequest._id),
+            });
         }
 
         const providedFunctionIds = Array.isArray(req.body?.providedFunctionIds) ? req.body.providedFunctionIds : [];

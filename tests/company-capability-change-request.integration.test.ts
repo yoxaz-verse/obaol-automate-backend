@@ -85,6 +85,35 @@ describe("company capability change submission eligibility", () => {
     expect(create.body).toMatchObject({ code: "APPROVAL_COOLDOWN", nextEligibleAt: list.body.meta.eligibility.nextEligibleAt });
   });
 
+  it("treats a newer approval as authoritative over an older stale pending request", async () => {
+    const context = await setupCompany();
+    const pendingAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await createDecision({ ...context, status: "PENDING_REVIEW", createdAt: pendingAt });
+    const reviewedAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await createDecision({ ...context, status: "APPROVED", reviewedAt, createdAt: reviewedAt });
+
+    const list = await api.get(endpoint).set("Cookie", cookieFor(context.associate));
+    const create = await api.post(endpoint).set("Cookie", cookieFor(context.associate)).send(context.body);
+
+    expect(list.body.meta.eligibility).toMatchObject({ canSubmit: false, reason: "APPROVAL_COOLDOWN", pendingRequestId: null });
+    expect(create.status).toBe(409);
+    expect(create.body.code).toBe("APPROVAL_COOLDOWN");
+  });
+
+  it("keeps a pending request authoritative when it was created after the latest approval", async () => {
+    const context = await setupCompany();
+    const reviewedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await createDecision({ ...context, status: "APPROVED", reviewedAt, createdAt: reviewedAt });
+    const pending = await createDecision({ ...context, status: "PENDING_REVIEW", createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000) });
+
+    const list = await api.get(endpoint).set("Cookie", cookieFor(context.associate));
+    expect(list.body.meta.eligibility).toMatchObject({
+      canSubmit: false,
+      reason: "PENDING_REVIEW",
+      pendingRequestId: String(pending._id),
+    });
+  });
+
   it("allows submission after the cooldown and immediately after the latest rejection", async () => {
     const afterCooldown = await setupCompany();
     await createDecision({ ...afterCooldown, status: "APPROVED", reviewedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) });
@@ -94,6 +123,19 @@ describe("company capability change submission eligibility", () => {
     await createDecision({ ...rejected, status: "APPROVED", reviewedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) });
     await createDecision({ ...rejected, status: "REJECTED", reviewedAt: new Date(Date.now() - 24 * 60 * 60 * 1000) });
     expect((await api.post(endpoint).set("Cookie", cookieFor(rejected.associate)).send(rejected.body)).status).toBe(201);
+  });
+
+  it("allows submission at the seven-day boundary and resolves stale pending blockers", async () => {
+    const context = await setupCompany();
+    const pending = await createDecision({ ...context, status: "PENDING_REVIEW", createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000) });
+    const reviewedAt = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    await createDecision({ ...context, status: "APPROVED", reviewedAt, createdAt: reviewedAt });
+
+    const response = await api.post(endpoint).set("Cookie", cookieFor(context.associate)).send(context.body);
+    expect(response.status).toBe(201);
+    const repaired = await CompanyCapabilityChangeRequestModel.findById(pending._id).lean();
+    expect(repaired?.status).toBe("REJECTED");
+    expect(repaired?.reviewNotes).toContain("Superseded");
   });
 
   it("keeps the full history newest-first and permits only one concurrent pending request", async () => {
@@ -138,6 +180,25 @@ describe("admin capability management", () => {
       providedCapabilities: ["buyer"],
       soughtCapabilities: ["seller"],
     });
+  });
+
+  it("does not let an older stale pending row block an admin edit after approval", async () => {
+    const context = await setupCompany();
+    const admin = await createAdmin();
+    const stale = await createDecision({ ...context, status: "PENDING_REVIEW", createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) });
+    const reviewedAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await createDecision({ ...context, status: "APPROVED", reviewedAt, createdAt: reviewedAt });
+
+    const response = await api.put("/api/v1/web/auth/company-interests")
+      .set("Cookie", adminCookieFor(admin))
+      .send({
+        associateCompanyId: String(context.company._id),
+        providedFunctionIds: context.body.requestedProvidedFunctionIds,
+        soughtFunctionIds: context.body.requestedSoughtFunctionIds,
+      });
+
+    expect(response.status).toBe(200);
+    expect((await CompanyCapabilityChangeRequestModel.findById(stale._id).lean())?.status).toBe("REJECTED");
   });
 
   it("requires a pending capability request to be resolved before a direct edit", async () => {

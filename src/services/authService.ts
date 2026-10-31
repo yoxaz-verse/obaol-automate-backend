@@ -2564,14 +2564,43 @@ export const upsertCompanyInterests = async (req: Request, res: Response) => {
             companyId: associateCompanyId,
             status: "PENDING_REVIEW",
             isDeleted: false,
-        }).select("_id").lean();
-        if (pendingCapabilityRequest) {
+        }).select("_id createdAt").sort({ createdAt: -1 }).lean();
+        const latestCapabilityDecision = pendingCapabilityRequest
+            ? await CompanyCapabilityChangeRequestModel.findOne({
+                companyId: associateCompanyId,
+                status: { $in: ["APPROVED", "REJECTED"] },
+                isDeleted: false,
+            }).select("reviewedAt reviewedBy createdAt").sort({ reviewedAt: -1, createdAt: -1 }).lean()
+            : null;
+        const latestDecisionAt = latestCapabilityDecision
+            ? new Date((latestCapabilityDecision as any).reviewedAt || (latestCapabilityDecision as any).createdAt)
+            : null;
+        const pendingCreatedAt = pendingCapabilityRequest ? new Date((pendingCapabilityRequest as any).createdAt) : null;
+        const hasActivePendingRequest = Boolean(pendingCapabilityRequest && (
+            !latestDecisionAt
+            || Number.isNaN(latestDecisionAt.getTime())
+            || (pendingCreatedAt && pendingCreatedAt > latestDecisionAt)
+        ));
+        if (hasActivePendingRequest) {
             return res.status(409).json({
                 success: false,
                 code: "CAPABILITY_REQUEST_PENDING",
                 message: "Resolve the pending company capability request before editing active capabilities.",
-                pendingRequestId: String(pendingCapabilityRequest._id),
+                pendingRequestId: String(pendingCapabilityRequest?._id || ""),
             });
+        }
+        if (pendingCapabilityRequest && latestDecisionAt) {
+            await CompanyCapabilityChangeRequestModel.updateMany({
+                companyId: associateCompanyId,
+                status: "PENDING_REVIEW",
+                isDeleted: false,
+                createdAt: { $lte: latestDecisionAt },
+            }, { $set: {
+                status: "REJECTED",
+                reviewNotes: "Superseded by a newer completed capability decision.",
+                reviewedBy: (latestCapabilityDecision as any)?.reviewedBy || null,
+                reviewedAt: latestDecisionAt,
+            } });
         }
 
         const providedFunctionIds = Array.isArray(req.body?.providedFunctionIds) ? req.body.providedFunctionIds : [];

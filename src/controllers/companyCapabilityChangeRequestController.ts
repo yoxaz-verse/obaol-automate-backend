@@ -18,16 +18,14 @@ type SubmissionEligibility = {
   reason: "PENDING_REVIEW" | "APPROVAL_COOLDOWN" | null;
   nextEligibleAt: string | null;
   pendingRequestId: string | null;
+  stalePendingBefore: Date | null;
 };
 
 const submissionEligibility = async (companyId: string, now = new Date()): Promise<SubmissionEligibility> => {
   const pending = await CompanyCapabilityChangeRequestModel.findOne({ companyId, status: "PENDING_REVIEW", isDeleted: false })
-    .select("_id")
+    .select("_id createdAt")
+    .sort({ createdAt: -1 })
     .lean();
-  if (pending) {
-    return { canSubmit: false, reason: "PENDING_REVIEW", nextEligibleAt: null, pendingRequestId: String(pending._id) };
-  }
-
   const latestDecision = await CompanyCapabilityChangeRequestModel.findOne({
     companyId,
     status: { $in: ["APPROVED", "REJECTED"] },
@@ -36,17 +34,27 @@ const submissionEligibility = async (companyId: string, now = new Date()): Promi
     .select("status reviewedAt createdAt")
     .sort({ reviewedAt: -1, createdAt: -1 })
     .lean();
+  const decisionAt = latestDecision
+    ? new Date((latestDecision as any).reviewedAt || (latestDecision as any).createdAt)
+    : null;
+  const pendingAt = pending ? new Date((pending as any).createdAt) : null;
+
+  if (pending && (!decisionAt || Number.isNaN(decisionAt.getTime()) || (pendingAt && pendingAt > decisionAt))) {
+    return { canSubmit: false, reason: "PENDING_REVIEW", nextEligibleAt: null, pendingRequestId: String(pending._id), stalePendingBefore: null };
+  }
 
   if (latestDecision?.status === "APPROVED") {
-    const approvedAt = new Date((latestDecision as any).reviewedAt || (latestDecision as any).createdAt);
+    const approvedAt = decisionAt as Date;
     const nextEligibleAt = new Date(approvedAt.getTime() + COMPANY_CAPABILITY_CHANGE_COOLDOWN_MS);
     if (!Number.isNaN(nextEligibleAt.getTime()) && now < nextEligibleAt) {
-      return { canSubmit: false, reason: "APPROVAL_COOLDOWN", nextEligibleAt: nextEligibleAt.toISOString(), pendingRequestId: null };
+      return { canSubmit: false, reason: "APPROVAL_COOLDOWN", nextEligibleAt: nextEligibleAt.toISOString(), pendingRequestId: null, stalePendingBefore: pending ? decisionAt : null };
     }
   }
 
-  return { canSubmit: true, reason: null, nextEligibleAt: null, pendingRequestId: null };
+  return { canSubmit: true, reason: null, nextEligibleAt: null, pendingRequestId: null, stalePendingBefore: pending ? decisionAt : null };
 };
+
+const publicEligibility = ({ stalePendingBefore: _stalePendingBefore, ...eligibility }: SubmissionEligibility) => eligibility;
 
 const validateSelection = (ids: string[], priorities: string[], label: string) => {
   if (ids.length < 1 || ids.length > 6 || ids.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
@@ -82,6 +90,18 @@ export class CompanyCapabilityChangeRequestController {
           ? "This company already has a capability change awaiting review."
           : `Company capabilities can be changed again after ${new Date(String(eligibility.nextEligibleAt)).toLocaleString()}.`;
         return res.status(409).json({ success: false, code: eligibility.reason, message, nextEligibleAt: eligibility.nextEligibleAt });
+      }
+      if (eligibility.stalePendingBefore) {
+        await CompanyCapabilityChangeRequestModel.updateMany({
+          companyId,
+          status: "PENDING_REVIEW",
+          isDeleted: false,
+          createdAt: { $lte: eligibility.stalePendingBefore },
+        }, { $set: {
+          status: "REJECTED",
+          reviewNotes: "Superseded by a newer completed capability decision.",
+          reviewedAt: new Date(),
+        } });
       }
 
       const created = await CompanyCapabilityChangeRequestModel.create({
@@ -147,7 +167,7 @@ export class CompanyCapabilityChangeRequestController {
       const eligibility = currentRole === "associate"
         ? await submissionEligibility(String(query.companyId))
         : null;
-      return res.json({ success: true, data: rows, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1, eligibility } });
+      return res.json({ success: true, data: rows, meta: { page, limit, total, pages: Math.ceil(total / limit) || 1, eligibility: eligibility ? publicEligibility(eligibility) : null } });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error?.message || "Failed to load capability requests." });
     }
@@ -178,12 +198,27 @@ export class CompanyCapabilityChangeRequestController {
           } }, { session });
           await CompanyInterestProfileModel.deleteOne({ associateCompanyId: request.companyId }).session(session);
         }
+        const reviewedAt = new Date();
         reviewed = await CompanyCapabilityChangeRequestModel.findByIdAndUpdate(id, { $set: {
           status: action === "APPROVE" ? "APPROVED" : "REJECTED",
           reviewNotes: String(req.body?.notes || "").trim(),
           reviewedBy: req.user?.id,
-          reviewedAt: new Date(),
+          reviewedAt,
         } }, { new: true, session }).lean();
+        if (action === "APPROVE") {
+          await CompanyCapabilityChangeRequestModel.updateMany({
+            _id: { $ne: request._id },
+            companyId: request.companyId,
+            status: "PENDING_REVIEW",
+            isDeleted: false,
+            createdAt: { $lte: reviewedAt },
+          }, { $set: {
+            status: "REJECTED",
+            reviewNotes: "Superseded by an approved capability request.",
+            reviewedBy: req.user?.id,
+            reviewedAt,
+          } }, { session });
+        }
       });
       if (reviewed?.requesterAssociateId) await NotificationModel.create({
         recipientUserId: reviewed.requesterAssociateId, recipientRole: "Associate",

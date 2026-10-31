@@ -37,6 +37,7 @@
     "integrity:associate-orphans": "ts-node src/scripts/cleanupAssociateOrphans.ts",
     "migrate:company-capability-profiles": "ts-node src/scripts/migrateCompanyCapabilityProfiles.ts",
     "migrate:company-capability-requests": "ts-node src/scripts/migrateCompanyCapabilityRequests.ts",
+    "repair:company-capability-requests": "ts-node src/scripts/repairSupersededCapabilityRequests.ts",
     "migrate:buyer-seller-taxonomy": "ts-node src/scripts/migrateBuyerSellerTaxonomy.ts",
     "migrate:sidebar-common-routes": "ts-node src/scripts/migrateSidebarCommonRoutes.ts",
     "migrate:sidebar-unassigned": "ts-node src/scripts/migrateSidebarUnassigned.ts",

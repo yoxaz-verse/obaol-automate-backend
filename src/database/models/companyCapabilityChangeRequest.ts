@@ -15,7 +15,7 @@ const CompanyCapabilityChangeRequestSchema = new Schema(
     reviewNotes: { type: String, trim: true, maxlength: 2000, default: "" },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "Admin", default: null },
     reviewedAt: { type: Date, default: null },
-    legacyReportId: { type: Schema.Types.ObjectId, ref: "OrganizationReport", default: null, unique: true, sparse: true },
+    legacyReportId: { type: Schema.Types.ObjectId, ref: "OrganizationReport", unique: true, sparse: true },
     isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }

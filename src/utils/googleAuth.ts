@@ -1,6 +1,13 @@
 import { OAuth2Client } from "google-auth-library";
 
-const getGoogleClientId = () => String(process.env.GOOGLE_CLIENT_ID || "").trim();
+const getGoogleClientIds = () => [
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_ANDROID_CLIENT_ID,
+    process.env.GOOGLE_IOS_CLIENT_ID,
+]
+    .flatMap((value) => String(value || "").split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
 
 export type GoogleTokenPayload = {
     email: string;
@@ -10,14 +17,14 @@ export type GoogleTokenPayload = {
 };
 
 export const verifyGoogleIdToken = async (idToken: string): Promise<GoogleTokenPayload> => {
-    const clientId = getGoogleClientId();
-    if (!clientId) {
-        throw new Error("Google client id is not configured.");
+    const clientIds = getGoogleClientIds();
+    if (clientIds.length === 0) {
+        throw new Error("Google client ids are not configured.");
     }
-    const client = new OAuth2Client(clientId);
+    const client = new OAuth2Client(clientIds[0]);
     const ticket = await client.verifyIdToken({
         idToken,
-        audience: clientId,
+        audience: clientIds,
     });
     const payload = ticket.getPayload();
     if (!payload?.email || !payload?.sub) {

@@ -45,6 +45,7 @@ import {
 import { notificationService } from "./notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { verifyGoogleIdToken } from "../utils/googleAuth";
+import { verifyAppleIdentityToken } from "../utils/appleAuth";
 import { VerificationModel } from "../database/models/verification";
 import {
     PRE_AUTH_BLOCKED_MESSAGE,
@@ -975,6 +976,83 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
         return res.status(400).json({ success: false, message: "Invalid intent." });
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error?.message || "Google auth failed." });
+    }
+};
+
+export const authenticateApple = async (req: Request, res: Response) => {
+    try {
+        const identityToken = String(req.body?.identityToken || "").trim();
+        const rawNonce = String(req.body?.rawNonce || "").trim() || undefined;
+        const intent = String(req.body?.intent || "login").trim().toLowerCase();
+        const rememberMe = Boolean(req.body?.rememberMe);
+        let role = String(req.body?.role || "").trim();
+        const suppliedName = String(req.body?.name || "").trim();
+        if (!identityToken) return res.status(400).json({ success: false, code: "INVALID_REQUEST", message: "Apple identity token is required." });
+        if (!['login', 'register'].includes(intent)) return res.status(400).json({ success: false, message: "Invalid intent." });
+        if (intent === "register" && role !== "Associate" && role !== "Operator") {
+            return res.status(400).json({ success: false, message: "Apple login is only enabled for Associate and Operator." });
+        }
+
+        const applePayload = await verifyAppleIdentityToken(identityToken, rawNonce);
+        const bySubject = await Promise.all([
+            OperatorModel.findOne({ appleSub: applePayload.sub }),
+            AgentModel.findOne({ appleSub: applePayload.sub }),
+        ]);
+        const subjectUser = bySubject[0] || bySubject[1];
+        const email = String(applePayload.email || subjectUser?.email || "").trim().toLowerCase();
+        if (!email) return res.status(400).json({ success: false, code: "APPLE_EMAIL_REQUIRED", message: "Apple did not provide an email address. Remove OBAOL from Apple ID sign-in settings and try again." });
+
+        const [admin, projectManager, inventoryManager, supportAgent, operatorExisting, associateExisting] = await Promise.all([
+            AdminModel.findOne({ email }).select("_id").lean(),
+            ProjectManagerModel.findOne({ email }).select("_id").lean(),
+            InventoryManagerModel.findOne({ email }).select("_id").lean(),
+            CustomerSupportAgentModel.findOne({ email }).select("_id").lean(),
+            OperatorModel.findOne({ email }),
+            AgentModel.findOne({ email }),
+        ]);
+        const existingRole = admin ? "Admin" : projectManager ? "ProjectManager" : inventoryManager ? "InventoryManager" : supportAgent ? "CustomerSupport" : operatorExisting ? "Operator" : associateExisting ? "Associate" : null;
+        if (intent === "login" && (existingRole === "Associate" || existingRole === "Operator")) role = existingRole;
+        if (existingRole && role && existingRole !== role) return res.status(409).json({ success: false, message: "Account exists under a different role.", role: existingRole });
+
+        if (intent === "login") {
+            if (role !== "Associate" && role !== "Operator") return res.status(401).json({ success: false, code: "INVALID_CREDENTIALS", message: "Unable to sign in with this Apple account." });
+            const user: any = role === "Operator" ? operatorExisting : associateExisting;
+            if (!user) return res.status(404).json({ success: false, message: "Account not found. Please sign up." });
+            if (user.appleSub && user.appleSub !== applePayload.sub) return res.status(409).json({ success: false, code: "IDENTITY_CONFLICT", message: "This email is linked to another Apple account." });
+            if (!user.appleSub) {
+                if (!applePayload.email_verified) return res.status(409).json({ success: false, code: "EMAIL_NOT_VERIFIED", message: "Apple must verify the email before this account can be linked." });
+                user.appleSub = applePayload.sub;
+                user.appleEmailVerified = true;
+            }
+            const registrationStatus = String(user.registrationStatus || (role === "Operator" ? "APPROVED" : "PENDING_REVIEW")).toUpperCase();
+            if (registrationStatus === "REJECTED") return sendRejectedAccountResponse(res, user);
+            if (registrationStatus === "APPROVED" && user.isActive === false) return res.status(401).json({ message: "Account is inactive. Please contact support at info@support.obaol.com." });
+            user.authProvider = "APPLE";
+            user.isEmailVerified = user.isEmailVerified || applePayload.email_verified;
+            user.lastLoginAt = new Date();
+            await user.save();
+            const normalizedRole = role === "Operator" ? "Operator" : "Associate";
+            await issueAuthCookie(res, { ...user.toObject(), role: normalizedRole, associateCompany: user.associateCompany }, rememberMe);
+            return res.json({ success: true, next: getAuthNextPath(user, normalizedRole), user: { id: user._id, email: user.email, name: user.name, role: normalizedRole, registrationStatus: user.registrationStatus || null } });
+        }
+
+        if (existingRole) return res.status(409).json({ success: false, code: "ACCOUNT_EXISTS", message: "An account already exists for this email. Please sign in." });
+        if (!applePayload.email_verified) return res.status(400).json({ success: false, code: "EMAIL_NOT_VERIFIED", message: "Apple did not provide a verified email." });
+        const displayName = suppliedName || deriveDisplayName(email);
+        const generatedPassword = generateRandomPassword();
+        if (role === "Operator") {
+            const operator: any = await OperatorModel.create({ name: displayName, email, phone: DRAFT_PHONE_E164, phoneCountryCode: DRAFT_PHONE_COUNTRY, phoneNational: DRAFT_PHONE_NATIONAL, password: generatedPassword, address: DRAFT_OPERATOR_ADDRESS, authProvider: "APPLE", appleSub: applePayload.sub, appleEmailVerified: true, isEmailVerified: true, onboardingComplete: false });
+            await VerificationModel.create({ userId: String(operator._id), userType: "Operator", method: "email", code: "APPLE_VERIFIED", expiresAt: new Date(Date.now() + 31536000000), ipAddress: String(req.ip || ""), userAgent: String(req.headers["user-agent"] || ""), verified: true });
+            await issueAuthCookie(res, { ...operator.toObject(), role: "Operator" }, rememberMe);
+            return res.json({ success: true, next: "/dashboard/onboarding", user: { id: operator._id, email, name: displayName, role: "Operator" } });
+        }
+        const associate: any = await AgentModel.create({ name: displayName, email, phone: DRAFT_PHONE_E164, phoneCountryCode: DRAFT_PHONE_COUNTRY, phoneNational: DRAFT_PHONE_NATIONAL, password: generatedPassword, authProvider: "APPLE", appleSub: applePayload.sub, appleEmailVerified: true, isEmailVerified: true, onboardingComplete: false, hasCompany: false, companyMode: "none" });
+        await VerificationModel.create({ userId: String(associate._id), userType: "Associate", method: "email", code: "APPLE_VERIFIED", expiresAt: new Date(Date.now() + 31536000000), ipAddress: String(req.ip || ""), userAgent: String(req.headers["user-agent"] || ""), verified: true });
+        await issueAuthCookie(res, { ...associate.toObject(), role: "Associate", associateCompany: associate.associateCompany }, rememberMe);
+        return res.json({ success: true, next: "/dashboard/onboarding", user: { id: associate._id, email, name: displayName, role: "Associate" } });
+    } catch (error: any) {
+        logger.warn("Apple authentication failed", { message: error?.message });
+        return res.status(401).json({ success: false, message: "Apple authentication could not be verified." });
     }
 };
 

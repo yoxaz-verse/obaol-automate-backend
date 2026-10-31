@@ -23,9 +23,11 @@ export interface IAssociate {
   division?: Types.ObjectId | string | null;
   pincodeEntry?: Types.ObjectId | string | null;
   password: string;
-  authProvider?: "LOCAL" | "GOOGLE";
+  authProvider?: "LOCAL" | "GOOGLE" | "APPLE";
   googleSub?: string | null;
   googleEmailVerified?: boolean;
+  appleSub?: string | null;
+  appleEmailVerified?: boolean;
   failedLoginAttempts?: number;
   loginLockedUntil?: Date | null;
   lastFailedLoginAt?: Date | null;
@@ -74,9 +76,11 @@ export interface ICreateAssociate {
   division?: Types.ObjectId | string | null;
   pincodeEntry?: Types.ObjectId | string | null;
   password: string;
-  authProvider?: "LOCAL" | "GOOGLE";
+  authProvider?: "LOCAL" | "GOOGLE" | "APPLE";
   googleSub?: string | null;
   googleEmailVerified?: boolean;
+  appleSub?: string | null;
+  appleEmailVerified?: boolean;
   failedLoginAttempts?: number;
   loginLockedUntil?: Date | null;
   lastFailedLoginAt?: Date | null;
@@ -125,9 +129,11 @@ export interface IUpdateAssociate {
   division?: Types.ObjectId | string | null;
   pincodeEntry?: Types.ObjectId | string | null;
   password?: string;
-  authProvider?: "LOCAL" | "GOOGLE";
+  authProvider?: "LOCAL" | "GOOGLE" | "APPLE";
   googleSub?: string | null;
   googleEmailVerified?: boolean;
+  appleSub?: string | null;
+  appleEmailVerified?: boolean;
   isActive?: boolean;
   isDeleted?: boolean;
   isEmailVerified?: boolean;

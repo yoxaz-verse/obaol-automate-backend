@@ -18,6 +18,7 @@ import {
   getCompanyInterestsStatus,
   upsertCompanyInterests,
   authenticateGoogle,
+  authenticateApple,
   getEmailStatus,
   startOnboarding,
   completeOnboarding,
@@ -48,6 +49,7 @@ authRoute.post("/", authLoginLimiter, authenticateUser);
 authRoute.post("/unified/password", authLoginLimiter, authenticateUnifiedUser);
 authRoute.post("/register", authRegisterLimiter, registerAssociate);
 authRoute.post("/google", authRegisterLimiter, authenticateGoogle);
+authRoute.post("/apple", authRegisterLimiter, authenticateApple);
 authRoute.get("/passkeys", authenticateToken, listPasskeys);
 authRoute.post("/passkeys/registration/options", passkeyLimiter, authenticateToken, generatePasskeyRegistrationOptions);
 authRoute.post("/passkeys/registration/verify", passkeyLimiter, authenticateToken, verifyPasskeyRegistration);

@@ -4,6 +4,7 @@ import app from "../src/app";
 import { createAdmin, createAssociate, createOperator } from "./helpers/authFixtures";
 import { generateJWTToken } from "../src/utils/tokenUtils";
 import { verifyGoogleIdToken } from "../src/utils/googleAuth";
+import { verifyAppleIdentityToken } from "../src/utils/appleAuth";
 import { VerificationModel } from "../src/database/models/verification";
 import { AuthPasskeyModel } from "../src/database/models/authPasskey";
 import { AuthSessionModel } from "../src/database/models/authSession";
@@ -20,6 +21,10 @@ const webAuthnMocks = vi.hoisted(() => ({
 
 vi.mock("../src/utils/googleAuth", () => ({
   verifyGoogleIdToken: vi.fn(),
+}));
+
+vi.mock("../src/utils/appleAuth", () => ({
+  verifyAppleIdentityToken: vi.fn(),
 }));
 
 vi.mock("@simplewebauthn/server", () => ({
@@ -349,6 +354,36 @@ describe("Auth API", () => {
 
     expect(res.status).toBe(200);
     expect(res.body?.user?.email).toBe(user.email);
+  });
+
+  it("links a verified Apple identity and issues the existing session cookie", async () => {
+    const user = await createAssociate({ isEmailVerified: true });
+    vi.mocked(verifyAppleIdentityToken).mockResolvedValueOnce({
+      email: user.email,
+      sub: "apple-sub-1",
+      email_verified: true,
+    });
+
+    const res = await api.post("/api/v1/web/auth/apple").send({
+      identityToken: "test-apple-token",
+      rawNonce: "nonce",
+      role: "Associate",
+      intent: "login",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.user?.email).toBe(user.email);
+    expect(res.headers["set-cookie"]?.join(";")).toContain("auth_token=");
+    const updated = await AssociateModel.findById(user._id).lean();
+    expect(updated?.appleSub).toBe("apple-sub-1");
+  });
+
+  it("rejects an Apple identity already linked to a different subject", async () => {
+    const user = await createAssociate({ appleSub: "apple-sub-original", appleEmailVerified: true });
+    vi.mocked(verifyAppleIdentityToken).mockResolvedValueOnce({ email: user.email, sub: "apple-sub-other", email_verified: true });
+    const res = await api.post("/api/v1/web/auth/apple").send({ identityToken: "test-apple-token", role: "Associate", intent: "login" });
+    expect(res.status).toBe(409);
+    expect(res.body?.code).toBe("IDENTITY_CONFLICT");
   });
 
   it("rejects inactive user", async () => {

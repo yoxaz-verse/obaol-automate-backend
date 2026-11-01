@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUTE_PATHS, canonicalizeGovernanceMappings, canonicalizeSidebarRoutePath, createBaselineSidebarMappings, deriveSidebarSectionOrder } from "./sidebarGovernanceRegistry";
+import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUTE_PATHS, canonicalizeGovernanceMappings, canonicalizeSidebarRoutePath, createBaselineSidebarMappings, deriveSidebarRouteAudience, deriveSidebarSectionOrder } from "./sidebarGovernanceRegistry";
 
 describe("sidebar governance registry", () => {
+  it("describes seeker and provider audiences without exposing hidden assignments", () => {
+    const audience = deriveSidebarRouteAudience([
+      { functionSlug: "seller", routePath: "/dashboard/product", placement: "PROVIDING", status: "LIVE", order: 1 },
+      { functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "BOTH", status: "LIVE", order: 2 },
+      { functionSlug: "testing", routePath: "/dashboard/product", placement: "SEEKING", status: "HIDDEN", order: 3 },
+      { functionSlug: "packaging", routePath: "/dashboard/product", placement: "OTHER_SERVICES", status: "LIVE", order: 4 },
+    ]);
+    expect(audience["/dashboard/product"]).toEqual([{ functionSlug: "seller", placement: "PROVIDING" }]);
+    expect(audience["/dashboard/marketplace"]).toEqual([
+      { functionSlug: "buyer", placement: "SEEKING" },
+      { functionSlug: "buyer", placement: "PROVIDING" },
+    ]);
+  });
+
   it("creates a complete unique baseline for every function", () => {
     const mappings = createBaselineSidebarMappings(["buyer", "testing"]);
     expect(mappings).toHaveLength(ASSOCIATE_SIDEBAR_ROUTES.length * 2);

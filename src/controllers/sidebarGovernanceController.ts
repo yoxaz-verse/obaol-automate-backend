@@ -5,6 +5,7 @@ import {
   ASSOCIATE_SIDEBAR_ROUTES,
   COMMON_ASSOCIATE_SIDEBAR_ROUTES,
   canonicalizeGovernanceMappings,
+  deriveSidebarRouteAudience,
   migrateUnassignedFallbacks,
 } from "../utils/sidebarGovernanceRegistry";
 import { canonicalizeCompanyFunctionTaxonomySlug } from "../utils/companyCapabilities";
@@ -132,12 +133,14 @@ export class SidebarGovernanceController {
           .map((value) => canonicalizeCompanyFunctionTaxonomySlug(value))));
       }
       const published = config?.published || {};
-      const mappings = canonicalizeGovernanceMappings(published.mappings as any[]).filter((row: any) => (
+      const canonicalMappings = canonicalizeGovernanceMappings(published.mappings as any[]);
+      const routeAudience = deriveSidebarRouteAudience(canonicalMappings);
+      const mappings = canonicalMappings.filter((row: any) => (
         row.placement !== "UNASSIGNED"
         && row.status !== "HIDDEN"
         && (!allowedSlugs || allowedSlugs.includes(String(row.functionSlug)))
       ));
-      return res.json({ success: true, data: { revision: published.revision, updatedAt: published.updatedAt, resolutionVersion: Number(published.resolutionVersion || 1), sectionOrder: normalizeSidebarSectionOrder(published.sectionOrder, mappings), mappings } });
+      return res.json({ success: true, data: { revision: published.revision, updatedAt: published.updatedAt, resolutionVersion: Number(published.resolutionVersion || 1), sectionOrder: normalizeSidebarSectionOrder(published.sectionOrder, mappings), mappings, routeAudience } });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to load published sidebar governance." });
     }

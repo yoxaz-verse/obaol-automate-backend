@@ -125,6 +125,24 @@ export const canonicalizeGovernanceMappings = <T extends GovernanceMapping>(mapp
   return Array.from(merged.values()).sort((a, b) => a.functionSlug.localeCompare(b.functionSlug) || a.order - b.order || a.routePath.localeCompare(b.routePath));
 };
 
+export type SidebarRouteAudience = { functionSlug: string; placement: "SEEKING" | "PROVIDING" };
+
+export const deriveSidebarRouteAudience = (mappings: GovernanceMapping[]) => canonicalizeGovernanceMappings(mappings)
+  .reduce((result, row) => {
+    if (row.placement === "UNASSIGNED" || row.placement === "OTHER_SERVICES" || row.status === "HIDDEN") return result;
+    const placements: SidebarRouteAudience["placement"][] = row.placement === "BOTH"
+      ? ["SEEKING", "PROVIDING"]
+      : [row.placement as SidebarRouteAudience["placement"]];
+    const audience = result[row.routePath] || [];
+    placements.forEach((placement) => {
+      if (!audience.some((item) => item.functionSlug === row.functionSlug && item.placement === placement)) {
+        audience.push({ functionSlug: row.functionSlug, placement });
+      }
+    });
+    result[row.routePath] = audience;
+    return result;
+  }, {} as Record<string, SidebarRouteAudience[]>);
+
 const LIVE_BY_FUNCTION: Record<string, string[]> = {
   buyer: ["/dashboard/bidding/my", "/dashboard/marketplace", "/dashboard/catalog", "/dashboard/enquiries", "/dashboard/sample-requests", "/dashboard/orders"],
   seller: ["/dashboard/bidding", "/dashboard/product", "/dashboard/marketplace", "/dashboard/inventory", "/dashboard/enquiries", "/dashboard/orders"],

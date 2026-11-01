@@ -16,8 +16,21 @@ export const requestMetadata = (req: Request) => {
   };
 };
 
-export const createAuthSession = async (req: Request, user: any, role: string, expiresAt: Date) => {
+export const createAuthSession = async (
+  req: Request,
+  user: any,
+  role: string,
+  expiresAt: Date,
+  persistent = false,
+) => {
   const sessionId = crypto.randomBytes(32).toString("base64url");
-  await AuthSessionModel.create({ sessionId, userId: user._id, role, ...requestMetadata(req), expiresAt });
+  await AuthSessionModel.create({
+    sessionId,
+    userId: user._id,
+    role,
+    ...requestMetadata(req),
+    expiresAt,
+    persistent,
+  });
   return sessionId;
 };

@@ -11,6 +11,7 @@ interface TokenPayload {
   role: string;
   associateCompany?: string | null;
   sessionId?: string;
+  persistent?: boolean;
   authStage?: "email_verification";
 }
 
@@ -22,7 +23,8 @@ interface TokenPayload {
 export const generateJWTToken = (
   user: IAdmin | IWorker,
   expiresIn: string = "1h",
-  sessionId?: string
+  sessionId?: string,
+  persistent = false,
 ): string => {
   const payload: TokenPayload = {
     id: user._id.toString(),
@@ -30,6 +32,7 @@ export const generateJWTToken = (
     role: user.role,
     associateCompany: (user as any).associateCompany ? String((user as any).associateCompany) : null,
     ...(sessionId ? { sessionId } : {}),
+    ...(persistent ? { persistent: true } : {}),
   };
 
   const token = jwt.sign(payload, (process.env.JWT_SECRET as string) || "secret", {

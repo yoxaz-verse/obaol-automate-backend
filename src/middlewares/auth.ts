@@ -10,6 +10,13 @@ import { InventoryManagerModel } from "../database/models/inventoryManager";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 import { AuthSessionModel } from "../database/models/authSession";
 import { requireApprovedAssociateCompany } from "../utils/companyApprovalAccess";
+import { generateJWTToken } from "../utils/tokenUtils";
+import { getAuthCookieOptions } from "../utils/cookieOptions";
+import {
+  PERSISTENT_SESSION_DURATION_MS,
+  isPersistentSessionToken,
+  shouldRenewPersistentSession,
+} from "../utils/authSessionPolicy";
 
 export interface DecodedToken {
   id: string;
@@ -17,6 +24,7 @@ export interface DecodedToken {
   role: string;
   associateCompany?: string | null;
   sessionId?: string;
+  persistent?: boolean;
   authStage?: "email_verification";
   iat: number;
   exp: number;
@@ -61,6 +69,31 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
       const session = await AuthSessionModel.findOne({ sessionId: decoded.sessionId, userId: decoded.id, role: decoded.role });
       if (!session || session.revokedAt || session.expiresAt <= new Date()) {
         return res.status(401).json({ success: false, message: "Authentication failed: Session expired or revoked" });
+      }
+      const persistent = isPersistentSessionToken(decoded);
+      if (persistent && shouldRenewPersistentSession(decoded)) {
+        const expiresAt = new Date(Date.now() + PERSISTENT_SESSION_DURATION_MS);
+        const renewedToken = generateJWTToken(
+          {
+            _id: decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+            associateCompany: decoded.associateCompany,
+          } as any,
+          "30d",
+          decoded.sessionId,
+          true,
+        );
+        const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+        res.cookie(
+          "auth_token",
+          renewedToken,
+          getAuthCookieOptions(host, PERSISTENT_SESSION_DURATION_MS),
+        );
+        session.expiresAt = expiresAt;
+        session.persistent = true;
+        session.lastActiveAt = new Date();
+        await session.save();
       }
       const activeCutoff = new Date(Date.now() - 60 * 1000);
       if (!session.lastActiveAt || session.lastActiveAt < activeCutoff) {

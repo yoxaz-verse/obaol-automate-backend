@@ -36,6 +36,7 @@ import {
     isStrongAssociatePassword,
 } from "../utils/associateRegistrationValidation";
 import { getAuthCookieOptions } from "../utils/cookieOptions";
+import { PERSISTENT_SESSION_DURATION_MS, TRANSIENT_SESSION_DURATION_MS } from "../utils/authSessionPolicy";
 import { CANONICAL_COMPANY_FUNCTION_SLUGS, COMPANY_FUNCTION_TAXONOMY_VERSION, normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import {
     COMPANY_INTERESTS,
@@ -317,11 +318,11 @@ const hasVerifiedOnboardingEmail = async (userDoc: any, role: "Associate" | "Ope
 };
 
 export const issueAuthCookie = async (res: Response, userForToken: any, rememberMe = false) => {
-    const jwtExpiresIn = rememberMe ? "24h" : "2h";
-    const cookieMaxAge = rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
+    const jwtExpiresIn = rememberMe ? "30d" : "2h";
+    const cookieMaxAge = rememberMe ? PERSISTENT_SESSION_DURATION_MS : TRANSIENT_SESSION_DURATION_MS;
     const expiresAt = new Date(Date.now() + cookieMaxAge);
-    const sessionId = await createAuthSession(res.req, userForToken, userForToken.role, expiresAt);
-    const token = generateJWTToken(userForToken, jwtExpiresIn, sessionId);
+    const sessionId = await createAuthSession(res.req, userForToken, userForToken.role, expiresAt, rememberMe);
+    const token = generateJWTToken(userForToken, jwtExpiresIn, sessionId, rememberMe);
     const host = String(res.req?.headers["x-forwarded-host"] || res.req?.headers.host || "");
     const cookieOptions = getAuthCookieOptions(host, cookieMaxAge);
     res.setHeader("Cache-Control", "no-store");

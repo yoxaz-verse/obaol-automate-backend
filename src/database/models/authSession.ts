@@ -10,6 +10,7 @@ const authSessionSchema = new mongoose.Schema(
     location: { type: String, default: "Unknown" },
     lastActiveAt: { type: Date, default: Date.now },
     expiresAt: { type: Date, required: true },
+    persistent: { type: Boolean, default: false },
     revokedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }

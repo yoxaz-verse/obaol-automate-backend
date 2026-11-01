@@ -179,6 +179,16 @@ export const migrateUnassignedFallbacks = <T extends GovernanceMapping>(mappings
   ? { ...row, placement: "UNASSIGNED" }
   : row) as T[];
 
+export const enforceBuyerSellerBiddingSplit = <T extends GovernanceMapping>(mappings: T[]) => mappings.map((row) => {
+  if (row.routePath === "/dashboard/bidding") {
+    return { ...row, placement: row.functionSlug === "seller" ? "PROVIDING" : "UNASSIGNED", status: row.functionSlug === "seller" ? "LIVE" : "HIDDEN" };
+  }
+  if (row.routePath === "/dashboard/bidding/my") {
+    return { ...row, placement: row.functionSlug === "buyer" ? "SEEKING" : "UNASSIGNED", status: row.functionSlug === "buyer" ? "LIVE" : "HIDDEN" };
+  }
+  return row;
+}) as T[];
+
 export const migrateBiddingSplit = <T extends GovernanceMapping>(mappings: T[]) => {
   if (mappings.some((row) => row.routePath === "/dashboard/bidding/my")) return mappings;
   const migrated: GovernanceMapping[] = mappings.map((row) => {

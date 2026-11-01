@@ -4,6 +4,8 @@ import { IProductBiddingEvent } from "../../interfaces/productBidding";
 const ProductBiddingEventSchema = new Schema<IProductBiddingEvent>({
   buyer: { type: Schema.Types.ObjectId, ref: "Associate", required: true, index: true },
   buyerCompany: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, index: true },
+  createdBy: { type: Schema.Types.ObjectId, default: null, index: true },
+  createdByRole: { type: String, trim: true, lowercase: true, default: "associate" },
   title: { type: String, required: true, trim: true, maxlength: 160 },
   product: { type: Schema.Types.ObjectId, ref: "Product", required: true, index: true },
   productVariant: { type: Schema.Types.ObjectId, ref: "ProductVariant", default: null, index: true },

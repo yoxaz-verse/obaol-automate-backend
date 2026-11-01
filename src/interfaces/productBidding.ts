@@ -6,6 +6,8 @@ export type ProductBidOfferStatus = "SUBMITTED" | "WITHDRAWN" | "AWARDED" | "NOT
 export interface IProductBiddingEvent extends Document {
   buyer: Types.ObjectId;
   buyerCompany: Types.ObjectId;
+  createdBy?: Types.ObjectId | null;
+  createdByRole?: string;
   title: string;
   product: Types.ObjectId;
   productVariant?: Types.ObjectId | null;

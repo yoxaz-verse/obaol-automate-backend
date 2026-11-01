@@ -124,7 +124,7 @@ describe("sidebar governance canonical functions", () => {
     await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
     const after: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
     expect(result.state.status).toBe(200);
-    expect(after.matrixMigrationVersion).toBe(6);
+    expect(after.matrixMigrationVersion).toBe(7);
     expect(after.draft.revision).toBe(5);
     expect(after.published.revision).toBe(4);
     expect(after.draft.resolutionVersion).toBe(3);
@@ -183,7 +183,7 @@ describe("sidebar governance canonical functions", () => {
     expect(result.state.body.data.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/marketplace", placement: "UNASSIGNED", status: "HIDDEN" }));
   });
 
-  it("normalizes Bidding in the draft once without changing the published snapshot", async () => {
+  it("normalizes buyer and seller bidding destinations in both snapshots once", async () => {
     const legacyMappings = createBaselineSidebarMappings(["buyer", "seller"]).map((row) => row.routePath === "/dashboard/bidding" ? { ...row, placement: "BOTH" as const, status: "LIVE" as const } : row);
     const sectionOrder = createDefaultSidebarSectionOrder();
     const fallbackStatusByRoute = Object.fromEntries(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => [path, "HIDDEN"]));
@@ -192,13 +192,14 @@ describe("sidebar governance canonical functions", () => {
     const first = response();
     await sidebarGovernanceController.getAdmin({} as any, first.res);
     const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
-    expect(stored.matrixMigrationVersion).toBe(6);
+    expect(stored.matrixMigrationVersion).toBe(7);
     expect(stored.draft.revision).toBe(5);
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "UNASSIGNED", status: "HIDDEN" }));
     expect(stored.published.revision).toBe(4);
     expect(stored.published.resolutionVersion).toBe(3);
-    expect(stored.published.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "BOTH", status: "LIVE" }));
+    expect(stored.published.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "UNASSIGNED", status: "HIDDEN" }));
+    expect(stored.published.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding/my", placement: "SEEKING", status: "LIVE" }));
 
     const second = response();
     await sidebarGovernanceController.getAdmin({} as any, second.res);

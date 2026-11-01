@@ -80,6 +80,19 @@ describe("associate catalog hierarchy", () => {
     expect(rows(variantsResponse).map((row: any) => String(row.id))).toContain(String(variantA._id));
     expect(rows(variantsResponse).map((row: any) => String(row.id))).not.toContain(String(variantB._id));
 
+    const productSearchResponse = await api.get("/api/v1/web/catalog/products/search")
+      .set("Cookie", cookie).query({ q: `Product A ${suffix}` });
+    expect(productSearchResponse.status).toBe(200);
+    expect(rows(productSearchResponse)).toContainEqual({
+      product: { id: String(productA._id), name: `Associate Product A ${suffix}` },
+      subCategory: { id: String(subA._id), name: `Associate Subcategory A ${suffix}` },
+      category: { id: String(categoryA._id), name: `AgRi ${suffix}` },
+    });
+    const shortSearchResponse = await api.get("/api/v1/web/catalog/products/search")
+      .set("Cookie", cookie).query({ q: "a" });
+    expect(shortSearchResponse.status).toBe(200);
+    expect(rows(shortSearchResponse)).toEqual([]);
+
     const createRateResponse = await api
       .post("/api/v1/web/variant-rates")
       .set("Cookie", cookie)

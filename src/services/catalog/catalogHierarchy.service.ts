@@ -34,6 +34,12 @@ export type CatalogHierarchyInput = {
     actor: { id?: string; role?: string } | undefined;
 };
 
+export type CatalogProductSearchResult = {
+    product: { id: string; name: string };
+    subCategory: { id: string; name: string };
+    category: { id: string; name: string };
+};
+
 export const normalizeCatalogName = (value: unknown) =>
     String(value || "").normalize("NFKC").trim().toLocaleLowerCase("en");
 
@@ -108,4 +114,36 @@ export async function getCatalogHierarchyOptions({ query, actor }: CatalogHierar
         reviewNotes: String(row.reviewNotes || ""),
     })).filter((row) => row.id && row.name)
         .sort((left, right) => normalizeCatalogName(left.name).localeCompare(normalizeCatalogName(right.name), "en"));
+}
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export async function searchCatalogProducts(query: unknown, actor: CatalogHierarchyInput["actor"], limitValue?: unknown): Promise<CatalogProductSearchResult[]> {
+    const search = displayName(query);
+    if (search.length < 2) return [];
+    const limit = Math.min(Math.max(Number(limitValue) || 20, 1), 50);
+    const products = await ProductModel.find({
+        name: { $regex: escapeRegex(search), $options: "i" },
+        isDeleted: { $ne: true },
+        ...visibilityFor(actor),
+    }).select("_id name subCategory").limit(limit * 3).lean() as CatalogRow[];
+    if (!products.length) return [];
+    const subCategories = await SubCategoryModel.find({
+        _id: { $in: products.map((row) => row.subCategory) }, isDeleted: { $ne: true }, ...visibilityFor(actor),
+    }).select("_id name category").lean() as CatalogRow[];
+    const categories = await CategoryModel.find({
+        _id: { $in: subCategories.map((row) => row.category) }, isDeleted: { $ne: true }, ...visibilityFor(actor),
+    }).select("_id name").lean() as CatalogRow[];
+    const subById = new Map(subCategories.map((row) => [String(row._id), row]));
+    const categoryById = new Map(categories.map((row) => [String(row._id), row]));
+    return products.flatMap((product) => {
+        const subCategory = subById.get(String(product.subCategory));
+        const category = subCategory ? categoryById.get(String(subCategory.category)) : undefined;
+        if (!subCategory || !category) return [];
+        return [{
+            product: { id: String(product._id), name: displayName(product.name) },
+            subCategory: { id: String(subCategory._id), name: displayName(subCategory.name) },
+            category: { id: String(category._id), name: displayName(category.name) },
+        }];
+    }).slice(0, limit).sort((a, b) => normalizeCatalogName(a.product.name).localeCompare(normalizeCatalogName(b.product.name), "en"));
 }

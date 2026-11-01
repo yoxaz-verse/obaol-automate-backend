@@ -12,6 +12,7 @@ import {
   createBaselineSidebarMappings,
   createDefaultSidebarSectionOrder,
   deriveSidebarSectionOrder,
+  enforceBuyerSellerBiddingSplit,
   migrateUnassignedFallbacks,
   normalizeBiddingForSeller,
 } from "../utils/sidebarGovernanceRegistry";
@@ -89,10 +90,11 @@ export const ensureAdminSidebarConfig = async () => {
     const completedDraft = [...currentDraft, ...baseline.filter((row) => !keys.has(`${row.functionSlug}:${row.routePath}`))];
     const migrationVersion = Number((existing as any).matrixMigrationVersion || 0);
     const biddingDraft = migrationVersion < 3 ? normalizeBiddingForSeller(completedDraft) : completedDraft;
-    const draft = migrationVersion < 4 ? migrateUnassignedFallbacks(biddingDraft) : biddingDraft;
+    const fallbackDraft = migrationVersion < 4 ? migrateUnassignedFallbacks(biddingDraft) : biddingDraft;
+    const draft = migrationVersion < 7 ? enforceBuyerSellerBiddingSplit(fallbackDraft) : fallbackDraft;
     const needsV3 = Number((existing as any).draft?.resolutionVersion || 1) !== 3;
     const publishedNeedsV3 = Number((existing as any).published?.resolutionVersion || 1) !== 3;
-    const changed = JSON.stringify(draft) !== JSON.stringify((existing as any).draft?.mappings || []) || needsV3 || publishedNeedsV3 || migrationVersion < 6;
+    const changed = JSON.stringify(draft) !== JSON.stringify((existing as any).draft?.mappings || []) || needsV3 || publishedNeedsV3 || migrationVersion < 7;
     if (changed) {
       (existing as any).draft.mappings = draft;
       (existing as any).draft.resolutionVersion = 3;
@@ -100,8 +102,11 @@ export const ensureAdminSidebarConfig = async () => {
       (existing as any).draft.fallbackStatusByRoute = completeFallbackStatuses((existing as any).draft.fallbackStatusByRoute, draft);
       (existing as any).draft.revision = Number((existing as any).draft.revision || 0) + 1;
       (existing as any).draft.updatedAt = new Date();
-      if (publishedNeedsV3 || migrationVersion < 6) {
-        const publishedMappings = canonicalizeGovernanceMappings((existing as any).published?.mappings || []);
+      if (publishedNeedsV3 || migrationVersion < 7) {
+        const currentPublished = canonicalizeGovernanceMappings((existing as any).published?.mappings || []);
+        const publishedKeys = new Set(currentPublished.map((row: any) => `${row.functionSlug}:${row.routePath}`));
+        const completedPublished = [...currentPublished, ...baseline.filter((row) => !publishedKeys.has(`${row.functionSlug}:${row.routePath}`))];
+        const publishedMappings = migrationVersion < 7 ? enforceBuyerSellerBiddingSplit(completedPublished) : completedPublished;
         (existing as any).published.mappings = publishedMappings;
         (existing as any).published.resolutionVersion = 3;
         (existing as any).published.sectionOrder = normalizeSidebarSectionOrder((existing as any).published.sectionOrder, publishedMappings);
@@ -109,7 +114,7 @@ export const ensureAdminSidebarConfig = async () => {
         (existing as any).published.revision = Number((existing as any).published.revision || 0) + 1;
         (existing as any).published.updatedAt = new Date();
       }
-      (existing as any).matrixMigrationVersion = 6;
+      (existing as any).matrixMigrationVersion = 7;
       await existing.save();
     }
     return existing;
@@ -118,7 +123,7 @@ export const ensureAdminSidebarConfig = async () => {
   const mappings = createBaselineSidebarMappings(await getFunctionSlugs());
   return SidebarGovernanceModel.create({
     key: "associate-sidebar",
-    matrixMigrationVersion: 6,
+    matrixMigrationVersion: 7,
     draft: { revision: 1, resolutionVersion: 3, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
     published: { revision: 1, resolutionVersion: 3, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
   });

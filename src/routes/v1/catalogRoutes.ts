@@ -2,12 +2,21 @@ import { Router } from "express";
 import { CatalogController } from "../../controllers/CatalogController";
 import authenticateToken from "../../middlewares/auth";
 import { authorizeRoles } from "../../middlewares/authorizeRoles";
+import multer from "multer";
 
 const router = Router();
+const catalogWorkbookUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => callback(null, /\.(xlsx|xls)$/i.test(file.originalname)),
+});
 
 // Canonical no-cache hierarchy used by product-listing pickers for every dashboard role.
 router.get("/hierarchy-options", authenticateToken, CatalogController.getHierarchyOptions);
 router.get("/hierarchy-integrity", authenticateToken, authorizeRoles("Admin"), CatalogController.getHierarchyIntegrity);
+router.get("/products/search", authenticateToken, CatalogController.searchProducts);
+router.get("/import/template", authenticateToken, authorizeRoles("Admin"), CatalogController.downloadImportTemplate);
+router.post("/import", authenticateToken, authorizeRoles("Admin"), catalogWorkbookUpload.single("file"), CatalogController.importCatalog);
 
 // --- Secured Routes (Associate Only) ---
 // Add item to logged-in associate's catalog

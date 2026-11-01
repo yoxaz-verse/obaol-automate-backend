@@ -5,6 +5,7 @@ import { productBiddingController as controller } from "../../controllers/produc
 const router = Router();
 router.use(authenticateToken);
 router.get("/", controller.list.bind(controller));
+router.get("/buyer-contacts", controller.buyerContacts.bind(controller));
 router.post("/", controller.create.bind(controller));
 router.patch("/:id", controller.update.bind(controller));
 router.post("/:id/publish", controller.publish.bind(controller));

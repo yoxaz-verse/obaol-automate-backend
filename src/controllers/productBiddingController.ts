@@ -58,7 +58,7 @@ const notifyAssociates = async (ids: any[], event: any, type: string, title: str
   await notificationService.createNotifications({ recipientMap, createdByUserId: actorId || null, type, title, message: body, entityType: "SYSTEM", entityId: event._id, route, payload: { biddingEventId: idOf(event) } });
 };
 
-const baseEvent = (event: any, offerCount = 0) => ({
+const baseEvent = (event: any, offerCount = 0, includeOwnership = false) => ({
   _id: idOf(event), title: event.title, product: event.product, productVariant: event.productVariant,
   quantity: event.quantity, unit: event.unit, specifications: event.specifications,
   deliveryLocation: event.deliveryLocation, deliveryDate: event.deliveryDate, buyerNotes: event.buyerNotes,
@@ -66,20 +66,58 @@ const baseEvent = (event: any, offerCount = 0) => ({
   offerCount, createdAt: event.createdAt, updatedAt: event.updatedAt,
   winningOffer: event.winningOffer ? idOf(event.winningOffer) : null,
   draftEnquiry: event.draftEnquiry ? idOf(event.draftEnquiry) : null,
+  ...(includeOwnership ? {
+    buyer: event.buyer && typeof event.buyer === "object" ? { _id: idOf(event.buyer), name: event.buyer.name, email: event.buyer.email } : idOf(event.buyer),
+    buyerCompany: event.buyerCompany && typeof event.buyerCompany === "object" ? { _id: idOf(event.buyerCompany), name: event.buyerCompany.name } : idOf(event.buyerCompany),
+    createdBy: event.createdBy ? idOf(event.createdBy) : null,
+    createdByRole: event.createdByRole || "associate",
+  } : {}),
 });
 
 export class ProductBiddingController {
   async create(req: Request, res: Response) {
     const who = await actor(req);
-    if (!who?.companyId || roleOf(req) !== "associate") return fail(res, 403, "An approved buyer company is required.");
+    const role = roleOf(req);
+    let buyerId = who?.id || "";
+    let buyerCompanyId = who?.companyId || "";
+    if (role === "admin") {
+      buyerId = String(req.body?.buyer || "");
+      buyerCompanyId = String(req.body?.buyerCompany || "");
+      if (!isId(buyerId) || !isId(buyerCompanyId)) return fail(res, 400, "Select a buyer company and approved buyer contact.");
+      const [company, buyer] = await Promise.all([
+        AssociateCompanyModel.findOne({ _id: buyerCompanyId, isDeleted: { $ne: true } }).select("_id").lean(),
+        AssociateModel.findOne({ _id: buyerId, associateCompany: buyerCompanyId, registrationStatus: "APPROVED", isActive: true, isDeleted: { $ne: true } }).select("_id").lean(),
+      ]);
+      if (!company) return fail(res, 400, "The selected buyer company is unavailable.");
+      if (!buyer) return fail(res, 400, "Select an active approved contact belonging to the buyer company.");
+    } else if (role !== "associate" || !buyerCompanyId) {
+      return fail(res, 403, "An approved buyer company is required.");
+    } else if (req.body?.buyer !== undefined || req.body?.buyerCompany !== undefined) {
+      return fail(res, 403, "Associates cannot create buying requests for another company or contact.");
+    }
     const input = payloadFrom(req.body);
     if (!input.title || !isId(input.product) || !isId(input.productVariant) || !(Number(input.quantity) > 0) || !["KG", "MT", "Quintal"].includes(String(input.unit))) return fail(res, 400, "Title, product, variant, quantity, and unit are required.");
     const disclosureViolation = disclosureError(input);
     if (disclosureViolation) return fail(res, 400, disclosureViolation);
     const variant = await ProductVariantModel.exists({ _id: input.productVariant, product: input.product, isDeleted: { $ne: true }, approvalStatus: { $in: ["APPROVED", null] } });
     if (!variant) return fail(res, 400, "Select an approved variant belonging to the selected product.");
-    const event = await ProductBiddingEventModel.create({ ...input, buyer: who.id, buyerCompany: who.companyId, status: "DRAFT" });
+    const event = await ProductBiddingEventModel.create({ ...input, buyer: buyerId, buyerCompany: buyerCompanyId, createdBy: req.user?.id || null, createdByRole: role, status: "DRAFT" });
     return res.status(201).json({ success: true, data: baseEvent(event) });
+  }
+
+  async buyerContacts(req: Request, res: Response) {
+    if (roleOf(req) !== "admin") return fail(res, 403, "Admin access is required.");
+    const companyId = String(req.query.companyId || "");
+    if (!isId(companyId)) return fail(res, 400, "A valid company is required.");
+    const company = await AssociateCompanyModel.exists({ _id: companyId, isDeleted: { $ne: true } });
+    if (!company) return fail(res, 404, "Buyer company not found.");
+    const contacts = await AssociateModel.find({
+      associateCompany: companyId,
+      registrationStatus: "APPROVED",
+      isActive: true,
+      isDeleted: { $ne: true },
+    }).select("_id name email phone").sort({ name: 1 }).lean();
+    return res.json({ success: true, data: contacts });
   }
 
   async update(req: Request, res: Response) {
@@ -156,7 +194,7 @@ export class ProductBiddingController {
         filter.buyerCompany = { $ne: who!.companyId };
       }
     }
-    let events: any[] = await ProductBiddingEventModel.find(filter).populate("product", "name").populate("productVariant", "name").sort({ createdAt: -1 }).limit(200).lean();
+    let events: any[] = await ProductBiddingEventModel.find(filter).populate("product", "name").populate("productVariant", "name").populate("buyer", "name email").populate("buyerCompany", "name").sort({ createdAt: -1 }).limit(200).lean();
     const ids = events.map((event) => event._id);
     const offers: any[] = await ProductBidOfferModel.find({ event: { $in: ids } }).populate({ path: "listing", populate: { path: "productVariant", select: "name product", populate: { path: "product", select: "name" } } }).populate("sellerCompany", "name").lean();
     const byEvent = new Map<string, any[]>();
@@ -171,7 +209,7 @@ export class ProductBiddingController {
     }
     const data = events.map((event) => {
       const rows = byEvent.get(idOf(event)) || [];
-      const base: any = baseEvent(event, rows.filter((row) => row.status !== "WITHDRAWN").length);
+      const base: any = baseEvent(event, rows.filter((row) => row.status !== "WITHDRAWN").length, roleOf(req) === "admin");
       const owns = idOf(event.buyerCompany) === who?.companyId;
       if (mode !== "buyer" && who?.companyId) base.ownOffer = rows.find((row) => idOf(row.sellerCompany) === who.companyId) || null;
       if ((owns || elevated(req)) && ["CLOSED", "AWARDED"].includes(event.status)) base.offers = rows;

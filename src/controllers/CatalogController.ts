@@ -10,9 +10,36 @@ import { SubCategoryModel } from "../database/models/subCategory";
 import { ProductModel } from "../database/models/product";
 import { ProductVariantModel } from "../database/models/productVariant";
 import { assertVariantRateEligible } from "../services/catalogModeration.service";
-import { getCatalogHierarchyOptions, normalizeCatalogName } from "../services/catalog/catalogHierarchy.service";
+import { getCatalogHierarchyOptions, normalizeCatalogName, searchCatalogProducts } from "../services/catalog/catalogHierarchy.service";
+import { createCatalogTemplate, importCatalogRows, parseCatalogWorkbook } from "../services/catalog/catalogImport.service";
 
 export class CatalogController {
+
+    static async searchProducts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const data = await searchCatalogProducts(req.query.q, req.user, req.query.limit);
+            return res.status(200).json({ success: true, data });
+        } catch (error) { return next(error); }
+    }
+
+    static async importCatalog(req: Request, res: Response, next: NextFunction) {
+        try {
+            if (!req.file?.buffer) return res.status(400).json({ success: false, message: "Choose an .xlsx or .xls workbook." });
+            const rows = parseCatalogWorkbook(req.file.buffer);
+            const data = await importCatalogRows(rows, String(req.user?.id || ""));
+            return res.status(200).json({ success: true, data, message: "Catalog workbook imported successfully." });
+        } catch (error: any) {
+            if (error?.details) return res.status(400).json({ success: false, message: error.message, data: error.details });
+            return next(error);
+        }
+    }
+
+    static async downloadImportTemplate(_req: Request, res: Response) {
+        const workbook = createCatalogTemplate();
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", 'attachment; filename="catalog-import-template.xlsx"');
+        return res.send(workbook);
+    }
 
     static async getHierarchyOptions(req: Request, res: Response, next: NextFunction) {
         try {

@@ -75,7 +75,7 @@ describe("Auth API", () => {
     expect(login.status).toBe(200);
     expect(login.body).toMatchObject({ success: true, next: "/dashboard", user: { role: "Operator" } });
     expect(login.headers["set-cookie"]?.join(";")).toContain("auth_token=");
-    expect(login.headers["set-cookie"]?.join(";")).toMatch(/Max-Age=86400/i);
+    expect(login.headers["set-cookie"]?.join(";")).toMatch(/Max-Age=2592000/i);
   });
 
   it("uses identical unified password errors for unknown email and bad password", async () => {

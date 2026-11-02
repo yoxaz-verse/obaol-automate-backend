@@ -12,6 +12,8 @@ describe("health endpoints", () => {
     const response = await request(app).get("/health/live");
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: "ok" });
+    expect(response.headers["x-request-id"]).toMatch(/^[a-zA-Z0-9._-]{8,128}$/);
+    expect(response.headers["server-timing"]).toMatch(/^app;dur=\d+(?:\.\d)?$/);
   });
 
   it("maps a disconnected MongoDB state to not ready", () => {

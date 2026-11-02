@@ -32,10 +32,26 @@ describe("initial real-life scenario catalog", () => {
     for (const prohibited of [
       /customer testimonial/i,
       /verified case study/i,
-      /guaranteed (result|revenue|transaction|funding|delivery)/i,
+      /guarantee(?:d)? (?:of )?(?:result|revenue|transaction|funding|delivery)/i,
+      /without promising a commercial outcome/i,
+      /does not guarantee/i,
       /\b\d+%\b/,
     ]) expect(copy).not.toMatch(prohibited);
-    expect(copy).toMatch(/representative educational scenario/i);
-    expect(copy).toMatch(/does not guarantee/i);
+  });
+
+  it("provides substantial, distinct narrative copy for every story", () => {
+    const narrativeCopies = documents.map((item) => [
+      item.excerpt,
+      ...item.blocks.flatMap((block: any) => [block.title, block.text, ...(block.items || [])]),
+      ...item.faqs.flatMap((faq: any) => [faq.question, faq.answer]),
+    ].filter(Boolean).join(" "));
+    expect(new Set(narrativeCopies).size).toBe(45);
+    for (const copy of narrativeCopies) {
+      const words = copy.trim().split(/\s+/).length;
+      expect(words).toBeGreaterThanOrEqual(600);
+      expect(words).toBeLessThanOrEqual(900);
+    }
+    expect(new Set(documents.map((item) => item.excerpt)).size).toBe(45);
+    expect(new Set(documents.map((item) => item.seoDescription)).size).toBe(45);
   });
 });

@@ -42,7 +42,7 @@
     "migrate:sidebar-common-routes": "ts-node src/scripts/migrateSidebarCommonRoutes.ts",
     "migrate:sidebar-unassigned": "ts-node src/scripts/migrateSidebarUnassigned.ts",
     "reconcile:lab-work": "ts-node src/scripts/reconcileLabWorkItems.ts",
-    "seed:real-life-scenarios": "ts-node src/scripts/seedRealLifeScenarios.ts",
+    "seed:real-life-scenarios": "ts-node src/scripts/seedRealLifeScenarios.ts --publish",
     "migrate:quality-labs": "ts-node src/scripts/optimizeQualityLabs.ts"
   },
   "keywords": [],

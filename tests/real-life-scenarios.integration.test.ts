@@ -59,4 +59,20 @@ describe("real-life scenarios", () => {
     await api.get(`/api/v1/web/real-life-scenarios/preview/${id}`).query({ token: tokenResponse.body.data.token }).expect(200);
     await RealLifeScenarioModel.deleteMany({ slug: new RegExp(suffix) });
   });
+
+  it("returns more than three published scenarios in display order", async () => {
+    const suffix = new mongoose.Types.ObjectId().toHexString().slice(-8);
+    const rows = Array.from({ length: 4 }, (_, index) => ({
+      ...payload(`${suffix}-${index}`),
+      displayOrder: 3 - index,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    }));
+    await RealLifeScenarioModel.create(rows);
+    const response = await api.get("/api/v1/web/real-life-scenarios/public").query({ roleSlug: "exporters" }).expect(200);
+    const matching = response.body.data.filter((item: any) => item.slug.includes(suffix));
+    expect(matching).toHaveLength(4);
+    expect(matching.map((item: any) => item.displayOrder)).toEqual([0, 1, 2, 3]);
+    await RealLifeScenarioModel.deleteMany({ slug: new RegExp(suffix) });
+  });
 });

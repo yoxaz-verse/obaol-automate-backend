@@ -30,6 +30,8 @@ const FaqSchema = new Schema({
 }, { _id: false });
 
 const RealLifeScenarioSchema = new Schema({
+  seedKey: { type: String, trim: true, select: false },
+  seedVersion: { type: Number, min: 1, select: false },
   internalTitle: { type: String, required: true, trim: true, maxlength: 200 },
   h1: { type: String, required: true, trim: true, maxlength: 200 },
   roleSlug: { type: String, required: true, enum: ASSOCIATE_ROLE_SLUGS, index: true },
@@ -61,6 +63,7 @@ const RealLifeScenarioSchema = new Schema({
 }, { timestamps: true });
 
 RealLifeScenarioSchema.index({ roleSlug: 1, slug: 1 }, { unique: true });
+RealLifeScenarioSchema.index({ seedKey: 1 }, { unique: true, sparse: true });
 RealLifeScenarioSchema.index({ roleSlug: 1, status: 1, displayOrder: 1 });
 RealLifeScenarioSchema.index({ internalTitle: "text", h1: "text", excerpt: "text", primaryKeyword: "text" });
 

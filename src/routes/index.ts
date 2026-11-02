@@ -40,6 +40,9 @@ router.use(`${prefix}/product-bidding`, productBiddingRoutes);
 import packagingRoutes from "./v1/packagingRoutes";
 router.use(`${prefix}/packaging`, packagingRoutes);
 
+import freightForwardingRoutes from "./v1/freightForwardingRoutes";
+router.use(`${prefix}/freight-forwarding`, freightForwardingRoutes);
+
 // Variant-rates specialized endpoints
 import variantRateRoutes from "./v1/variantRateRoutes";
 router.use(`${prefix}/variant-rates`, variantRateRoutes);

@@ -150,9 +150,9 @@ const buildStoryBlocks = (role: RoleStories, item: Story, displayOrder: number) 
 };
 
 export const buildInitialScenarioDocuments = (publishedAt = new Date()) => INITIAL_SCENARIO_CATALOG.flatMap((role) => role.stories.map((item, displayOrder) => ({
-  seedKey: `associate-scenario-v1:${role.roleSlug}:${item.slug}`, seedVersion: 2,
+  seedKey: `associate-scenario-v1:${role.roleSlug}:${item.slug}`, seedVersion: 3,
   internalTitle: item.h1, h1: item.h1, roleSlug: role.roleSlug, slug: item.slug,
-  excerpt: `${item.problem} Follow how a ${role.name.toLowerCase()} company brings the requirement, responsible participants, documents, and execution milestones into one accountable workflow.`,
+  excerpt: `${item.problem} Follow how a company in the ${role.name.toLowerCase()} role brings the requirement, responsible participants, documents, and execution milestones into one accountable workflow.`,
   scenarioType: "REPRESENTATIVE", disclosureAccepted: true,
   blocks: buildStoryBlocks(role, item, displayOrder),
   primaryKeyword: item.keyword, supportingKeywords: [`${role.name.toLowerCase()} scenario`, `${item.keyword} workflow`, "B2B bulk trade execution"],

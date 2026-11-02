@@ -237,15 +237,46 @@ export class CatalogModerationController {
         model.find(entityQuery).populate("createdByAssociate", "name email").populate("createdByCompany", "name").lean(),
         CatalogRevisionModel.find({ entityType, status }).populate("createdByAssociate", "name email").populate("createdByCompany", "name").lean(),
       ]);
+      const requestedRatesByVariant = new Map<string, any[]>();
+      if (entityType === "productVariant") {
+        const variantIds = [
+          ...entities.map((row: any) => row._id),
+          ...revisions.map((row: any) => row.entityId),
+        ].filter(Boolean);
+        const requestedRates = variantIds.length
+          ? await VariantRateModel.find({ productVariant: { $in: variantIds }, isDeleted: { $ne: true } })
+            .select("_id productVariant rate unit createdAt")
+            .sort({ createdAt: -1 })
+            .lean()
+          : [];
+        for (const requestedRate of requestedRates) {
+          const variantId = String((requestedRate as any).productVariant);
+          const current = requestedRatesByVariant.get(variantId) || [];
+          current.push({
+            id: (requestedRate as any)._id,
+            rate: Number((requestedRate as any).rate),
+            unit: (requestedRate as any).unit || "KG",
+            createdAt: (requestedRate as any).createdAt,
+          });
+          requestedRatesByVariant.set(variantId, current);
+        }
+      }
       const enrichedEntities = await Promise.all(entities.map(async (row: any) => {
         const chain: any = await getCatalogChain(entityType, row);
         const variantIds = entityType === "productVariant" ? [row._id] : entityType === "product" ? await ProductVariantModel.find({ product: row._id, isDeleted: { $ne: true } }).distinct("_id") : [];
-        const listingCount = variantIds.length ? await VariantRateModel.countDocuments({ productVariant: { $in: variantIds }, isDeleted: { $ne: true } }) : 0;
-        return { ...row, sourceKind: "ENTITY", hierarchy: Object.fromEntries(Object.entries(chain).map(([key, value]: any) => [key, value ? { _id: value._id, name: value.name, approvalStatus: value.approvalStatus || "APPROVED" } : null])), listingCount };
+        const requestedRates = entityType === "productVariant" ? requestedRatesByVariant.get(String(row._id)) || [] : undefined;
+        const listingCount = entityType === "productVariant"
+          ? requestedRates!.length
+          : variantIds.length ? await VariantRateModel.countDocuments({ productVariant: { $in: variantIds }, isDeleted: { $ne: true } }) : 0;
+        return { ...row, sourceKind: "ENTITY", hierarchy: Object.fromEntries(Object.entries(chain).map(([key, value]: any) => [key, value ? { _id: value._id, name: value.name, approvalStatus: value.approvalStatus || "APPROVED" } : null])), listingCount, ...(requestedRates ? { requestedRates } : {}) };
       }));
       const combined = [
         ...enrichedEntities,
-        ...revisions.map((row: any) => ({ ...row, sourceKind: "REVISION" })),
+        ...revisions.map((row: any) => ({
+          ...row,
+          sourceKind: "REVISION",
+          ...(entityType === "productVariant" ? { requestedRates: requestedRatesByVariant.get(String(row.entityId)) || [] } : {}),
+        })),
       ].sort((a: any, b: any) => new Date(b.approvalRequestedAt || b.createdAt).getTime() - new Date(a.approvalRequestedAt || a.createdAt).getTime());
       const start = (page - 1) * limit;
       return res.json({ success: true, data: combined.slice(start, start + limit), meta: { page, limit, total: combined.length, pages: Math.max(1, Math.ceil(combined.length / limit)) } });

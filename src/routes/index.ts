@@ -111,6 +111,9 @@ logRouteMount(`[routes] mounted ${prefix}/flow-rules/subflows`);
 import systemConfigRoutes from "./v1/systemConfigRoutes";
 router.use(`${prefix}/system-config`, systemConfigRoutes);
 logRouteMount(`[routes] mounted ${prefix}/system-config`);
+import realLifeScenarioRoutes from "./v1/realLifeScenarioRoutes";
+router.use(`${prefix}/real-life-scenarios`, realLifeScenarioRoutes);
+logRouteMount(`[routes] mounted ${prefix}/real-life-scenarios`);
 
 // Enquiry rules
 import enquiryRuleRoutes from "./v1/enquiryRuleRoutes";

@@ -84,6 +84,19 @@ export const INITIAL_SCENARIO_CATALOG: RoleStories[] = [
   ]},
 ];
 
+export const OPERATOR_SCENARIO_CATALOG: RoleStories[] = [{
+  roleSlug: "operator", name: "Operators", audience: "trade execution professionals", stories: [
+    s("qualifying-incomplete-commodity-opportunities", "Qualifying an Incomplete Commodity Opportunity", "A promising enquiry arrives without a confirmed quantity, specification, destination, delivery window, commercial basis, or decision owner.", "The operator cannot distinguish a workable requirement from an early conversation, and every participant starts from a different assumption.", "operator opportunity qualification", ["Record the missing requirement fields.", "Confirm the companies, contacts, and decision owners.", "Connect suitable supply or service context.", "Assign a clear next action before progression."]),
+    s("building-and-maintaining-a-supplier-portfolio", "Building and Maintaining a Supplier Portfolio", "A supplier relationship exists, but company registration, product origin, lot availability, samples, quality evidence, and fulfilment readiness remain disconnected.", "The operator cannot responsibly connect the supplier to demand or explain which information is current.", "operator supplier portfolio management", ["Establish the registered company context.", "Connect products, origin, availability, and evidence.", "Track samples and buyer responses.", "Maintain the portfolio as conditions change."]),
+    s("aligning-buyer-and-seller-as-deal-closer", "Aligning Buyer and Seller as the Deal Closer", "Buyer and seller conversations use different versions of the specification, price basis, sample decision, documents, and delivery expectations.", "Commercial interest continues while the points required for a shared decision remain unresolved.", "operator deal closing workflow", ["Create one current requirement and offer record.", "List differences that require acceptance.", "Record decisions and responsible owners.", "Confirm alignment before execution begins."]),
+    s("handling-execution-exceptions-through-closure", "Handling Execution Exceptions Through Closure", "A packaging, quality, warehouse, transport, freight, customs, or delivery milestone changes after execution has started.", "Downstream companies continue working from the earlier plan and closure evidence becomes fragmented.", "operator execution exception handling", ["Record the exception against the affected milestone.", "Identify every dependent company and task.", "Coordinate the revised sequence and evidence.", "Close the work with delivery and completion records."]),
+    s("independent-operator-end-to-end-workflow", "An Independent Operator's End-to-End Trade Workflow", "An experienced professional has a useful buyer and supplier network but manages enquiries, company context, documents, service providers, and milestones through separate personal channels.", "The network creates opportunities, yet execution ownership and history are difficult to transfer, review, or repeat.", "independent commodity trade operator workflow", ["Bring the opportunity into a structured enquiry.", "Connect registered companies and product context.", "Coordinate commercial and execution milestones.", "Maintain involvement through documented completion."]),
+    s("mentoring-team-operators-with-clear-ownership", "Mentoring a Team-Based Operator Without Losing Ownership", "A mentor and developing operator work on the same opportunity without a clear division between coaching, execution ownership, review, and escalation.", "Tasks are duplicated or left between people, and leadership contribution is difficult to connect to completed work.", "operator mentorship workflow", ["Define the developing operator's responsibility.", "Record mentor review and escalation points.", "Keep company and milestone ownership visible.", "Connect leadership participation to completed execution."]),
+  ],
+}];
+
+export const ALL_INITIAL_SCENARIO_CATALOG = [...INITIAL_SCENARIO_CATALOG, ...OPERATOR_SCENARIO_CATALOG];
+
 type RoleNarrative = {
   setting: string;
   commodity: string;
@@ -109,6 +122,7 @@ const ROLE_NARRATIVES: Record<string, RoleNarrative> = {
   "finance-partners": { setting: "a trade-finance provider reviewing execution-linked requests from registered companies", commodity: "domestic and cross-border agricultural trades", participants: "applicants, provider diligence teams, authorised company contacts, and execution coordinators", records: "applicant context, transaction purpose, requested facility, supporting documents, questions, conditions, and provider decisions", availableNow: ["register supported markets and trade-finance capabilities", "review eligible requirements with available trade context", "coordinate authorised documents and provider-led diligence"], comingNext: "broader finance-opportunity routing and structured decision-status workflows" },
   "insurance-partners": { setting: "an insurance provider assessing cargo and trade-risk requirements connected to active movements", commodity: "bulk and packaged agricultural cargo", participants: "assured companies, brokers or provider teams, carriers, warehouses, and authorised trade contacts", records: "cargo values, routes, packaging, conveyance, storage context, risk changes, policy documents, and incident evidence", availableNow: ["register supported products, markets, and risk capabilities", "review suitable coverage requirements in active-trade context", "coordinate assessment and policy documentation under the provider's process"], comingNext: "broader automated routing of eligible trades to suitable coverage providers" },
   "agritech-companies": { setting: "an agritech company connecting field, quality, traceability, or inventory information with trade execution", commodity: "farm-origin crops and processed agricultural products", participants: "technology teams, suppliers, buyers, laboratories, procurement teams, and authorised data owners", records: "product identifiers, source data, timestamps, quality observations, consent, integration mappings, and workflow exceptions", availableNow: ["register a specific agritech capability and supported markets", "present relevant traceability, quality, or execution services", "review aligned requirements and coordinate agreed delivery"], comingNext: "deeper data exchange and platform integrations for approved agritech capabilities" },
+  operator: { setting: "a trade execution professional coordinating registered companies through a live commodity workflow", commodity: "agricultural commodities moving through domestic or international trade", participants: "buyers, sellers, assigned operators, supplier portfolio owners, deal closers, handlers, mentors, and specialist providers", records: "enquiries, company context, product information, samples, decisions, responsibilities, documents, milestones, exceptions, delivery evidence, and completion status", availableNow: ["work with assigned company and enquiry context", "maintain supplier, deal-closer, and handler ownership", "coordinate connected execution milestones through completion"], comingNext: "richer assignment, workflow automation, performance context, and guided operator capability development" },
 };
 
 const storyFaqs = (role: RoleStories, item: Story, context: RoleNarrative) => [
@@ -119,6 +133,7 @@ const storyFaqs = (role: RoleStories, item: Story, context: RoleNarrative) => [
 
 const buildStoryBlocks = (role: RoleStories, item: Story, displayOrder: number) => {
   const context = ROLE_NARRATIVES[role.roleSlug];
+  const narrativeIndex = displayOrder % 3;
   const openings = [
     `A company operating as ${context.setting} received a new requirement involving ${context.commodity}. At first, the opportunity looked familiar: the commercial team had handled similar conversations before, and several participants were ready to respond. The difficulty was not a lack of interest. It was that the information needed for a responsible next step was spread across messages, calls, files, and individual working notes. ${item.problem} Until those gaps were resolved, every response carried a different assumption.`,
     `For ${context.setting}, daily execution depended on timely handoffs between ${context.participants}. A live movement involving ${context.commodity} exposed how quickly a small difference in information could become an operational blockage. ${item.problem} Each team continued working from the version it had received, but no shared record showed which version was current, who owned the correction, or which downstream milestone would be affected.`,
@@ -130,10 +145,10 @@ const buildStoryBlocks = (role: RoleStories, item: Story, displayOrder: number) 
     `${item.impact} Managers could see activity but could not see dependable progress. Completed tasks were reported in isolation, while unresolved dependencies remained hidden in private conversations. The company decided that the workflow had to show the requirement, the selected response, the execution owners, and the evidence of completion as one connected operating record.`,
   ];
   return [
-    { type: "heading", level: 2, text: displayOrder === 0 ? "The enquiry looked ready—until the missing details appeared" : displayOrder === 1 ? "One change created several versions of the truth" : "Building one execution record from the first requirement" },
-    { type: "paragraph", text: openings[displayOrder] },
+    { type: "heading", level: 2, text: narrativeIndex === 0 ? "The enquiry looked ready—until the missing details appeared" : narrativeIndex === 1 ? "One change created several versions of the truth" : "Building one execution record from the first requirement" },
+    { type: "paragraph", text: openings[narrativeIndex] },
     { type: "heading", level: 2, text: "Why normal follow-up was no longer enough" },
-    { type: "paragraph", text: consequences[displayOrder] },
+    { type: "paragraph", text: consequences[narrativeIndex] },
     { type: "paragraph", text: `The company brought the working context together: ${context.records}. It identified which information came from the company itself, which details required confirmation from another participant, and which decisions belonged to a specialist provider. This distinction mattered because OBAOL was used to coordinate the workflow, while the registered companies continued to perform the commercial, operational, and regulated work assigned to them.` },
     { type: "heading", level: 2, text: `How the ${item.keyword} workflow was organised` },
     { type: "workflow", items: item.steps },
@@ -144,13 +159,13 @@ const buildStoryBlocks = (role: RoleStories, item: Story, displayOrder: number) 
     { type: "callout", title: "A capability being developed next", text: `OBAOL's roadmap for this role includes ${context.comingNext}. The company in this scenario used the capabilities available today; any roadmap capability would require its own release, scope, and operating review.` },
     { type: "heading", level: 2, text: "A clearer decision and a practical next action" },
     { type: "paragraph", text: `With the workflow organised, the team could return to the original issue: ${item.problem} It now had a current record for owners, inputs, exceptions, and next actions. ${item.impact} became a visible execution issue that could be addressed by the responsible participant instead of remaining hidden across conversations. The practical outcome was a more accountable basis for deciding whether to progress, correct, pause, or close the work.` },
-    { type: "paragraph", text: `The next action was deliberately specific: ${item.steps[item.steps.length - 1]} From there, the company could review the complete record with the relevant participants and decide the following milestone. This made the scenario useful beyond one transaction; the same structure could be applied to the company's next comparable requirement while retaining the commodity, company, location, and service context that makes each execution different.` },
-    { type: "cta", title: `Explore the ${role.name} role`, text: `Review the responsibilities, current capabilities, and registration path for ${role.name.toLowerCase()} on OBAOL.`, href: `/roles/associate/${role.roleSlug}` },
+    { type: "paragraph", text: `The next action was deliberately specific: ${item.steps[item.steps.length - 1]} From there, the company could review the record with relevant participants and decide the following milestone. The same structure could support the company's next comparable requirement while retaining the commodity, company, location, and service context that makes each execution different.` },
+    { type: "cta", title: `Explore the ${role.name} role`, text: `Review the responsibilities, current capabilities, and registration path for ${role.name.toLowerCase()} on OBAOL.`, href: role.roleSlug === "operator" ? "/roles/operator" : `/roles/associate/${role.roleSlug}` },
   ];
 };
 
-export const buildInitialScenarioDocuments = (publishedAt = new Date()) => INITIAL_SCENARIO_CATALOG.flatMap((role) => role.stories.map((item, displayOrder) => ({
-  seedKey: `associate-scenario-v1:${role.roleSlug}:${item.slug}`, seedVersion: 3,
+export const buildInitialScenarioDocuments = (publishedAt = new Date()) => ALL_INITIAL_SCENARIO_CATALOG.flatMap((role) => role.stories.map((item, displayOrder) => ({
+  seedKey: `${role.roleSlug === "operator" ? "operator" : "associate"}-scenario-v1:${role.roleSlug}:${item.slug}`, seedVersion: role.roleSlug === "operator" ? 1 : 3,
   internalTitle: item.h1, h1: item.h1, roleSlug: role.roleSlug, slug: item.slug,
   excerpt: `${item.problem} Follow how a company in the ${role.name.toLowerCase()} role brings the requirement, responsible participants, documents, and execution milestones into one accountable workflow.`,
   scenarioType: "REPRESENTATIVE", disclosureAccepted: true,
@@ -158,7 +173,7 @@ export const buildInitialScenarioDocuments = (publishedAt = new Date()) => INITI
   primaryKeyword: item.keyword, supportingKeywords: [`${role.name.toLowerCase()} scenario`, `${item.keyword} workflow`, "B2B bulk trade execution"],
   audienceIntent: `Registered ${role.audience} looking for practical guidance about ${item.keyword}.`,
   seoTitle: `${item.h1} | OBAOL Industry Scenario`, seoDescription: `See how a ${role.name.toLowerCase()} company organises ${item.keyword}, participants, documents, and milestones through an accountable OBAOL workflow.`,
-  faqs: storyFaqs(role, item, ROLE_NARRATIVES[role.roleSlug]), cta: { label: `Explore ${role.name} on OBAOL`, href: `/roles/associate/${role.roleSlug}` },
+  faqs: storyFaqs(role, item, ROLE_NARRATIVES[role.roleSlug]), cta: { label: role.roleSlug === "operator" ? "Explore the Operator role" : `Explore ${role.name} on OBAOL`, href: role.roleSlug === "operator" ? "/roles/operator" : `/roles/associate/${role.roleSlug}` },
   displayOrder, status: "PUBLISHED", scheduledAt: null, publishedAt,
 })));
 
@@ -177,7 +192,7 @@ export async function seedInitialScenarios() {
     updated += 1; if (existing.status !== "PUBLISHED") published += 1;
   }
   const seededCount = await RealLifeScenarioModel.countDocuments({ seedKey: { $in: documents.map((item) => item.seedKey) }, status: "PUBLISHED" });
-  if (documents.length !== 45 || INITIAL_SCENARIO_CATALOG.length !== 15 || seededCount !== 45) throw new Error(`Seed verification failed: catalog=${documents.length}, roles=${INITIAL_SCENARIO_CATALOG.length}, published=${seededCount}.`);
+  if (documents.length !== 51 || INITIAL_SCENARIO_CATALOG.length !== 15 || OPERATOR_SCENARIO_CATALOG[0]?.stories.length !== 6 || seededCount !== 51) throw new Error(`Seed verification failed: catalog=${documents.length}, associateRoles=${INITIAL_SCENARIO_CATALOG.length}, operatorStories=${OPERATOR_SCENARIO_CATALOG[0]?.stories.length || 0}, published=${seededCount}.`);
   console.log(JSON.stringify({ created, updated, skipped, published, verifiedPublished: seededCount }));
 }
 

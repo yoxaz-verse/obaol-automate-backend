@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "crypto";
 import { NextFunction, Request, Response } from "express";
-import { ASSOCIATE_ROLE_SLUGS, RealLifeScenarioModel, SCENARIO_BLOCK_TYPES } from "../database/models/realLifeScenario";
+import { SCENARIO_ROLE_SLUGS, RealLifeScenarioModel, SCENARIO_BLOCK_TYPES } from "../database/models/realLifeScenario";
 
-const roles = new Set<string>(ASSOCIATE_ROLE_SLUGS);
+const roles = new Set<string>(SCENARIO_ROLE_SLUGS);
 const blockTypes = new Set<string>(SCENARIO_BLOCK_TYPES);
 const isAdmin = (req: Request) => String(req.user?.role || "").toLowerCase() === "admin";
 const clean = (value: unknown, max = 5000) => String(value ?? "").replace(/<[^>]*>/g, "").replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, max);

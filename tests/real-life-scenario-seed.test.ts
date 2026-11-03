@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { ASSOCIATE_ROLE_SLUGS } from "../src/database/models/realLifeScenario";
-import { buildInitialScenarioDocuments, INITIAL_SCENARIO_CATALOG } from "../src/scripts/seedRealLifeScenarios";
+import { buildInitialScenarioDocuments, INITIAL_SCENARIO_CATALOG, OPERATOR_SCENARIO_CATALOG } from "../src/scripts/seedRealLifeScenarios";
 
 describe("initial real-life scenario catalog", () => {
   const documents = buildInitialScenarioDocuments(new Date("2026-01-01T00:00:00.000Z"));
 
   it("contains three complete, unique, published scenarios for every Associate role", () => {
     expect(INITIAL_SCENARIO_CATALOG).toHaveLength(15);
-    expect(documents).toHaveLength(45);
-    expect(new Set(documents.map((item) => item.seedKey)).size).toBe(45);
-    expect(new Set(documents.map((item) => `${item.roleSlug}/${item.slug}`)).size).toBe(45);
+    expect(documents).toHaveLength(51);
+    expect(new Set(documents.map((item) => item.seedKey)).size).toBe(51);
+    expect(new Set(documents.map((item) => `${item.roleSlug}/${item.slug}`)).size).toBe(51);
     for (const roleSlug of ASSOCIATE_ROLE_SLUGS) {
       const roleDocuments = documents.filter((item) => item.roleSlug === roleSlug);
       expect(roleDocuments).toHaveLength(3);
@@ -23,8 +23,17 @@ describe("initial real-life scenario catalog", () => {
       expect(item.seoTitle && item.seoDescription).toBeTruthy();
       expect(item.blocks.length).toBeGreaterThanOrEqual(8);
       expect(item.faqs.length).toBeGreaterThanOrEqual(2);
-      expect(item.cta.href).toBe(`/roles/associate/${item.roleSlug}`);
+      expect(item.cta.href).toBe(item.roleSlug === "operator" ? "/roles/operator" : `/roles/associate/${item.roleSlug}`);
     }
+  });
+
+  it("contains six published Operator stories covering distinct execution functions", () => {
+    expect(OPERATOR_SCENARIO_CATALOG).toHaveLength(1);
+    const operatorDocuments = documents.filter((item) => item.roleSlug === "operator");
+    expect(operatorDocuments).toHaveLength(6);
+    expect(operatorDocuments.map((item) => item.displayOrder)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(operatorDocuments.every((item) => item.status === "PUBLISHED")).toBe(true);
+    expect(operatorDocuments.every((item) => item.seedKey.startsWith("operator-scenario-v1:"))).toBe(true);
   });
 
   it("avoids testimonials, fabricated statistics, and guaranteed outcomes", () => {
@@ -45,13 +54,13 @@ describe("initial real-life scenario catalog", () => {
       ...item.blocks.flatMap((block: any) => [block.title, block.text, ...(block.items || [])]),
       ...item.faqs.flatMap((faq: any) => [faq.question, faq.answer]),
     ].filter(Boolean).join(" "));
-    expect(new Set(narrativeCopies).size).toBe(45);
+    expect(new Set(narrativeCopies).size).toBe(51);
     for (const copy of narrativeCopies) {
       const words = copy.trim().split(/\s+/).length;
       expect(words).toBeGreaterThanOrEqual(600);
       expect(words).toBeLessThanOrEqual(900);
     }
-    expect(new Set(documents.map((item) => item.excerpt)).size).toBe(45);
-    expect(new Set(documents.map((item) => item.seoDescription)).size).toBe(45);
+    expect(new Set(documents.map((item) => item.excerpt)).size).toBe(51);
+    expect(new Set(documents.map((item) => item.seoDescription)).size).toBe(51);
   });
 });

@@ -29,6 +29,20 @@ const payload = (suffix: string) => ({
 });
 
 describe("real-life scenarios", () => {
+  it("accepts the Operator role and rejects unknown scenario roles", async () => {
+    const suffix = new mongoose.Types.ObjectId().toHexString().slice(-8);
+    const operatorPayload = {
+      ...payload(suffix),
+      internalTitle: `Operator scenario ${suffix}`,
+      roleSlug: "operator",
+      slug: `operator-opportunity-${suffix}`,
+      cta: { label: "Explore the Operator role", href: "/roles/operator" },
+    };
+    const created = await api.post("/api/v1/web/real-life-scenarios/admin").set("Authorization", `Bearer ${adminToken}`).send(operatorPayload).expect(201);
+    expect(created.body.data.roleSlug).toBe("operator");
+    await api.post("/api/v1/web/real-life-scenarios/admin").set("Authorization", `Bearer ${adminToken}`).send({ ...operatorPayload, roleSlug: "broker", slug: `unknown-${suffix}` }).expect(400);
+  });
+
   it("enforces admin access, sanitizes blocks, and keeps drafts private", async () => {
     const suffix = new mongoose.Types.ObjectId().toHexString().slice(-8);
     await api.post("/api/v1/web/real-life-scenarios/admin").set("Authorization", `Bearer ${associateToken}`).send(payload(suffix)).expect(403);

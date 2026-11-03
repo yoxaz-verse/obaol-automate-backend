@@ -8,6 +8,8 @@ export const ASSOCIATE_ROLE_SLUGS = [
   "agritech-companies",
 ] as const;
 
+export const SCENARIO_ROLE_SLUGS = [...ASSOCIATE_ROLE_SLUGS, "operator"] as const;
+
 export const SCENARIO_BLOCK_TYPES = [
   "heading", "paragraph", "ordered-list", "unordered-list", "quote", "callout",
   "image", "workflow", "result", "faq", "cta",
@@ -34,7 +36,7 @@ const RealLifeScenarioSchema = new Schema({
   seedVersion: { type: Number, min: 1, select: false },
   internalTitle: { type: String, required: true, trim: true, maxlength: 200 },
   h1: { type: String, required: true, trim: true, maxlength: 200 },
-  roleSlug: { type: String, required: true, enum: ASSOCIATE_ROLE_SLUGS, index: true },
+  roleSlug: { type: String, required: true, enum: SCENARIO_ROLE_SLUGS, index: true },
   slug: { type: String, required: true, trim: true, maxlength: 180 },
   excerpt: { type: String, required: true, trim: true, maxlength: 500 },
   scenarioType: { type: String, enum: ["REPRESENTATIVE"], default: "REPRESENTATIVE" },

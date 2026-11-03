@@ -10,6 +10,7 @@ import { OrderModel } from "../database/models/order";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { InventoryReservationModel } from "../database/models/inventoryReservation";
 import { FlowRuleModel } from "../database/models/flowRule";
+import { buildDealSnapshot } from "../services/orders/dealSnapshot.service";
 
 const DEMO_TAG = "admin-preview";
 
@@ -164,6 +165,7 @@ export class DemoController {
 
       const order = await OrderModel.create({
         enquiry: enquiry._id,
+        dealSnapshot: await buildDealSnapshot(enquiry._id, "CONVERSION"),
         responsibilities: responsibilityPlan,
         associateCompanyId: sellerCompanyId,
         workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"),

@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUTE_PATHS, canonicalizeGovernanceMappings, canonicalizeSidebarRoutePath, createBaselineSidebarMappings, deriveSidebarRouteAudience, deriveSidebarSectionOrder } from "./sidebarGovernanceRegistry";
 
 describe("sidebar governance registry", () => {
+  it("registers the complete inland transportation workspace as providing-only defaults", () => {
+    const paths = ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path).filter((path) => path.startsWith("/dashboard/inland-transportation"));
+    expect(paths).toHaveLength(6);
+    const mappings = createBaselineSidebarMappings(["inland-logistics", "buyer"]);
+    for (const path of paths) {
+      expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "inland-logistics", routePath: path, placement: "PROVIDING", status: "LIVE" }));
+      expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: path, placement: "UNASSIGNED", status: "HIDDEN" }));
+    }
+  });
   it("describes seeker and provider audiences without exposing hidden assignments", () => {
     const audience = deriveSidebarRouteAudience([
       { functionSlug: "seller", routePath: "/dashboard/product", placement: "PROVIDING", status: "LIVE", order: 1 },

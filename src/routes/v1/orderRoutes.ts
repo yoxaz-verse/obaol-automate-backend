@@ -11,6 +11,7 @@ router.post("/", orderController.create);
 router.post("/external", orderController.createExternal);
 router.get("/", orderController.getAll);
 router.get("/:id", orderController.getById);
+router.patch("/:id/payment-milestones/:index/status", orderController.updatePaymentMilestoneStatus);
 router.patch("/:id", orderController.update);
 router.delete("/:id", orderController.delete);
 

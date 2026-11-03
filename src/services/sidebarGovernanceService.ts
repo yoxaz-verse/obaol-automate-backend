@@ -41,11 +41,9 @@ export const normalizeSidebarSectionOrder = (value: any, mappings: any[]) => {
     const canonical = Array.isArray(value?.[section])
       ? Array.from(new Set(value[section].map(canonicalizeSidebarRoutePath)))
       : [];
-    return [section,
-      canonical.length === routeCount && canonical.every((routePath) => expected.has(routePath as any))
-        ? canonical
-        : derived[section],
-    ];
+    const preserved = canonical.filter((routePath) => expected.has(routePath as any));
+    const missing = derived[section].filter((routePath) => !preserved.includes(routePath));
+    return [section, preserved.length ? [...preserved, ...missing] : derived[section]];
   }));
 };
 
@@ -94,7 +92,7 @@ export const ensureAdminSidebarConfig = async () => {
     const draft = migrationVersion < 7 ? enforceBuyerSellerBiddingSplit(fallbackDraft) : fallbackDraft;
     const needsV3 = Number((existing as any).draft?.resolutionVersion || 1) !== 3;
     const publishedNeedsV3 = Number((existing as any).published?.resolutionVersion || 1) !== 3;
-    const changed = JSON.stringify(draft) !== JSON.stringify((existing as any).draft?.mappings || []) || needsV3 || publishedNeedsV3 || migrationVersion < 7;
+    const changed = JSON.stringify(draft) !== JSON.stringify((existing as any).draft?.mappings || []) || needsV3 || publishedNeedsV3 || migrationVersion < 8;
     if (changed) {
       (existing as any).draft.mappings = draft;
       (existing as any).draft.resolutionVersion = 3;
@@ -102,7 +100,7 @@ export const ensureAdminSidebarConfig = async () => {
       (existing as any).draft.fallbackStatusByRoute = completeFallbackStatuses((existing as any).draft.fallbackStatusByRoute, draft);
       (existing as any).draft.revision = Number((existing as any).draft.revision || 0) + 1;
       (existing as any).draft.updatedAt = new Date();
-      if (publishedNeedsV3 || migrationVersion < 7) {
+      if (publishedNeedsV3 || migrationVersion < 8) {
         const currentPublished = canonicalizeGovernanceMappings((existing as any).published?.mappings || []);
         const publishedKeys = new Set(currentPublished.map((row: any) => `${row.functionSlug}:${row.routePath}`));
         const completedPublished = [...currentPublished, ...baseline.filter((row) => !publishedKeys.has(`${row.functionSlug}:${row.routePath}`))];
@@ -114,7 +112,7 @@ export const ensureAdminSidebarConfig = async () => {
         (existing as any).published.revision = Number((existing as any).published.revision || 0) + 1;
         (existing as any).published.updatedAt = new Date();
       }
-      (existing as any).matrixMigrationVersion = 7;
+      (existing as any).matrixMigrationVersion = 8;
       await existing.save();
     }
     return existing;
@@ -123,7 +121,7 @@ export const ensureAdminSidebarConfig = async () => {
   const mappings = createBaselineSidebarMappings(await getFunctionSlugs());
   return SidebarGovernanceModel.create({
     key: "associate-sidebar",
-    matrixMigrationVersion: 7,
+    matrixMigrationVersion: 8,
     draft: { revision: 1, resolutionVersion: 3, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
     published: { revision: 1, resolutionVersion: 3, sectionOrder: createDefaultSidebarSectionOrder(), fallbackStatusByRoute: deriveFallbackStatuses(mappings), mappings, updatedAt: new Date() },
   });

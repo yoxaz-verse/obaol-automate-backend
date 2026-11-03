@@ -42,6 +42,8 @@ router.use(`${prefix}/packaging`, packagingRoutes);
 
 import freightForwardingRoutes from "./v1/freightForwardingRoutes";
 router.use(`${prefix}/freight-forwarding`, freightForwardingRoutes);
+import inlandTransportationRoutes from "./v1/inlandTransportationRoutes";
+router.use(`${prefix}/inland-transportation`, inlandTransportationRoutes);
 
 // Variant-rates specialized endpoints
 import variantRateRoutes from "./v1/variantRateRoutes";

@@ -41,6 +41,7 @@ import { FlowRuleModel } from "../database/models/flowRule";
 import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
 import { PaymentTermModel } from "../database/models/paymentTerm";
 import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
+import { buildDealSnapshot, validatePaymentPlan } from "../services/orders/dealSnapshot.service";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
 import { notificationService } from "../services/notificationService";
 import { AssociateReferralService } from "../services/associateReferral.service";
@@ -58,6 +59,7 @@ import {
 import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
 import { LabWorkItemModel } from "../database/models/labWorkItem";
 import { LabProfileModel } from "../database/models/labProfile";
+import { ensureInlandTripForAward } from "./inlandTransportationController";
 import {
     buildInquiryAccessContext,
     getPartyLocation,
@@ -1299,11 +1301,15 @@ export class InquiryController {
                                 label: String(task?.details?.segmentLabel || task?.title || "").trim() || `Inland Transportation ${index + 1}`,
                             }));
                         const paymentTermId = (inquiry as any).paymentTermId ? new Types.ObjectId(String((inquiry as any).paymentTermId)) : null;
+                        if (!paymentTermId) return res.status(400).json({ success: false, message: "Payment terms must be agreed before conversion" });
+                        if (!(inquiry as any)?.executionContext?.tradeType) return res.status(400).json({ success: false, message: "Execution context must be finalized before conversion" });
                         const incotermId = (inquiry as any).preferredIncoterm
                             ? new Types.ObjectId(String((inquiry as any).preferredIncoterm))
                             : null;
                         const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
                         const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
+                        const paymentPlanError = validatePaymentPlan(paymentPlan);
+                        if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
                         const createdOrder = await OrderModel.create({
                             enquiry: inquiry._id,
                             participantCompanyIds: await AssociateReferralService.getParticipantCompanyIds(inquiry),
@@ -1311,6 +1317,7 @@ export class InquiryController {
                             paymentTermId,
                             incotermId,
                             paymentPlan,
+                            dealSnapshot: await buildDealSnapshot(inquiry._id, "CONVERSION"),
                             subflowInstances: inlandTransportInstances,
                             supplierOperatorId: (inquiry as any).supplierOperatorId || null,
                             dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,
@@ -2252,6 +2259,22 @@ export class InquiryController {
                 throw error;
             }
 
+            if (awardedProviderId && normalizedType === "TRANSPORTATION") {
+                const linkedOrder: any = await OrderModel.findOne({ enquiry: inquiry._id }).select("_id").lean();
+                await ensureInlandTripForAward({
+                    companyId: awardedProviderId,
+                    inquiryId: inquiry._id,
+                    executionTaskId: task._id,
+                    orderId: linkedOrder?._id || null,
+                    segmentKey: String(task.details?.segmentKey || "default"),
+                    segmentLabel: String(task.details?.segmentLabel || task.title || "Inland transportation"),
+                    origin: String(task.details?.from || task.details?.fromDistrict || ""),
+                    destination: String(task.details?.to || ""),
+                    cargoDescription: String((inquiry as any)?.productId?.name || "Commodity cargo"),
+                    actorId: req.user!.id,
+                });
+            }
+
             await createInquiryEvent(
                 inquiry._id,
                 InquiryEventType.UPDATED,
@@ -3092,11 +3115,15 @@ export class InquiryController {
                             label: String(task?.details?.segmentLabel || task?.title || "").trim() || `Inland Transportation ${index + 1}`,
                         }));
                     const paymentTermId = (inquiry as any).paymentTermId ? new Types.ObjectId(String((inquiry as any).paymentTermId)) : null;
+                    if (!paymentTermId) return res.status(400).json({ success: false, message: "Payment terms must be agreed before conversion" });
+                    if (!(inquiry as any)?.executionContext?.tradeType) return res.status(400).json({ success: false, message: "Execution context must be finalized before conversion" });
                     const incotermId = (inquiry as any).preferredIncoterm
                         ? new Types.ObjectId(String((inquiry as any).preferredIncoterm))
                         : null;
                     const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
                     const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
+                    const paymentPlanError = validatePaymentPlan(paymentPlan);
+                    if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
                         const createdOrder = await OrderModel.create({
                             enquiry: inquiry._id,
                             participantCompanyIds: await AssociateReferralService.getParticipantCompanyIds(inquiry),
@@ -3104,6 +3131,7 @@ export class InquiryController {
                             paymentTermId,
                             incotermId,
                             paymentPlan,
+                            dealSnapshot: await buildDealSnapshot(inquiry._id, "CONVERSION"),
                             subflowInstances: inlandTransportInstances,
                             supplierOperatorId: (inquiry as any).supplierOperatorId || null,
                             dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,

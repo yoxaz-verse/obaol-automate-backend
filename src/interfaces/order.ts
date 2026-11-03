@@ -81,6 +81,7 @@ export interface IOrderMilestones {
 }
 
 export interface IOrder extends Document {
+    dealSnapshot?: Record<string, any> | null;
     sourceTradeDocumentId?: Types.ObjectId | null;
     documentConversionRuleId?: Types.ObjectId | null;
     enquiry?: Types.ObjectId | null;
@@ -124,6 +125,7 @@ export interface IOrder extends Document {
 }
 
 export interface ICreateOrder {
+    dealSnapshot?: Record<string, any> | null;
     enquiry?: Types.ObjectId | null;
     status?: string;
     workflowStage?: string;

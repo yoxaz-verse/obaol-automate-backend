@@ -19,6 +19,13 @@ import { buildPaymentPlanFromTermId, applyPaymentPlanStageUpdate } from "../util
 import { AssociateReferralService } from "../services/associateReferral.service";
 import { detectOffPlatformDisclosure } from "../utils/offPlatformDisclosure";
 import { prepareExternalOrder } from "../services/orders/externalOrder.service";
+import {
+    buildDealSnapshot,
+    buildExternalDealSnapshot,
+    buildOrderWorkspace,
+    ensureDealSnapshot,
+    validatePaymentPlan,
+} from "../services/orders/dealSnapshot.service";
 
 export class OrderController {
     private engine: CrudEngine;
@@ -64,6 +71,13 @@ export class OrderController {
                     success: false,
                     message: "Supplier acceptance and buyer confirmation are required before conversion"
                 });
+            }
+
+            if (!(enquiry as any).paymentTermId) {
+                return res.status(400).json({ success: false, message: "Payment terms must be agreed before conversion" });
+            }
+            if (!(enquiry as any)?.executionContext?.tradeType) {
+                return res.status(400).json({ success: false, message: "Execution context must be finalized before conversion" });
             }
 
             const responsibilityPlan: any = (enquiry as any).responsibilityPlan || {};
@@ -173,6 +187,9 @@ export class OrderController {
                 const paymentPlan = await buildPaymentPlanFromTermId(termId, tradeType);
                 if (paymentPlan) req.body.paymentPlan = paymentPlan;
             }
+            const paymentPlanError = validatePaymentPlan(req.body.paymentPlan);
+            if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
+            req.body.dealSnapshot = await buildDealSnapshot(enquiry._id, "CONVERSION");
             req.body.participantCompanyIds = await AssociateReferralService.getParticipantCompanyIds(enquiry);
 
             const order = await this.engine.create(req, req.body);
@@ -238,7 +255,7 @@ export class OrderController {
                 tradeType: { $in: [prepared.payload.externalTradeType, "BOTH"] },
             }).sort({ sortOrder: 1 }).lean();
 
-            const payload = prepared.payload;
+            const payload: any = prepared.payload;
             payload.workflowStage = String(firstStage?.stageKey || "ORDER_CREATED");
 
             if (prepared.paymentTermId) {
@@ -246,6 +263,10 @@ export class OrderController {
                 const paymentPlan = await buildPaymentPlanFromTermId(termId, prepared.tradeType);
                 if (paymentPlan) payload.paymentPlan = paymentPlan;
             }
+
+            const paymentPlanError = validatePaymentPlan(payload.paymentPlan);
+            if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
+            payload.dealSnapshot = buildExternalDealSnapshot(payload);
 
             const order = await this.engine.create(req, payload);
             return res.status(201).json({ success: true, data: order });
@@ -272,11 +293,13 @@ export class OrderController {
         try {
             const result = await this.engine.findOne(req, { _id: req.params.id });
             if (!result) return res.status(404).json({ success: false, message: "Order not found" });
+            const snapshot = await ensureDealSnapshot(result as any);
             const sourceId = (result as any)?.sourceTradeDocumentId;
             const sourceQuotation: any = sourceId
                 ? await TradeDocumentModel.findById(sourceId).select("_id documentNumber status decidedAt totals").lean()
                 : null;
             const data = (result as any)?.toObject ? (result as any).toObject() : { ...(result as any) };
+            data.dealSnapshot = data.dealSnapshot || snapshot;
             data.sourceQuotation = sourceQuotation ? {
                 id: sourceQuotation._id,
                 documentNumber: sourceQuotation.documentNumber,
@@ -285,6 +308,7 @@ export class OrderController {
                 totals: sourceQuotation.totals,
                 route: `/dashboard/documentation/${sourceQuotation._id}`,
             } : null;
+            data.workspace = buildOrderWorkspace(data, req.user?.role || "");
             res.json({ success: true, data });
         } catch (error: any) {
             logError(error, req, "OrderController.getById");
@@ -294,6 +318,25 @@ export class OrderController {
 
     public update = async (req: Request, res: Response) => {
         try {
+            // The commercial record is immutable after conversion. Legacy snapshots are
+            // created server-side by ensureDealSnapshot and never accepted from clients.
+            delete req.body.dealSnapshot;
+            const actorRole = String(req.user?.role || "").toLowerCase();
+            const internalOnlyFields = ["supplierOperatorId", "dealCloserOperatorId", "procurementOperatorId", "handlerOperatorId", "handlerBuyerRating", "handlerSellerRating"];
+            if (!["admin", "operator", "team"].includes(actorRole) && internalOnlyFields.some((field) => Object.prototype.hasOwnProperty.call(req.body, field))) {
+                return res.status(403).json({ success: false, message: "Internal order assignments cannot be changed by associates." });
+            }
+            for (const ratingField of ["handlerBuyerRating", "handlerSellerRating"]) {
+                const rating = req.body?.[ratingField];
+                if (rating !== undefined && rating !== null && (!Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5)) {
+                    return res.status(400).json({ success: false, message: "Handler ratings must be whole numbers from 1 to 5." });
+                }
+            }
+            if (typeof req.body.paymentPlan !== "undefined") {
+                return res.status(400).json({ success: false, message: "Payment plans cannot be replaced after order conversion." });
+            }
+            const orderForSnapshot = await OrderModel.findById(req.params.id).lean();
+            if (orderForSnapshot) await ensureDealSnapshot(orderForSnapshot);
             if (typeof req.body?.notes !== "undefined") {
                 const noteViolation = detectOffPlatformDisclosure(req.body.notes, {
                     companyNames: await this.disclosureCompanyNames((req.user as any)?.associateCompany),
@@ -475,6 +518,7 @@ export class OrderController {
                         const count = await TradeDocumentModel.countDocuments({
                             orderId,
                             type,
+                            verifiedStatus: "VERIFIED",
                             isDeleted: { $ne: true }
                         });
                         if (count <= 0) missing.push(String(type));
@@ -482,7 +526,8 @@ export class OrderController {
                     if (missing.length > 0) {
                         return res.status(400).json({
                             success: false,
-                            message: `Required documents missing for ${workflowStage}: ${missing.join(", ")}.`
+                            message: `Required verified documents missing for ${workflowStage}: ${missing.join(", ")}.`,
+                            missingDocuments: missing,
                         });
                     }
                 }
@@ -498,6 +543,35 @@ export class OrderController {
             res.status(500).json({ success: false, message: error.message });
         }
     }
+
+    public updatePaymentMilestoneStatus = async (req: Request, res: Response) => {
+        try {
+            const role = String(req.user?.role || "").toLowerCase();
+            if (!new Set(["admin", "operator", "team"]).has(role)) {
+                return res.status(403).json({ success: false, message: "Only internal order operators can update payment status." });
+            }
+            const index = Number(req.params.index);
+            const status = String(req.body?.status || "").toUpperCase();
+            if (!Number.isInteger(index) || index < 0 || !new Set(["DUE", "PAID"]).has(status)) {
+                return res.status(400).json({ success: false, message: "A valid milestone index and DUE or PAID status are required." });
+            }
+            const order: any = await OrderModel.findById(req.params.id);
+            if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+            const milestones = order?.paymentPlan?.milestones;
+            if (!Array.isArray(milestones) || !milestones[index]) {
+                return res.status(404).json({ success: false, message: "Payment milestone not found." });
+            }
+            if (status === "PAID" && String(milestones[index].status) !== "DUE") {
+                return res.status(409).json({ success: false, message: "Only a due payment milestone can be marked paid." });
+            }
+            milestones[index].status = status;
+            await order.save();
+            return res.json({ success: true, data: order.paymentPlan });
+        } catch (error: any) {
+            logError(error, req, "OrderController.updatePaymentMilestoneStatus");
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    };
 
     public delete = async (req: Request, res: Response) => {
         try {

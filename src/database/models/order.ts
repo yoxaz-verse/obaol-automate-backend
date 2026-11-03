@@ -137,6 +137,7 @@ const OrderSchema: Schema = new Schema(
         handlerBuyerRating: { type: Number, min: 1, max: 5, default: null },
         handlerSellerRating: { type: Number, min: 1, max: 5, default: null },
         paymentPlan: { type: PaymentPlanSchema, default: null },
+        dealSnapshot: { type: Schema.Types.Mixed, default: null },
         trackingId: { type: String },
         logistics: [LogisticsSchema],
         responsibilities: { type: ResponsibilitiesSchema, default: {} },

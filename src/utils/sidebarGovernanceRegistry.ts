@@ -50,6 +50,12 @@ export const ASSOCIATE_SIDEBAR_ROUTES = [
   ["warehouse-operations", "/dashboard/warehouses/operations", "Warehouse Operations"],
   ["company", "/dashboard/company", "My Company"],
   ["referrals", "/dashboard/referrals", "Referrals & Earnings"],
+  ["inland-transport-overview", "/dashboard/inland-transportation", "Transport Overview"],
+  ["inland-transport-opportunities", "/dashboard/inland-transportation/opportunities", "Transport Opportunities"],
+  ["inland-transport-trips", "/dashboard/inland-transportation/trips", "Transport Trips"],
+  ["inland-transport-fleet", "/dashboard/inland-transportation/fleet", "Fleet & Drivers"],
+  ["inland-transport-documents", "/dashboard/inland-transportation/documents", "Transport Documents"],
+  ["inland-transport-profile", "/dashboard/inland-transportation/profile", "Transport Profile"],
 ] as const;
 
 export const SIDEBAR_ROUTE_PATHS = new Set(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path));
@@ -154,19 +160,20 @@ const LIVE_BY_FUNCTION: Record<string, string[]> = {
   "importing-to-india": ["/dashboard/imports", "/dashboard/imports/my-listings", "/dashboard/imports/reservations", "/dashboard/orders", "/dashboard/documents", "/dashboard/execution-enquiries"],
   "exporting-from-india": ["/dashboard/product", "/dashboard/orders", "/dashboard/documents", "/dashboard/execution-enquiries"],
   "freight-forwarding": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/documents"],
-  "inland-logistics": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/warehouses"],
+  "inland-logistics": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/warehouses", "/dashboard/inland-transportation", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"],
 };
 
 const ALWAYS_LIVE = ["/dashboard/company"];
+const INLAND_TRANSPORT_ROUTES = new Set(ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath]) => routePath).filter((routePath) => routePath.startsWith("/dashboard/inland-transportation")));
 const SEEKING_ROUTES = new Set(["/dashboard/bidding/my", "/dashboard/quality-labs", "/dashboard/packaging", "/dashboard/imports", "/dashboard/imports/reservations", "/dashboard/warehouse-rent"]);
-const PROVIDING_ROUTES = new Set(["/dashboard/bidding", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/imports/my-listings", "/dashboard/warehouses", "/dashboard/warehouses/operations"]);
+const PROVIDING_ROUTES = new Set(["/dashboard/bidding", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/imports/my-listings", "/dashboard/warehouses", "/dashboard/warehouses/operations", "/dashboard/inland-transportation", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"]);
 
 export const createBaselineSidebarMappings = (functionSlugs: string[]) => functionSlugs.flatMap((functionSlug) => {
   const live = new Set([...(LIVE_BY_FUNCTION[functionSlug] || []), ...ALWAYS_LIVE]);
   return ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath], order) => {
     const status = routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "LIVE" : "HIDDEN") as SidebarPageStatus : live.has(routePath) ? "LIVE" as SidebarPageStatus : "HIDDEN" as SidebarPageStatus;
     const initialPlacement = (routePath === "/dashboard/bidding" ? (functionSlug === "seller" ? "PROVIDING" : "OTHER_SERVICES") : SEEKING_ROUTES.has(routePath) ? "SEEKING" : PROVIDING_ROUTES.has(routePath) ? "PROVIDING" : "BOTH") as SidebarPlacement;
-    const placement = initialPlacement === "OTHER_SERVICES" && status === "HIDDEN" ? "UNASSIGNED" as const : initialPlacement;
+    const placement = (INLAND_TRANSPORT_ROUTES.has(routePath) && functionSlug !== "inland-logistics") || (initialPlacement === "OTHER_SERVICES" && status === "HIDDEN") ? "UNASSIGNED" as const : initialPlacement;
     return { functionSlug, routePath, placement, status, order };
   });
 });

@@ -3,6 +3,7 @@ import logger from "./utils/logger";
 import { requeueUnavailableSupportChats } from "./services/supportChatService";
 import { synchronizeAllProductBiddingLifecycles } from "./services/productBiddingService";
 import { synchronizeServiceRequirements } from "./services/serviceMarketplaceService";
+import { reconcileActiveEWayBills } from "./services/eWayBillService";
 
 type ScheduledTask = ReturnType<typeof cron.schedule>;
 
@@ -33,8 +34,12 @@ export const startCronJobs = async () => {
     try { await synchronizeServiceRequirements("PACKAGING"); }
     catch (err) { logger.error("Service marketplace lifecycle cron error:", err); }
   });
+  const eWayBillReconciliationTask = cron.schedule("*/15 * * * *", async () => {
+    try { await reconcileActiveEWayBills(); }
+    catch (err) { logger.error("E-way bill reconciliation cron error:", err); }
+  });
 
-  scheduledTasks = [supportChatRequeueTask, productBiddingLifecycleTask, serviceMarketplaceLifecycleTask];
+  scheduledTasks = [supportChatRequeueTask, productBiddingLifecycleTask, serviceMarketplaceLifecycleTask, eWayBillReconciliationTask];
   logger.info(`Started ${scheduledTasks.length} scheduled background jobs.`);
 };
 

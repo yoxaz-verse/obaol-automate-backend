@@ -1976,6 +1976,13 @@ export class InquiryController {
                 return res.status(404).json({ success: false, message: "Inquiry not found" });
             }
 
+            if (!(inquiry as any).responsibilitiesFinalizedAt) {
+                return res.status(409).json({
+                    success: false,
+                    message: "Responsibilities must be finalized before execution tasks can be updated.",
+                });
+            }
+
             const context: InquiryAccessContext = this.buildAccessContext(req);
             const normalizedType = String(type || "").toUpperCase();
             const tasks = ((inquiry as any).executionInquiries || []) as any[];
@@ -2391,7 +2398,10 @@ export class InquiryController {
                 companyId = providerCompanyId;
             }
 
-            const filters: any = { executionInquiries: { $exists: true, $ne: [] } };
+            const filters: any = {
+                executionInquiries: { $exists: true, $ne: [] },
+                responsibilitiesFinalizedAt: { $ne: null },
+            };
             if (enquiryId && Types.ObjectId.isValid(enquiryId)) filters._id = enquiryId;
             if (providerCompanyId || (!isAdmin && !isOperator)) {
                 if (!companyId || !Types.ObjectId.isValid(companyId)) {
@@ -2657,6 +2667,7 @@ export class InquiryController {
             const hasExecutionFilter = String(hasExecution || "").toLowerCase();
             if (hasExecutionFilter === "true") {
                 filters.executionInquiries = { $exists: true, $ne: [] };
+                filters.responsibilitiesFinalizedAt = { $ne: null };
             } else if (hasExecutionFilter === "false") {
                 filters.$or = [
                     { executionInquiries: { $exists: false } },

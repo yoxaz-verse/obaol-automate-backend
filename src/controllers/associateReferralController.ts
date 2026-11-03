@@ -209,7 +209,7 @@ export class AssociateReferralController {
       if (!(REFERRAL_SHARE_TYPES as readonly string[]).includes(type)) return res.status(400).json({ success: false, message: "Choose a valid offering type." });
       const result = await AssociateReferralShareService.create(companyId, type, String(req.body?.offeringId || ""));
       const path = `/share/${result.token}`, frontendUrl = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
-      return res.status(201).json({ success: true, data: { id: result.share._id, token: result.token, path, url: frontendUrl ? `${frontendUrl}${path}` : path, offering: { ...result.offering, price: undefined } } });
+      return res.status(201).json({ success: true, data: { id: result.share._id, token: result.token, path, url: frontendUrl ? `${frontendUrl}${path}` : path, offering: result.offering } });
     } catch (error: any) { return res.status(Number(error?.status || 500)).json({ success: false, message: error?.message || "Failed to create share link." }); }
   }
 

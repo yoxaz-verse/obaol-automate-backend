@@ -49,6 +49,7 @@ import { operationalNotificationService } from "../services/operationalNotificat
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { TradeDocumentController } from "./tradeDocumentController";
 import { normalizeCompanyFunctionSlugs, requestTypeToCapabilityAliases } from "../utils/companyCapabilities";
+import { getOperatorCompanyScope } from "../core/hooks/operatorScope";
 import {
     getExecutionSubflowType,
     isActiveExecutionBiddingPhase,
@@ -2373,7 +2374,7 @@ export class InquiryController {
             const role = String(req.user?.role || "").toLowerCase();
             const isAdmin = role === "admin";
             const isOperator = role === "operator" || role === "team";
-            const companyId = String(context.associateCompanyId || "");
+            let companyId = String(context.associateCompanyId || "");
             const userId = String(context.userId || "");
             const requestedState = String(req.query.state || "active").toLowerCase();
             const stateFilter = requestedState === "history" ? "history" : "active";
@@ -2381,10 +2382,18 @@ export class InquiryController {
             const locationFilter = String(req.query.location || "").trim().toLowerCase();
             const search = String(req.query.search || "").trim().toLowerCase();
             const enquiryId = String(req.query.enquiryId || "").trim();
+            const providerCompanyId = String(req.query.providerCompanyId || "").trim();
+            if ((isAdmin || isOperator) && providerCompanyId) {
+                if (!Types.ObjectId.isValid(providerCompanyId)) return res.status(400).json({ success: false, message: "Invalid provider company id." });
+                if (isOperator && !isAdmin && !(await getOperatorCompanyScope(String(req.user?.id || ""))).companyIdSet.has(providerCompanyId)) {
+                    return res.status(403).json({ success: false, message: "You cannot manage this transport company." });
+                }
+                companyId = providerCompanyId;
+            }
 
             const filters: any = { executionInquiries: { $exists: true, $ne: [] } };
             if (enquiryId && Types.ObjectId.isValid(enquiryId)) filters._id = enquiryId;
-            if (!isAdmin && !isOperator) {
+            if (providerCompanyId || (!isAdmin && !isOperator)) {
                 if (!companyId || !Types.ObjectId.isValid(companyId)) {
                     return res.json({ success: true, data: [] });
                 }
@@ -2427,7 +2436,7 @@ export class InquiryController {
                     if (serviceFilter && type !== serviceFilter) continue;
                     const candidates = Array.isArray(task.candidateProviders) ? task.candidateProviders : [];
                     const isCandidate = candidates.some((provider: any) => String(provider?._id || provider) === companyId);
-                    if (!isAdmin && !isOperator && !isCandidate) continue;
+                    if ((providerCompanyId || (!isAdmin && !isOperator)) && !isCandidate) continue;
                     const config: any = configByType.get(getExecutionSubflowType(type));
                     const startStage = String(config?.biddingStartAtOrderStage || "").toUpperCase();
                     const endStage = String(config?.biddingEndAtOrderStage || "").toUpperCase();
@@ -2471,7 +2480,7 @@ export class InquiryController {
                         biddingStartsAtStage: startStage || null,
                         biddingClosesAtStage: endStage || null,
                         matchLevel: operatorView ? (task.candidateMatchLevel || "capability_fallback") : undefined,
-                        ownBid: operatorView ? undefined : ownBid,
+                        ownBid: providerCompanyId || !operatorView ? ownBid : undefined,
                         bids: operatorView ? bids : undefined,
                         candidates: operatorView ? candidates : undefined,
                         committedProvider: task.committedProvider || null,

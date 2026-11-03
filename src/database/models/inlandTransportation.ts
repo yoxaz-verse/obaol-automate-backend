@@ -1,7 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
 const AuditSchema = new Schema({ action: String, by: { type: Schema.Types.ObjectId, ref: "Associate" }, at: { type: Date, default: Date.now }, detail: Schema.Types.Mixed }, { _id: false });
-const AttachmentSchema = new Schema({ kind: { type: String, enum: ["TRANSPORT_DOCUMENT", "EXCEPTION_EVIDENCE", "PROOF_OF_DELIVERY"], required: true }, name: { type: String, required: true, trim: true }, url: { type: String, required: true, trim: true }, uploadedBy: { type: Schema.Types.ObjectId, ref: "Associate" }, uploadedAt: { type: Date, default: Date.now } });
+const AttachmentSchema = new Schema({ kind: { type: String, enum: ["TRANSPORT_DOCUMENT", "EXCEPTION_EVIDENCE", "PROOF_OF_DELIVERY"], required: true }, name: { type: String, required: true, trim: true }, url: { type: String, required: true, trim: true }, storageName: { type: String, trim: true, default: "" }, mimeType: { type: String, trim: true, default: "" }, size: { type: Number, min: 0, default: 0 }, uploadedBy: { type: Schema.Types.ObjectId, ref: "Associate" }, uploadedAt: { type: Date, default: Date.now } });
 
 const InlandTransportProfileSchema = new Schema({
   companyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, unique: true, index: true },

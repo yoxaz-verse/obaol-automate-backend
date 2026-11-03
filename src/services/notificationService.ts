@@ -156,6 +156,19 @@ class NotificationService {
     return map;
   }
 
+  async buildExecutionBidActivityRecipients(inquiry: any, bidCompanyId?: any) {
+    const map = await this.buildInquiryRelatedRecipients(inquiry);
+    const companyId = this.normalizeId(bidCompanyId);
+    if (!companyId) return map;
+
+    const company = await AssociateCompanyModel.findById(companyId)
+      .select("supervisor assignedOperator")
+      .lean();
+    this.addRecipient(map, (company as any)?.supervisor, "Associate");
+    this.addRecipient(map, (company as any)?.assignedOperator, "Operator");
+    return map;
+  }
+
   async buildVariantRateLiveRecipients(variantRate: any) {
     const map = new Map<string, RecipientRole>();
     this.addRecipient(map, variantRate?.associate, "Associate");

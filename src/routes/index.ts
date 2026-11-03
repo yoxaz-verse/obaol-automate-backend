@@ -87,6 +87,10 @@ router.use(`${prefix}/commercial-documents`, commercialDocumentRoutes);
 // Trade documents
 import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";
 router.use(`${prefix}/trade-documents`, tradeDocumentRoutes);
+import companyMailRoutes from "./v1/companyMailRoutes";
+router.use(`${prefix}/mail-connections`, companyMailRoutes);
+import whatsappRoutes from "./v1/whatsappRoutes";
+router.use(`${prefix}/whatsapp`, whatsappRoutes);
 logRouteMount(`[routes] mounted ${prefix}/trade-documents`);
 // Document rules
 import documentRuleRoutes from "./v1/documentRuleRoutes";

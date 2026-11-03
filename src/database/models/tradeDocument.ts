@@ -170,6 +170,14 @@ const TradeDocumentSchema: Schema = new Schema(
       default: "SELLER_OBAOL",
       index: true,
     },
+    pairGroupId: { type: String, default: null, index: true },
+    pairLegKey: { type: String, default: null },
+    direction: {
+      type: String,
+      enum: ["BUYER_TO_OBAOL", "OBAOL_TO_SELLER", "SELLER_TO_OBAOL", "OBAOL_TO_BUYER", null],
+      default: null,
+      index: true,
+    },
     isDemo: { type: Boolean, default: false, index: true },
     demoTag: { type: String, default: null, index: true },
     demoCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
@@ -180,6 +188,9 @@ const TradeDocumentSchema: Schema = new Schema(
 
 TradeDocumentSchema.index({ enquiryId: 1, type: 1 });
 TradeDocumentSchema.index({ orderId: 1, type: 1 });
+TradeDocumentSchema.index({ enquiryId: 1, type: 1, direction: 1 });
+TradeDocumentSchema.index({ orderId: 1, type: 1, direction: 1 });
+TradeDocumentSchema.index({ pairLegKey: 1 }, { unique: true, partialFilterExpression: { pairLegKey: { $type: "string" } } });
 TradeDocumentSchema.index({ ownerCompanyId: 1, createdAt: -1 });
 TradeDocumentSchema.index({ inviteTokenHash: 1 }, { sparse: true });
 TradeDocumentSchema.index({ ownerCompanyId: 1, sourceQuotationId: 1 }, { unique: true, partialFilterExpression: { sourceQuotationId: { $type: "objectId" } } });

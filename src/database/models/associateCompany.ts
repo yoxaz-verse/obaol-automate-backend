@@ -109,6 +109,7 @@ const AssociateCompanySchema = new mongoose.Schema(
     referredByCompanyId: { type: mongoose.Schema.Types.ObjectId, ref: "AssociateCompany", default: null, index: true, immutable: true },
     referralCodeUsed: { type: String, uppercase: true, trim: true, default: null, immutable: true },
     referralCapturedAt: { type: Date, default: null, immutable: true },
+    referralShareId: { type: mongoose.Schema.Types.ObjectId, ref: "AssociateReferralShare", default: null, index: true, immutable: true },
     referralActivatedAt: { type: Date, default: null, index: true },
     referralActivationEvent: {
       type: { type: String, enum: ["LIVE_SUPPLY", "INQUIRY_CREATED", "INQUIRY_TAKEN", "RESERVATION_CONFIRMED", "WAREHOUSE_BOOKING", "ORDER_COMPLETED", null], default: null },

@@ -43,7 +43,7 @@ app.use(
 app.use(compression());
 
 // Parse JSON
-app.use(express.json());
+app.use(express.json({ verify: (req: any, _res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
 
 // If you need to parse form data, uncomment:
 // app.use(express.urlencoded({ extended: true }));

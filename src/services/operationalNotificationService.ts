@@ -17,6 +17,7 @@ type DispatchParams = {
   priority?: "low" | "medium" | "high";
   moduleLabel: string;
   reference?: string;
+  inAppOnly?: boolean;
 };
 
 class OperationalNotificationService {
@@ -48,6 +49,10 @@ class OperationalNotificationService {
       notificationCount = created.length;
     } catch (error: any) {
       warnings.push(`Failed to create ${params.type} dashboard notification: ${error?.message || "unknown error"}`);
+    }
+
+    if (params.inAppOnly) {
+      return { notificationCount, emailCount: 0, warnings };
     }
 
     const emailRows = await notificationService.getRecipientEmails(recipientMap);

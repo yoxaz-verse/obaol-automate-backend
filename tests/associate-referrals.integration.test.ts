@@ -8,6 +8,9 @@ import { OrderModel } from "../src/database/models/order";
 import { AssociateReferralService } from "../src/services/associateReferral.service";
 import { CommissionEngine } from "../src/services/commissionEngine";
 import { AssociateReferralActivityModel } from "../src/database/models/associateReferralActivity";
+import { AssociateReferralShareService } from "../src/services/associateReferralShare.service";
+import { AssociateReferralShareModel, AssociateReferralShareVisitModel } from "../src/database/models/associateReferralShare";
+import { LabProfileModel } from "../src/database/models/labProfile";
 
 const createCompany = (overrides: Record<string, any> = {}) => AssociateCompanyModel.create({
   name: `Company ${new mongoose.Types.ObjectId().toHexString()}`,
@@ -20,6 +23,30 @@ const createCompany = (overrides: Record<string, any> = {}) => AssociateCompanyM
 });
 
 describe("one-level associate referrals", () => {
+  it("creates reusable shares only for a company's published offering and tracks deduplicated visits", async () => {
+    const referrer = await createCompany({ referralCode: "SHARE123" });
+    const lab = await LabProfileModel.create({ companyId: referrer._id, status: "PUBLISHED", published: { displayName: "Acme Quality Lab", contactEmail: "lab@example.com", contactPhone: "+919999100003", address: "Mumbai", physicalCountryId: new mongoose.Types.ObjectId(), summary: "Food and commodity testing", productCapabilityTemplates: [], countryAssignments: [], credentials: [] } });
+    const first = await AssociateReferralShareService.create(String(referrer._id), "QUALITY_LAB", String(lab._id));
+    const second = await AssociateReferralShareService.create(String(referrer._id), "QUALITY_LAB", String(lab._id));
+    expect(first.token).toBe(second.token);
+    expect(await AssociateReferralShareModel.countDocuments()).toBe(1);
+    const resolved = await AssociateReferralShareService.resolve(first.token);
+    expect(resolved?.offering.title).toBe("Acme Quality Lab");
+    await AssociateReferralShareService.recordVisit(first.share._id, "same-browser", "LINKEDIN");
+    await AssociateReferralShareService.recordVisit(first.share._id, "same-browser", "LINKEDIN");
+    const saved: any = await AssociateReferralShareModel.findById(first.share._id).lean();
+    expect(saved.clickCount).toBe(2);
+    expect(saved.uniqueClickCount).toBe(1);
+    expect(await AssociateReferralShareVisitModel.countDocuments()).toBe(1);
+  });
+
+  it("rejects cross-company offerings and mismatched referral codes", async () => {
+    const owner = await createCompany({ referralCode: "OWNER123" }), other = await createCompany({ referralCode: "OTHER123" });
+    const lab = await LabProfileModel.create({ companyId: owner._id, status: "PUBLISHED", published: { displayName: "Owner Lab", contactEmail: "owner@example.com", contactPhone: "+919999100004", address: "Delhi", physicalCountryId: new mongoose.Types.ObjectId() } });
+    await expect(AssociateReferralShareService.create(String(other._id), "QUALITY_LAB", String(lab._id))).rejects.toThrow("does not belong");
+    const share = await AssociateReferralShareService.create(String(owner._id), "QUALITY_LAB", String(lab._id));
+    await expect(AssociateReferralShareService.validateForRegistration(share.token, "OTHER123")).rejects.toThrow("does not match");
+  });
   it("normalizes invitation destinations and rejects malformed values", () => {
     expect(AssociateReferralService.normalizeInvitationDestination("EMAIL", " Person@Example.COM ")).toBe("person@example.com");
     expect(AssociateReferralService.normalizeInvitationDestination("WHATSAPP", "+91 98765-43210")).toBe("+919876543210");

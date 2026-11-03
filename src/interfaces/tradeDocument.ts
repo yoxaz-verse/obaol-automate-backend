@@ -27,6 +27,11 @@ export type TradeDocumentType =
 export type TradeDocumentStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLED";
 export type TradeDocumentVerifiedStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type TradeDocumentAudienceScope = "SELLER_OBAOL" | "OBAOL_BUYER";
+export type TradeDocumentDirection =
+  | "BUYER_TO_OBAOL"
+  | "OBAOL_TO_SELLER"
+  | "SELLER_TO_OBAOL"
+  | "OBAOL_TO_BUYER";
 export type TradeDocumentSourceMode = "CREATED" | "UPLOADED";
 export type TradeDocumentExtractionStatus = "NOT_REQUIRED" | "QUEUED" | "PROCESSING" | "REVIEW_REQUIRED" | "COMPLETED" | "FAILED";
 
@@ -132,6 +137,9 @@ export interface ITradeDocument extends Document {
   demoCreatedBy?: Types.ObjectId | null;
   isDeleted?: boolean;
   audienceScope?: TradeDocumentAudienceScope;
+  pairGroupId?: string | null;
+  pairLegKey?: string | null;
+  direction?: TradeDocumentDirection | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -152,6 +160,9 @@ export interface ICreateTradeDocument {
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
   audienceScope?: TradeDocumentAudienceScope;
+  pairGroupId?: string | null;
+  pairLegKey?: string | null;
+  direction?: TradeDocumentDirection | null;
 }
 
 export interface IUpdateTradeDocument {
@@ -166,4 +177,7 @@ export interface IUpdateTradeDocument {
   demoTag?: string;
   demoCreatedBy?: Types.ObjectId | null;
   audienceScope?: TradeDocumentAudienceScope;
+  pairGroupId?: string | null;
+  pairLegKey?: string | null;
+  direction?: TradeDocumentDirection | null;
 }

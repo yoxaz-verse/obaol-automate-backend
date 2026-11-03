@@ -26,6 +26,9 @@ router.post("/share/:token/decision", optionallyAuthenticateToken, controller.bu
 router.post("/", authenticateToken, controller.create.bind(controller));
 router.get("/", authenticateToken, controller.list.bind(controller));
 router.post("/:id/email", authenticateToken, controller.emailDocument.bind(controller));
+router.get("/:id/email-deliveries", authenticateToken, controller.emailDeliveries.bind(controller));
+router.post("/:id/whatsapp", authenticateToken, controller.whatsappDocument.bind(controller));
+router.get("/:id/whatsapp-deliveries", authenticateToken, controller.whatsappDeliveries.bind(controller));
 router.post("/:id/issue", authenticateToken, controller.issue.bind(controller));
 router.post("/:id/invite", authenticateToken, controller.invite.bind(controller));
 router.post("/:id/revoke-invite", authenticateToken, controller.revokeInvite.bind(controller));

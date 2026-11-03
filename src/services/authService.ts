@@ -29,6 +29,7 @@ import verificationService from "./verification.service";
 import logger from "../utils/apiLogger";
 import { normalizePhoneInput } from "../utils/phone";
 import { AssociateReferralService } from "./associateReferral.service";
+import { AssociateReferralShareService } from "./associateReferralShare.service";
 import {
     ASSOCIATE_PASSWORD_ERROR,
     REPEATED_PHONE_ERROR,
@@ -1085,6 +1086,7 @@ export const registerAssociate = async (req: Request, res: Response) => {
             associatePincodeEntry,
             referralCode,
             referralInvitationToken,
+            trackedShareToken,
         } = req.body;
 
         // Input validation
@@ -1196,7 +1198,8 @@ export const registerAssociate = async (req: Request, res: Response) => {
             designationId = String(designationExists._id);
         }
 
-        const resolvedReferral = await AssociateReferralService.resolveCode(referralCode);
+        const resolvedShare = trackedShareToken ? await AssociateReferralShareService.validateForRegistration(trackedShareToken, referralCode) : null;
+        const resolvedReferral = await AssociateReferralService.resolveCode(resolvedShare?.company.referralCode || referralCode);
         if (resolvedReferral.type === "invalid") {
             return res.status(400).json({ success: false, message: "Invalid referral code. Please check and try again." });
         }
@@ -1448,11 +1451,13 @@ export const registerAssociate = async (req: Request, res: Response) => {
                             referredByCompanyId: resolvedReferral.companyId,
                             referralCodeUsed: resolvedReferral.code,
                             referralCapturedAt: new Date(),
+                            ...(resolvedShare ? { referralShareId: resolvedShare.share._id } : {}),
                         } : {}),
                     });
                     if (referralInvitationToken && resolvedReferral.type === "associate_company") {
                         await AssociateReferralService.claimInvitation(referralInvitationToken, resolvedReferral.companyId, createdCompany._id);
                     }
+                    if (trackedShareToken && resolvedShare) await AssociateReferralShareService.recordSignup(trackedShareToken, createdCompany._id);
                     linkedCompanyId = createdCompany._id;
                     createdCompanyId = createdCompany._id;
                     createdCompanyNotice = {
@@ -1812,6 +1817,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                 associatePincodeEntry,
                 referralCode,
                 referralInvitationToken,
+                trackedShareToken,
                 password,
             } = req.body || {};
             let createdCompanyNotice: { id: string; name: string; email: string } | null = null;
@@ -1889,7 +1895,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             associate.companyMode = associate.hasCompany
                 ? (normalizedCompanyMode === "new" ? "new" : "existing")
                 : "none";
-            const resolvedReferral = await AssociateReferralService.resolveCode(referralCode);
+            const resolvedShare = trackedShareToken ? await AssociateReferralShareService.validateForRegistration(trackedShareToken, referralCode) : null;
+            const resolvedReferral = await AssociateReferralService.resolveCode(resolvedShare?.company.referralCode || referralCode);
             if (resolvedReferral.type === "invalid") {
                 return res.status(400).json({ success: false, message: "Invalid referral code." });
             }
@@ -2007,11 +2014,13 @@ export const completeOnboarding = async (req: Request, res: Response) => {
                             referredByCompanyId: resolvedReferral.companyId,
                             referralCodeUsed: resolvedReferral.code,
                             referralCapturedAt: new Date(),
+                            ...(resolvedShare ? { referralShareId: resolvedShare.share._id } : {}),
                         } : {}),
                     });
                     if (referralInvitationToken && resolvedReferral.type === "associate_company") {
                         await AssociateReferralService.claimInvitation(referralInvitationToken, resolvedReferral.companyId, createdCompany._id);
                     }
+                    if (trackedShareToken && resolvedShare) await AssociateReferralShareService.recordSignup(trackedShareToken, createdCompany._id);
                     associate.associateCompany = createdCompany._id;
                     createdCompanyNotice = {
                         id: String(createdCompany._id),

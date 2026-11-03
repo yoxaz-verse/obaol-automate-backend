@@ -51,6 +51,7 @@ import { TradeDocumentController } from "./tradeDocumentController";
 import { normalizeCompanyFunctionSlugs, requestTypeToCapabilityAliases } from "../utils/companyCapabilities";
 import {
     getExecutionSubflowType,
+    isActiveExecutionBiddingPhase,
     isPositiveFiniteBid,
     MAX_BID_NOTE_LENGTH,
     ProviderMatchLevel,
@@ -1905,7 +1906,7 @@ export class InquiryController {
                         message: "Responsibilities finalized."
                     });
                 }
-                const recipients = await notificationService.buildInquiryRecipients(inquiry as any);
+                const recipients = await notificationService.buildInquiryRelatedRecipients(inquiry as any);
                 notificationService.removeActor(recipients, req.user?.id || null);
 
                 const candidateCompanyIds = Array.from(
@@ -1938,7 +1939,7 @@ export class InquiryController {
                     message: "Execution tasks have been generated for this inquiry.",
                     entityType: NotificationEntityTypes.INQUIRY,
                     entityId: inquiry._id,
-                    route: "/dashboard/execution-enquiries",
+                    route: `/dashboard/execution-enquiries?tab=deal-execution&enquiryId=${inquiry._id}`,
                     payload: { inquiryId: inquiry._id },
                     priority: "high",
                 });
@@ -2290,7 +2291,7 @@ export class InquiryController {
 
             try {
                 if (bidNotificationType && bidNotificationCompanyId) {
-                    const recipients = await notificationService.buildExecutionBidRecipients(inquiry as any, task, bidNotificationCompanyId);
+                    const recipients = await notificationService.buildExecutionBidActivityRecipients(inquiry as any, bidNotificationCompanyId);
                     await operationalNotificationService.dispatch({
                         recipientMap: recipients,
                         actorId: req.user?.id || null,
@@ -2299,7 +2300,7 @@ export class InquiryController {
                         message: `${normalizedType} bid has been ${bidNotificationType === NotificationTypes.BID_SUBMITTED ? "submitted" : "updated"}.`,
                         entityType: NotificationEntityTypes.INQUIRY,
                         entityId: inquiry._id,
-                        route: "/dashboard/execution-enquiries",
+                        route: `/dashboard/execution-enquiries?tab=execution-bidding&view=active&enquiryId=${inquiry._id}`,
                         payload: {
                             inquiryId: inquiry._id,
                             executionType: normalizedType,
@@ -2308,20 +2309,23 @@ export class InquiryController {
                         priority: "medium",
                         moduleLabel: "Bidding",
                         reference: String(inquiry._id || ""),
+                        inAppOnly: true,
                     });
                 }
 
                 if (awardedProviderId) {
+                    const awardedCompany = await AssociateCompanyModel.findById(awardedProviderId).select("name").lean();
+                    const awardedCompanyName = String((awardedCompany as any)?.name || "the selected provider");
                     const recipients = await notificationService.buildExecutionBidRecipients(inquiry as any, task, awardedProviderId, awardedProviderId);
                     await operationalNotificationService.dispatch({
                         recipientMap: recipients,
                         actorId: req.user?.id || null,
                         type: NotificationTypes.BID_AWARDED,
                         title: "Bid awarded",
-                        message: `${normalizedType} bid has been awarded to a provider.`,
+                        message: `${normalizedType} execution has been awarded to ${awardedCompanyName}.`,
                         entityType: NotificationEntityTypes.INQUIRY,
                         entityId: inquiry._id,
-                        route: "/dashboard/execution-enquiries",
+                        route: `/dashboard/execution-enquiries?tab=execution-bidding&view=history&enquiryId=${inquiry._id}`,
                         payload: {
                             inquiryId: inquiry._id,
                             executionType: normalizedType,
@@ -2330,6 +2334,7 @@ export class InquiryController {
                         priority: "high",
                         moduleLabel: "Bidding",
                         reference: String(inquiry._id || ""),
+                        inAppOnly: true,
                     });
                 }
             } catch (error: any) {
@@ -2370,12 +2375,15 @@ export class InquiryController {
             const isOperator = role === "operator" || role === "team";
             const companyId = String(context.associateCompanyId || "");
             const userId = String(context.userId || "");
-            const stateFilter = String(req.query.state || "active").toLowerCase();
+            const requestedState = String(req.query.state || "active").toLowerCase();
+            const stateFilter = requestedState === "history" ? "history" : "active";
             const serviceFilter = String(req.query.serviceType || "").toUpperCase();
             const locationFilter = String(req.query.location || "").trim().toLowerCase();
             const search = String(req.query.search || "").trim().toLowerCase();
+            const enquiryId = String(req.query.enquiryId || "").trim();
 
             const filters: any = { executionInquiries: { $exists: true, $ne: [] } };
+            if (enquiryId && Types.ObjectId.isValid(enquiryId)) filters._id = enquiryId;
             if (!isAdmin && !isOperator) {
                 if (!companyId || !Types.ObjectId.isValid(companyId)) {
                     return res.json({ success: true, data: [] });
@@ -2429,7 +2437,7 @@ export class InquiryController {
                         startStageOrder: stageOrder.get(startStage),
                         endStageOrder: stageOrder.get(endStage),
                     });
-                    const isActive = phase === "OPEN" || phase === "UPCOMING";
+                    const isActive = isActiveExecutionBiddingPhase(phase);
                     if ((stateFilter === "active" && !isActive) || (stateFilter === "history" && isActive)) continue;
                     const route = {
                         from: String(task.details?.from || task.details?.fromDistrict || ""),
@@ -2442,6 +2450,7 @@ export class InquiryController {
                     if (locationFilter && ![route.from, route.to, route.notes].join(" ").toLowerCase().includes(locationFilter)) continue;
                     const bids = Array.isArray(task.bids) ? task.bids : [];
                     const ownBid = bids.find((bid: any) => String(bid?.company?._id || bid?.company || "") === companyId) || null;
+                    const awardedBid = bids.find((bid: any) => String(bid?.status || "").toUpperCase() === "AWARDED") || null;
                     const operatorView = isAdmin || isOperator;
                     opportunities.push({
                         id: `${inquiry._id}:${type}:${task.details?.segmentKey || "default"}`,
@@ -2465,7 +2474,16 @@ export class InquiryController {
                         ownBid: operatorView ? undefined : ownBid,
                         bids: operatorView ? bids : undefined,
                         candidates: operatorView ? candidates : undefined,
-                        committedProvider: operatorView ? (task.committedProvider || null) : undefined,
+                        committedProvider: task.committedProvider || null,
+                        awardedAmount: awardedBid?.amount ?? null,
+                        awardedNote: awardedBid?.note || null,
+                        bidCount: bids.length,
+                        createdAt: task.createdAt || null,
+                        updatedAt: bids.reduce((latest: Date | null, bid: any) => {
+                            const candidate = bid?.updatedAt ? new Date(bid.updatedAt) : null;
+                            return candidate && (!latest || candidate > latest) ? candidate : latest;
+                        }, task.createdAt ? new Date(task.createdAt) : null),
+                        committedAt: task.committedAt || null,
                     });
                 }
             }

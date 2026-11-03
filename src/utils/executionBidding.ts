@@ -21,6 +21,8 @@ export const getExecutionSubflowType = (value: unknown) =>
 export const isPositiveFiniteBid = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 
+export const isActiveExecutionBiddingPhase = (phase: BiddingPhase) => phase === "OPEN";
+
 export const resolveBiddingPhase = (params: {
   taskStatus?: unknown;
   currentStageOrder?: number;
@@ -30,6 +32,7 @@ export const resolveBiddingPhase = (params: {
   const status = String(params.taskStatus || "OPEN").toUpperCase();
   if (status === "CANCELLED") return "CANCELLED";
   if (status === "COMPLETED") return "AWARDED";
+  if (status === "IN_PROGRESS") return "CLOSED";
   const { currentStageOrder, startStageOrder, endStageOrder } = params;
   if ([currentStageOrder, startStageOrder, endStageOrder].every((value) => typeof value === "number")) {
     if ((currentStageOrder as number) < (startStageOrder as number)) return "UPCOMING";

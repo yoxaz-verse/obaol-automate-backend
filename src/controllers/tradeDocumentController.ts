@@ -31,6 +31,12 @@ import { resolvePublicFrontendUrl } from "../utils/publicFrontendUrl";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { obaolConfigMessage, resolveObaolCompany } from "../utils/obaolCompanyConfig";
+import { DocumentEmailDeliveryModel } from "../database/models/documentEmailDelivery";
+import { sendCompanyDocumentEmail, usableConnection } from "../services/companyMailService";
+import { WhatsappDeliveryModel } from "../database/models/whatsappDelivery";
+import { sendWhatsappTemplate, uploadWhatsappPdf, usableWhatsappConnection } from "../services/whatsappService";
+import { normalizePhoneInput } from "../utils/phone";
+import { audienceScopeForDirection, isCompleteDocumentPair, PAIRED_TRADE_DOCUMENT_DIRECTIONS, PAIRED_TRADE_DOCUMENT_TYPES } from "../utils/pairedTradeDocuments";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -38,6 +44,7 @@ const isOperatorRole = (role: string) => role === "operator" || role === "team";
 const isAssociateRole = (role: string) => role === "associate";
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const formatMoney = (value: unknown, currency = "INR") => `${currency} ${new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))}`;
+const documentLabelForWhatsapp = (value: unknown) => String(value || "Document").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 const invitationToken = (documentId: unknown, idempotencyKey: string) => createHmac("sha256", String(process.env.JWT_SECRET || "obaol-invitation-secret")).update(`${documentId}:${idempotencyKey}`).digest("hex");
 const decisionSecretHash = (value: string, documentId: unknown) => createHmac("sha256", String(process.env.JWT_SECRET || "obaol-decision-secret")).update(`${documentId}:${value}`).digest("hex");
@@ -72,8 +79,15 @@ const exposeDocument = (row: any, includeActivity = true) => {
   doc.balanceDue = balanceDue;
   doc.paymentStatus = balanceDue <= 0 && total > 0 ? "PAID" : amountPaid > 0 ? "PARTIALLY_PAID" : overdue ? "OVERDUE" : "UNPAID";
   doc.number = doc.documentNumber;
-  const recipientParty = ["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(doc.type || "")) ? doc.seller : doc.buyer;
-  const issuerParty = ["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(doc.type || "")) ? doc.buyer : doc.seller;
+  const directionParties: Record<string, { issuer: any; recipient: any }> = {
+    BUYER_TO_OBAOL: { issuer: doc.buyer, recipient: doc.seller },
+    OBAOL_TO_SELLER: { issuer: doc.buyer, recipient: doc.seller },
+    SELLER_TO_OBAOL: { issuer: doc.seller, recipient: doc.buyer },
+    OBAOL_TO_BUYER: { issuer: doc.seller, recipient: doc.buyer },
+  };
+  const directed = directionParties[String(doc.direction || "")];
+  const recipientParty = directed?.recipient || (["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(doc.type || "")) ? doc.seller : doc.buyer);
+  const issuerParty = directed?.issuer || (["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(doc.type || "")) ? doc.buyer : doc.seller);
   doc.recipient = { ...(recipientParty || {}), billingAddress: recipientParty?.address || "" };
   doc.issuer = { ...(issuerParty || {}), billingAddress: issuerParty?.address || "" };
   doc.items = (doc.lineItems || []).map((item: any) => ({ ...item, description: item.description || item.productName || "", quantity: item.quantity || item.quantityMT || item.quantityKG || 0, unitPrice: item.unitPrice || item.ratePerKg || 0, subtotal: item.amount || 0 }));
@@ -102,6 +116,11 @@ const STUDIO_TYPES = new Set([
   "CERTIFICATE_OF_ORIGIN", "DISPATCH_CHALLAN", "BILL_OF_ENTRY", "CUSTOMS_CLEARANCE", "GOODS_RECEIPT",
 ]);
 const SELLER_RECIPIENT_TYPES = new Set(["PURCHASE_ORDER", "GOODS_RECEIPT"]);
+const pairIsComplete = async (doc: any) => {
+  if (!PAIRED_TRADE_DOCUMENT_TYPES.has(String(doc?.type || "")) || !doc?.pairGroupId) return normalizeDocStatus(doc?.status) !== "DRAFT";
+  const rows = await TradeDocumentModel.find({ pairGroupId: doc.pairGroupId, type: doc.type, isDeleted: { $ne: true } }).select("direction status").lean();
+  return isCompleteDocumentPair(String(doc.type), rows as any[]);
+};
 const recipientPartyRole = (type: string) => SELLER_RECIPIENT_TYPES.has(type) ? "SELLER" : "BUYER";
 const exposeCustomer = (row: any) => {
   const value = row?.toObject ? row.toObject() : { ...row };
@@ -215,7 +234,7 @@ const ownedCommercialDocument = async (req: Request, res: Response, includeInvit
   const role = normalizeRole(req.user?.role);
   let issuer: any = null;
   let documentFilter: any = { _id: req.params.id, isDeleted: { $ne: true } };
-  if (allowAdmin && isAdminRole(role)) {
+  if (allowAdmin && (isAdminRole(role) || isOperatorRole(role))) {
     const owned: any = await TradeDocumentModel.findOne(documentFilter).select("ownerCompanyId").lean();
     issuer = owned?.ownerCompanyId ? await AssociateCompanyModel.findById(owned.ownerCompanyId).select("name slug email phone address gstin logo") : null;
   } else {
@@ -394,12 +413,12 @@ const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationI
       {
         path: "buyerAssociateId",
         select: "name email phone associateCompany",
-        populate: { path: "associateCompany", select: "name email phone address gstin slug" },
+        populate: { path: "associateCompany", select: "name email phone address gstin slug logo" },
       },
       {
         path: "sellerAssociateId",
         select: "name email phone associateCompany",
-        populate: { path: "associateCompany", select: "name email phone address gstin slug" },
+        populate: { path: "associateCompany", select: "name email phone address gstin slug logo" },
       },
       {
         path: "importListingId",
@@ -459,19 +478,23 @@ const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationI
       associateId: toObjectId(buyerAssociate?._id || populated.buyerAssociateId) || null,
       companyId: toObjectId(buyerCompany?._id || buyerAssociate?.associateCompany) || null,
       name: buyerCompany?.name || buyerAssociate?.name,
+      contactName: buyerAssociate?.name || "",
       email: buyerCompany?.email || buyerAssociate?.email,
       phone: buyerCompany?.phone || buyerAssociate?.phone,
       address: buyerCompany?.address || "",
       gstin: buyerCompany?.gstin || "",
+      logo: buyerCompany?.logo || "",
     },
     seller: {
       associateId: toObjectId(sellerAssociate?._id || populated.sellerAssociateId) || null,
       companyId: toObjectId(sellerCompany?._id || sellerAssociate?.associateCompany) || null,
       name: sellerCompany?.name || sellerAssociate?.name,
+      contactName: sellerAssociate?.name || "",
       email: sellerCompany?.email || sellerAssociate?.email,
       phone: sellerCompany?.phone || sellerAssociate?.phone,
       address: sellerCompany?.address || "",
       gstin: sellerCompany?.gstin || "",
+      logo: sellerCompany?.logo || "",
     },
     lineItems: [
       {
@@ -694,6 +717,9 @@ export class TradeDocumentController {
       });
 
       const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean();
+      const buyerCompany = snapshot.buyer?.companyId
+        ? await AssociateCompanyModel.findById(snapshot.buyer.companyId).select("name slug email phone address gstin logo").lean()
+        : null;
       const obaolCompany = obaolResolution.company;
 
       const sellerCompanyCode = buildCompanyCode(sellerCompany);
@@ -703,6 +729,7 @@ export class TradeDocumentController {
       await ensureDefaultDocumentTemplate(type);
       const sellerTemplate: any = await resolveTemplateForRender(type, String(sellerCompanyId));
       const obaolTemplate: any = await resolveTemplateForRender(type, String(obaolCompanyId));
+      const buyerTemplate: any = buyerCompany?._id ? await resolveTemplateForRender(type, String(buyerCompany._id)) : null;
 
       const obaolSnapshot = {
         associateId: null,
@@ -729,34 +756,65 @@ export class TradeDocumentController {
         createdBy: req.user?.id || null,
       };
 
-      const createdSellerObaol = await TradeDocumentModel.create({
-        ...basePayload,
-        documentNumber: sellerDocNumber,
-        selectedTemplateId: sellerTemplate?._id || null,
-        selectedTemplateVersion: sellerTemplate?.version || null,
-        buyer: obaolSnapshot,
-        seller: snapshot.seller,
-        audienceScope: "SELLER_OBAOL",
-      });
+      const pairGroupId = `${enquiryId ? `enquiry:${enquiry._id}` : `order:${orderId}`}:${type}`;
+      const directions = PAIRED_TRADE_DOCUMENT_TYPES.has(type) ? PAIRED_TRADE_DOCUMENT_DIRECTIONS[type] : [recipientPartyRole(type) === "SELLER" ? "OBAOL_TO_SELLER" : "OBAOL_TO_BUYER"];
+      const createdDocuments: any[] = [];
+      for (const direction of directions) {
+        const existingPairLeg = await TradeDocumentModel.findOne({
+          ...(enquiryId ? { enquiryId: enquiry._id } : { orderId }),
+          type,
+          direction,
+          isDeleted: { $ne: true },
+        });
+        if (existingPairLeg) {
+          createdDocuments.push(existingPairLeg);
+          continue;
+        }
+        const issuerIsObaol = String(direction).startsWith("OBAOL_TO_");
+        const buyerSide = ["BUYER_TO_OBAOL", "OBAOL_TO_BUYER"].includes(direction);
+        const ownerCompanyId = issuerIsObaol
+          ? obaolCompanyId
+          : direction === "SELLER_TO_OBAOL" ? sellerCompanyId : snapshot.buyer?.companyId || obaolCompanyId;
+        const buyerDocNumber = direction === "BUYER_TO_OBAOL" && buyerCompany?._id
+          ? await generateDocumentNumber(buyerCompany._id, type, buildCompanyCode(buyerCompany))
+          : null;
+        const documentNumber = buyerDocNumber || (issuerIsObaol ? obaolDocNumber : sellerDocNumber);
+        const template = ownerCompanyId && String(ownerCompanyId) === String(sellerCompanyId)
+          ? sellerTemplate
+          : ownerCompanyId && buyerCompany?._id && String(ownerCompanyId) === String(buyerCompany._id) ? buyerTemplate : obaolTemplate;
+        let createdLeg: any;
+        try {
+          createdLeg = await TradeDocumentModel.create({
+            ...basePayload,
+            ownerCompanyId,
+            documentNumber,
+            selectedTemplateId: template?._id || null,
+            selectedTemplateVersion: template?.version || null,
+            buyer: buyerSide ? snapshot.buyer : obaolSnapshot,
+            seller: buyerSide ? obaolSnapshot : snapshot.seller,
+            audienceScope: audienceScopeForDirection(direction),
+            pairGroupId,
+            pairLegKey: `${pairGroupId}:${direction}`,
+            direction,
+            auditEvents: [{ action: "PAIR_LEG_CREATED", actorId: req.user?.id || null, actorRole: role, metadata: { pairGroupId, direction } }],
+          });
+        } catch (error: any) {
+          if (error?.code !== 11000) throw error;
+          createdLeg = await TradeDocumentModel.findOne({ pairLegKey: `${pairGroupId}:${direction}` });
+          if (!createdLeg) throw error;
+        }
+        createdDocuments.push(createdLeg);
+      }
 
-      const createdObaolBuyer = await TradeDocumentModel.create({
-        ...basePayload,
-        documentNumber: obaolDocNumber,
-        selectedTemplateId: obaolTemplate?._id || null,
-        selectedTemplateVersion: obaolTemplate?.version || null,
-        buyer: snapshot.buyer,
-        seller: obaolSnapshot,
-        audienceScope: "OBAOL_BUYER",
-      });
-
-      const created = createdSellerObaol;
+      const created = createdDocuments[0];
 
       if (stageType === "INQUIRY") {
-        let nextStage = resolveInquiryStageForDocument(enquiry, type, created?.status);
-        if (String(type || "").toUpperCase() === "PROFORMA_INVOICE" && String(created?.status || "").toUpperCase() !== "DRAFT") {
+        const completePair = await pairIsComplete(created);
+        let nextStage = completePair ? resolveInquiryStageForDocument(enquiry, type, created?.status) : null;
+        if (completePair && String(type || "").toUpperCase() === "PROFORMA_INVOICE") {
           (enquiry as any).proformaCreatedAt = new Date();
         }
-        if (String(type || "").toUpperCase() === "PURCHASE_ORDER" && String(created?.status || "").toUpperCase() !== "DRAFT") {
+        if (completePair && String(type || "").toUpperCase() === "PURCHASE_ORDER") {
           (enquiry as any).poSubmittedAt = new Date();
           nextStage = "CONVERT_TO_ORDER";
         }
@@ -786,7 +844,13 @@ export class TradeDocumentController {
         );
       }
 
-      return res.status(201).json({ success: true, data: created });
+      return res.status(201).json({
+        success: true,
+        data: exposeDocument(created),
+        documents: createdDocuments.map((document: any) => exposeDocument(document)),
+        pairGroupId,
+        reused: createdDocuments.some((document: any) => document.createdAt && document.createdAt < new Date(Date.now() - 1000)),
+      });
     } catch (error) {
       next(error);
     }
@@ -1200,6 +1264,12 @@ export class TradeDocumentController {
           const discountAmount = round2(Number(req.body?.discountAmount || 0));
           return { lineItems: items, documentData, totals: { currency: String(req.body?.currency || (existing as any)?.totals?.currency || "INR").toUpperCase(), subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) }, terms: { paymentTerms: String(req.body?.terms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), termsAndConditions: String(req.body?.termsAndConditions || ""), notes: String(req.body?.notes || "") }, issueDate: req.body?.issueDate || (existing as any).issueDate, validUntil: req.body?.validUntil || null, dueDate: req.body?.dueDate || null, auditEvents: [...((existing as any).auditEvents || []), { action: "DRAFT_UPDATED", actorId: req.user?.id || null, actorRole: role }] };
         })() : {};
+      if (normalizeDocStatus(updatePayload.status) !== "DRAFT" && normalizeDocStatus((existing as any).status) === "DRAFT") {
+        const exposed = exposeDocument(existing);
+        if (!String(exposed.issuer?.name || "").trim() || !String(exposed.recipient?.name || "").trim()) {
+          return res.status(409).json({ success: false, message: "The issuing and receiving legal company names are required before this document can be issued." });
+        }
+      }
       if (req.body?.fileUrl !== undefined) {
         updatePayload.fileUrl = req.body.fileUrl || null;
         updatePayload.uploadedBy = req.user?.id || null;
@@ -1233,11 +1303,16 @@ export class TradeDocumentController {
       if ((updated as any)?.enquiryId) {
         const enquiry = await InquiryModel.findById((updated as any).enquiryId);
         if (enquiry) {
-          const nextStage = resolveInquiryStageForDocument(
+          const completePair = await pairIsComplete(updated);
+          const nextStage = completePair ? resolveInquiryStageForDocument(
             enquiry,
             String((updated as any)?.type || ""),
             String((updated as any)?.status || "")
-          );
+          ) : null;
+          if (completePair && String((updated as any)?.type || "") === "LOI" && !(enquiry as any).loiSubmittedAt) (enquiry as any).loiSubmittedAt = new Date();
+          if (completePair && String((updated as any)?.type || "") === "QUOTATION" && !(enquiry as any).quotationCreatedAt) (enquiry as any).quotationCreatedAt = new Date();
+          if (completePair && String((updated as any)?.type || "") === "PROFORMA_INVOICE" && !(enquiry as any).proformaCreatedAt) (enquiry as any).proformaCreatedAt = new Date();
+          if (completePair && String((updated as any)?.type || "") === "PURCHASE_ORDER" && !(enquiry as any).poSubmittedAt) (enquiry as any).poSubmittedAt = new Date();
           if (nextStage) {
             await ensureDefaultFlowRules();
             const flowRules = await FlowRuleModel.find({
@@ -1316,6 +1391,9 @@ export class TradeDocumentController {
     try {
       const result = await ownedCommercialDocument(req, res); if (!result) return;
       if (result.doc.status !== "DRAFT") return res.status(409).json({ success: false, message: "Only a draft can be issued." });
+      if (!String(result.doc?.issuer?.name || exposeDocument(result.doc).issuer?.name || "").trim() || !String(exposeDocument(result.doc).recipient?.name || "").trim()) {
+        return res.status(409).json({ success: false, message: "The issuing and receiving legal company names are required before this document can be issued." });
+      }
       const template: any = await resolveDocumentTemplate(result.doc, true);
       if (!template) return res.status(409).json({ success: false, message: "Choose an available published template before issuing." });
       if (template._id) {
@@ -1325,18 +1403,28 @@ export class TradeDocumentController {
       result.doc.status = "SENT"; result.doc.issuedAt = new Date(); result.doc.revisionOpenKey = null;
       result.doc.auditEvents.push({ action: "ISSUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role) });
       await result.doc.save();
+      if (result.doc.enquiryId && await pairIsComplete(result.doc)) {
+        const enquiry: any = await InquiryModel.findById(result.doc.enquiryId);
+        if (enquiry) {
+          if (result.doc.type === "LOI" && !enquiry.loiSubmittedAt) enquiry.loiSubmittedAt = new Date();
+          if (result.doc.type === "QUOTATION" && !enquiry.quotationCreatedAt) enquiry.quotationCreatedAt = new Date();
+          if (result.doc.type === "PROFORMA_INVOICE" && !enquiry.proformaCreatedAt) enquiry.proformaCreatedAt = new Date();
+          if (result.doc.type === "PURCHASE_ORDER" && !enquiry.poSubmittedAt) enquiry.poSubmittedAt = new Date();
+          await enquiry.save();
+        }
+      }
       return res.json({ success: true, data: exposeDocument(result.doc) });
     } catch (error) { next(error); }
   }
 
   async invite(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await ownedCommercialDocument(req, res, true); if (!result) return;
+      const result = await ownedCommercialDocument(req, res, true, true); if (!result) return;
       if (result.doc.status === "DRAFT") return res.status(409).json({ success: false, message: "Issue the document before creating an invitation." });
       const expiresInDays = Number(req.body?.expiresInDays ?? 30);
       if (!Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 90) return res.status(400).json({ success: false, message: "Invitation expiry must be between 1 and 90 days." });
       const sendEmail = req.body?.sendEmail === true;
-      const recipientParty = ["PURCHASE_ORDER", "GOODS_RECEIPT"].includes(String(result.doc.type || "")) ? result.doc.seller : result.doc.buyer;
+      const recipientParty = exposeDocument(result.doc).recipient;
       const recipientEmail = String(req.body?.recipientEmail || recipientParty?.email || "").trim().toLowerCase();
       if (sendEmail && !/^\S+@\S+\.\S+$/.test(recipientEmail)) return res.status(400).json({ success: false, message: "Enter a valid recipient email address." });
       const message = String(req.body?.message || "").trim();
@@ -1541,7 +1629,7 @@ export class TradeDocumentController {
       }
       if (existingDraft) return res.json({ success: true, data: exposeDocument(existingDraft), reused: true });
       const latest: any = await TradeDocumentModel.findOne({ ownerCompanyId: result.issuer._id, $or: [{ _id: root }, { revisionOf: root }], isDeleted: { $ne: true } }).sort({ revision: -1 }).select("revision").lean();
-      const revision = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, documentNumber: await generateDocumentNumber(result.issuer._id, result.doc.type, buildCompanyCode(result.issuer)), revision: Number(latest?.revision || result.doc.revision || 1) + 1, revisionOf: root, revisionOpenKey, status: "DRAFT", orderId: null, issuedAt: null, decision: null, decidedAt: null, decisionSource: null, decisionReference: "", decisionNotes: "", decisionProofUrl: null, payments: [], inviteTokenHash: null, inviteIdempotencyKey: null, inviteExpiresAt: null, inviteRevokedAt: null, invitationSentAt: null, firstViewedAt: null, lastViewedAt: null, viewCount: 0, lastDownloadedAt: null, downloadCount: 0, auditEvents: [{ action: "REVISION_CREATED", actorId: req.user?.id || null, actorRole: "seller", metadata: { sourceId: result.doc._id } }] });
+      const revision = await TradeDocumentModel.create({ ...result.doc.toObject(), _id: undefined, createdAt: undefined, updatedAt: undefined, pairLegKey: null, documentNumber: await generateDocumentNumber(result.issuer._id, result.doc.type, buildCompanyCode(result.issuer)), revision: Number(latest?.revision || result.doc.revision || 1) + 1, revisionOf: root, revisionOpenKey, status: "DRAFT", orderId: null, issuedAt: null, decision: null, decidedAt: null, decisionSource: null, decisionReference: "", decisionNotes: "", decisionProofUrl: null, payments: [], inviteTokenHash: null, inviteIdempotencyKey: null, inviteExpiresAt: null, inviteRevokedAt: null, invitationSentAt: null, firstViewedAt: null, lastViewedAt: null, viewCount: 0, lastDownloadedAt: null, downloadCount: 0, auditEvents: [{ action: "REVISION_CREATED", actorId: req.user?.id || null, actorRole: "seller", metadata: { sourceId: result.doc._id } }] });
       return res.status(201).json({ success: true, data: exposeDocument(revision), reused: false });
     } catch (error: any) {
       if (error?.code === 11000) {
@@ -1674,66 +1762,79 @@ export class TradeDocumentController {
     } catch (error) { next(error); }
   }
 
-  async emailDocument(_req: Request, res: Response, _next: NextFunction) {
-    return res.status(410).json({ success: false, message: "Document email delivery is disabled. Download the PDF or copy an invitation link." });
-    /* legacy delivery intentionally disabled
+  async emailDeliveries(req: Request, res: Response, next: NextFunction) {
     try {
-      const role = normalizeRole(req.user?.role);
-      const isPrivileged = isAdminRole(role) || isOperatorRole(role);
-      if (!isPrivileged) {
-        return res.status(403).json({ success: false, message: "Only admin/operator can email documents." });
-      }
+      const result = await ownedCommercialDocument(req, res); if (!result) return;
+      const rows = await DocumentEmailDeliveryModel.find({ companyId: result.issuer._id, documentId: result.doc._id }).sort({ createdAt: -1 }).limit(50).lean();
+      return res.json({ success: true, data: rows });
+    } catch (error) { next(error); }
+  }
 
-      const id = req.params.id;
-      if (!Types.ObjectId.isValid(String(id))) {
-        return res.status(400).json({ success: false, message: "Invalid document id." });
-      }
+  async whatsappDeliveries(req: Request, res: Response, next: NextFunction) {
+    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const rows = await WhatsappDeliveryModel.find({ companyId: result.issuer._id, documentId: result.doc._id }).sort({ createdAt: -1 }).limit(50).lean(); return res.json({ success: true, data: rows }); } catch (error) { next(error); }
+  }
 
-      const doc = await TradeDocumentModel.findById(id).lean();
-      if (!doc || (doc as any).isDeleted) {
-        return res.status(404).json({ success: false, message: "Document not found." });
-      }
+  async whatsappDocument(req: Request, res: Response, next: NextFunction) {
+    let delivery: any = null;
+    try {
+      const result = await ownedCommercialDocument(req, res, true); if (!result) return;
+      if (result.doc.status === "DRAFT") return res.status(409).json({ success: false, message: "Issue the document before sending it." });
+      const recipientParty = SELLER_RECIPIENT_TYPES.has(String(result.doc.type || "")) ? result.doc.seller : result.doc.buyer;
+      const rawPhone = String(req.body?.recipient || recipientParty?.phone || "").trim();
+      if (!rawPhone.startsWith("+")) return res.status(400).json({ success: false, message: "Include the international country code, starting with +." });
+      const phone = normalizePhoneInput({ rawPhone }).e164;
+      if (!/^\+[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ success: false, message: "Enter a valid WhatsApp number with its international country code." });
+      const idempotencyKey = String(req.body?.idempotencyKey || "").trim(); if (!idempotencyKey || idempotencyKey.length > 200) return res.status(400).json({ success: false, message: "A valid idempotency key is required." });
+      const existing: any = await WhatsappDeliveryModel.findOne({ companyId: result.issuer._id, idempotencyKey }).lean(); if (existing) return res.json({ success: true, data: existing, reused: true });
+      const expiresInDays = Number(req.body?.expiresInDays ?? 30); if (!Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 90) return res.status(400).json({ success: false, message: "Invitation expiry must be between 1 and 90 days." });
+      const { connection, token: accessToken } = await usableWhatsappConnection(result.issuer._id);
+      const inviteToken = invitationToken(result.doc._id, idempotencyKey), inviteUrl = `${resolvePublicFrontendUrl()}/documents/share/${inviteToken}`;
+      result.doc.inviteIdempotencyKey = idempotencyKey; result.doc.inviteTokenHash = tokenHash(inviteToken); result.doc.inviteExpiresAt = new Date(Date.now() + expiresInDays * 86400000); result.doc.inviteRevokedAt = null; result.doc.firstViewedAt = null; result.doc.lastViewedAt = null; result.doc.viewCount = 0; result.doc.lastDownloadedAt = null; result.doc.downloadCount = 0;
+      const templateName = String(process.env.META_WHATSAPP_DOCUMENT_TEMPLATE || "obaol_trade_document_v1"), language = String(process.env.META_WHATSAPP_TEMPLATE_LANGUAGE || "en_US");
+      delivery = await WhatsappDeliveryModel.create({ companyId: result.issuer._id, documentId: result.doc._id, documentRevision: result.doc.revision || 1, recipient: phone, sender: connection.displayPhoneNumber, templateName, templateLanguage: language, idempotencyKey, status: "SENDING", initiatedBy: req.user?.id || null });
+      result.doc.auditEvents.push({ action: "WHATSAPP_DOCUMENT_QUEUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { deliveryId: delivery._id, recipient: phone } }); await result.doc.save();
+      const pdf = await renderPdfForDocument(result.doc), filename = `${String(result.doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf`, mediaId = await uploadWhatsappPdf(connection.phoneNumberId, accessToken, pdf, filename);
+      const metaMessageId = await sendWhatsappTemplate({ phoneNumberId: connection.phoneNumberId, token: accessToken, to: phone, templateName, language, mediaId, filename, bodyParameters: [recipientParty?.contactName || recipientParty?.name || "Customer", documentLabelForWhatsapp(result.doc.type), result.doc.documentNumber], buttonSuffix: `documents/share/${inviteToken}` });
+      delivery.mediaId = mediaId; delivery.metaMessageId = metaMessageId; delivery.status = "SENT"; delivery.sentAt = new Date(); await delivery.save();
+      connection.lastSuccessfulUseAt = new Date(); connection.lastErrorAt = null; connection.lastErrorCode = ""; await connection.save();
+      result.doc.invitationSentAt = new Date(); result.doc.auditEvents.push({ action: "WHATSAPP_DOCUMENT_SENT", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { deliveryId: delivery._id, recipient: phone } }); await result.doc.save();
+      return res.json({ success: true, data: delivery.toObject(), inviteUrl, expiresAt: result.doc.inviteExpiresAt, reused: false });
+    } catch (error: any) { if (delivery) { delivery.status = "FAILED"; delivery.failedAt = new Date(); delivery.failureCode = String(error?.code || "SEND_FAILED"); delivery.failureMessage = cleanText(error?.message || "WhatsApp message could not be sent", 300); await delivery.save().catch(() => undefined); } if (error?.code === 11000) { const row = await WhatsappDeliveryModel.findOne({ companyId: delivery?.companyId, idempotencyKey: req.body?.idempotencyKey }).lean(); if (row) return res.json({ success: true, data: row, reused: true }); } next(error); }
+  }
 
-      const enquiry = (doc as any)?.enquiryId ? await InquiryModel.findById((doc as any).enquiryId).lean() : null;
-      const docType = String((doc as any)?.type || "").toUpperCase();
-      const recipientRole = String(req.body?.recipientRole || "").toUpperCase();
-
-      const buyerEmail = String((doc as any)?.buyer?.email || "");
-      const sellerEmail = String((doc as any)?.seller?.email || "");
-      const recipients: string[] = [];
-
-      if (!recipientRole || recipientRole === "BOTH") {
-        if (buyerEmail) recipients.push(buyerEmail);
-        if (sellerEmail) recipients.push(sellerEmail);
-      } else if (recipientRole === "BUYER" && buyerEmail) {
-        recipients.push(buyerEmail);
-      } else if (recipientRole === "SELLER" && sellerEmail) {
-        recipients.push(sellerEmail);
-      }
-
-      if (recipients.length === 0) {
-        return res.status(400).json({ success: false, message: "No recipients available for this document." });
-      }
-
-      const template = buildTradeDocumentEmail({
-        docType,
-        documentNumber: String((doc as any)?.documentNumber || ""),
-        status: String((doc as any)?.status || ""),
-        enquiryCode: (enquiry as any)?.code || (enquiry as any)?.enquiryNumber || "",
-        buyerName: String((doc as any)?.buyer?.name || ""),
-        sellerName: String((doc as any)?.seller?.name || ""),
-        createdAt: (doc as any)?.createdAt ? new Date((doc as any).createdAt).toDateString() : "",
-      });
-
-      for (const email of recipients) {
-        await sendTradeDocumentEmail(email, template.subject, template.htmlPart, template.textPart);
-      }
-
-      return res.status(200).json({ success: true, message: "Document emailed successfully." });
-    } catch (error) {
+  async emailDocument(req: Request, res: Response, next: NextFunction) {
+    let delivery: any = null;
+    try {
+      const result = await ownedCommercialDocument(req, res, true, true); if (!result) return;
+      if (result.doc.status === "DRAFT") return res.status(409).json({ success: false, message: "Issue the document before sending it." });
+      const recipientParty = exposeDocument(result.doc).recipient;
+      const recipient = String(req.body?.recipient || recipientParty?.email || "").trim().toLowerCase();
+      const cc = Array.isArray(req.body?.cc) ? [...new Set(req.body.cc.map((value: unknown) => String(value || "").trim().toLowerCase()).filter(Boolean))].slice(0, 10) as string[] : [];
+      if (!/^\S+@\S+\.\S+$/.test(recipient) || cc.some(value => !/^\S+@\S+\.\S+$/.test(value))) return res.status(400).json({ success: false, message: "Enter valid recipient and CC email addresses." });
+      const idempotencyKey = String(req.body?.idempotencyKey || "").trim(); if (!idempotencyKey || idempotencyKey.length > 200) return res.status(400).json({ success: false, message: "A valid idempotency key is required." });
+      const existing: any = await DocumentEmailDeliveryModel.findOne({ companyId: result.issuer._id, documentId: result.doc._id, idempotencyKey }).lean();
+      if (existing) return res.json({ success: true, data: existing, reused: true });
+      const expiresInDays = Number(req.body?.expiresInDays ?? 30); if (!Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 90) return res.status(400).json({ success: false, message: "Invitation expiry must be between 1 and 90 days." });
+      const message = cleanText(req.body?.message, 1000), customSubject = cleanText(req.body?.subject, 200);
+      const { connection, credentials } = await usableConnection(result.issuer._id);
+      const token = invitationToken(result.doc._id, idempotencyKey), inviteUrl = `${resolvePublicFrontendUrl()}/documents/share/${token}`;
+      result.doc.inviteIdempotencyKey = idempotencyKey; result.doc.inviteTokenHash = tokenHash(token); result.doc.inviteExpiresAt = new Date(Date.now() + expiresInDays * 86400000); result.doc.inviteRevokedAt = null;
+      result.doc.firstViewedAt = null; result.doc.lastViewedAt = null; result.doc.viewCount = 0; result.doc.lastDownloadedAt = null; result.doc.downloadCount = 0;
+      result.doc.auditEvents.push({ action: "COMPANY_EMAIL_QUEUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { recipient, provider: connection.provider } }); await result.doc.save();
+      const template = buildTradeDocumentEmail({ docType: result.doc.type, documentNumber: result.doc.documentNumber, status: result.doc.status, buyerName: result.doc.buyer?.name, sellerName: result.doc.seller?.name, recipientName: recipientParty?.contactName || recipientParty?.name, invitationUrl: inviteUrl, expiresAt: result.doc.inviteExpiresAt.toISOString(), message });
+      const subject = customSubject || template.subject;
+      delivery = await DocumentEmailDeliveryModel.create({ companyId: result.issuer._id, documentId: result.doc._id, documentRevision: result.doc.revision || 1, provider: connection.provider, sender: connection.email, recipient, cc, subject, status: "SENDING", idempotencyKey, initiatedBy: req.user?.id || null });
+      const pdf = await renderPdfForDocument(result.doc), filename = `${String(result.doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf`;
+      const providerMessageId = await sendCompanyDocumentEmail({ connection, credentials, to: recipient, cc, subject, text: template.textPart, html: template.htmlPart, filename, pdf });
+      delivery.status = "SENT"; delivery.providerMessageId = providerMessageId; delivery.sentAt = new Date(); await delivery.save();
+      connection.lastSuccessfulUseAt = new Date(); connection.lastErrorAt = null; connection.lastErrorCode = ""; await connection.save();
+      result.doc.invitationSentAt = new Date(); result.doc.auditEvents.push({ action: "COMPANY_EMAIL_SENT", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { deliveryId: delivery._id, recipient, provider: connection.provider } }); await result.doc.save();
+      return res.json({ success: true, data: delivery.toObject(), inviteUrl, expiresAt: result.doc.inviteExpiresAt, reused: false });
+    } catch (error: any) {
+      if (delivery) { delivery.status = "FAILED"; delivery.failureCode = "SEND_FAILED"; delivery.failureMessage = cleanText(error?.message || "Message could not be sent", 300); await delivery.save().catch(() => undefined); }
+      if (error?.code === 11000) { const row = await DocumentEmailDeliveryModel.findOne({ documentId: req.params.id, idempotencyKey: req.body?.idempotencyKey }).lean(); if (row) return res.json({ success: true, data: row, reused: true }); }
       next(error);
     }
-    */
   }
 
   async autoCreateQuotationForInquiry(inquiryId: Types.ObjectId, inventoryReservationId?: Types.ObjectId | null) {
@@ -1786,29 +1887,36 @@ export class TradeDocumentController {
       totals: snapshot.totals,
       terms: snapshot.terms,
       createdBy: null,
+      pairGroupId: `enquiry:${inquiryId}:QUOTATION`,
     };
 
     const createdSellerObaol = existingScopes.has("SELLER_OBAOL")
       ? existingDocs.find((doc: any) => String(doc?.audienceScope || "SELLER_OBAOL").toUpperCase() === "SELLER_OBAOL")
       : await TradeDocumentModel.create({
           ...basePayload,
+          ownerCompanyId: sellerCompanyId,
           documentNumber: sellerDocNumber,
           selectedTemplateId: sellerTemplate?._id || null,
           selectedTemplateVersion: sellerTemplate?.version || null,
           buyer: obaolSnapshot,
           seller: snapshot.seller,
           audienceScope: "SELLER_OBAOL",
+          pairLegKey: `enquiry:${inquiryId}:QUOTATION:SELLER_TO_OBAOL`,
+          direction: "SELLER_TO_OBAOL",
         });
 
     if (!existingScopes.has("OBAOL_BUYER")) {
       await TradeDocumentModel.create({
         ...basePayload,
+        ownerCompanyId: obaolCompanyId,
         documentNumber: obaolDocNumber,
         selectedTemplateId: obaolTemplate?._id || null,
         selectedTemplateVersion: obaolTemplate?.version || null,
         buyer: snapshot.buyer,
         seller: obaolSnapshot,
         audienceScope: "OBAOL_BUYER",
+        pairLegKey: `enquiry:${inquiryId}:QUOTATION:OBAOL_TO_BUYER`,
+        direction: "OBAOL_TO_BUYER",
       });
     }
 
@@ -1832,8 +1940,9 @@ export class TradeDocumentController {
     const obaolCompanyId = await resolveObaolCompanyId();
     if (!obaolCompanyId) return null;
 
-    const [sellerCompany, obaolCompany] = await Promise.all([
+    const [sellerCompany, buyerCompany, obaolCompany] = await Promise.all([
       AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),
+      snapshot.buyer?.companyId ? AssociateCompanyModel.findById(snapshot.buyer.companyId).select("name slug email phone address gstin logo").lean() : null,
       AssociateCompanyModel.findById(obaolCompanyId).select("name slug email phone address gstin").lean(),
     ]);
     if (!obaolCompany) return null;
@@ -1842,9 +1951,11 @@ export class TradeDocumentController {
     const obaolCompanyCode = buildCompanyCode(obaolCompany);
     const sellerDocNumber = await generateDocumentNumber(new Types.ObjectId(String(sellerCompanyId)), "LOI", sellerCompanyCode);
     const obaolDocNumber = await generateDocumentNumber(obaolCompanyId, "LOI", obaolCompanyCode);
+    const buyerDocNumber = buyerCompany?._id ? await generateDocumentNumber(buyerCompany._id, "LOI", buildCompanyCode(buyerCompany)) : obaolDocNumber;
     await ensureDefaultDocumentTemplate("LOI");
     const sellerTemplate: any = await resolveTemplateForRender("LOI", String(sellerCompanyId));
     const obaolTemplate: any = await resolveTemplateForRender("LOI", String(obaolCompanyId));
+    const buyerTemplate: any = buyerCompany?._id ? await resolveTemplateForRender("LOI", String(buyerCompany._id)) : obaolTemplate;
 
     const obaolSnapshot = {
       associateId: null,
@@ -1865,29 +1976,36 @@ export class TradeDocumentController {
       totals: snapshot.totals,
       terms: snapshot.terms,
       createdBy: null,
+      pairGroupId: `enquiry:${inquiryId}:LOI`,
     };
 
     const createdSellerObaol = existingScopes.has("SELLER_OBAOL")
       ? existingDocs.find((doc: any) => String(doc?.audienceScope || "SELLER_OBAOL").toUpperCase() === "SELLER_OBAOL")
       : await TradeDocumentModel.create({
           ...basePayload,
-          documentNumber: sellerDocNumber,
-          selectedTemplateId: sellerTemplate?._id || null,
-          selectedTemplateVersion: sellerTemplate?.version || null,
+          ownerCompanyId: obaolCompanyId,
+          documentNumber: obaolDocNumber,
+          selectedTemplateId: obaolTemplate?._id || null,
+          selectedTemplateVersion: obaolTemplate?.version || null,
           buyer: obaolSnapshot,
           seller: snapshot.seller,
           audienceScope: "SELLER_OBAOL",
+          pairLegKey: `enquiry:${inquiryId}:LOI:OBAOL_TO_SELLER`,
+          direction: "OBAOL_TO_SELLER",
         });
 
     if (!existingScopes.has("OBAOL_BUYER")) {
       await TradeDocumentModel.create({
         ...basePayload,
-        documentNumber: obaolDocNumber,
-        selectedTemplateId: obaolTemplate?._id || null,
-        selectedTemplateVersion: obaolTemplate?.version || null,
+        ownerCompanyId: buyerCompany?._id || obaolCompanyId,
+        documentNumber: buyerDocNumber,
+        selectedTemplateId: buyerTemplate?._id || null,
+        selectedTemplateVersion: buyerTemplate?.version || null,
         buyer: snapshot.buyer,
         seller: obaolSnapshot,
         audienceScope: "OBAOL_BUYER",
+        pairLegKey: `enquiry:${inquiryId}:LOI:BUYER_TO_OBAOL`,
+        direction: "BUYER_TO_OBAOL",
       });
     }
 

@@ -87,6 +87,8 @@ router.use(`${prefix}/commercial-documents`, commercialDocumentRoutes);
 // Trade documents
 import tradeDocumentRoutes from "./v1/tradeDocumentRoutes";
 router.use(`${prefix}/trade-documents`, tradeDocumentRoutes);
+import gstRoutes from "./v1/gstRoutes";
+router.use(`${prefix}/gst`, gstRoutes);
 import companyMailRoutes from "./v1/companyMailRoutes";
 router.use(`${prefix}/mail-connections`, companyMailRoutes);
 import whatsappRoutes from "./v1/whatsappRoutes";

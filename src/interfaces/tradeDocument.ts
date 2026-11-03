@@ -62,6 +62,13 @@ export interface ITradeDocumentLineItem {
   quantity?: number;
   unitPrice?: number;
   taxRate?: number;
+  hsnSac?: string;
+  taxableValue?: number;
+  cessRate?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  cess?: number;
   taxAmount?: number;
   total?: number;
 }
@@ -131,6 +138,18 @@ export interface ITradeDocument extends Document {
   lineItems: ITradeDocumentLineItem[];
   totals: ITradeDocumentTotals;
   terms: ITradeDocumentTerms;
+  gst?: {
+    registrationId?: Types.ObjectId | null;
+    placeOfSupply?: string;
+    recipientType?: "REGISTERED" | "UNREGISTERED" | "COMPOSITION" | "UIN";
+    supplyType?: "DOMESTIC" | "EXPORT" | "SEZ";
+    reverseCharge?: boolean;
+    noteType?: "CREDIT" | "DEBIT" | null;
+    originalInvoiceId?: Types.ObjectId | null;
+    exchangeRate?: number;
+    filingLockedAt?: Date | null;
+    filedReturnId?: Types.ObjectId | null;
+  };
   createdBy?: Types.ObjectId | null;
   isDemo?: boolean;
   demoTag?: string;

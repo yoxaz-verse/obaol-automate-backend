@@ -31,6 +31,10 @@ const LineItemSchema = new Schema(
     quantity: { type: Number, default: 0 },
     unitPrice: { type: Number, default: 0 },
     taxRate: { type: Number, default: 0 },
+    hsnSac: { type: String, default: "" },
+    taxableValue: { type: Number, default: 0 },
+    cessRate: { type: Number, default: 0 },
+    cgst: { type: Number, default: 0 }, sgst: { type: Number, default: 0 }, igst: { type: Number, default: 0 }, cess: { type: Number, default: 0 },
     taxAmount: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
     amount: { type: Number, default: 0 },
@@ -141,6 +145,7 @@ const TradeDocumentSchema: Schema = new Schema(
     lineItems: { type: [LineItemSchema], default: [] },
     totals: { type: TotalsSchema, default: {} },
     terms: { type: TermsSchema, default: {} },
+    gst: { type: new Schema({ registrationId: { type: Schema.Types.ObjectId, ref: "GstRegistration", default: null }, placeOfSupply: { type: String, default: "" }, recipientType: { type: String, enum: ["REGISTERED", "UNREGISTERED", "COMPOSITION", "UIN"], default: "UNREGISTERED" }, supplyType: { type: String, enum: ["DOMESTIC", "EXPORT", "SEZ"], default: "DOMESTIC" }, reverseCharge: { type: Boolean, default: false }, noteType: { type: String, enum: ["CREDIT", "DEBIT", null], default: null }, originalInvoiceId: { type: Schema.Types.ObjectId, ref: "TradeDocument", default: null }, exchangeRate: { type: Number, default: 1 }, filingLockedAt: { type: Date, default: null }, filedReturnId: { type: Schema.Types.ObjectId, ref: "GstReturn", default: null } }, { _id: false }), default: {} },
     payments: {
       type: [{ amount: { type: Number, required: true }, paidAt: { type: Date, required: true }, reference: { type: String, default: "" }, notes: { type: String, default: "" }, recordedBy: { type: Schema.Types.ObjectId, default: null } }],
       default: [],

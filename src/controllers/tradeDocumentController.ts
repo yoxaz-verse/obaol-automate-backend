@@ -179,7 +179,7 @@ const commercialItems = (body: any) => {
     const quantity = Number(item?.quantity), unitPrice = Number(item?.unitPrice), taxRate = Number(item?.taxRate || 0);
     if (!description || !unit || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0 || !Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) throw new Error("Check item description, unit, quantity, price and tax rate.");
     const amount = round2(quantity * unitPrice), taxAmount = round2(amount * taxRate / 100);
-    return { productId: toObjectId(item?.productId), productName: description, description, quantity, quantityMT: unit.toUpperCase() === "MT" ? quantity : 0, quantityKG: unit.toUpperCase() === "KG" ? quantity : 0, unit, unitPrice, ratePerKg: unit.toUpperCase() === "KG" ? unitPrice : 0, taxRate, amount, taxAmount, total: round2(amount + taxAmount) };
+    return { productId: toObjectId(item?.productId), productName: description, description, quantity, quantityMT: unit.toUpperCase() === "MT" ? quantity : 0, quantityKG: unit.toUpperCase() === "KG" ? quantity : 0, unit, unitPrice, ratePerKg: unit.toUpperCase() === "KG" ? unitPrice : 0, taxRate, hsnSac: String(item?.hsnSac || "").trim(), taxableValue: amount, cessRate: Number(item?.cessRate || 0), amount, taxAmount, total: round2(amount + taxAmount) };
   });
 };
 
@@ -1207,6 +1207,7 @@ export class TradeDocumentController {
 
       const existing = await TradeDocumentModel.findById(id).lean();
       if (!existing || (existing as any).isDeleted) return res.status(404).json({ success: false, message: "Document not found." });
+      if ((existing as any)?.gst?.filingLockedAt) return res.status(409).json({ success: false, code: "GST_INVOICE_LOCKED", message: "This invoice is included in a filed GST return. Create a credit/debit note or amendment instead." });
 
       const standaloneOwner = isAssociateRole(role) && String((existing as any)?.ownerCompanyId || "") && String((existing as any)?.status || "") === "DRAFT"
         ? await approvedAssociateCompany(req, res)

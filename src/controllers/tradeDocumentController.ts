@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from "express";
 import { Types } from "mongoose";
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
-import { SystemConfigModel } from "../database/models/systemConfig";
 import { DocumentSequenceModel } from "../database/models/documentSequence";
 import { InquiryModel } from "../database/models/enquiry";
 import { OrderModel } from "../database/models/order";
@@ -30,6 +29,7 @@ import { TradeDocumentDecisionOtpModel } from "../database/models/tradeDocumentD
 import { resolvePublicFrontendUrl } from "../utils/publicFrontendUrl";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
+import { obaolConfigMessage, resolveObaolCompany } from "../utils/obaolCompanyConfig";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -372,15 +372,9 @@ const canPerspectiveSeeAudience = (perspective: OperatorPerspective, scope: any)
   return false;
 };
 
-const OBAOL_COMPANY_KEY = "OBAOL_COMPANY_ID";
-
 const resolveObaolCompanyId = async (): Promise<Types.ObjectId | null> => {
-  const envId = String(process.env.OBAOL_COMPANY_ID || "").trim();
-  if (envId && Types.ObjectId.isValid(envId)) return new Types.ObjectId(envId);
-  const config = await SystemConfigModel.findOne({ key: OBAOL_COMPANY_KEY }).lean();
-  const configId = String(config?.value || "").trim();
-  if (configId && Types.ObjectId.isValid(configId)) return new Types.ObjectId(configId);
-  return null;
+  const resolved = await resolveObaolCompany();
+  return resolved.companyId;
 };
 
 const buildSnapshotFromEnquiry = async (enquiry: IInquiry, inventoryReservationId?: Types.ObjectId | null) => {
@@ -523,6 +517,35 @@ const generateDocumentNumber = async (companyId: Types.ObjectId, docType: string
 };
 
 export class TradeDocumentController {
+  async readiness(req: Request, res: Response, next: NextFunction) {
+    try {
+      const type = String(req.query?.type || "").trim().toUpperCase();
+      if (type !== "QUOTATION") {
+        return res.status(400).json({ success: false, message: "Readiness is only available for quotations." });
+      }
+
+      const enquiryId = toObjectId(req.query?.enquiryId);
+      if (!enquiryId) {
+        return res.status(400).json({ success: false, message: "Valid enquiryId is required." });
+      }
+      const enquiryExists = await InquiryModel.exists({ _id: enquiryId });
+      if (!enquiryExists) return res.status(404).json({ success: false, message: "Enquiry not found." });
+
+      const resolved = await resolveObaolCompany();
+      const ready = resolved.status === "CONFIGURED";
+      return res.json({
+        success: true,
+        data: {
+          canCreate: ready,
+          reasonCode: ready ? "READY" : resolved.status === "MISSING" ? "CONFIG_MISSING" : "CONFIG_INVALID",
+          message: ready ? "Quotation creation is ready." : obaolConfigMessage(resolved.status),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const role = normalizeRole(req.user?.role);
@@ -661,18 +684,16 @@ export class TradeDocumentController {
       const sellerCompanyId = snapshot.seller?.companyId || null;
       if (!sellerCompanyId) return res.status(400).json({ success: false, message: "Seller company is missing." });
 
-      const obaolCompanyId = await resolveObaolCompanyId();
-      if (!obaolCompanyId) {
-        return res.status(400).json({ success: false, message: "OBAOL company configuration is missing. Set it in Dashboard → Company." });
-      }
+      const obaolResolution = await resolveObaolCompany();
+      const obaolCompanyId = obaolResolution.companyId;
+      if (!obaolCompanyId) return res.status(400).json({
+        success: false,
+        code: obaolResolution.status === "MISSING" ? "CONFIG_MISSING" : "CONFIG_INVALID",
+        message: obaolConfigMessage(obaolResolution.status),
+      });
 
-      const [sellerCompany, obaolCompany] = await Promise.all([
-        AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean(),
-        AssociateCompanyModel.findById(obaolCompanyId).select("name slug email phone address gstin").lean(),
-      ]);
-      if (!obaolCompany) {
-        return res.status(400).json({ success: false, message: "OBAOL company configuration is invalid." });
-      }
+      const sellerCompany = await AssociateCompanyModel.findById(sellerCompanyId).select("name slug email phone address gstin").lean();
+      const obaolCompany = obaolResolution.company;
 
       const sellerCompanyCode = buildCompanyCode(sellerCompany);
       const obaolCompanyCode = buildCompanyCode(obaolCompany);

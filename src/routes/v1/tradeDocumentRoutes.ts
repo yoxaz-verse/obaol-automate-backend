@@ -12,6 +12,7 @@ router.get("/recipient-directory", authenticateToken, controller.listRecipientDi
 router.post("/customers", authenticateToken, controller.createCustomer.bind(controller));
 router.patch("/customers/:id", authenticateToken, controller.updateCustomer.bind(controller));
 router.get("/summary", authenticateToken, controller.summary.bind(controller));
+router.get("/readiness", authenticateToken, controller.readiness.bind(controller));
 router.post("/upload", authenticateToken, documentUpload.single("file"), controller.uploadAndExtract.bind(controller));
 router.get("/extractions/:jobId", authenticateToken, controller.extraction.bind(controller));
 router.post("/extractions/:jobId/confirm", authenticateToken, controller.confirmExtraction.bind(controller));

@@ -15,8 +15,7 @@ import {
   saveAuthEmailTemplateDraft,
 } from "../utils/authEmailTemplates";
 import { sendAuthTemplateTestEmail } from "../utils/mailer";
-
-const OBAOL_COMPANY_KEY = "OBAOL_COMPANY_ID";
+import { OBAOL_COMPANY_KEY, resolveObaolCompany } from "../utils/obaolCompanyConfig";
 
 const isAdmin = (role: unknown) => String(role || "").toLowerCase() === "admin";
 const isFiniteNonNegative = (value: any) => Number.isFinite(Number(value)) && Number(value) >= 0;
@@ -33,17 +32,14 @@ class SystemConfigController {
         return res.status(403).json({ success: false, message: "Admin access required." });
       }
 
-      const row = await SystemConfigModel.findOne({ key: OBAOL_COMPANY_KEY }).lean();
-      const companyIdRaw = String(row?.value || "").trim();
-      const company = companyIdRaw && Types.ObjectId.isValid(companyIdRaw)
-        ? await AssociateCompanyModel.findById(companyIdRaw).select("name email phone address gstin slug").lean()
-        : null;
+      const resolved = await resolveObaolCompany();
 
       return res.json({
         success: true,
         data: {
-          companyId: companyIdRaw || null,
-          company,
+          companyId: resolved.status === "CONFIGURED" ? String(resolved.companyId) : null,
+          company: resolved.company,
+          status: resolved.status,
         },
       });
     } catch (error) {
@@ -78,6 +74,7 @@ class SystemConfigController {
         data: {
           companyId: companyIdRaw,
           company,
+          status: "CONFIGURED",
         },
         message: "OBAOL company configuration updated.",
       });

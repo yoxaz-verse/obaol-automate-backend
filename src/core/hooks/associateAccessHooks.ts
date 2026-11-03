@@ -1,5 +1,7 @@
 import { CatalogItemModel } from "../../database/models/catalogItem";
 import { AssociateModel } from "../../database/models/associate";
+import { AssociateCompanyModel } from "../../database/models/associateCompany";
+import { normalizeCompanyFunctionSlug } from "../../utils/companyCapabilities";
 
 const EMPTY_QUERY = { _id: "000000000000000000000000" };
 
@@ -15,7 +17,39 @@ const stripControlQueryKeys = (input: any) => {
     delete cleaned.limit;
     delete cleaned.sort;
     delete cleaned.search;
+    delete cleaned.companyCapability;
     return cleaned;
+};
+
+export const associateCompanyCapabilityFilterHook = async (
+    query: any,
+    _mode: string,
+    _id: string | undefined,
+    req: any,
+): Promise<any> => {
+    const requestedCapability = String(req?.query?.companyCapability || query?.companyCapability || "").trim();
+    if (!requestedCapability) return query;
+
+    const cleanedQuery = { ...(query || {}) };
+    delete cleanedQuery.companyCapability;
+
+    if (String(req?.user?.role || "").toLowerCase() !== "admin") {
+        const error: any = new Error("Company capability filtering is restricted to administrators.");
+        error.statusCode = 403;
+        throw error;
+    }
+
+    const capability = normalizeCompanyFunctionSlug(requestedCapability);
+    if (!capability) return mergeWithScope(cleanedQuery, EMPTY_QUERY);
+
+    const companyIds = await AssociateCompanyModel.distinct("_id", {
+        providedCapabilities: capability,
+        isDeleted: { $ne: true },
+    });
+
+    return mergeWithScope(cleanedQuery, {
+        associateCompany: { $in: companyIds },
+    });
 };
 
 /**

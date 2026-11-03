@@ -1,7 +1,7 @@
 import { HookDispatcher } from "./hook.dispatcher";
 import { ExecutionMode } from "../types";
 import { operatorFilterHook } from "./operatorAccessHooks";
-import { associateFilterHook } from "./associateAccessHooks";
+import { associateCompanyCapabilityFilterHook, associateFilterHook } from "./associateAccessHooks";
 import { companyStatsHook } from "./companyStatsHooks";
 import { categoryFilterHook } from "./categoryHooks";
 import { orderFilterHook } from "./orderAccessHooks";
@@ -67,7 +67,8 @@ export const registerAllHooks = () => {
     HookDispatcher.registerPostWrite("enquiries", enquiryInventoryReservationHook);
     HookDispatcher.registerPreRead("associates", async (query, mode, id, req) => {
         let q = await operatorFilterHook(query, mode, id, req);
-        return await associateFilterHook(q, mode, id, req);
+        q = await associateFilterHook(q, mode, id, req);
+        return await associateCompanyCapabilityFilterHook(q, mode, id, req);
     });
     HookDispatcher.registerPreRead("orders", orderFilterHook);
     HookDispatcher.registerPostRead("associates", associateReadNormalizationHook);

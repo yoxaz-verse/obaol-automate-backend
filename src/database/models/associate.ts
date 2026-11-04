@@ -128,6 +128,7 @@ associateSchema.pre("findOneAndUpdate", function (next) {
         payload.phone = normalizedPrimary.e164;
         payload.phoneCountryCode = normalizedPrimary.countryCode;
         payload.phoneNational = normalizedPrimary.national;
+        if (!Object.prototype.hasOwnProperty.call(payload, "isPhoneVerified")) payload.isPhoneVerified = false;
     }
 
     if (hasSecondaryPhone && String(payload.phoneSecondary || "").trim()) {
@@ -152,6 +153,7 @@ associateSchema.pre("findOneAndUpdate", function (next) {
 });
 
 associateSchema.plugin(passwordPlugin);
+associateSchema.index({ phone: 1 });
 
 export const AssociateModel = mongoose.model<IAssociateDocument>(
     "Associate",

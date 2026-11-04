@@ -12,6 +12,7 @@ import { AuthSessionModel } from "../database/models/authSession";
 import { requireApprovedAssociateCompany } from "../utils/companyApprovalAccess";
 import { generateJWTToken } from "../utils/tokenUtils";
 import { getAuthCookieOptions } from "../utils/cookieOptions";
+import { accountVerificationStatus } from "../utils/accountVerification";
 import {
   PERSISTENT_SESSION_DURATION_MS,
   isPersistentSessionToken,
@@ -25,7 +26,7 @@ export interface DecodedToken {
   associateCompany?: string | null;
   sessionId?: string;
   persistent?: boolean;
-  authStage?: "email_verification";
+  authStage?: "email_verification" | "account_verification";
   iat: number;
   exp: number;
 }
@@ -61,8 +62,8 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
     if (decoded.authStage) {
       return res.status(401).json({
         success: false,
-        code: "EMAIL_VERIFICATION_REQUIRED",
-        message: "Please verify your email OTP before continuing.",
+        code: "ACCOUNT_VERIFICATION_REQUIRED",
+        message: "Please verify your email and WhatsApp number before continuing.",
       });
     }
     if (decoded.sessionId) {
@@ -101,6 +102,22 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
       }
     }
     req.user = decoded;
+
+    if (["associate", "operator", "team"].includes(String(decoded.role || "").toLowerCase())) {
+      const model: any = String(decoded.role || "").toLowerCase() === "associate" ? AssociateModel : OperatorModel;
+      const account: any = await model.findById(decoded.id).select("email phone isEmailVerified isPhoneVerified createdAt").lean();
+      const verification = accountVerificationStatus(account);
+      const originalPath = String(req.originalUrl || req.path || "");
+      const allowedWhileRestricted = ["/verification/", "/verify-token", "/logout", "/profile", "/support"].some((part) => originalPath.includes(part));
+      if (verification.verificationRequired && !allowedWhileRestricted) {
+        return res.status(403).json({
+          success: false,
+          code: "ACCOUNT_VERIFICATION_REQUIRED",
+          message: "Verify both your email and WhatsApp number to continue.",
+          verification,
+        });
+      }
+    }
 
     // Non-blocking presence update (throttled to 60s)
     const roleLower = String(decoded.role || "").toLowerCase();
@@ -174,7 +191,7 @@ export const authenticateEmailVerificationToken = async (req: Request, res: Resp
     if (!decoded.authStage) {
       return authenticateToken(req, res, next);
     }
-    if (decoded.authStage !== "email_verification") {
+    if (!["email_verification", "account_verification"].includes(String(decoded.authStage))) {
       return res.status(401).json({ success: false, message: "Invalid email verification session." });
     }
 
@@ -185,14 +202,14 @@ export const authenticateEmailVerificationToken = async (req: Request, res: Resp
     }
 
     const user = await model.findById(decoded.id)
-      .select("email authProvider isEmailVerified onboardingComplete isDeleted")
+      .select("email authProvider isEmailVerified isPhoneVerified onboardingComplete isDeleted")
       .lean();
     const tokenEmail = String(decoded.email || "").trim().toLowerCase();
     const accountEmail = String(user?.email || "").trim().toLowerCase();
     const validDraft = Boolean(user)
       && tokenEmail === accountEmail
       && String(user?.authProvider || "LOCAL").toUpperCase() === "LOCAL"
-      && user?.isEmailVerified !== true
+      && !(user?.isEmailVerified === true && user?.isPhoneVerified === true)
       && user?.onboardingComplete !== true
       && user?.isDeleted !== true;
     if (!validDraft) {

@@ -33,6 +33,21 @@ describe("canonical document HTML rendering", () => {
     const html = renderDocumentHtml({ ...document, type: "PURCHASE_ORDER" }, { name: "Classic", version: 1, layoutSchema: { elements: [] } });
     expect(html.indexOf("Yoxaz Verse")).toBeLessThan(html.indexOf("OBAOL Supreme"));
   });
+
+  it("renders a dedicated Bill of Lading draft with carrier warning and cargo particulars", () => {
+    const html = renderDocumentHtml({ ...document, type: "BILL_OF_LADING", sourceMode: "CREATED", documentData: { shipper: "OBAOL Exporter", consignee: "Overseas Buyer", billNumber: "BL-100", carrier: "Ocean Line", vessel: "MV Trade / 12", portOfLoading: "Cochin", portOfDischarge: "Dubai", cargoDescription: "Bagged cardamom", totalGrossWeight: 1200, packages: [{ description: "Cardamom", packageType: "Bag", packageCount: 40, grossWeight: 1200, netWeight: 1160, marks: "OBL" }], issuePlace: "Cochin", transportIssueDate: "2026-11-04", authorizedSignatory: "Carrier Agent" } }, { name: "Trade", version: 1, layoutSchema: { elements: [] } });
+    expect(html).toContain("DRAFT — NOT CARRIER ISSUED");
+    expect(html).toContain("Ocean carriage particulars");
+    expect(html).toContain("MV Trade / 12");
+    expect(html).toContain("Bagged cardamom");
+  });
+
+  it("renders a dedicated Air Waybill without a draft warning for an uploaded original", () => {
+    const html = renderDocumentHtml({ ...document, type: "AIR_WAYBILL", sourceMode: "UPLOADED", documentData: { shipper: "OBAOL Exporter", consignee: "Overseas Buyer", issuingCarrierAgent: "Cargo Agent", airWaybillNumber: "098-12345675", carrier: "Air Cargo", originAirport: "COK", destinationAirport: "DXB", cargoDescription: "Fresh produce", chargeableWeight: 500, packages: [], issuePlace: "Cochin", transportIssueDate: "2026-11-04", authorizedSignatory: "Airline Agent" } }, { name: "Trade", version: 1, layoutSchema: { elements: [] } });
+    expect(html).toContain("Air carriage particulars");
+    expect(html).toContain("098-12345675");
+    expect(html).not.toContain("DRAFT — NOT CARRIER ISSUED");
+  });
 });
 
 describe("dynamic document template presets", () => {

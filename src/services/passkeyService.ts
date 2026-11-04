@@ -10,6 +10,7 @@ import { AuthChallengeModel } from "../database/models/authChallenge";
 import { AuthPasskeyModel } from "../database/models/authPasskey";
 import { VerificationModel } from "../database/models/verification";
 import logger from "../utils/apiLogger";
+import { normalizePhoneInput } from "../utils/phone";
 import {
   getAuthModelForRole,
   getAuthNextPath,
@@ -54,17 +55,19 @@ const normalizeEmail = (email: any) => String(email || "").trim().toLowerCase();
 
 const getUserForRole = async (role: any, email?: any, id?: any) => {
   if (!role && email && !id) {
-    const normalizedEmail = normalizeEmail(email);
+    const identifier = String(email || "").trim();
+    const query = identifier.includes("@") ? { email: normalizeEmail(identifier) } : { phone: normalizePhoneInput({ rawPhone: identifier }).e164 };
     const [operator, associate] = await Promise.all([
-      getAuthModelForRole("Operator").model.findOne({ email: normalizedEmail }),
-      getAuthModelForRole("Associate").model.findOne({ email: normalizedEmail }),
+      getAuthModelForRole("Operator").model.findOne(query),
+      getAuthModelForRole("Associate").model.findOne(query),
     ]);
     if (operator) return { canonicalRole: "Operator", user: operator };
     if (associate) return { canonicalRole: "Associate", user: associate };
   }
   const { canonicalRole, model } = getAuthModelForRole(role);
   if (!canonicalRole || !model) return { canonicalRole: "", user: null };
-  const query = id ? { _id: id } : { email: normalizeEmail(email) };
+  const identifier = String(email || "").trim();
+  const query = id ? { _id: id } : identifier.includes("@") ? { email: normalizeEmail(identifier) } : { phone: normalizePhoneInput({ rawPhone: identifier }).e164 };
   const user = await model.findOne(query);
   return { canonicalRole, user };
 };
@@ -224,8 +227,8 @@ export const verifyPasskeyRegistration = async (req: Request, res: Response) => 
 
 export const generatePasskeyAuthenticationOptions = async (req: Request, res: Response) => {
   try {
-    const { email, role } = req.body || {};
-    const { canonicalRole, user } = await getUserForRole(role, email);
+    const { email, identifier, role } = req.body || {};
+    const { canonicalRole, user } = await getUserForRole(role, identifier || email);
     const accountAllowed = Boolean(canonicalRole && user && isAccountAllowed(user, canonicalRole));
     const passkeys = accountAllowed
       ? await AuthPasskeyModel.find({ userId: user._id, role: canonicalRole, revokedAt: null }).lean()
@@ -246,8 +249,8 @@ export const generatePasskeyAuthenticationOptions = async (req: Request, res: Re
 
 export const verifyPasskeyAuthentication = async (req: Request, res: Response) => {
   try {
-    const { email, role, response, rememberMe } = req.body || {};
-    const { canonicalRole, user } = await getUserForRole(role, email);
+    const { email, identifier, role, response, rememberMe } = req.body || {};
+    const { canonicalRole, user } = await getUserForRole(role, identifier || email);
     if (!canonicalRole || !user || !isAccountAllowed(user, canonicalRole) || !response?.id) {
       return res.status(400).json({ success: false, message: "Passkey sign-in failed." });
     }

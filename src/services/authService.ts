@@ -318,6 +318,14 @@ const hasVerifiedOnboardingEmail = async (userDoc: any, role: "Associate" | "Ope
     return { ok: true };
 };
 
+const hasVerifiedOnboardingPhone = (userDoc: any, requestedPhone: any, requestedCountryCode?: any, requestedNational?: any) => {
+    const current = normalizePhoneInput({ rawPhone: userDoc?.phone, rawCountryCode: userDoc?.phoneCountryCode, rawNational: userDoc?.phoneNational });
+    const requested = normalizePhoneInput({ rawPhone: requestedPhone, rawCountryCode: requestedCountryCode, rawNational: requestedNational });
+    if (!current.e164 || current.e164 !== requested.e164) return { ok: false, message: "Verified WhatsApp number cannot be changed during onboarding. Update and re-verify the number first." };
+    if (userDoc?.isPhoneVerified !== true) return { ok: false, message: "Please verify your WhatsApp OTP before completing onboarding." };
+    return { ok: true };
+};
+
 export const issueAuthCookie = async (res: Response, userForToken: any, rememberMe = false) => {
     const jwtExpiresIn = rememberMe ? "30d" : "2h";
     const cookieMaxAge = rememberMe ? PERSISTENT_SESSION_DURATION_MS : TRANSIENT_SESSION_DURATION_MS;
@@ -631,15 +639,19 @@ export const authenticateUser = async (req: Request, res: Response) => {
 
 export const authenticateUnifiedUser = async (req: Request, res: Response) => {
     try {
-        const email = String(req.body?.email || "").trim().toLowerCase();
+        const identifier = String(req.body?.identifier || req.body?.email || "").trim().toLowerCase();
         const password = String(req.body?.password || "");
-        if (!email || !password) {
-            return res.status(400).json({ success: false, code: "INVALID_CREDENTIALS", message: "Email and password are required." });
+        if (!identifier || !password) {
+            return res.status(400).json({ success: false, code: "INVALID_CREDENTIALS", message: "Email or mobile number and password are required." });
         }
 
+        const identifierFilter = identifier.includes("@")
+            ? { email: identifier }
+            : { phone: normalizePhoneInput({ rawPhone: identifier }).e164 };
+
         const [operator, associate] = await Promise.all([
-            OperatorModel.findOne({ email }),
-            AgentModel.findOne({ email }),
+            OperatorModel.findOne(identifierFilter),
+            AgentModel.findOne(identifierFilter),
         ]);
         const user: any = operator || associate;
         const role = operator ? "Operator" : associate ? "Associate" : "";
@@ -902,15 +914,19 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                     message: "An account already exists for this email. Please sign in.",
                 });
             }
+            const socialPhone = normalizePhoneInput({ rawPhone: req.body?.phone, rawCountryCode: req.body?.phoneCountryCode });
+            if (!socialPhone.e164 || socialPhone.national.length < 7) return res.status(400).json({ success: false, message: "A valid WhatsApp number with country code is required." });
+            const phoneOwner = await Promise.all([OperatorModel.exists({ phone: socialPhone.e164, isDeleted: { $ne: true } }), AgentModel.exists({ phone: socialPhone.e164, isDeleted: { $ne: true } })]);
+            if (phoneOwner.some(Boolean)) return res.status(409).json({ success: false, code: "ACCOUNT_EXISTS", message: "An account already uses this mobile number. Please sign in." });
             const displayName = String(googlePayload.name || "").trim() || deriveDisplayName(email);
             const generatedPassword = generateRandomPassword();
             if (role === "Operator") {
                 const operator = await OperatorModel.create({
                     name: displayName,
                     email,
-                    phone: DRAFT_PHONE_E164,
-                    phoneCountryCode: DRAFT_PHONE_COUNTRY,
-                    phoneNational: DRAFT_PHONE_NATIONAL,
+                    phone: socialPhone.e164,
+                    phoneCountryCode: socialPhone.countryCode,
+                    phoneNational: socialPhone.national,
                     password: generatedPassword,
                     address: DRAFT_OPERATOR_ADDRESS,
                     authProvider: "GOOGLE",
@@ -942,9 +958,9 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
             const associate = await AgentModel.create({
                 name: displayName,
                 email,
-                phone: DRAFT_PHONE_E164,
-                phoneCountryCode: DRAFT_PHONE_COUNTRY,
-                phoneNational: DRAFT_PHONE_NATIONAL,
+                phone: socialPhone.e164,
+                phoneCountryCode: socialPhone.countryCode,
+                phoneNational: socialPhone.national,
                 password: generatedPassword,
                 authProvider: "GOOGLE",
                 googleSub: googlePayload.sub,
@@ -1039,15 +1055,19 @@ export const authenticateApple = async (req: Request, res: Response) => {
 
         if (existingRole) return res.status(409).json({ success: false, code: "ACCOUNT_EXISTS", message: "An account already exists for this email. Please sign in." });
         if (!applePayload.email_verified) return res.status(400).json({ success: false, code: "EMAIL_NOT_VERIFIED", message: "Apple did not provide a verified email." });
+        const applePhone = normalizePhoneInput({ rawPhone: req.body?.phone, rawCountryCode: req.body?.phoneCountryCode });
+        if (!applePhone.e164 || applePhone.national.length < 7) return res.status(400).json({ success: false, message: "A valid WhatsApp number with country code is required." });
+        const applePhoneOwner = await Promise.all([OperatorModel.exists({ phone: applePhone.e164, isDeleted: { $ne: true } }), AgentModel.exists({ phone: applePhone.e164, isDeleted: { $ne: true } })]);
+        if (applePhoneOwner.some(Boolean)) return res.status(409).json({ success: false, code: "ACCOUNT_EXISTS", message: "An account already uses this mobile number. Please sign in." });
         const displayName = suppliedName || deriveDisplayName(email);
         const generatedPassword = generateRandomPassword();
         if (role === "Operator") {
-            const operator: any = await OperatorModel.create({ name: displayName, email, phone: DRAFT_PHONE_E164, phoneCountryCode: DRAFT_PHONE_COUNTRY, phoneNational: DRAFT_PHONE_NATIONAL, password: generatedPassword, address: DRAFT_OPERATOR_ADDRESS, authProvider: "APPLE", appleSub: applePayload.sub, appleEmailVerified: true, isEmailVerified: true, onboardingComplete: false });
+            const operator: any = await OperatorModel.create({ name: displayName, email, phone: applePhone.e164, phoneCountryCode: applePhone.countryCode, phoneNational: applePhone.national, password: generatedPassword, address: DRAFT_OPERATOR_ADDRESS, authProvider: "APPLE", appleSub: applePayload.sub, appleEmailVerified: true, isEmailVerified: true, onboardingComplete: false });
             await VerificationModel.create({ userId: String(operator._id), userType: "Operator", method: "email", code: "APPLE_VERIFIED", expiresAt: new Date(Date.now() + 31536000000), ipAddress: String(req.ip || ""), userAgent: String(req.headers["user-agent"] || ""), verified: true });
             await issueAuthCookie(res, { ...operator.toObject(), role: "Operator" }, rememberMe);
             return res.json({ success: true, next: "/dashboard/onboarding", user: { id: operator._id, email, name: displayName, role: "Operator" } });
         }
-        const associate: any = await AgentModel.create({ name: displayName, email, phone: DRAFT_PHONE_E164, phoneCountryCode: DRAFT_PHONE_COUNTRY, phoneNational: DRAFT_PHONE_NATIONAL, password: generatedPassword, authProvider: "APPLE", appleSub: applePayload.sub, appleEmailVerified: true, isEmailVerified: true, onboardingComplete: false, hasCompany: false, companyMode: "none" });
+        const associate: any = await AgentModel.create({ name: displayName, email, phone: applePhone.e164, phoneCountryCode: applePhone.countryCode, phoneNational: applePhone.national, password: generatedPassword, authProvider: "APPLE", appleSub: applePayload.sub, appleEmailVerified: true, isEmailVerified: true, onboardingComplete: false, hasCompany: false, companyMode: "none" });
         await VerificationModel.create({ userId: String(associate._id), userType: "Associate", method: "email", code: "APPLE_VERIFIED", expiresAt: new Date(Date.now() + 31536000000), ipAddress: String(req.ip || ""), userAgent: String(req.headers["user-agent"] || ""), verified: true });
         await issueAuthCookie(res, { ...associate.toObject(), role: "Associate", associateCompany: associate.associateCompany }, rememberMe);
         return res.json({ success: true, next: "/dashboard/onboarding", user: { id: associate._id, email, name: displayName, role: "Associate" } });
@@ -1648,6 +1668,11 @@ export const registerAssociate = async (req: Request, res: Response) => {
 export const startOnboarding = async (req: Request, res: Response) => {
     try {
         const emailRaw = String(req.body?.email || "").trim().toLowerCase();
+        const requireDualVerification = Boolean(String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim());
+        const suppliedPhone = String(req.body?.phone || "").trim();
+        const normalizedPhone = suppliedPhone
+            ? normalizePhoneInput({ rawPhone: suppliedPhone, rawCountryCode: req.body?.phoneCountryCode })
+            : { e164: DRAFT_PHONE_E164, countryCode: DRAFT_PHONE_COUNTRY, national: DRAFT_PHONE_NATIONAL };
         const role = String(req.body?.role || "").trim();
         const now = Date.now();
         const draftWindowMs = 2 * 60 * 60 * 1000; // 2 hours
@@ -1658,20 +1683,22 @@ export const startOnboarding = async (req: Request, res: Response) => {
             message: "An account already exists for this email. Please sign in.",
         };
 
-        if (!emailRaw || !role) {
-            return res.status(400).json({ success: false, message: "Email and role are required." });
+        if (!emailRaw || (requireDualVerification && (!suppliedPhone || !normalizedPhone.e164 || normalizedPhone.national.length < 7)) || !role) {
+            return res.status(400).json({ success: false, message: "Email, international mobile number, and role are required." });
         }
         if (role !== "Associate" && role !== "Operator") {
             return res.status(400).json({ success: false, message: "Role must be Associate or Operator." });
         }
 
-        const [admin, projectManager, inventoryManager, supportAgent, operator, associate] = await Promise.all([
+        const [admin, projectManager, inventoryManager, supportAgent, operator, associate, phoneOperator, phoneAssociate] = await Promise.all([
             AdminModel.findOne({ email: emailRaw }).select("_id").lean(),
             ProjectManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
             InventoryManagerModel.findOne({ email: emailRaw }).select("_id").lean(),
             CustomerSupportAgentModel.findOne({ email: emailRaw }).select("_id").lean(),
             OperatorModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes isActive isDeleted").lean(),
             AgentModel.findOne({ email: emailRaw }).select("_id onboardingComplete authProvider registrationSource createdAt isEmailVerified registrationStatus reviewNotes isActive isDeleted").lean(),
+            OperatorModel.findOne({ phone: normalizedPhone.e164, isDeleted: { $ne: true } }).select("_id").lean(),
+            AgentModel.findOne({ phone: normalizedPhone.e164, isDeleted: { $ne: true } }).select("_id").lean(),
         ]);
 
         const isDraftWithinWindow = (user: any) => {
@@ -1711,7 +1738,9 @@ export const startOnboarding = async (req: Request, res: Response) => {
             : operatorDoc ? "Operator"
             : associateDoc ? "Associate"
             : null;
-        if (existingRole) {
+        const phoneBelongsToRestartedDraft = (phoneOperator && operator && String(phoneOperator._id) === String(operator._id) && !operatorDoc)
+            || (phoneAssociate && associate && String(phoneAssociate._id) === String(associate._id) && !associateDoc);
+        if (existingRole || ((phoneOperator || phoneAssociate) && !phoneBelongsToRestartedDraft)) {
             res.setHeader("Cache-Control", "no-store");
             return res.status(409).json(accountExistsResponse);
         }
@@ -1723,9 +1752,9 @@ export const startOnboarding = async (req: Request, res: Response) => {
             const newOperator = await OperatorModel.create({
                 name: displayName,
                 email: emailRaw,
-                phone: DRAFT_PHONE_E164,
-                phoneCountryCode: DRAFT_PHONE_COUNTRY,
-                phoneNational: DRAFT_PHONE_NATIONAL,
+                phone: normalizedPhone.e164,
+                phoneCountryCode: normalizedPhone.countryCode,
+                phoneNational: normalizedPhone.national,
                 password: generatedPassword,
                 address: DRAFT_OPERATOR_ADDRESS,
                 authProvider: "LOCAL",
@@ -1745,9 +1774,9 @@ export const startOnboarding = async (req: Request, res: Response) => {
         const newAssociate = await AgentModel.create({
             name: displayName,
             email: emailRaw,
-            phone: DRAFT_PHONE_E164,
-            phoneCountryCode: DRAFT_PHONE_COUNTRY,
-            phoneNational: DRAFT_PHONE_NATIONAL,
+            phone: normalizedPhone.e164,
+            phoneCountryCode: normalizedPhone.countryCode,
+            phoneNational: normalizedPhone.national,
             password: generatedPassword,
             authProvider: "LOCAL",
             isEmailVerified: false,
@@ -1836,6 +1865,10 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             const verifiedEmail = await hasVerifiedOnboardingEmail(associate, "Associate", email);
             if (!verifiedEmail.ok) {
                 return res.status(400).json({ success: false, message: verifiedEmail.message });
+            }
+            if (String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim()) {
+                const verifiedPhone = hasVerifiedOnboardingPhone(associate, phone, phoneCountryCode, phoneNational);
+                if (!verifiedPhone.ok) return res.status(400).json({ success: false, message: verifiedPhone.message });
             }
 
             if (String(associate.authProvider || "LOCAL").toUpperCase() !== "GOOGLE") {
@@ -2092,6 +2125,10 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             const verifiedEmail = await hasVerifiedOnboardingEmail(operator, "Operator", email);
             if (!verifiedEmail.ok) {
                 return res.status(400).json({ success: false, message: verifiedEmail.message });
+            }
+            if (String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim()) {
+                const verifiedPhone = hasVerifiedOnboardingPhone(operator, phone, phoneCountryCode, phoneNational);
+                if (!verifiedPhone.ok) return res.status(400).json({ success: false, message: verifiedPhone.message });
             }
             const locationGeoType = String(geoType || "INDIAN").toUpperCase() === "INTERNATIONAL" ? "INTERNATIONAL" : "INDIAN";
             if (locationGeoType === "INDIAN" && (!state || !district)) {

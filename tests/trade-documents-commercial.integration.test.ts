@@ -89,6 +89,10 @@ describe("canonical standalone trade documents", () => {
     }
     expect((await api.post(base).set("Authorization", `Bearer ${owner.token}`).send({ type: "PACKING_LIST", customerId: common.customerId, documentData: { shipmentReference: "SHIP-1", packages: [{ description: "Spice cartons", packageType: "Carton", packageCount: 2, grossWeight: 22, netWeight: 20 }] } })).status).toBe(201);
     expect((await api.post(base).set("Authorization", `Bearer ${owner.token}`).send({ type: "QUALITY_CERTIFICATE", customerId: common.customerId, documentData: { commodity: "Cardamom", sampleId: "S-1", batchLot: "B-1", tests: [{ parameter: "Moisture", result: "8", unit: "%" }] } })).status).toBe(201);
+    const bol = await api.post(base).set("Authorization", `Bearer ${owner.token}`).send({ ...common, type: "BILL_OF_LADING", documentData: { shipper: owner.company.name, consignee: referred.company.name, billNumber: "BL-100", carrier: "Ocean Line", vessel: "MV Trade / 12", portOfLoading: "Cochin", portOfDischarge: "Dubai", freightTerms: "Freight prepaid", cargoDescription: "Bagged cardamom", totalGrossWeight: 1200, packages: [{ description: "Cardamom", packageType: "Bag", packageCount: 40, grossWeight: 1200, netWeight: 1160 }], issuePlace: "Cochin", transportIssueDate: "2026-11-04", authorizedSignatory: "Carrier Agent" } });
+    expect(bol.status).toBe(201);
+    expect(bol.body.data.authorityLabel).toBe("OBAOL draft");
+    expect((await api.post(`${base}/${bol.body.data._id}/issue`).set("Authorization", `Bearer ${owner.token}`).send({})).status).toBe(409);
   });
 
   it("keeps issued documents immutable and allows seller-recorded external decisions", async () => {

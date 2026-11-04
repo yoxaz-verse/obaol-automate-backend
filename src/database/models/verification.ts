@@ -11,8 +11,14 @@ export interface IVerification extends Document {
   | "Admin"
   | "ProjectManager"
   | "Operator"; // extend as needed
-  method: "email" | "phone";
-  code: string;
+  method: "email" | "phone" | "whatsapp";
+  code?: string;
+  codeDigest?: string;
+  destination?: string;
+  metaMessageId?: string;
+  deliveryStatus?: string;
+  deliveryFailureCode?: string;
+  deliveryFailureMessage?: string;
   ipAddress: string;
   userAgent: string;
   expiresAt: Date;
@@ -27,8 +33,14 @@ const VerificationSchema = new Schema<IVerification>(
       required: true,
       enum: ["Associate", "InventoryManager", "CustomerSupport", "Admin", "ProjectManager", "Operator"],
     },
-    method: { type: String, enum: ["email", "phone"], required: true },
-    code: { type: String, required: true },
+    method: { type: String, enum: ["email", "phone", "whatsapp"], required: true },
+    code: { type: String, default: undefined, select: false },
+    codeDigest: { type: String, default: undefined, select: false },
+    destination: { type: String, default: "", select: false },
+    metaMessageId: { type: String, default: "", index: true },
+    deliveryStatus: { type: String, enum: ["QUEUED", "SENT", "DELIVERED", "READ", "FAILED", ""], default: "" },
+    deliveryFailureCode: { type: String, default: "" },
+    deliveryFailureMessage: { type: String, default: "", select: false },
     expiresAt: { type: Date, required: true },
     ipAddress: { type: String },
     userAgent: { type: String },

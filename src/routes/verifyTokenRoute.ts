@@ -1,24 +1,17 @@
 import authenticateToken from "../middlewares/auth";
 import { Router } from "express";
-import { VerificationModel } from "../database/models/verification";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import { OperatorModel } from "../database/models/operator";
 import { CustomerSupportAgentModel } from "../database/models/customerSupportAgent";
 import { CompanyApprovalAccess, resolveAssociateCompanyApproval } from "../utils/companyApprovalAccess";
+import { accountVerificationStatus } from "../utils/accountVerification";
 
 const verifyTokenRoute = Router();
 
 verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
   // req.user is guaranteed by authenticateToken middleware
-
-  // Fetch real verification status
-  const verificationRecord = await VerificationModel.findOne({
-    userId: req.user.id,
-    userType: req.user.role,
-    method: "email"
-  }).sort({ createdAt: -1 });
 
   const roleLower = String(req.user.role || "").toLowerCase();
   let associateCompanyId: string | null = null;
@@ -39,7 +32,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
 
   if (roleLower === "associate") {
     associate = await AssociateModel.findById(req.user.id)
-      .select("name email phone associateCompany dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt")
+      .select("name email phone isEmailVerified isPhoneVerified associateCompany dashboardTutorialStatus onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt")
       .lean();
     associateCompanyId = associate?.associateCompany ? String(associate.associateCompany) : null;
     dashboardTutorialStatus = associate?.dashboardTutorialStatus || "PENDING";
@@ -54,7 +47,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       associateCompanyId = String(companies[0]._id);
       companyCapabilitiesConfigured = false;
     }
-    operator = await OperatorModel.findById(req.user.id).select("name email phone onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt").lean();
+    operator = await OperatorModel.findById(req.user.id).select("name email phone isEmailVerified isPhoneVerified onboardingComplete registrationStatus reviewNotes approvalRequestedAt createdAt").lean();
     onboardingComplete = Boolean(operator?.onboardingComplete);
     registrationStatus = operator?.registrationStatus ? String(operator.registrationStatus) : null;
     rejectionReason = operator?.reviewNotes ? String(operator.reviewNotes) : null;
@@ -76,6 +69,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     companyCapabilitiesConfigured = providedCapabilities.length > 0 && soughtCapabilities.length > 0;
   }
 
+  const verification = accountVerificationStatus(associate || operator || {});
   res.setHeader("Cache-Control", "no-store");
   res.status(200).json({
     success: true,
@@ -98,9 +92,15 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
       rejectionReason,
       pendingSince,
       companyApproval,
+      isEmailVerified: verification.emailVerified,
+      isPhoneVerified: verification.phoneVerified,
+      fullyVerified: verification.fullyVerified,
+      verificationGraceEndsAt: verification.verificationGraceEndsAt,
+      verificationRequired: verification.verificationRequired,
+      verification,
       verified: {
-        email: verificationRecord?.verified === true,
-        phone: false, // phone/gst can be added later if needed
+        email: verification.emailVerified,
+        phone: verification.phoneVerified,
         gst: false
       }
     },

@@ -97,6 +97,9 @@ const exposeDocument = (row: any, includeActivity = true) => {
   doc.discountAmount = doc.totals?.discountAmount || 0;
   doc.total = doc.totals?.grandTotal || 0;
   doc.notes = doc.terms?.notes || "";
+  if (["BILL_OF_LADING", "AIR_WAYBILL"].includes(String(doc.type || ""))) {
+    doc.authorityLabel = doc.sourceMode !== "UPLOADED" ? "OBAOL draft" : doc.verifiedStatus === "VERIFIED" ? "Verified carrier original" : doc.verifiedStatus === "REJECTED" ? "Rejected upload" : "Carrier original — pending verification";
+  }
   return doc;
 };
 
@@ -147,6 +150,38 @@ const standaloneDocumentData = (type: string, value: any) => {
     const data = { commodity: cleanText(input.commodity, 200), sampleId: cleanText(input.sampleId, 100), batchLot: cleanText(input.batchLot, 100), conclusion: cleanText(input.conclusion, 1000), authorizedSignatory: cleanText(input.authorizedSignatory, 150), tests };
     if (!data.commodity || !data.sampleId || !data.batchLot || !data.tests.length || data.tests.some((row: any) => !row.parameter || !row.result)) throw new Error("Complete the sample, batch and test result details.");
     return data;
+  }
+  if (["BILL_OF_LADING", "AIR_WAYBILL"].includes(type)) {
+    const packages = Array.isArray(input.packages) ? input.packages.slice(0, 100).map((row: any) => ({
+      description: cleanText(row?.description, 250), packageType: cleanText(row?.packageType, 80),
+      packageCount: Math.max(0, Number(row?.packageCount || 0)), grossWeight: Math.max(0, Number(row?.grossWeight || 0)),
+      netWeight: Math.max(0, Number(row?.netWeight || 0)), dimensions: cleanText(row?.dimensions, 100), marks: cleanText(row?.marks, 200),
+    })) : [];
+    if (!packages.length || packages.some((row: any) => !row.description || !row.packageType || row.packageCount <= 0)) throw new Error("Add at least one valid cargo package.");
+    const common: any = {
+      shipmentReference: cleanText(input.shipmentReference, 120), shipper: cleanText(input.shipper, 500), consignee: cleanText(input.consignee, 500),
+      carrier: cleanText(input.carrier, 250), cargoDescription: cleanText(input.cargoDescription, 2000), issuePlace: cleanText(input.issuePlace, 250),
+      transportIssueDate: cleanText(input.transportIssueDate, 20), authorizedSignatory: cleanText(input.authorizedSignatory, 250), packages,
+    };
+    const required = [common.shipper, common.consignee, common.carrier, common.cargoDescription, common.issuePlace, common.transportIssueDate, common.authorizedSignatory];
+    if (required.some((field) => !field)) throw new Error("Complete the required carrier, party, routing, cargo, issue and signature details.");
+    if (type === "BILL_OF_LADING") {
+      Object.assign(common, {
+        notifyParty: cleanText(input.notifyParty, 500), billNumber: cleanText(input.billNumber, 120), billType: cleanText(input.billType, 80), vessel: cleanText(input.vessel, 250),
+        placeOfReceipt: cleanText(input.placeOfReceipt, 250), portOfLoading: cleanText(input.portOfLoading, 250), portOfDischarge: cleanText(input.portOfDischarge, 250), placeOfDelivery: cleanText(input.placeOfDelivery, 250),
+        freightTerms: cleanText(input.freightTerms, 250), containerNumbers: cleanText(input.containerNumbers, 500), sealNumbers: cleanText(input.sealNumbers, 500),
+        totalGrossWeight: Math.max(0, Number(input.totalGrossWeight || 0)), totalMeasurement: Math.max(0, Number(input.totalMeasurement || 0)), originalsCount: Math.max(0, Number(input.originalsCount || 0)), declarations: cleanText(input.declarations, 2000),
+      });
+      if (!common.billNumber || !common.vessel || !common.portOfLoading || !common.portOfDischarge || !common.freightTerms || common.totalGrossWeight <= 0) throw new Error("Complete the B/L number, vessel, ports, freight terms and gross weight.");
+    } else {
+      Object.assign(common, {
+        issuingCarrierAgent: cleanText(input.issuingCarrierAgent, 500), airWaybillNumber: cleanText(input.airWaybillNumber, 120), originAirport: cleanText(input.originAirport, 250), destinationAirport: cleanText(input.destinationAirport, 250),
+        routing: cleanText(input.routing, 500), flightNumber: cleanText(input.flightNumber, 120), flightDate: cleanText(input.flightDate, 20), handlingInstructions: cleanText(input.handlingInstructions, 2000),
+        declaredValueCarriage: Math.max(0, Number(input.declaredValueCarriage || 0)), declaredValueCustoms: Math.max(0, Number(input.declaredValueCustoms || 0)), charges: cleanText(input.charges, 2000), chargeableWeight: Math.max(0, Number(input.chargeableWeight || 0)), dimensions: cleanText(input.dimensions, 500),
+      });
+      if (!common.issuingCarrierAgent || !common.airWaybillNumber || !common.originAirport || !common.destinationAirport || common.chargeableWeight <= 0) throw new Error("Complete the AWB number, issuing carrier, airports and chargeable weight.");
+    }
+    return common;
   }
   return { reference: cleanText(input.reference, 120) };
 };
@@ -870,26 +905,44 @@ export class TradeDocumentController {
         company = await AssociateCompanyModel.findById(req.body.companyId).select("name slug email phone address gstin logo").lean();
       }
       if (!company) return res.status(400).json({ success: false, message: "A valid owner company is required." });
+      const orderId = toObjectId(req.body?.orderId);
+      let linkedOrder: any = null;
+      if (req.body?.orderId && !orderId) return res.status(400).json({ success: false, message: "A valid order is required." });
+      if (orderId) {
+        linkedOrder = await OrderModel.findById(orderId).select("associateCompanyId participantCompanyIds externalCreatedBy enquiry").lean();
+        if (!linkedOrder) return res.status(404).json({ success: false, message: "Order not found." });
+        if (!isAdminRole(role) && !isOperatorRole(role)) {
+          const companyId = String(company._id);
+          const allowedCompany = [linkedOrder.associateCompanyId, ...(linkedOrder.participantCompanyIds || [])].some((value: any) => String(value || "") === companyId);
+          const allowedCreator = String(linkedOrder.externalCreatedBy || "") === String(req.user?.id || "");
+          if (!allowedCompany && !allowedCreator) return res.status(403).json({ success: false, message: "You do not have access to attach documents to this order." });
+        }
+      }
       const customerId = toObjectId(req.body?.customerId);
       const customer: any = customerId ? await CommercialCustomerModel.findOne({ _id: customerId, ownerCompanyId: company._id }).lean() : null;
+      const previousCarrierOriginal: any = orderId && ["BILL_OF_LADING", "AIR_WAYBILL"].includes(type)
+        ? await TradeDocumentModel.findOne({ orderId, ownerCompanyId: company._id, type, sourceMode: "UPLOADED", isDeleted: { $ne: true } }).sort({ revision: -1, createdAt: -1 }).select("_id revision revisionOf").lean()
+        : null;
       const documentNumber = await generateDocumentNumber(company._id, type, buildCompanyCode(company));
       await ensureDefaultDocumentTemplate(type);
       const template: any = await resolveTemplateForRender(type, String(company._id));
       const created: any = await TradeDocumentModel.create({
         type, status: "DRAFT", documentNumber, ownerCompanyId: company._id, customerId: customer?._id || null,
+        revision: previousCarrierOriginal ? Number(previousCarrierOriginal.revision || 1) + 1 : 1,
+        revisionOf: previousCarrierOriginal ? (previousCarrierOriginal.revisionOf || previousCarrierOriginal._id) : null,
         seller: snapshotParty(company, req.user?.id), buyer: customer ? snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }) : {},
-        enquiryId: toObjectId(req.body?.enquiryId), orderId: toObjectId(req.body?.orderId), inventoryReservationId: toObjectId(req.body?.inventoryReservationId),
+        enquiryId: toObjectId(req.body?.enquiryId) || linkedOrder?.enquiry || null, orderId: orderId || null, inventoryReservationId: toObjectId(req.body?.inventoryReservationId),
         sourceMode: "UPLOADED", originalFileName: file.originalname, fileMimeType: file.mimetype, fileSize: file.size,
         fileUrl: "", uploadedBy: req.user?.id || null, extractionStatus: "QUEUED", verifiedStatus: "PENDING",
         createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
         selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null,
-        auditEvents: [{ action: "FILE_UPLOADED", actorId: req.user?.id || null, actorRole: role, metadata: { name: file.originalname, mimeType: file.mimetype, size: file.size } }],
+        auditEvents: [{ action: previousCarrierOriginal ? "CARRIER_ORIGINAL_REVISED" : "FILE_UPLOADED", actorId: req.user?.id || null, actorRole: role, metadata: { name: file.originalname, mimeType: file.mimetype, size: file.size, orderId: orderId || null, previousDocumentId: previousCarrierOriginal?._id || null } }],
       });
       created.fileUrl = `/v1/web/trade-documents/${created._id}/file`;
       const job: any = await DocumentExtractionJobModel.create({ documentId: created._id, ownerCompanyId: company._id, requestedBy: req.user?.id, documentType: type, filePath: path.resolve(file.path), mimeType: file.mimetype });
       created.extractionJobId = job._id; await created.save();
       setImmediate(() => { processDocumentExtraction(String(job._id)).catch(() => undefined); });
-      return res.status(202).json({ success: true, data: exposeDocument(created), extractionJob: { id: job._id, status: job.status } });
+      return res.status(202).json({ success: true, data: exposeDocument(created), linkedOrder: orderId ? { id: orderId } : null, extractionJob: { id: job._id, status: job.status } });
     } catch (error) { next(error); }
   }
 
@@ -1265,6 +1318,9 @@ export class TradeDocumentController {
           const discountAmount = round2(Number(req.body?.discountAmount || 0));
           return { lineItems: items, documentData, totals: { currency: String(req.body?.currency || (existing as any)?.totals?.currency || "INR").toUpperCase(), subtotal, commissionTotal: 0, taxAmount, discountAmount, grandTotal: round2(subtotal + taxAmount - discountAmount) }, terms: { paymentTerms: String(req.body?.terms || ""), deliveryTerms: String(req.body?.deliveryTerms || ""), termsAndConditions: String(req.body?.termsAndConditions || ""), notes: String(req.body?.notes || "") }, issueDate: req.body?.issueDate || (existing as any).issueDate, validUntil: req.body?.validUntil || null, dueDate: req.body?.dueDate || null, auditEvents: [...((existing as any).auditEvents || []), { action: "DRAFT_UPDATED", actorId: req.user?.id || null, actorRole: role }] };
         })() : {};
+      if (["BILL_OF_LADING", "AIR_WAYBILL"].includes(String((existing as any).type || "")) && String((existing as any).sourceMode || "") !== "UPLOADED" && normalizeDocStatus(updatePayload.status) !== "DRAFT") {
+        return res.status(409).json({ success: false, message: "OBAOL-generated transport documents must remain drafts. Upload the carrier-issued original for verification." });
+      }
       if (normalizeDocStatus(updatePayload.status) !== "DRAFT" && normalizeDocStatus((existing as any).status) === "DRAFT") {
         const exposed = exposeDocument(existing);
         if (!String(exposed.issuer?.name || "").trim() || !String(exposed.recipient?.name || "").trim()) {
@@ -1276,6 +1332,7 @@ export class TradeDocumentController {
         updatePayload.uploadedBy = req.user?.id || null;
       }
       if (isPrivileged && req.body?.verifiedStatus) {
+        if (String((existing as any).sourceMode || "") !== "UPLOADED") return res.status(409).json({ success: false, message: "Only uploaded carrier originals can be verified." });
         updatePayload.verifiedStatus = req.body.verifiedStatus;
         updatePayload.auditEvents = [...((existing as any).auditEvents || []), { action: req.body.verifiedStatus === "VERIFIED" ? "UPLOAD_VERIFIED" : "UPLOAD_REJECTED", actorId: req.user?.id || null, actorRole: role }];
       }
@@ -1391,6 +1448,7 @@ export class TradeDocumentController {
   async issue(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await ownedCommercialDocument(req, res); if (!result) return;
+      if (["BILL_OF_LADING", "AIR_WAYBILL"].includes(String(result.doc.type || "")) && String(result.doc.sourceMode || "") !== "UPLOADED") return res.status(409).json({ success: false, message: "OBAOL-generated Bills of Lading and Air Waybills are drafts only. Upload the carrier-issued original for verification." });
       if (result.doc.status !== "DRAFT") return res.status(409).json({ success: false, message: "Only a draft can be issued." });
       if (!String(result.doc?.issuer?.name || exposeDocument(result.doc).issuer?.name || "").trim() || !String(exposeDocument(result.doc).recipient?.name || "").trim()) {
         return res.status(409).json({ success: false, message: "The issuing and receiving legal company names are required before this document can be issued." });

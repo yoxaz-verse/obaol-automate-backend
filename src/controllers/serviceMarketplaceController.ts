@@ -40,8 +40,43 @@ const profileMatchesRequirement = (profile: any, requirement: any) => (profile?.
   return includes(capability.commodityIds, requirement.commodityId)
     && (!(requirement.serviceIds || []).length || requirement.serviceIds.some((value: any) => includes(capability.serviceIds, value)))
     && (!(requirement.materialIds || []).length || requirement.materialIds.some((value: any) => includes(capability.materialIds, value)))
-    && (!(requirement.formatIds || []).length || requirement.formatIds.some((value: any) => includes(capability.formatIds, value)));
+    && (!(requirement.formatIds || []).length || requirement.formatIds.some((value: any) => includes(capability.formatIds, value)))
+    && (!(requirement.qualityOptionIds || []).length || requirement.qualityOptionIds.some((value: any) => includes(capability.qualityOptionIds, value)));
 });
+
+const taxonomyFields: Record<string, string> = { commodityId: "COMMODITY", commodityIds: "COMMODITY", serviceIds: "SERVICE", formatIds: "FORMAT", materialIds: "MATERIAL", qualityOptionIds: "QUALITY_OPTION", certificationIds: "CERTIFICATION" };
+export const validatePackagingRequirementInput = (body: any) => {
+  const errors: string[] = [];
+  if (!String(body?.title || "").trim()) errors.push("Title is required");
+  if (!valid(body?.commodityId)) errors.push("Commodity is required");
+  if (!(Number(body?.quantity) > 0)) errors.push("Total quantity must be greater than zero");
+  if (body?.packageCapacity !== undefined && body?.packageCapacity !== "" && !(Number(body.packageCapacity) > 0)) errors.push("Package capacity must be greater than zero");
+  if (body?.packageCount !== undefined && body?.packageCount !== "" && !(Number.isInteger(Number(body.packageCount)) && Number(body.packageCount) > 0)) errors.push("Package count must be a positive whole number");
+  const totalKg: Record<string, number> = { G: 0.001, KG: 1, Quintal: 100, MT: 1000 };
+  if (body?.packageCapacity && body?.packageCount && totalKg[body.packageCapacityUnit] && totalKg[body.unit]) {
+    const packaged = Number(body.packageCapacity) * Number(body.packageCount) * totalKg[body.packageCapacityUnit], total = Number(body.quantity) * totalKg[body.unit];
+    if (Math.abs(packaged - total) > Math.max(total * 0.01, 0.001)) errors.push("Package capacity multiplied by package count must match the total quantity");
+  }
+  if (body?.requiredBy && Number.isNaN(+new Date(body.requiredBy))) errors.push("Required-by date is invalid");
+  const urls = body?.attachmentUrls || [];
+  if (!Array.isArray(urls) || urls.some((url: any) => { try { const value = new URL(String(url)); return !["http:", "https:"].includes(value.protocol); } catch { return true; } })) errors.push("Attachments must be valid HTTP or HTTPS URLs");
+  return errors;
+};
+const validateTaxonomyReferences = async (body: any) => {
+  const requested = Object.entries(taxonomyFields).flatMap(([field, kind]) => (Array.isArray(body?.[field]) ? body[field] : body?.[field] ? [body[field]] : []).map((value: any) => ({ field, kind, id: id(value) })));
+  if (requested.some((item) => !valid(item.id))) return "One or more packaging selections are invalid.";
+  const rows: any[] = await ServiceTaxonomyModel.find({ _id: { $in: requested.map((item) => item.id) }, department: DEPARTMENT, status: "ACTIVE", isDeleted: { $ne: true } }).select("kind").lean();
+  const kinds = new Map(rows.map((row) => [id(row), row.kind]));
+  const invalid = requested.find((item) => kinds.get(item.id) !== item.kind);
+  return invalid ? `${invalid.field} contains an inactive or incorrect packaging option.` : "";
+};
+const validateProfileTaxonomyReferences = async (snapshot: any) => {
+  for (const capability of snapshot?.capabilities || []) {
+    const error = await validateTaxonomyReferences({ commodityIds: capability.commodityIds, serviceIds: capability.serviceIds, formatIds: capability.formatIds, materialIds: capability.materialIds, qualityOptionIds: capability.qualityOptionIds });
+    if (error) return error;
+  }
+  return "";
+};
 
 export const validateServiceProfile = (snapshot: any) => {
   const errors: string[] = [];
@@ -99,6 +134,7 @@ export class ServiceMarketplaceController {
     if (!valid(companyId) || !await canManageCompany(req, companyId, who?.companyId)) return bad(res, 403, "Company access required.");
     const profile: any = await ServiceProviderProfileModel.findOne({ department: DEPARTMENT, companyId }); if (!profile) return bad(res, 404, "Save the profile draft first.");
     const errors = validateServiceProfile(profile.draft); if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
+    const taxonomyError = await validateProfileTaxonomyReferences(profile.draft); if (taxonomyError) return bad(res, 400, taxonomyError);
     profile.status = "PENDING_REVIEW"; profile.submittedAt = new Date(); await profile.save();
     return res.json({ success: true, data: profile });
   }
@@ -111,7 +147,7 @@ export class ServiceMarketplaceController {
     if (role(req) !== "admin") return bad(res, 403, "Admin access required."); const profile: any = await ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT });
     if (!profile || !await canManageCompany(req, profile.companyId)) return bad(res, 404, "Profile not found."); const action = String(req.body?.action || "").toUpperCase();
     const verified = new Set((req.body?.verifiedCredentialIds || []).map(String)); profile.draft?.credentials?.forEach((item: any) => { if (verified.has(id(item))) item.verificationStatus = "VERIFIED"; });
-    if (action === "APPROVE") { const errors = validateServiceProfile(profile.draft); if (errors.length) return bad(res, 400, errors.join("; ")); profile.published = profile.draft.toObject(); profile.status = "PUBLISHED"; profile.publishedAt = new Date(); }
+    if (action === "APPROVE") { const errors = validateServiceProfile(profile.draft); if (errors.length) return bad(res, 400, errors.join("; ")); const taxonomyError = await validateProfileTaxonomyReferences(profile.draft); if (taxonomyError) return bad(res, 400, taxonomyError); profile.published = profile.draft.toObject(); profile.status = "PUBLISHED"; profile.publishedAt = new Date(); }
     else if (action === "REJECT") profile.status = "REJECTED"; else return bad(res, 400, "Action must be APPROVE or REJECT.");
     profile.reviewNotes = String(req.body?.notes || ""); profile.reviewedBy = req.user?.id; await profile.save(); return res.json({ success: true, data: profile });
   }
@@ -127,18 +163,21 @@ export class ServiceMarketplaceController {
   }
   async createRequirement(req: Request, res: Response) {
     const who = await actor(req); if (!who?.companyId || role(req) !== "associate") return bad(res, 403, "Approved seeker company required.");
-    if (!req.body?.title || !valid(req.body?.commodityId) || !(Number(req.body?.quantity) > 0)) return bad(res, 400, "Title, commodity, and quantity are required.");
+    const errors = validatePackagingRequirementInput(req.body); if (errors.length) return bad(res, 400, errors.join("; "));
+    const taxonomyError = await validateTaxonomyReferences(req.body); if (taxonomyError) return bad(res, 400, taxonomyError);
     if (req.body?.enquiryId || req.body?.executionTaskId) {
       if (!valid(req.body?.enquiryId) || !valid(req.body?.executionTaskId)) return bad(res, 400, "Both a valid enquiry and packaging execution task are required.");
       const linked = await InquiryModel.exists({ _id: req.body.enquiryId, buyerAssociateId: who.id, executionInquiries: { $elemMatch: { _id: req.body.executionTaskId, type: "PACKAGING" } } });
       if (!linked) return bad(res, 403, "The linked packaging task does not belong to this buyer.");
     }
-    const row = await ServiceRequirementModel.create({ ...req.body, department: DEPARTMENT, requester: who.id, requesterCompany: who.companyId, status: "DRAFT" }); return res.status(201).json({ success: true, data: row });
+    const row = await ServiceRequirementModel.create({ ...req.body, quantity: Number(req.body.quantity), packageCapacity: req.body.packageCapacity ? Number(req.body.packageCapacity) : undefined, packageCount: req.body.packageCount ? Number(req.body.packageCount) : undefined, department: DEPARTMENT, requester: who.id, requesterCompany: who.companyId, status: "DRAFT" }); return res.status(201).json({ success: true, data: row });
   }
   async updateRequirement(req: Request, res: Response) {
     const who = await actor(req); const row: any = await ServiceRequirementModel.findOne({ _id: req.params.id, department: DEPARTMENT });
     if (!row || !await canManageCompany(req, row.requesterCompany, who?.companyId)) return bad(res, 404, "Requirement not found.");
     if (row.status !== "DRAFT") return bad(res, 409, "Only draft requirements can be changed.");
+    const errors = validatePackagingRequirementInput({ ...row.toObject(), ...req.body }); if (errors.length) return bad(res, 400, errors.join("; "));
+    const taxonomyError = await validateTaxonomyReferences({ ...row.toObject(), ...req.body }); if (taxonomyError) return bad(res, 400, taxonomyError);
     const protectedFields = ["department", "requester", "requesterCompany", "status", "winningOffer", "workOrder"];
     const changes = { ...req.body }; protectedFields.forEach((field) => delete changes[field]); Object.assign(row, changes); await row.save();
     return res.json({ success: true, data: row });
@@ -154,7 +193,7 @@ export class ServiceMarketplaceController {
     if (req.query.status) filter.status = String(req.query.status).toUpperCase();
     if (role(req) === "associate") mode === "seeking" ? filter.requesterCompany = who!.companyId : Object.assign(filter, { requesterCompany: { $ne: who!.companyId }, status: filter.status || { $in: ["OPEN", "CLOSED", "AWARDED"] } });
     else if (["operator", "team"].includes(role(req))) filter.requesterCompany = { $in: await scopedCompanies(req) };
-    let requirements: any[] = await ServiceRequirementModel.find(filter).populate("commodityId serviceIds formatIds materialIds", "name kind").sort({ createdAt: -1 }).limit(200).lean();
+    let requirements: any[] = await ServiceRequirementModel.find(filter).populate("commodityId serviceIds formatIds materialIds qualityOptionIds certificationIds", "name kind").sort({ createdAt: -1 }).limit(200).lean();
     if (mode === "providing" && role(req) === "associate") { const profile: any = await ServiceProviderProfileModel.findOne({ department: DEPARTMENT, companyId: who!.companyId, status: "PUBLISHED" }).lean(); requirements = requirements.filter((r) => profileMatchesRequirement(profile, r)); }
     const offers: any[] = await ServiceOfferModel.find({ requirement: { $in: requirements.map((r) => r._id) } }).populate("providerCompany", "name").populate("proposedMaterialId proposedFormatId", "name").lean();
     return res.json({ success: true, data: requirements.map((r) => redactServiceRequirement(r, offers.filter((o) => id(o.requirement) === id(r)), { companyId: who?.companyId, owner: id(r.requesterCompany) === who?.companyId, provider: mode === "providing", staff: staff(req) })) });

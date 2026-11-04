@@ -25,6 +25,7 @@ export interface IOperator extends mongoose.Document {
     googleSub?: string | null;
     googleEmailVerified?: boolean;
     isEmailVerified?: boolean;
+    isPhoneVerified?: boolean;
     address: string;
     geoType?: "INDIAN" | "INTERNATIONAL";
     country?: mongoose.Types.ObjectId | null;
@@ -90,6 +91,7 @@ const operatorSchema = new mongoose.Schema(
         appleSub: { type: String, unique: true, sparse: true },
         appleEmailVerified: { type: Boolean, default: false },
         isEmailVerified: { type: Boolean, default: false },
+        isPhoneVerified: { type: Boolean, default: false },
         address: { type: String, required: true },
         geoType: { type: String, enum: ["INDIAN", "INTERNATIONAL"], default: "INDIAN" },
         country: { type: mongoose.Types.ObjectId, ref: "Country", required: false },
@@ -203,6 +205,7 @@ operatorSchema.pre("findOneAndUpdate", function (next) {
         payload.phone = normalized.e164;
         payload.phoneCountryCode = normalized.countryCode;
         payload.phoneNational = normalized.national;
+        if (!Object.prototype.hasOwnProperty.call(payload, "isPhoneVerified")) payload.isPhoneVerified = false;
     }
     if (update.$set) {
         update.$set = payload;
@@ -214,5 +217,6 @@ operatorSchema.pre("findOneAndUpdate", function (next) {
 });
 
 operatorSchema.plugin(passwordPlugin);
+operatorSchema.index({ phone: 1 });
 
 export const OperatorModel = mongoose.model<IOperator>("Operator", operatorSchema, "operators");

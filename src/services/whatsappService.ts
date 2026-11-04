@@ -12,4 +12,21 @@ export const subscribeWaba = async (wabaId: string, token: string) => metaReques
 export const usableWhatsappConnection = async (companyId: unknown) => { const connection: any = await CompanyWhatsappConnectionModel.findOne({ companyId, status: "CONNECTED" }).select("+encryptedAccessToken"); if (!connection) throw Object.assign(new Error("Connect a company WhatsApp Business number in Settings first."), { statusCode: 409 }); return { connection, token: decryptWhatsappToken(connection.encryptedAccessToken) }; };
 export const uploadWhatsappPdf = async (phoneNumberId: string, token: string, pdf: Buffer, filename: string) => { const form = new FormData(); form.set("messaging_product", "whatsapp"); form.set("type", "application/pdf"); form.set("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), filename); const json = await metaRequest(graph(`${phoneNumberId}/media`), token, { method: "POST", body: form }); return String(json.id || ""); };
 export const sendWhatsappTemplate = async (input: { phoneNumberId: string; token: string; to: string; templateName: string; language: string; bodyParameters: string[]; mediaId?: string; filename?: string; buttonSuffix?: string }) => { const components: any[] = []; if (input.mediaId) components.push({ type: "header", parameters: [{ type: "document", document: { id: input.mediaId, filename: input.filename } }] }); if (input.bodyParameters.length) components.push({ type: "body", parameters: input.bodyParameters.map(text => ({ type: "text", text })) }); if (input.buttonSuffix) components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: input.buttonSuffix }] }); const json = await metaRequest(graph(`${input.phoneNumberId}/messages`), input.token, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", to: input.to.replace(/\D/g, ""), type: "template", template: { name: input.templateName, language: { code: input.language }, components } }) }); return String(json?.messages?.[0]?.id || ""); };
+export const sendWhatsappAuthenticationOtp = async (to: string, code: string) => {
+  const phoneNumberId = String(process.env.META_WHATSAPP_AUTH_PHONE_NUMBER_ID || "").trim();
+  const token = String(process.env.META_WHATSAPP_AUTH_ACCESS_TOKEN || "").trim();
+  const templateName = String(process.env.META_WHATSAPP_AUTH_TEMPLATE || "obaol_authentication_otp").trim();
+  const language = String(process.env.META_WHATSAPP_AUTH_TEMPLATE_LANGUAGE || "en_US").trim();
+  if (!phoneNumberId || !token) throw Object.assign(new Error("WhatsApp verification is temporarily unavailable."), { code: "WHATSAPP_AUTH_NOT_CONFIGURED" });
+  const components = [
+    { type: "body", parameters: [{ type: "text", text: code }] },
+    { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
+  ];
+  const json = await metaRequest(graph(`${phoneNumberId}/messages`), token, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to: to.replace(/\D/g, ""), type: "template", template: { name: templateName, language: { code: language }, components } }),
+  });
+  return String(json?.messages?.[0]?.id || "");
+};
 export const verifyMetaSignature = (rawBody: Buffer, signature: string) => { const secret = String(process.env.META_APP_SECRET || ""); if (!secret) return false; const expected = `sha256=${crypto.createHmac("sha256", secret).update(rawBody).digest("hex")}`; return Boolean(signature && signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))); };

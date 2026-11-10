@@ -11,17 +11,24 @@ afterEach(() => {
 
 describe("accountVerificationStatus", () => {
   it("requires both channels for full verification", () => {
-    const status = accountVerificationStatus({ email: "person@example.com", phone: "+919876543210", isEmailVerified: true, isPhoneVerified: false });
+    const status = accountVerificationStatus({ email: "person@example.com", phone: "+919876543210", isEmailVerified: true, isPhoneVerified: false }, "Operator");
     expect(status.fullyVerified).toBe(false);
     expect(status.requiredNextChannel).toBe("whatsapp");
     expect(status.maskedEmail).toBe("pe***@example.com");
     expect(status.maskedPhone.endsWith("3210")).toBe(true);
   });
 
+  it("treats verified email as full verification for associates", () => {
+    const status = accountVerificationStatus({ email: "person@example.com", isEmailVerified: true, isPhoneVerified: false }, "Associate");
+    expect(status.fullyVerified).toBe(true);
+    expect(status.requiredNextChannel).toBeNull();
+    expect(status.verificationRequired).toBe(false);
+  });
+
   it("hard-gates new accounts from the configured rollout", () => {
     process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT = "2025-01-01T00:00:00.000Z";
     process.env.ACCOUNT_VERIFICATION_GRACE_DAYS = "30";
-    const status = accountVerificationStatus({ createdAt: "2025-01-02T00:00:00.000Z", isEmailVerified: true, isPhoneVerified: false });
+    const status = accountVerificationStatus({ createdAt: "2025-01-02T00:00:00.000Z", isEmailVerified: true, isPhoneVerified: false }, "Operator");
     expect(status.verificationRequired).toBe(true);
     expect(status.verificationGraceEndsAt).toBe("2025-01-01T00:00:00.000Z");
   });

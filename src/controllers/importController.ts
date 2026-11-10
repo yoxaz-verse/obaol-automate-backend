@@ -14,6 +14,7 @@ import { createInquiryEvent, InquiryEventType } from "../database/models/Inquiry
 import { getCalculationConfig } from "../utils/calculationConfig";
 import { getImportReservationExpiryCutoff } from "../utils/importReservationExpiry";
 import { AssociateReferralService } from "../services/associateReferral.service";
+import { resolveImportListingAvailabilityStatus } from "../utils/importListingState";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -126,8 +127,11 @@ export class ImportController {
 
     const reservedQty = reservations.reduce((sum, r: any) => sum + Number(r.quantityRequested || 0), 0);
     listing.availableQuantity = Math.max(0, Number(listing.totalQuantity || 0) - reservedQty);
-    listing.status =
-      listing.availableQuantity <= 0 ? "FULL" : reservedQty > 0 ? "PARTIAL" : "OPEN";
+    listing.status = resolveImportListingAvailabilityStatus(
+      listing.status,
+      listing.availableQuantity,
+      reservedQty
+    );
 
     const hasLocked = reservations.some(
       (r: any) => normalizeReservationStatus(r.reservationStatus || r.status) === "LOCKED" || r.linkedEnquiryId
@@ -383,6 +387,9 @@ export class ImportController {
 
       const listing = await ImportListingModel.findById(id);
       if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
+      if (listing.status === "CLOSED") {
+        return res.status(400).json({ success: false, message: "Closed listings cannot be edited." });
+      }
 
       if (isOperatorRole(role)) {
         const company = await AssociateCompanyModel.findById(listing.importerCompanyId).select("assignedOperator").lean();
@@ -927,6 +934,9 @@ export class ImportController {
       if (String(listing._id) !== String(reservation.listingId)) {
         return res.status(400).json({ success: false, message: "Reservation does not belong to this listing." });
       }
+      if (listing.status === "CLOSED") {
+        return res.status(400).json({ success: false, message: "Closed listings cannot be modified." });
+      }
 
       const quantityRequested = toNumber(req.body?.quantityRequested);
       if (!quantityRequested || quantityRequested <= 0) {
@@ -983,6 +993,9 @@ export class ImportController {
       if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
       if (String(listing._id) !== String(reservation.listingId)) {
         return res.status(400).json({ success: false, message: "Reservation does not belong to this listing." });
+      }
+      if (listing.status === "CLOSED") {
+        return res.status(400).json({ success: false, message: "Closed listings cannot create enquiries." });
       }
 
       if (!isAdminRole(role)) {

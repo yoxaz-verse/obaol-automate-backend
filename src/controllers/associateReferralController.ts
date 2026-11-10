@@ -11,6 +11,7 @@ import { WhatsappDeliveryModel } from "../database/models/whatsappDelivery";
 import { sendWhatsappTemplate, usableWhatsappConnection } from "../services/whatsappService";
 import { AssociateReferralShareModel, REFERRAL_SHARE_TYPES, ReferralShareType } from "../database/models/associateReferralShare";
 import { AssociateReferralShareService } from "../services/associateReferralShare.service";
+import { featureFlags } from "../config/featureFlags";
 
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
@@ -154,6 +155,9 @@ export class AssociateReferralController {
 
   static async createInvitation(req: Request, res: Response) {
     try {
+      if (String(req.body?.channel || "").toUpperCase() === "WHATSAPP" && !featureFlags.associateWhatsappIntegration) {
+        return res.status(403).json({ success: false, message: "WhatsApp invitations are temporarily unavailable." });
+      }
       const companyId = await AssociateReferralController.resolveCompanyId(req);
       if (!companyId || !mongoose.Types.ObjectId.isValid(companyId)) {
         return res.status(403).json({ success: false, message: "Associate company access is required." });

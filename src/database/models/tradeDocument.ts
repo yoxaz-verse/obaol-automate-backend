@@ -120,6 +120,13 @@ const TradeDocumentSchema: Schema = new Schema(
     selectedTemplateId: { type: Schema.Types.ObjectId, ref: "DocumentTemplate", default: null, index: true },
     selectedTemplateVersion: { type: Number, default: null },
     documentData: { type: Schema.Types.Mixed, default: {} },
+    issuerSignatureSnapshot: {
+      imageDataUrl: { type: String, default: "" },
+      signerName: { type: String, default: "" },
+      signerDesignation: { type: String, default: "" },
+      sourceUpdatedAt: { type: Date, default: null },
+      capturedAt: { type: Date, default: null },
+    },
     issuedAt: { type: Date, default: null },
     fileUrl: { type: String, default: null },
     sourceMode: { type: String, enum: ["CREATED", "UPLOADED"], default: "CREATED", index: true },

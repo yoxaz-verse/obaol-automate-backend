@@ -1,3 +1,5 @@
+import { featureFlags } from "../config/featureFlags";
+
 const maskEmail = (value: string) => {
   const [local = "", domain = ""] = String(value || "").split("@");
   return domain ? `${local.slice(0, 2)}***@${domain}` : "";
@@ -8,10 +10,11 @@ const maskPhone = (value: string) => {
   return digits ? `+${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}` : "";
 };
 
-export const accountVerificationStatus = (user: any) => {
+export const accountVerificationStatus = (user: any, role?: string) => {
   const emailVerified = user?.isEmailVerified === true;
   const phoneVerified = user?.isPhoneVerified === true;
-  const fullyVerified = emailVerified && phoneVerified;
+  const associate = String(role || user?.role || "").toLowerCase() === "associate";
+  const fullyVerified = associate && !featureFlags.associateWhatsappIntegration ? emailVerified : emailVerified && phoneVerified;
   const rolloutRaw = String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim();
   const rolloutAt = rolloutRaw ? new Date(rolloutRaw) : null;
   const validRollout = rolloutAt && !Number.isNaN(rolloutAt.getTime()) ? rolloutAt : null;
@@ -24,7 +27,7 @@ export const accountVerificationStatus = (user: any) => {
     emailVerified,
     phoneVerified,
     fullyVerified,
-    requiredNextChannel: !emailVerified ? "email" : !phoneVerified ? "whatsapp" : null,
+    requiredNextChannel: !emailVerified ? "email" : !fullyVerified ? "whatsapp" : null,
     maskedEmail: maskEmail(user?.email),
     maskedPhone: maskPhone(user?.phone),
     verificationGraceEndsAt: graceEnd?.toISOString() || null,

@@ -118,6 +118,8 @@ logRouteMount(`[routes] mounted ${prefix}/flow-rules/subflows`);
 // System config (admin)
 import systemConfigRoutes from "./v1/systemConfigRoutes";
 router.use(`${prefix}/system-config`, systemConfigRoutes);
+import companySignatureRoutes from "./v1/companySignatureRoutes";
+router.use(`${prefix}/company-signature`, companySignatureRoutes);
 logRouteMount(`[routes] mounted ${prefix}/system-config`);
 import realLifeScenarioRoutes from "./v1/realLifeScenarioRoutes";
 router.use(`${prefix}/real-life-scenarios`, realLifeScenarioRoutes);

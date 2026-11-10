@@ -6,11 +6,28 @@ import { CompanyWhatsappConnectionModel } from "../database/models/companyWhatsa
 import { WhatsappDeliveryModel } from "../database/models/whatsappDelivery";
 import { encryptWhatsappToken, exchangeEmbeddedSignupCode, inspectWhatsappNumber, subscribeWaba, usableWhatsappConnection, verifyMetaSignature } from "../services/whatsappService";
 import { VerificationModel } from "../database/models/verification";
+import { featureFlags } from "../config/featureFlags";
 
 const stateSecret = () => String(process.env.WHATSAPP_OAUTH_STATE_SECRET || process.env.MAIL_OAUTH_STATE_SECRET || process.env.JWT_SECRET || "");
 const signState = (data: object) => { const body = Buffer.from(JSON.stringify(data)).toString("base64url"); return `${body}.${crypto.createHmac("sha256", stateSecret()).update(body).digest("base64url")}`; };
 const verifyState = (value: string) => { const [body, signature] = value.split("."), expected = crypto.createHmac("sha256", stateSecret()).update(body).digest("base64url"); if (!signature || signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new Error("Invalid WhatsApp signup state"); const data = JSON.parse(Buffer.from(body, "base64url").toString("utf8")); if (Number(data.exp || 0) < Date.now()) throw new Error("WhatsApp signup state expired"); return data; };
-const companyForUser = async (req: Request) => { const associate: any = await AssociateModel.findById(req.user?.id).select("associateCompany").lean(); const company: any = associate?.associateCompany ? await AssociateCompanyModel.findOne({ _id: associate.associateCompany, registrationStatus: "APPROVED", isDeleted: { $ne: true } }).select("_id name").lean() : null; if (!company) throw Object.assign(new Error("A verified company account is required."), { statusCode: 403 }); return company; };
+const companyForUser = async (req: Request) => {
+  const role = String(req.user?.role || "").toLowerCase();
+  if (role === "admin") {
+    const companyId = String(req.body?.companyId || req.query?.companyId || "").trim();
+    if (!companyId) throw Object.assign(new Error("Select an associate company to manage."), { statusCode: 400 });
+    const company: any = await AssociateCompanyModel.findOne({ _id: companyId, registrationStatus: "APPROVED", isDeleted: { $ne: true } }).select("_id name").lean();
+    if (!company) throw Object.assign(new Error("Approved associate company not found."), { statusCode: 404 });
+    return company;
+  }
+  if (role !== "associate" || !featureFlags.associateWhatsappIntegration) {
+    throw Object.assign(new Error("WhatsApp integration is currently available to administrators only."), { statusCode: 403 });
+  }
+  const associate: any = await AssociateModel.findById(req.user?.id).select("associateCompany").lean();
+  const company: any = associate?.associateCompany ? await AssociateCompanyModel.findOne({ _id: associate.associateCompany, registrationStatus: "APPROVED", isDeleted: { $ne: true } }).select("_id name").lean() : null;
+  if (!company) throw Object.assign(new Error("A verified company account is required."), { statusCode: 403 });
+  return company;
+};
 const publicConnection = (row: any) => row ? ({ wabaId: row.wabaId, phoneNumberId: row.phoneNumberId, displayPhoneNumber: row.displayPhoneNumber, verifiedName: row.verifiedName, status: row.status, connectedAt: row.createdAt, lastSuccessfulUseAt: row.lastSuccessfulUseAt, lastWebhookAt: row.lastWebhookAt, lastErrorAt: row.lastErrorAt, reconnectRequired: row.status === "RECONNECT_REQUIRED" }) : null;
 export class WhatsappController {
   async status(req: Request, res: Response, next: NextFunction) { try { const company = await companyForUser(req), row: any = await CompanyWhatsappConnectionModel.findOne({ companyId: company._id, status: { $ne: "DISCONNECTED" } }).lean(); res.json({ success: true, data: publicConnection(row) }); } catch (e) { next(e); } }

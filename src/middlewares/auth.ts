@@ -106,7 +106,7 @@ const authenticateToken = async (req: Request, res: Response, next: NextFunction
     if (["associate", "operator", "team"].includes(String(decoded.role || "").toLowerCase())) {
       const model: any = String(decoded.role || "").toLowerCase() === "associate" ? AssociateModel : OperatorModel;
       const account: any = await model.findById(decoded.id).select("email phone isEmailVerified isPhoneVerified createdAt").lean();
-      const verification = accountVerificationStatus(account);
+      const verification = accountVerificationStatus(account, decoded.role);
       const originalPath = String(req.originalUrl || req.path || "");
       const allowedWhileRestricted = ["/verification/", "/verify-token", "/logout", "/profile", "/support"].some((part) => originalPath.includes(part));
       if (verification.verificationRequired && !allowedWhileRestricted) {

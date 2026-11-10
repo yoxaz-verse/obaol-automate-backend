@@ -9,6 +9,7 @@ import { toBlockedResponsePayload } from "../utils/preAuthGuard";
 import { getAuthNextPath, issueAuthCookie, normalizeAuthRole } from "../services/authService";
 import { accountVerificationStatus } from "../utils/accountVerification";
 import { normalizePhoneInput } from "../utils/phone";
+import { featureFlags } from "../config/featureFlags";
 
 export const sendOTP = async (req: Request, res: Response) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
@@ -21,6 +22,9 @@ export const sendOTP = async (req: Request, res: Response) => {
 
   if (!userId || !userType || !method) {
     return res.status(400).json({ message: "Missing required parameters" });
+  }
+  if (userType === "Associate" && method === "whatsapp" && !featureFlags.associateWhatsappIntegration) {
+    return res.status(403).json({ success: false, message: "WhatsApp verification is temporarily unavailable for associates." });
   }
 
   try {
@@ -52,6 +56,9 @@ export const verifyOTP = async (req: Request, res: Response) => {
   if (!userId || !userType || !method || !code) {
     return res.status(400).json({ message: "Missing required parameters" });
   }
+  if (userType === "Associate" && method === "whatsapp" && !featureFlags.associateWhatsappIntegration) {
+    return res.status(403).json({ success: false, message: "WhatsApp verification is temporarily unavailable for associates." });
+  }
 
   try {
     const verifiedRecord = await verificationService.verify(userId, userType, code, method);
@@ -77,7 +84,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
       : userType === "Operator"
         ? await OperatorModel.findById(userId).select("email phone isEmailVerified isPhoneVerified onboardingComplete registrationStatus createdAt").lean()
         : req.user;
-    const status = accountVerificationStatus(verifiedUser);
+    const status = accountVerificationStatus(verifiedUser, userType);
     if (req.user?.authStage && status.fullyVerified && (userType === "Associate" || userType === "Operator")) {
       await issueAuthCookie(res, { _id: userId, email: req.user?.email, role: userType }, false);
     }
@@ -186,7 +193,8 @@ export const sendOtpForExistingEmail = async (req: Request, res: Response) => {
 
   try {
     const found: any = await findUserByIdentifier(lookup);
-    if (found && (found.userType === "Associate" || found.userType === "Operator") && !toBlockedResponsePayload(found)) {
+    const whatsappAllowed = deliveryMethod !== "whatsapp" || found?.userType !== "Associate" || featureFlags.associateWhatsappIntegration;
+    if (found && whatsappAllowed && (found.userType === "Associate" || found.userType === "Operator") && !toBlockedResponsePayload(found)) {
       await verificationService.initiateVerification(
         found.id,
         found.userType,
@@ -216,6 +224,9 @@ export const verifyOtpForExistingEmail = async (req: Request, res: Response) => 
   try {
     const found: any = await findUserByIdentifier(lookup);
     if (!found) {
+      return res.status(400).json({ success: false, code: "OTP_EXPIRED", message: "Invalid or expired verification code." });
+    }
+    if (deliveryMethod === "whatsapp" && found.userType === "Associate" && !featureFlags.associateWhatsappIntegration) {
       return res.status(400).json({ success: false, code: "OTP_EXPIRED", message: "Invalid or expired verification code." });
     }
     const verified = await verificationService.verify(found.id, found.userType, String(code), deliveryMethod);

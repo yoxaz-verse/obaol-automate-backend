@@ -110,6 +110,13 @@ export interface ITradeDocument extends Document {
   selectedTemplateId?: Types.ObjectId | null;
   selectedTemplateVersion?: number | null;
   documentData?: Record<string, unknown>;
+  issuerSignatureSnapshot?: {
+    imageDataUrl?: string;
+    signerName?: string;
+    signerDesignation?: string;
+    sourceUpdatedAt?: Date | null;
+    capturedAt?: Date | null;
+  };
   inviteIdempotencyKey?: string | null;
   inviteExpiresAt?: Date | null;
   inviteRevokedAt?: Date | null;

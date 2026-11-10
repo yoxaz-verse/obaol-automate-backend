@@ -69,7 +69,7 @@ verifyTokenRoute.get("/", authenticateToken, async (req: any, res) => {
     companyCapabilitiesConfigured = providedCapabilities.length > 0 && soughtCapabilities.length > 0;
   }
 
-  const verification = accountVerificationStatus(associate || operator || {});
+  const verification = accountVerificationStatus(associate || operator || {}, roleLower);
   res.setHeader("Cache-Control", "no-store");
   res.status(200).json({
     success: true,

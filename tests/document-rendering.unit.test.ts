@@ -34,6 +34,19 @@ describe("canonical document HTML rendering", () => {
     expect(html.indexOf("Yoxaz Verse")).toBeLessThan(html.indexOf("OBAOL Supreme"));
   });
 
+  it("renders the immutable issuer signature snapshot", () => {
+    const html = renderDocumentHtml({ ...document, issuerSignatureSnapshot: { imageDataUrl: "data:image/png;base64,c2ln", signerName: "Asha Rao", signerDesignation: "Director" } }, { name: "Classic", version: 1, layoutSchema: { elements: [] } });
+    expect(html).toContain("data:image/png;base64,c2ln");
+    expect(html).toContain("Asha Rao");
+    expect(html).toContain("Director");
+  });
+
+  it("leaves missing document values blank instead of rendering dash placeholders", () => {
+    const html = renderDocumentHtml({ ...document, buyer: {}, seller: {}, documentData: {}, terms: {} }, { name: "Classic", version: 1, layoutSchema: { elements: [] } });
+    expect(html).not.toContain(">—<");
+    expect(html).not.toContain(">-<");
+  });
+
   it("renders a dedicated Bill of Lading draft with carrier warning and cargo particulars", () => {
     const html = renderDocumentHtml({ ...document, type: "BILL_OF_LADING", sourceMode: "CREATED", documentData: { shipper: "OBAOL Exporter", consignee: "Overseas Buyer", billNumber: "BL-100", carrier: "Ocean Line", vessel: "MV Trade / 12", portOfLoading: "Cochin", portOfDischarge: "Dubai", cargoDescription: "Bagged cardamom", totalGrossWeight: 1200, packages: [{ description: "Cardamom", packageType: "Bag", packageCount: 40, grossWeight: 1200, netWeight: 1160, marks: "OBL" }], issuePlace: "Cochin", transportIssueDate: "2026-11-04", authorizedSignatory: "Carrier Agent" } }, { name: "Trade", version: 1, layoutSchema: { elements: [] } });
     expect(html).toContain("DRAFT — NOT CARRIER ISSUED");

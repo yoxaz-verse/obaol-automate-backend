@@ -49,6 +49,7 @@ import { NotificationEntityTypes, NotificationTypes } from "../constants/notific
 import { verifyGoogleIdToken } from "../utils/googleAuth";
 import { verifyAppleIdentityToken } from "../utils/appleAuth";
 import { VerificationModel } from "../database/models/verification";
+import { featureFlags } from "../config/featureFlags";
 import {
     PRE_AUTH_BLOCKED_MESSAGE,
     toBlockedResponsePayload,
@@ -914,10 +915,15 @@ export const authenticateGoogle = async (req: Request, res: Response) => {
                     message: "An account already exists for this email. Please sign in.",
                 });
             }
-            const socialPhone = normalizePhoneInput({ rawPhone: req.body?.phone, rawCountryCode: req.body?.phoneCountryCode });
-            if (!socialPhone.e164 || socialPhone.national.length < 7) return res.status(400).json({ success: false, message: "A valid WhatsApp number with country code is required." });
-            const phoneOwner = await Promise.all([OperatorModel.exists({ phone: socialPhone.e164, isDeleted: { $ne: true } }), AgentModel.exists({ phone: socialPhone.e164, isDeleted: { $ne: true } })]);
-            if (phoneOwner.some(Boolean)) return res.status(409).json({ success: false, code: "ACCOUNT_EXISTS", message: "An account already uses this mobile number. Please sign in." });
+            const suppliedSocialPhone = String(req.body?.phone || "").trim();
+            const socialPhone = suppliedSocialPhone
+                ? normalizePhoneInput({ rawPhone: suppliedSocialPhone, rawCountryCode: req.body?.phoneCountryCode })
+                : { e164: DRAFT_PHONE_E164, countryCode: DRAFT_PHONE_COUNTRY, national: DRAFT_PHONE_NATIONAL };
+            if (role === "Operator" && (!socialPhone.e164 || socialPhone.national.length < 7)) return res.status(400).json({ success: false, message: "A valid WhatsApp number with country code is required." });
+            if (suppliedSocialPhone) {
+                const phoneOwner = await Promise.all([OperatorModel.exists({ phone: socialPhone.e164, isDeleted: { $ne: true } }), AgentModel.exists({ phone: socialPhone.e164, isDeleted: { $ne: true } })]);
+                if (phoneOwner.some(Boolean)) return res.status(409).json({ success: false, code: "ACCOUNT_EXISTS", message: "An account already uses this mobile number. Please sign in." });
+            }
             const displayName = String(googlePayload.name || "").trim() || deriveDisplayName(email);
             const generatedPassword = generateRandomPassword();
             if (role === "Operator") {
@@ -1668,12 +1674,12 @@ export const registerAssociate = async (req: Request, res: Response) => {
 export const startOnboarding = async (req: Request, res: Response) => {
     try {
         const emailRaw = String(req.body?.email || "").trim().toLowerCase();
-        const requireDualVerification = Boolean(String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim());
+        const role = String(req.body?.role || "").trim();
+        const requireDualVerification = (role === "Operator" || (role === "Associate" && featureFlags.associateWhatsappIntegration)) && Boolean(String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim());
         const suppliedPhone = String(req.body?.phone || "").trim();
         const normalizedPhone = suppliedPhone
             ? normalizePhoneInput({ rawPhone: suppliedPhone, rawCountryCode: req.body?.phoneCountryCode })
             : { e164: DRAFT_PHONE_E164, countryCode: DRAFT_PHONE_COUNTRY, national: DRAFT_PHONE_NATIONAL };
-        const role = String(req.body?.role || "").trim();
         const now = Date.now();
         const draftWindowMs = 2 * 60 * 60 * 1000; // 2 hours
         const safeResponse = { success: true, message: "If this email is eligible, a verification code has been sent." };
@@ -1684,7 +1690,7 @@ export const startOnboarding = async (req: Request, res: Response) => {
         };
 
         if (!emailRaw || (requireDualVerification && (!suppliedPhone || !normalizedPhone.e164 || normalizedPhone.national.length < 7)) || !role) {
-            return res.status(400).json({ success: false, message: "Email, international mobile number, and role are required." });
+            return res.status(400).json({ success: false, message: requireDualVerification ? "Email, international mobile number, and role are required." : "Email and role are required." });
         }
         if (role !== "Associate" && role !== "Operator") {
             return res.status(400).json({ success: false, message: "Role must be Associate or Operator." });
@@ -1866,7 +1872,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             if (!verifiedEmail.ok) {
                 return res.status(400).json({ success: false, message: verifiedEmail.message });
             }
-            if (String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim()) {
+            if (featureFlags.associateWhatsappIntegration && String(process.env.ACCOUNT_VERIFICATION_ROLLOUT_AT || "").trim()) {
                 const verifiedPhone = hasVerifiedOnboardingPhone(associate, phone, phoneCountryCode, phoneNational);
                 if (!verifiedPhone.ok) return res.status(400).json({ success: false, message: verifiedPhone.message });
             }

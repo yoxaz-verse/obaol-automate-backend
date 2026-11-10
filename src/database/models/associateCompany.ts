@@ -118,6 +118,14 @@ const AssociateCompanySchema = new mongoose.Schema(
     slug: { type: String, unique: true, sparse: true, trim: true }, // For improved SEO & catalog URLs
     logo: { type: String },
     banner: { type: String },
+    documentSignature: {
+      imageDataUrl: { type: String, default: "" },
+      originalFileName: { type: String, default: "" },
+      signerName: { type: String, default: "" },
+      signerDesignation: { type: String, default: "" },
+      updatedAt: { type: Date, default: null },
+      updatedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
+    },
     description: { type: String },
     aboutUs: { type: String },
     address: { type: String },

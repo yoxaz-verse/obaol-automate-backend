@@ -1,8 +1,11 @@
 import { Router } from "express";
 import authenticateToken from "../../middlewares/auth";
 import { systemConfigController } from "../../controllers/systemConfigController";
+import { CompanySignatureController } from "../../controllers/companySignatureController";
+import { upload as signatureUpload } from "./companySignatureRoutes";
 
 const router = Router();
+const obaolSignature = new CompanySignatureController(true);
 
 router.get("/obaol-company", authenticateToken, (req, res, next) =>
   systemConfigController.getObaolCompany(req, res, next)
@@ -10,6 +13,9 @@ router.get("/obaol-company", authenticateToken, (req, res, next) =>
 router.post("/obaol-company", authenticateToken, (req, res, next) =>
   systemConfigController.setObaolCompany(req, res, next)
 );
+router.get("/obaol-company/signature", authenticateToken, obaolSignature.get.bind(obaolSignature));
+router.post("/obaol-company/signature", authenticateToken, signatureUpload.single("signature"), obaolSignature.save.bind(obaolSignature));
+router.delete("/obaol-company/signature", authenticateToken, obaolSignature.remove.bind(obaolSignature));
 router.get("/calculations", authenticateToken, (req, res, next) =>
   systemConfigController.getCalculations(req, res, next)
 );

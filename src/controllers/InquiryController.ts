@@ -67,6 +67,11 @@ import {
     getPartyLocation,
     resolveTradeInputContributor,
 } from "../core/inquiry/inquiryParticipants";
+import {
+    allSupplierRevisionDecisionsSubmitted,
+    hasSupplierRevisionDecision,
+    normalizeSupplierRevisionDecisions,
+} from "../utils/revisionWorkflow";
 
 /**
  * Inquiry Controller
@@ -1068,6 +1073,12 @@ export class InquiryController {
                         message: "This action is not allowed for your operator assignment on this inquiry."
                     });
                 }
+            } else if (["REVISION_REQUESTED", "REVISION_SKIPPED", "REVISION_CONFIRMED", "RETURN_TO_REVISION"].includes(actionKey)) {
+                const isAdmin = req.user?.role === UserRole.ADMIN;
+                const associateRole = context.associateId ? getAssociateRole(inquiry as any, context.associateId) : null;
+                if (!isAdmin && associateRole !== "buyer") {
+                    return res.status(403).json({ success: false, message: "Only the buyer or a buyer-side operator can perform this revision action." });
+                }
             }
             const now = new Date();
             const reasons = Array.isArray(req.body?.reasons) ? req.body.reasons.map((r: any) => String(r).toUpperCase()) : [];
@@ -1140,11 +1151,7 @@ export class InquiryController {
                         : [];
                     const openRoundIndex = rounds.findIndex((round: any) => String(round?.status || "").toUpperCase() === "OPEN");
                     if (openRoundIndex >= 0) {
-                        rounds[openRoundIndex] = {
-                            ...rounds[openRoundIndex],
-                            status: "SKIPPED",
-                            closedAt: now,
-                        };
+                        return res.status(409).json({ success: false, message: "Finish the current revision round before starting another one." });
                     }
                     const roundId = new Types.ObjectId().toString();
                     rounds.push({
@@ -1175,19 +1182,29 @@ export class InquiryController {
                     const rounds = Array.isArray((inquiry as any).revisionRounds)
                         ? [...(inquiry as any).revisionRounds]
                         : [];
-                    const roundId = new Types.ObjectId().toString();
-                    rounds.push({
-                        roundId,
-                        status: "SKIPPED",
-                        items: [],
-                        buyerRequestedAt: now,
-                        buyerConfirmedAt: null,
-                        closedAt: now,
-                    });
+                    const openRoundIndex = rounds.findIndex((round: any) => String(round?.status || "").toUpperCase() === "OPEN");
+                    const openRound = openRoundIndex >= 0 ? rounds[openRoundIndex] : null;
+                    const openItems = Array.isArray(openRound?.items) ? openRound.items : [];
+                    const hasSupplierResponse = openItems.some(hasSupplierRevisionDecision);
+                    if (hasSupplierResponse) {
+                        return res.status(409).json({ success: false, message: "A supplier response has already been submitted. Authorize the revision instead of skipping it." });
+                    }
+                    if (openRoundIndex >= 0) {
+                        rounds[openRoundIndex] = { ...openRound, status: "SKIPPED", closedAt: now };
+                    } else {
+                        rounds.push({
+                            roundId: new Types.ObjectId().toString(),
+                            status: "SKIPPED",
+                            items: [],
+                            buyerRequestedAt: now,
+                            buyerConfirmedAt: null,
+                            closedAt: now,
+                        });
+                    }
                     (inquiry as any).revisionRounds = rounds;
                     (inquiry as any).revisionThread = {
-                        items: [],
-                        buyerRequestedAt: now,
+                        items: openItems,
+                        buyerRequestedAt: openRound?.buyerRequestedAt || now,
                         buyerConfirmedAt: null,
                     };
                     (inquiry as any).workflowStage = "QUOTATION_CREATED";
@@ -1201,28 +1218,25 @@ export class InquiryController {
                     const currentRound = openRoundIndex >= 0 ? rounds[openRoundIndex] : null;
                     const items = Array.isArray(currentRound?.items) ? currentRound.items : [];
                     if (!items.length) {
-                        return res.status(400).json({ success: false, message: "No revision request found to confirm." });
+                        return res.status(409).json({ success: false, message: "There is no open revision round to authorize." });
                     }
-                const allAcknowledged = items.every((item: any) => {
-                    const hasRateCounter = item?.supplierCounterRate !== null && item?.supplierCounterRate !== undefined;
-                    const hasPaymentCounter = Boolean(item?.supplierCounterPaymentTermId);
-                    const hasTimelineCounter = Boolean(item?.supplierCounterDeliveryMode) && Boolean(item?.supplierCounterDeliveryDate);
-                    return Boolean(item?.supplierAcknowledged) || hasRateCounter || hasPaymentCounter || hasTimelineCounter;
-                });
-                if (!allAcknowledged) {
-                    return res.status(400).json({ success: false, message: "Supplier reply is required for all revision items before confirming." });
-                }
+                    const normalizedItems = normalizeSupplierRevisionDecisions(items);
+                    const allAcknowledged = allSupplierRevisionDecisionsSubmitted(normalizedItems);
+                    if (!allAcknowledged) {
+                        return res.status(400).json({ success: false, message: "Supplier decisions are required for all revision items before authorization." });
+                    }
                     if (openRoundIndex >= 0) {
                         rounds[openRoundIndex] = {
                             ...rounds[openRoundIndex],
                             status: "CONFIRMED",
+                            items: normalizedItems,
                             buyerConfirmedAt: now,
                             closedAt: now,
                         };
                         (inquiry as any).revisionRounds = rounds;
                     }
                     (inquiry as any).revisionThread = {
-                        items,
+                        items: normalizedItems,
                         buyerRequestedAt: currentRound?.buyerRequestedAt || now,
                         buyerConfirmedAt: now,
                     };
@@ -1239,6 +1253,9 @@ export class InquiryController {
                     (inquiry as any).workflowStage = "RESPONSIBILITIES_FINALIZED";
                     break;
                 case "RETURN_TO_REVISION":
+                    if (Array.isArray((inquiry as any).revisionRounds) && (inquiry as any).revisionRounds.some((round: any) => String(round?.status || "").toUpperCase() === "OPEN")) {
+                        return res.status(409).json({ success: false, message: "An open revision round already exists." });
+                    }
                     (inquiry as any).revisionRequestedAt = now;
                     (inquiry as any).buyerConfirmedAt = null;
                     (inquiry as any).workflowStage = "QUOTATION_REVISION";
@@ -1398,7 +1415,10 @@ export class InquiryController {
             const currentRound = openRoundIndex >= 0 ? rounds[openRoundIndex] : null;
             const items = Array.isArray(currentRound?.items) ? currentRound.items : [];
             if (!items.length) {
-                return res.status(400).json({ success: false, message: "No revision request found to reply to." });
+                return res.status(409).json({ success: false, message: "There is no open revision round to reply to." });
+            }
+            if (items.some(hasSupplierRevisionDecision)) {
+                return res.status(409).json({ success: false, message: "The supplier response for this revision round has already been submitted." });
             }
 
             for (const rawReply of replies) {
@@ -1462,7 +1482,9 @@ export class InquiryController {
                 const counterPaymentTermIdRaw = hasPaymentCounter ? String(reply.counterPaymentTermId).trim() : "";
                 const counterDeliveryModeRaw = hasTimelineCounter ? String(reply.counterDeliveryMode || "").trim().toUpperCase() : "";
                 const counterDeliveryDateRaw = hasTimelineCounter ? new Date(reply.counterDeliveryDate) : null;
-
+                if (normalizedKey === "RATE" && hasRateCounter && (!Number.isFinite(counterRate) || Number(counterRate) <= 0)) {
+                    throw new Error("Counter rate must be a positive number.");
+                }
                 if (normalizedKey === "PAYMENT_TERMS" && hasPaymentCounter) {
                     if (!Types.ObjectId.isValid(counterPaymentTermIdRaw)) {
                         throw new Error("Valid counter payment term is required for payment-term counter.");
@@ -1503,6 +1525,10 @@ export class InquiryController {
                 };
             });
 
+            if (!allSupplierRevisionDecisionsSubmitted(updatedItems)) {
+                return res.status(400).json({ success: false, message: "Choose accept or provide a valid counter for every revision item before submitting." });
+            }
+
             if (openRoundIndex >= 0) {
                 rounds[openRoundIndex] = {
                     ...rounds[openRoundIndex],
@@ -1525,7 +1551,8 @@ export class InquiryController {
             if (
                 message.includes("Valid counter payment term is required") ||
                 message.includes("Valid counter delivery mode is required") ||
-                message.includes("Valid counter delivery date is required")
+                message.includes("Valid counter delivery date is required") ||
+                message.includes("Counter rate must be a positive number")
             ) {
                 return res.status(400).json({ success: false, message });
             }

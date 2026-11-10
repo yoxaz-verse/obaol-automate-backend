@@ -28,6 +28,7 @@ import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEm
 import { sendTradeDocumentEmail } from "../utils/mailer";
 import { TradeDocumentDecisionOtpModel } from "../database/models/tradeDocumentDecisionOtp";
 import { resolvePublicFrontendUrl } from "../utils/publicFrontendUrl";
+import { featureFlags } from "../config/featureFlags";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
 import { obaolConfigMessage, resolveObaolCompany } from "../utils/obaolCompanyConfig";
@@ -206,6 +207,14 @@ const snapshotParty = (row: any, associateId?: any) => ({
   phone: String(row?.phone || "").trim(), address: String(row?.address || row?.billingAddress || "").trim(), gstin: String(row?.gstin || "").trim(), logo: String(row?.logo || "").trim(),
 });
 
+const issuerSignatureSnapshot = async (ownerCompanyId: unknown) => {
+  if (!ownerCompanyId || !Types.ObjectId.isValid(String(ownerCompanyId))) return null;
+  const company: any = await AssociateCompanyModel.findById(ownerCompanyId).select("documentSignature").lean();
+  const signature = company?.documentSignature;
+  if (!signature?.imageDataUrl) return null;
+  return { imageDataUrl: signature.imageDataUrl, signerName: signature.signerName || "", signerDesignation: signature.signerDesignation || "", sourceUpdatedAt: signature.updatedAt || null, capturedAt: new Date() };
+};
+
 const commercialItems = (body: any) => {
   if (!Array.isArray(body?.items) || body.items.length < 1 || body.items.length > 100) throw new Error("Add 1 to 100 product items.");
   return body.items.map((item: any) => {
@@ -228,22 +237,22 @@ const buildDocumentPdf = (doc: any) => {
     `${doc.seller?.name || "OBAOL"} - ${String(doc.type || "DOCUMENT").replace(/_/g, " ")}`,
     `Number: ${doc.documentNumber}`,
     `Issue date: ${new Date(doc.issueDate || doc.createdAt).toLocaleDateString("en-IN")}`,
-    `Buyer: ${doc.buyer?.name || "-"}`,
-    `Seller: ${doc.seller?.name || "-"}`,
+    `Buyer: ${doc.buyer?.name || ""}`,
+    `Seller: ${doc.seller?.name || ""}`,
     "",
     "Description | Quantity | Unit | Unit price | Tax | Total",
-    ...rows.map((item: any) => `${item.description || item.productName || "-"} | ${item.quantity || item.quantityMT || 0} | ${item.unit || "-"} | ${item.unitPrice || item.ratePerKg || 0} | ${item.taxAmount || 0} | ${item.total || item.amount || 0}`),
-    ...(doc.type === "PACKING_LIST" ? ["", `Shipment reference: ${studio.shipmentReference || "-"}`, "Description | Package | Count | Gross | Net | Dimensions | Marks", ...(studio.packages || []).slice(0, 18).map((item: any) => `${item.description || "-"} | ${item.packageType || "-"} | ${item.packageCount || 0} | ${item.grossWeight || 0} | ${item.netWeight || 0} | ${item.dimensions || "-"} | ${item.marks || "-"}`)] : []),
-    ...(doc.type === "QUALITY_CERTIFICATE" ? ["", `Commodity: ${studio.commodity || "-"} | Sample: ${studio.sampleId || "-"} | Batch/lot: ${studio.batchLot || "-"}`, "Parameter | Result | Unit | Method | Limit", ...(studio.tests || []).slice(0, 18).map((item: any) => `${item.parameter || "-"} | ${item.result || "-"} | ${item.unit || "-"} | ${item.method || "-"} | ${item.limit || "-"}`), `Conclusion: ${studio.conclusion || "-"}`, `Authorized signatory: ${studio.authorizedSignatory || "-"}`] : []),
+    ...rows.map((item: any) => `${item.description || item.productName || ""} | ${item.quantity || item.quantityMT || 0} | ${item.unit || ""} | ${item.unitPrice || item.ratePerKg || 0} | ${item.taxAmount || 0} | ${item.total || item.amount || 0}`),
+    ...(doc.type === "PACKING_LIST" ? ["", `Shipment reference: ${studio.shipmentReference || ""}`, "Description | Package | Count | Gross | Net | Dimensions | Marks", ...(studio.packages || []).slice(0, 18).map((item: any) => `${item.description || ""} | ${item.packageType || ""} | ${item.packageCount || 0} | ${item.grossWeight || 0} | ${item.netWeight || 0} | ${item.dimensions || ""} | ${item.marks || ""}`)] : []),
+    ...(doc.type === "QUALITY_CERTIFICATE" ? ["", `Commodity: ${studio.commodity || ""} | Sample: ${studio.sampleId || ""} | Batch/lot: ${studio.batchLot || ""}`, "Parameter | Result | Unit | Method | Limit", ...(studio.tests || []).slice(0, 18).map((item: any) => `${item.parameter || ""} | ${item.result || ""} | ${item.unit || ""} | ${item.method || ""} | ${item.limit || ""}`), `Conclusion: ${studio.conclusion || ""}`, `Authorized signatory: ${studio.authorizedSignatory || ""}`] : []),
     "",
     `Subtotal: ${formatMoney(doc.totals?.subtotal, doc.totals?.currency || "INR")}`,
     `Tax: ${formatMoney(doc.totals?.taxAmount, doc.totals?.currency || "INR")}`,
     `Discount: ${formatMoney(doc.totals?.discountAmount, doc.totals?.currency || "INR")}`,
     `Total: ${formatMoney(doc.totals?.grandTotal, doc.totals?.currency || "INR")}`,
-    `Payment terms: ${doc.terms?.paymentTerms || "-"}`,
-    `Delivery terms: ${doc.terms?.deliveryTerms || "-"}`,
-    `Terms and conditions: ${doc.terms?.termsAndConditions || "-"}`,
-    `Notes: ${doc.terms?.notes || "-"}`,
+    `Payment terms: ${doc.terms?.paymentTerms || ""}`,
+    `Delivery terms: ${doc.terms?.deliveryTerms || ""}`,
+    `Terms and conditions: ${doc.terms?.termsAndConditions || ""}`,
+    `Notes: ${doc.terms?.notes || ""}`,
   ];
   const stream = `BT\n/F1 11 Tf\n50 790 Td\n${lines.map((line, index) => `${index ? "0 -20 Td\n" : ""}(${pdfEscape(line)}) Tj`).join("\n")}\nET`;
   const objects = [
@@ -592,12 +601,25 @@ export class TradeDocumentController {
 
       const resolved = await resolveObaolCompany();
       const ready = resolved.status === "CONFIGURED";
+      const enquiry: any = await InquiryModel.findById(enquiryId).lean();
+      const snapshot = enquiry ? await buildSnapshotFromEnquiry(enquiry) : null;
+      const sellerCompanyId = snapshot?.seller?.companyId || null;
+      const [seller, obaol]: any[] = await Promise.all([
+        sellerCompanyId ? AssociateCompanyModel.findById(sellerCompanyId).select("name documentSignature").lean() : null,
+        ready && resolved.companyId ? AssociateCompanyModel.findById(resolved.companyId).select("name documentSignature").lean() : null,
+      ]);
+      const missingSignatures = [
+        !seller?.documentSignature?.imageDataUrl ? { leg: "SELLER_TO_OBAOL", companyId: sellerCompanyId ? String(sellerCompanyId) : null, companyName: seller?.name || "Seller" } : null,
+        !obaol?.documentSignature?.imageDataUrl ? { leg: "OBAOL_TO_BUYER", companyId: resolved.companyId ? String(resolved.companyId) : null, companyName: obaol?.name || "OBAOL" } : null,
+      ].filter(Boolean);
       return res.json({
         success: true,
         data: {
           canCreate: ready,
-          reasonCode: ready ? "READY" : resolved.status === "MISSING" ? "CONFIG_MISSING" : "CONFIG_INVALID",
-          message: ready ? "Quotation creation is ready." : obaolConfigMessage(resolved.status),
+          canIssue: ready && missingSignatures.length === 0,
+          reasonCode: !ready ? (resolved.status === "MISSING" ? "CONFIG_MISSING" : "CONFIG_INVALID") : missingSignatures.length ? "SIGNATURE_REQUIRED" : "READY",
+          missingSignatures,
+          message: !ready ? obaolConfigMessage(resolved.status) : missingSignatures.length ? "Configure the issuing-company signatures before submitting the quotation." : "Quotation creation is ready.",
         },
       });
     } catch (error) {
@@ -1326,6 +1348,9 @@ export class TradeDocumentController {
         if (!String(exposed.issuer?.name || "").trim() || !String(exposed.recipient?.name || "").trim()) {
           return res.status(409).json({ success: false, message: "The issuing and receiving legal company names are required before this document can be issued." });
         }
+        const signature = await issuerSignatureSnapshot((existing as any).ownerCompanyId);
+        if (!signature) return res.status(409).json({ success: false, code: "SIGNATURE_REQUIRED", message: "Configure the issuing company signature before submitting this document." });
+        updatePayload.issuerSignatureSnapshot = signature;
       }
       if (req.body?.fileUrl !== undefined) {
         updatePayload.fileUrl = req.body.fileUrl || null;
@@ -1453,13 +1478,15 @@ export class TradeDocumentController {
       if (!String(result.doc?.issuer?.name || exposeDocument(result.doc).issuer?.name || "").trim() || !String(exposeDocument(result.doc).recipient?.name || "").trim()) {
         return res.status(409).json({ success: false, message: "The issuing and receiving legal company names are required before this document can be issued." });
       }
+      const signature = await issuerSignatureSnapshot(result.doc.ownerCompanyId);
+      if (!signature) return res.status(409).json({ success: false, code: "SIGNATURE_REQUIRED", message: "Configure the issuing company signature before issuing this document." });
       const template: any = await resolveDocumentTemplate(result.doc, true);
       if (!template) return res.status(409).json({ success: false, message: "Choose an available published template before issuing." });
       if (template._id) {
         result.doc.selectedTemplateId = template._id;
         result.doc.selectedTemplateVersion = template.version;
       }
-      result.doc.status = "SENT"; result.doc.issuedAt = new Date(); result.doc.revisionOpenKey = null;
+      result.doc.status = "SENT"; result.doc.issuedAt = new Date(); result.doc.revisionOpenKey = null; result.doc.issuerSignatureSnapshot = signature;
       result.doc.auditEvents.push({ action: "ISSUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role) });
       await result.doc.save();
       if (result.doc.enquiryId && await pairIsComplete(result.doc)) {
@@ -1830,12 +1857,13 @@ export class TradeDocumentController {
   }
 
   async whatsappDeliveries(req: Request, res: Response, next: NextFunction) {
-    try { const result = await ownedCommercialDocument(req, res); if (!result) return; const rows = await WhatsappDeliveryModel.find({ companyId: result.issuer._id, documentId: result.doc._id }).sort({ createdAt: -1 }).limit(50).lean(); return res.json({ success: true, data: rows }); } catch (error) { next(error); }
+    try { if (!featureFlags.associateWhatsappIntegration) return res.status(403).json({ success: false, message: "WhatsApp document delivery is temporarily unavailable." }); const result = await ownedCommercialDocument(req, res); if (!result) return; const rows = await WhatsappDeliveryModel.find({ companyId: result.issuer._id, documentId: result.doc._id }).sort({ createdAt: -1 }).limit(50).lean(); return res.json({ success: true, data: rows }); } catch (error) { next(error); }
   }
 
   async whatsappDocument(req: Request, res: Response, next: NextFunction) {
     let delivery: any = null;
     try {
+      if (!featureFlags.associateWhatsappIntegration) return res.status(403).json({ success: false, message: "WhatsApp document delivery is temporarily unavailable." });
       const result = await ownedCommercialDocument(req, res, true); if (!result) return;
       if (result.doc.status === "DRAFT") return res.status(409).json({ success: false, message: "Issue the document before sending it." });
       const recipientParty = SELLER_RECIPIENT_TYPES.has(String(result.doc.type || "")) ? result.doc.seller : result.doc.buyer;

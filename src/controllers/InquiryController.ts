@@ -72,6 +72,7 @@ import {
     hasSupplierRevisionDecision,
     normalizeSupplierRevisionDecisions,
 } from "../utils/revisionWorkflow";
+import { buildInquiryWorkflowSummary, isInquiryActionSatisfied } from "../utils/inquiryWorkflowSummary";
 
 /**
  * Inquiry Controller
@@ -2656,7 +2657,14 @@ export class InquiryController {
             }
 
             // Filter fields based on role
-            const filteredInquiry = filterInquiryFields(inquiry.toObject(), context);
+            const rawInquiry = inquiry.toObject();
+            const filteredInquiry = filterInquiryFields(rawInquiry, context);
+            const workflowRule = await FlowRuleModel.findOne({
+                flowType: "TRADE_ENQUIRY",
+                stageKey: String((inquiry as any).workflowStage || "").toUpperCase(),
+                isDeleted: { $ne: true },
+                isActive: true,
+            }).lean();
             const importCompany = (inquiry as any)?.importListingId?.importerCompanyId;
             const partyLocations = {
                 buyer: this.partyLocation((inquiry as any).buyerAssociateId),
@@ -2665,7 +2673,11 @@ export class InquiryController {
 
             res.json({
                 success: true,
-                data: { ...filteredInquiry, partyLocations }
+                data: {
+                    ...filteredInquiry,
+                    partyLocations,
+                    workflowSummary: buildInquiryWorkflowSummary(rawInquiry, workflowRule as any),
+                }
             });
         } catch (error: any) {
             next(error);
@@ -2763,9 +2775,20 @@ export class InquiryController {
             ]);
 
             // Filter fields for each inquiry
-            const filteredInquiries = inquiries.map(inquiry =>
-                filterInquiryFields(inquiry.toObject(), context)
-            );
+            const stageKeys = [...new Set(inquiries.map((inquiry: any) => String(inquiry.workflowStage || "").toUpperCase()).filter(Boolean))];
+            const workflowRules = await FlowRuleModel.find({
+                flowType: "TRADE_ENQUIRY",
+                stageKey: { $in: stageKeys },
+                isDeleted: { $ne: true },
+                isActive: true,
+            }).lean();
+            const workflowRuleByStage = new Map(workflowRules.map((rule: any) => [String(rule.stageKey || "").toUpperCase(), rule]));
+            const filteredInquiries = inquiries.map((inquiry: any) => {
+                const rawInquiry = inquiry.toObject();
+                const filtered = filterInquiryFields(rawInquiry, context);
+                const rule = workflowRuleByStage.get(String(inquiry.workflowStage || "").toUpperCase());
+                return { ...filtered, workflowSummary: buildInquiryWorkflowSummary(rawInquiry, rule as any) };
+            });
 
             res.json({
                 success: true,
@@ -3060,32 +3083,7 @@ export class InquiryController {
                 : [];
             const requiredActionMode = String((stageRule as any)?.requiredActionMode || "ALL").toUpperCase();
 
-            const isActionSatisfied = (action: string) => {
-                const key = String(action || "").toUpperCase();
-                if (key === "LOI_SUBMITTED") return Boolean((inquiry as any).loiSubmittedAt);
-                if (key === "SUPPLIER_QTY_CONFIRMED") return Boolean((inquiry as any).supplierQtyConfirmedAt);
-                if (key === "REVISION_REQUESTED") {
-                    const rounds = Array.isArray((inquiry as any).revisionRounds) ? (inquiry as any).revisionRounds : [];
-                    return Boolean(rounds.length) || Boolean((inquiry as any).revisionRequestedAt);
-                }
-                if (key === "REVISION_CONFIRMED") {
-                    const rounds = Array.isArray((inquiry as any).revisionRounds) ? (inquiry as any).revisionRounds : [];
-                    return rounds.some((round: any) => String(round?.status || "").toUpperCase() === "CONFIRMED") ||
-                        Boolean((inquiry as any).revisionThread?.buyerConfirmedAt);
-                }
-                if (key === "REVISION_SKIPPED") {
-                    const rounds = Array.isArray((inquiry as any).revisionRounds) ? (inquiry as any).revisionRounds : [];
-                    return rounds.some((round: any) => String(round?.status || "").toUpperCase() === "SKIPPED");
-                }
-                if (key === "QUOTATION_CREATED") return Boolean((inquiry as any).quotationCreatedAt);
-                if (key === "QUOTATION_ACCEPTED") return Boolean((inquiry as any).buyerConfirmedAt);
-                if (key === "RETURN_TO_REVISION") return Boolean((inquiry as any).revisionRequestedAt);
-                if (key === "RESPONSIBILITIES_FINALIZED") return Boolean((inquiry as any).responsibilitiesFinalizedAt);
-                if (key === "PROFORMA_CREATED") return Boolean((inquiry as any).proformaCreatedAt);
-                if (key === "OTHER_DOCS_UPLOADED" || key === "OTHER_DOCS_SKIPPED") return Boolean((inquiry as any).otherDocsCompletedAt);
-                if (key === "PO_UPLOADED" || key === "PO_SKIPPED") return Boolean((inquiry as any).poSubmittedAt);
-                return false;
-            };
+            const isActionSatisfied = (action: string) => isInquiryActionSatisfied(inquiry, action);
 
             if (requiredActions.length) {
                 const missingActions = requiredActions.filter((action: string) => !isActionSatisfied(action));

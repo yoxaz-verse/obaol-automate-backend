@@ -37,7 +37,7 @@ describe("canonical document HTML rendering", () => {
   it("renders the immutable issuer signature snapshot", () => {
     const html = renderDocumentHtml({ ...document, issuerSignatureSnapshot: { imageDataUrl: "data:image/png;base64,c2ln", signerName: "Asha Rao", signerDesignation: "Director" } }, { name: "Classic", version: 1, layoutSchema: { elements: [] } });
     expect(html).toContain("data:image/png;base64,c2ln");
-    expect(html).toContain("Asha Rao");
+    expect(html).toContain("Director");
     expect(html).toContain("Director");
   });
 

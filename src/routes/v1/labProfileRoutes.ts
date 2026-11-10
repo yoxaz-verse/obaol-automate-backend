@@ -9,6 +9,8 @@ router.use(authenticateToken);
 router.get("/taxonomy", (req, res, next) => controller.taxonomy(req, res).catch(next));
 router.post("/taxonomy", (req, res, next) => controller.requestTaxonomy(req, res).catch(next));
 router.post("/taxonomy/requests", (req, res, next) => controller.requestTaxonomy(req, res).catch(next));
+router.get("/review-config", (req, res, next) => controller.reviewConfig(req, res).catch(next));
+router.patch("/review-config", (req, res, next) => controller.updateReviewConfig(req, res).catch(next));
 router.get("/taxonomy/admin", (req, res, next) => controller.adminTaxonomy(req, res).catch(next));
 router.post("/taxonomy/admin", (req, res, next) => controller.createTaxonomy(req, res).catch(next));
 router.patch("/taxonomy/admin/:id", (req, res, next) => controller.reviewTaxonomy(req, res).catch(next));

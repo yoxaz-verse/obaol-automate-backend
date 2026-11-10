@@ -71,6 +71,14 @@ const LocationSchema = new Schema(
   { _id: false },
 );
 
+const StatusHistorySchema = new Schema({
+  status: { type: String, enum: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED", "ARCHIVED"], required: true },
+  at: { type: Date, required: true, default: Date.now },
+  actorType: { type: String, enum: ["OWNER", "ADMIN", "SYSTEM"], required: true },
+  actorId: { type: Schema.Types.ObjectId, default: null },
+  note: { type: String, default: "", trim: true },
+}, { _id: false });
+
 const SnapshotSchema = new Schema(
   {
     displayName: { type: String, required: true, trim: true },
@@ -112,6 +120,7 @@ const LabProfileSchema = new Schema(
     reviewedBy: { type: Schema.Types.ObjectId, ref: "Admin", default: null },
     archivedAt: { type: Date, default: null },
     archivedBy: { type: Schema.Types.ObjectId, default: null },
+    statusHistory: { type: [StatusHistorySchema], default: [] },
   },
   { timestamps: true }
 );

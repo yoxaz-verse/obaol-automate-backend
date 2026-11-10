@@ -141,7 +141,7 @@ const standaloneDocumentData = (type: string, value: any) => {
       netWeight: Math.max(0, Number(row?.netWeight || 0)), dimensions: cleanText(row?.dimensions, 100), marks: cleanText(row?.marks, 200),
     })) : [];
     if (!packages.length || packages.some((row: any) => !row.description || !row.packageType || row.packageCount <= 0)) throw new Error("Add at least one valid package.");
-    return { shipmentReference: cleanText(input.shipmentReference, 120), packages };
+    return { shipmentReference: cleanText(input.shipmentReference, 120), authorizedSignatory: cleanText(input.authorizedSignatory, 150), packages };
   }
   if (type === "QUALITY_CERTIFICATE") {
     const tests = Array.isArray(input.tests) ? input.tests.slice(0, 100).map((row: any) => ({
@@ -184,7 +184,7 @@ const standaloneDocumentData = (type: string, value: any) => {
     }
     return common;
   }
-  return { reference: cleanText(input.reference, 120) };
+  return { reference: cleanText(input.reference, 120), authorizedSignatory: cleanText(input.authorizedSignatory, 150) };
 };
 
 const approvedAssociateCompany = async (req: Request, res: Response) => {
@@ -1330,8 +1330,12 @@ export class TradeDocumentController {
           status: req.body?.status || (existing as any).status,
           terms: nextTerms,
           totals: nextTotals,
+          ...(req.body?.documentData && normalizeDocStatus((existing as any).status) === "DRAFT" ? { documentData: { ...((existing as any).documentData || {}), authorizedSignatory: cleanText(req.body.documentData.authorizedSignatory, 150) } } : {}),
         }
         : canEditStandalone ? (() => {
+          if (req.body?.documentData && !Array.isArray(req.body?.items)) {
+            return { documentData: { ...((existing as any).documentData || {}), authorizedSignatory: cleanText(req.body.documentData.authorizedSignatory, 150) }, auditEvents: [...((existing as any).auditEvents || []), { action: "SIGNATORY_UPDATED", actorId: req.user?.id || null, actorRole: role }] };
+          }
           const docType = String((existing as any).type || "");
           const items = ["PACKING_LIST", "QUALITY_CERTIFICATE"].includes(docType) ? [] : commercialItems(req.body);
           const documentData = standaloneDocumentData(docType, req.body?.documentData);

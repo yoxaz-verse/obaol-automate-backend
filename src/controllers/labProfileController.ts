@@ -7,8 +7,10 @@ import { LabProfileModel } from "../database/models/labProfile";
 import { LAB_CONTACT_CHANNELS, LabContactEventModel } from "../database/models/labContactEvent";
 import { LAB_TAXONOMY_KINDS, LabTaxonomyModel } from "../database/models/labTaxonomy";
 import { LabWorkItemModel } from "../database/models/labWorkItem";
+import { SystemConfigModel } from "../database/models/systemConfig";
 import { normalizeCompanyFunctionSlugs } from "../utils/companyCapabilities";
 import { isParallelArrayIndexError } from "../utils/labProfileIndexes";
+import { getLabReviewBusinessDays, LAB_REVIEW_SLA_KEY, normalizeLabReviewBusinessDays, withLabReviewMetadata } from "../utils/labReviewTracker";
 
 const role = (req: Request) => String(req.user?.role || "").toLowerCase();
 const isAdmin = (req: Request) => role(req) === "admin";
@@ -78,6 +80,10 @@ const revisionConflict = (res: Response, current: number) => res.status(409).jso
 });
 
 const expectedRevision = (req: Request) => Number(req.body?.expectedRevision);
+
+const addStatusEvent = (profile: any, req: Request, status: string, note = "") => {
+  profile.statusHistory.push({ status, at: new Date(), actorType: isAdmin(req) ? "ADMIN" : "OWNER", actorId: req.user?.id || null, note });
+};
 
 async function accessibleProfile(req: Request, id: string) {
   if (!Types.ObjectId.isValid(id)) return null;
@@ -212,6 +218,23 @@ const populateProfile = (query: any, path = "published") => query
   .populate(`${path}.countryAssignments.countryId`, "name");
 
 export class LabProfileController {
+  async reviewConfig(req: Request, res: Response) {
+    return res.json({ success: true, data: { businessDays: await getLabReviewBusinessDays() } });
+  }
+
+  async updateReviewConfig(req: Request, res: Response) {
+    if (!isAdmin(req)) return res.status(403).json({ success: false, message: "Admin access required." });
+    const requested = Number(req.body?.businessDays);
+    if (!Number.isInteger(requested) || requested < 1 || requested > 30) return res.status(400).json({ success: false, message: "Review target must be between 1 and 30 business days." });
+    const businessDays = normalizeLabReviewBusinessDays(requested);
+    await SystemConfigModel.findOneAndUpdate(
+      { key: LAB_REVIEW_SLA_KEY },
+      { $set: { value: String(businessDays), updatedBy: req.user?.id || null } },
+      { upsert: true, new: true },
+    );
+    return res.json({ success: true, data: { businessDays } });
+  }
+
   async mine(req: Request, res: Response) {
     const companyId = await ownCompanyId(req);
     if (!companyId) return res.status(403).json({ success: false, message: "Lab owner or admin access required." });
@@ -241,7 +264,8 @@ export class LabProfileController {
       const id = String(item._id.labProfileId);
       metrics.set(id, { ...(metrics.get(id) || {}), [String(item._id.channel)]: item.count });
     });
-    return res.json({ success: true, data: rows.map((row) => ({ ...row, contactMetrics: { PHONE: 0, WHATSAPP: 0, EMAIL: 0, ...(metrics.get(String(row._id)) || {}) } })) });
+    const reviewDays = await getLabReviewBusinessDays();
+    return res.json({ success: true, data: rows.map((row) => withLabReviewMetadata({ ...row, contactMetrics: { PHONE: 0, WHATSAPP: 0, EMAIL: 0, ...(metrics.get(String(row._id)) || {}) } }, reviewDays)) });
   }
 
   async createMine(req: Request, res: Response) {
@@ -250,14 +274,15 @@ export class LabProfileController {
     const company = await AssociateCompanyModel.findById(companyId).select("_id").lean();
     if (!company) return res.status(404).json({ success: false, message: "Associate company not found." });
     const draft = req.body?.profile ? normalizeSnapshot(req.body.profile) : null;
-    const profile = await LabProfileModel.create({ companyId, draft, published: null, status: "DRAFT", revision: 1 });
+    const profile = await LabProfileModel.create({ companyId, draft, published: null, status: "DRAFT", revision: 1, statusHistory: [{ status: "DRAFT", at: new Date(), actorType: isAdmin(req) ? "ADMIN" : "OWNER", actorId: req.user?.id || null }] });
     return res.status(201).json({ success: true, data: profile });
   }
 
   async getMine(req: Request, res: Response) {
     const profile = await accessibleProfile(req, req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
-    return res.json({ success: true, data: await populateProfile(LabProfileModel.findById(profile._id), "draft").lean() });
+    const row = await populateProfile(LabProfileModel.findById(profile._id), "draft").lean();
+    return res.json({ success: true, data: withLabReviewMetadata(row, await getLabReviewBusinessDays()) });
   }
 
   async saveMine(req: Request, res: Response) {
@@ -271,7 +296,7 @@ export class LabProfileController {
     profile.status = "DRAFT";
     profile.revision = Number(profile.revision || 1) + 1;
     await profile.save({ validateBeforeSave: false });
-    return res.json({ success: true, data: profile });
+    return res.json({ success: true, data: profile ? withLabReviewMetadata(profile, await getLabReviewBusinessDays()) : null });
   }
 
   async submitMine(req: Request, res: Response) {
@@ -279,6 +304,7 @@ export class LabProfileController {
     if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
     if (!isAdmin(req) && String(await managedCompanyId(req)) !== String(profile.companyId)) return res.status(403).json({ success: false, message: "Quality Testing provider access required." });
     if (!profile.draft) return res.status(400).json({ success: false, message: "Save a draft before submitting." });
+    if (profile.status === "PENDING_REVIEW") return res.status(409).json({ success: false, message: "This profile is already under review." });
     if (profile.status === "ARCHIVED") return res.status(409).json({ success: false, message: "Restore this laboratory before submitting it." });
     if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
     const normalizedDraft = normalizeSnapshot(profile.draft.toObject());
@@ -288,6 +314,7 @@ export class LabProfileController {
     profile.status = "PENDING_REVIEW";
     profile.submittedAt = new Date();
     profile.reviewNotes = "";
+    addStatusEvent(profile, req, "PENDING_REVIEW");
     profile.revision = Number(profile.revision || 1) + 1;
     await profile.save();
     return res.json({ success: true, data: profile });
@@ -302,6 +329,7 @@ export class LabProfileController {
     profile.status = "ARCHIVED";
     profile.archivedAt = new Date();
     profile.archivedBy = req.user?.id;
+    addStatusEvent(profile, req, "ARCHIVED");
     profile.revision = Number(profile.revision || 1) + 1;
     await profile.save();
     return res.json({ success: true, data: profile });
@@ -315,6 +343,7 @@ export class LabProfileController {
     profile.status = profile.published ? "PUBLISHED" : "DRAFT";
     profile.archivedAt = null;
     profile.archivedBy = null;
+    addStatusEvent(profile, req, profile.status, "Laboratory restored.");
     profile.revision = Number(profile.revision || 1) + 1;
     await profile.save();
     return res.json({ success: true, data: profile });
@@ -416,7 +445,7 @@ export class LabProfileController {
     const companyId = await ownCompanyId(req);
     if (!companyId) return res.status(403).json({ success: false, message: "Lab owner or admin access required." });
     const profile = await populateProfile(LabProfileModel.findOne({ companyId }), "draft").lean();
-    return res.json({ success: true, data: profile });
+    return res.json({ success: true, data: profile ? withLabReviewMetadata(profile, await getLabReviewBusinessDays()) : null });
   }
 
   async saveDraft(req: Request, res: Response) {
@@ -428,7 +457,7 @@ export class LabProfileController {
     const current = await LabProfileModel.findOne({ companyId }).select("status published").lean();
     if (current?.status === "PENDING_REVIEW") return res.status(409).json({ success: false, message: "This profile is under review and cannot be changed until a decision is made." });
     const status = "DRAFT";
-    const profile = await LabProfileModel.findOneAndUpdate({ companyId }, { $set: { draft, status }, $setOnInsert: { companyId } }, { new: true, upsert: true, runValidators: false });
+    const profile = await LabProfileModel.findOneAndUpdate({ companyId }, { $set: { draft, status }, $setOnInsert: { companyId, statusHistory: [{ status: "DRAFT", at: new Date(), actorType: isAdmin(req) ? "ADMIN" : "OWNER", actorId: req.user?.id || null }] } }, { new: true, upsert: true, runValidators: false });
     return res.json({ success: true, data: profile });
   }
 
@@ -437,6 +466,7 @@ export class LabProfileController {
     if (!companyId) return res.status(403).json({ success: false, message: "Lab owner or admin access required." });
     const profile: any = await LabProfileModel.findOne({ companyId });
     if (!profile?.draft) return res.status(400).json({ success: false, message: "Save a draft before submitting." });
+    if (profile.status === "PENDING_REVIEW") return res.status(409).json({ success: false, message: "This profile is already under review." });
     const normalizedDraft = normalizeSnapshot(profile.draft.toObject());
     profile.draft = normalizedDraft;
     const errors = validateLabSnapshot(normalizedDraft);
@@ -444,6 +474,7 @@ export class LabProfileController {
     profile.status = "PENDING_REVIEW";
     profile.submittedAt = new Date();
     profile.reviewNotes = "";
+    addStatusEvent(profile, req, "PENDING_REVIEW");
     await profile.save();
     return res.json({ success: true, data: profile });
   }
@@ -451,8 +482,11 @@ export class LabProfileController {
   async approvals(req: Request, res: Response) {
     if (!isAdmin(req)) return res.status(403).json({ success: false, message: "Admin access required." });
     const status = String(req.query.status || "PENDING_REVIEW").toUpperCase();
-    const rows = await populateProfile(populateProfile(LabProfileModel.find({ status }).populate("companyId", "name email"), "draft"), "published").sort({ submittedAt: -1 }).lean();
-    return res.json({ success: true, data: rows });
+    const rows = await populateProfile(populateProfile(LabProfileModel.find({ status }).populate("companyId", "name email"), "draft"), "published").sort({ submittedAt: 1 }).lean();
+    const reviewDays = await getLabReviewBusinessDays();
+    const enriched = rows.map((row: any) => withLabReviewMetadata(row, reviewDays))
+      .sort((a: any, b: any) => Number(b.isReviewOverdue) - Number(a.isReviewOverdue) || new Date(a.submittedAt || 0).getTime() - new Date(b.submittedAt || 0).getTime());
+    return res.json({ success: true, data: enriched });
   }
 
   async review(req: Request, res: Response) {
@@ -460,6 +494,7 @@ export class LabProfileController {
     const action = String(req.body?.action || "").toUpperCase();
     const profile: any = await LabProfileModel.findById(req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: "Lab profile not found." });
+    if (profile.status !== "PENDING_REVIEW") return res.status(409).json({ success: false, message: "Only pending lab profiles can be reviewed." });
     if (!Number.isFinite(expectedRevision(req)) || expectedRevision(req) !== Number(profile.revision || 1)) return revisionConflict(res, Number(profile.revision || 1));
     if (action === "APPROVE") {
       const normalizedDraft = normalizeSnapshot(profile.draft?.toObject?.() || profile.draft);
@@ -486,6 +521,7 @@ export class LabProfileController {
     } else return res.status(400).json({ success: false, message: "Action must be APPROVE or REJECT." });
     profile.reviewNotes = String(req.body?.notes || "");
     profile.reviewedBy = req.user?.id;
+    addStatusEvent(profile, req, profile.status, profile.reviewNotes);
     profile.revision = Number(profile.revision || 1) + 1;
     const session = await mongoose.startSession();
     try {

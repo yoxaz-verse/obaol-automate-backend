@@ -46,59 +46,33 @@ export const ensureDefaultDocumentRules = async () => {
     { isDeleted: { $ne: true }, stageType: "LOGISTICS" },
     { stageType: "INLAND_TRANSPORTATION" }
   );
-  const count = await DocumentRuleModel.countDocuments({ isDeleted: { $ne: true } });
-  if (count === 0) {
-    await DocumentRuleModel.insertMany(DEFAULT_DOCUMENT_RULES.map((rule) => ({
-      ...rule,
-      isActive: true,
-      isDeleted: false,
-    })));
-    return;
-  }
-  // Ensure PO create + upload rules both exist
-  const poCreateRule = await DocumentRuleModel.findOne({
-    isDeleted: { $ne: true },
-    stageType: "INQUIRY",
-    stageKey: "PURCHASE_ORDER_CREATED",
-    docType: "PURCHASE_ORDER",
-    actionType: "CREATE",
-  });
-  if (!poCreateRule) {
-    await DocumentRuleModel.create({
-      docType: "PURCHASE_ORDER",
-      stageType: "INQUIRY",
-      stageKey: "PURCHASE_ORDER_CREATED",
-      responsibleRole: "BUYER",
-      actionType: "CREATE",
-      visibility: "BOTH",
-      tradeType: "BOTH",
-      isRequired: true,
-      sortOrder: 30,
-      isActive: true,
-      isDeleted: false,
-    });
-  }
-  const poUploadRule = await DocumentRuleModel.findOne({
-    isDeleted: { $ne: true },
-    stageType: "INQUIRY",
-    stageKey: "PURCHASE_ORDER_CREATED",
-    docType: "PURCHASE_ORDER",
-    actionType: "UPLOAD",
-  });
-  if (!poUploadRule) {
-    await DocumentRuleModel.create({
-      docType: "PURCHASE_ORDER",
-      stageType: "INQUIRY",
-      stageKey: "PURCHASE_ORDER_CREATED",
-      responsibleRole: "BUYER",
-      actionType: "UPLOAD",
-      visibility: "BOTH",
-      tradeType: "BOTH",
-      isRequired: true,
-      sortOrder: 31,
-      isActive: true,
-      isDeleted: false,
-    });
+  for (const rule of DEFAULT_DOCUMENT_RULES) {
+    const identity = {
+      stageType: rule.stageType,
+      stageKey: rule.stageKey,
+      docType: rule.docType,
+      actionType: rule.actionType,
+    };
+    const existingRule = await DocumentRuleModel.findOne({
+      ...identity,
+      isDeleted: { $ne: true },
+    }).select({ _id: 1 });
+
+    if (existingRule) continue;
+
+    const restoredRule = await DocumentRuleModel.findOneAndUpdate(
+      { ...identity, isDeleted: true },
+      { $set: { isDeleted: false } },
+      { new: true }
+    );
+
+    if (!restoredRule) {
+      await DocumentRuleModel.create({
+        ...rule,
+        isActive: true,
+        isDeleted: false,
+      });
+    }
   }
 };
 
@@ -125,6 +99,12 @@ export const seedDefaultDocumentRules = async (force = false) => {
   );
   if (force) {
     await DocumentRuleModel.updateMany({ isDeleted: { $ne: true } }, { isDeleted: true });
+    await DocumentRuleModel.insertMany(DEFAULT_DOCUMENT_RULES.map((rule) => ({
+      ...rule,
+      isActive: true,
+      isDeleted: false,
+    })));
+    return;
   }
   await ensureDefaultDocumentRules();
 };

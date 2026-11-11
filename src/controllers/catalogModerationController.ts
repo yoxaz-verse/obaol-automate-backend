@@ -229,7 +229,7 @@ export class CatalogModerationController {
       const page = positiveInt(req.query.page, 1, 100000); const limit = positiveInt(req.query.limit, 20, 100);
       const status = String(req.query.status || "PENDING_REVIEW").toUpperCase();
       const model = MODERATED_ENTITY_MODELS[entityType];
-      const entityQuery: any = { approvalStatus: status };
+      const entityQuery: any = { approvalStatus: status, isDeleted: { $ne: true } };
       if (req.query.associateId && mongoose.Types.ObjectId.isValid(String(req.query.associateId))) entityQuery.createdByAssociate = req.query.associateId;
       if (req.query.companyId && mongoose.Types.ObjectId.isValid(String(req.query.companyId))) entityQuery.createdByCompany = req.query.companyId;
       if (String(req.query.search || "").trim()) entityQuery.name = { $regex: String(req.query.search).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
@@ -349,7 +349,11 @@ export class CatalogModerationController {
         revision.reviewNotes = notes; await revision.save(); await notifyAssociate(target, entityType, action);
         return res.json({ success: true, data: revision });
       }
-      const row: any = await MODERATED_ENTITY_MODELS[entityType].findOne({ _id: req.params.id, approvalStatus: "PENDING_REVIEW" });
+      const row: any = await MODERATED_ENTITY_MODELS[entityType].findOne({
+        _id: req.params.id,
+        approvalStatus: "PENDING_REVIEW",
+        isDeleted: { $ne: true },
+      });
       if (!row) return res.status(404).json({ success: false, message: "Pending proposal was not found." });
       if (action === "APPROVE") {
         const parent = await getParent(entityType, row.toObject());

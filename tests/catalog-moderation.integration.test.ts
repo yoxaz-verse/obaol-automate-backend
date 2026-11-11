@@ -15,6 +15,52 @@ const api = request(app);
 const tokenFor = (user: any, role: string) => generateJWTToken({ _id: user._id, email: user.email, role } as any, "1h");
 
 describe("catalog moderation", () => {
+  it("removes deleted pending requests from the admin queue and rejects stale reviews", async () => {
+    const suffix = new mongoose.Types.ObjectId().toHexString().slice(-8);
+    const company = await AssociateCompanyModel.create({
+      name: `Delete Queue Co ${suffix}`, email: `delete-queue-${suffix}@example.com`, phone: "+919811110031",
+      phoneSecondary: "+919811110032", address: "Delete queue office", registrationStatus: "APPROVED", isApproved: true,
+    });
+    const associate = await createAssociate({ associateCompany: company._id, isCompanyVerified: true });
+    const associateToken = tokenFor(associate, "Associate");
+    const adminToken = tokenFor({ _id: new mongoose.Types.ObjectId(), email: `delete-queue-admin-${suffix}@example.com` }, "Admin");
+
+    const created = await api.post("/api/v1/web/catalog-moderation/category")
+      .set("Authorization", `Bearer ${associateToken}`)
+      .send({ name: `Deletable Category ${suffix}`, description: "Pending deletion test" })
+      .expect(201);
+    const categoryId = String(created.body.data._id);
+
+    await api.post(`/api/v1/web/catalog-moderation/category/${categoryId}/submit`)
+      .set("Authorization", `Bearer ${associateToken}`).expect(200);
+
+    const queued = await api.get("/api/v1/web/approvals/catalog/category")
+      .set("Authorization", `Bearer ${adminToken}`).expect(200);
+    expect(queued.body.data.map((row: any) => String(row._id))).toContain(categoryId);
+
+    await api.delete(`/api/v1/web/catalog-moderation/category/${categoryId}`)
+      .set("Authorization", `Bearer ${associateToken}`).send({ confirm: true }).expect(200);
+
+    const afterDelete = await api.get("/api/v1/web/approvals/catalog/category")
+      .set("Authorization", `Bearer ${adminToken}`).expect(200);
+    expect(afterDelete.body.data.map((row: any) => String(row._id))).not.toContain(categoryId);
+
+    await api.patch(`/api/v1/web/approvals/catalog/category/${categoryId}`)
+      .set("Authorization", `Bearer ${adminToken}`).send({ action: "APPROVE" }).expect(404);
+    expect(await CategoryModel.findById(categoryId).lean()).toEqual(expect.objectContaining({
+      isDeleted: true,
+      approvalStatus: "PENDING_REVIEW",
+    }));
+
+    const approved = await CategoryModel.create({
+      name: `Locked Category ${suffix}`, approvalStatus: "APPROVED",
+      createdByAssociate: associate._id, createdByCompany: company._id,
+    });
+    await api.delete(`/api/v1/web/catalog-moderation/category/${approved._id}`)
+      .set("Authorization", `Bearer ${associateToken}`).send({ confirm: true }).expect(409);
+    expect((await CategoryModel.findById(approved._id).lean())?.isDeleted).not.toBe(true);
+  });
+
   it("returns every non-deleted requested rate for variant entities and revisions newest first", async () => {
     const suffix = new mongoose.Types.ObjectId().toHexString().slice(-8);
     const company = await AssociateCompanyModel.create({

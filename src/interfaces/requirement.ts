@@ -34,6 +34,8 @@ export interface IRequirement extends Document {
     status: "DRAFT" | "OPEN" | "AWARDED" | "IN_EXECUTION" | "COMPLETED" | "CANCELLED";
     invitedCompanyIds?: Types.ObjectId[];
     candidateCompanyIds?: Types.ObjectId[];
+    preferredProviderCompanyId?: Types.ObjectId | null;
+    preferredVehicleId?: Types.ObjectId | null;
     bids?: Array<{ companyId: Types.ObjectId; amount?: number; currency?: string; note?: string; status: string; createdBy: Types.ObjectId; createdAt: Date; updatedAt: Date }>;
     awardedCompanyId?: Types.ObjectId | null;
     awardedAt?: Date | null;

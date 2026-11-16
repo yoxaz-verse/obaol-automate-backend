@@ -31,6 +31,8 @@ import orderRoutes from "./v1/orderRoutes";
 router.use(`${prefix}/orders`, orderRoutes);
 import requirementRoutes from "./v1/requirementRoutes";
 router.use(`${prefix}/requirements`, requirementRoutes);
+import serviceDirectoryRoutes from "./v1/serviceDirectoryRoutes";
+router.use(`${prefix}/service-directory`, serviceDirectoryRoutes);
 
 // Inquiries (Clean deterministic engine)
 import inquiryRoutes from "./v1/inquiryRoutes";
@@ -44,6 +46,8 @@ router.use(`${prefix}/packaging`, packagingRoutes);
 
 import freightForwardingRoutes from "./v1/freightForwardingRoutes";
 router.use(`${prefix}/freight-forwarding`, freightForwardingRoutes);
+import financialPartnerRoutes from "./v1/financialPartnerRoutes";
+router.use(`${prefix}/financial-partners`, financialPartnerRoutes);
 import inlandTransportationRoutes from "./v1/inlandTransportationRoutes";
 router.use(`${prefix}/inland-transportation`, inlandTransportationRoutes);
 
@@ -76,6 +80,9 @@ logRouteMount(`[routes] mounted ${prefix}/directory`);
 import labProfileRoutes from "./v1/labProfileRoutes";
 router.use(`${prefix}/lab-profiles`, labProfileRoutes);
 logRouteMount(`[routes] mounted ${prefix}/lab-profiles`);
+import agritechProfileRoutes from "./v1/agritechProfileRoutes";
+router.use(`${prefix}/agritech-profiles`, agritechProfileRoutes);
+logRouteMount(`[routes] mounted ${prefix}/agritech-profiles`);
 import labWorkItemRoutes from "./v1/labWorkItemRoutes";
 router.use(`${prefix}/lab-work-items`, labWorkItemRoutes);
 logRouteMount(`[routes] mounted ${prefix}/lab-work-items`);

@@ -23,6 +23,15 @@ describe("RequirementModel", () => {
     expect(row.items[0].status).toBe("DRAFT");
   });
 
+  it("stores a preferred transport provider and truck without awarding them", () => {
+    const provider = new Types.ObjectId(); const vehicle = new Types.ObjectId();
+    const row = new RequirementModel({ ...valid(), items: [{ type: "TRANSPORTATION", title: "Road movement", fulfilmentMethod: "INVITE_ONLY", invitedCompanyIds: [provider], preferredProviderCompanyId: provider, preferredVehicleId: vehicle }] });
+    expect(row.validateSync()).toBeUndefined();
+    expect(String(row.items[0].preferredProviderCompanyId)).toBe(String(provider));
+    expect(String(row.items[0].preferredVehicleId)).toBe(String(vehicle));
+    expect(row.items[0].awardedCompanyId).toBeNull();
+  });
+
   it("requires at least one supported requirement item", async () => {
     const row = new RequirementModel({ ...valid(), items: [] });
     await expect(row.validate()).rejects.toThrow("At least one requirement item is required");

@@ -5,6 +5,7 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { OrderModel } from "../database/models/order";
 import { REQUIREMENT_ITEM_TYPES } from "../interfaces/requirement";
+import { InlandVehicleModel } from "../database/models/inlandTransportation";
 
 const role = (req: Request) => String(req.user?.role || "").toLowerCase();
 const id = (value: unknown) => String(value || "");
@@ -38,9 +39,21 @@ const normalizeItems = (items: unknown) => Array.isArray(items) ? items.map((ite
   specifications: item?.specifications && typeof item.specifications === "object" ? item.specifications : {},
   fulfilmentMethod: String(item?.fulfilmentMethod || "MATCHED_BIDDING").toUpperCase(),
   invitedCompanyIds: Array.isArray(item?.invitedCompanyIds) ? item.invitedCompanyIds.filter(Types.ObjectId.isValid) : [],
+  preferredProviderCompanyId: item?.preferredProviderCompanyId && Types.ObjectId.isValid(item.preferredProviderCompanyId) ? item.preferredProviderCompanyId : null,
+  preferredVehicleId: item?.preferredVehicleId && Types.ObjectId.isValid(item.preferredVehicleId) ? item.preferredVehicleId : null,
   awardedCompanyId: item?.awardedCompanyId && Types.ObjectId.isValid(item.awardedCompanyId) ? item.awardedCompanyId : null,
   status: "DRAFT",
 })) : [];
+const validatePreferredTransport = async (items: any[]) => {
+  for (const item of items) {
+    if (!item.preferredVehicleId) continue;
+    if (item.type !== "TRANSPORTATION" || !item.preferredProviderCompanyId) return "A preferred truck requires a transport provider.";
+    const vehicle = await InlandVehicleModel.exists({ _id: item.preferredVehicleId, companyId: item.preferredProviderCompanyId, publiclyListed: true, status: { $ne: "INACTIVE" } });
+    if (!vehicle) return "The selected truck is not available from this transport provider.";
+    item.fulfilmentMethod = "INVITE_ONLY"; item.invitedCompanyIds = [item.preferredProviderCompanyId];
+  }
+  return "";
+};
 
 export class RequirementController {
   create = async (req: Request, res: Response) => {
@@ -53,6 +66,7 @@ export class RequirementController {
       if (!["TRADE", "SERVICE_ONLY"].includes(mode) || !title || !items.length) return res.status(400).json({ success: false, message: "Mode, title, and at least one need are required." });
       if (items.some((item: any) => !itemTypes.has(item.type) || !item.title || !["MATCHED_BIDDING", "INVITE_ONLY", "DIRECT_ASSIGN"].includes(item.fulfilmentMethod))) return res.status(400).json({ success: false, message: "One or more requirement items are invalid." });
       if (mode === "TRADE" && !String(req.body?.product?.name || "").trim()) return res.status(400).json({ success: false, message: "A product is required for trade requirements." });
+      const preferenceError = await validatePreferredTransport(items); if (preferenceError) return res.status(400).json({ success: false, message: preferenceError });
       const row = await RequirementModel.create({ reference: reference(), mode, title, description: req.body?.description, visibility: req.body?.visibility || "MATCHED", createdBy: who.userId, ownerCompanyId: who.companyId || null, product: req.body?.product || {}, route: req.body?.route || {}, targetDate: req.body?.targetDate || null, attachments: req.body?.attachments || [], items, activity: [{ action: "CREATED", actorId: who.userId }] });
       return res.status(201).json({ success: true, data: row });
     } catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
@@ -92,7 +106,7 @@ export class RequirementController {
     if (!who || !row || (role(req) !== "admin" && !owns(row, who))) return res.status(row ? 403 : 404).json({ success: false, message: row ? "Not allowed." : "Requirement not found." });
     if (row.status !== "DRAFT") return res.status(409).json({ success: false, message: "Only draft requirements can be edited." });
     for (const key of ["title", "description", "visibility", "product", "route", "targetDate", "attachments"] as const) if (Object.prototype.hasOwnProperty.call(req.body, key)) row[key] = req.body[key];
-    if (req.body.items) row.items = normalizeItems(req.body.items);
+    if (req.body.items) { const items = normalizeItems(req.body.items); const preferenceError = await validatePreferredTransport(items); if (preferenceError) return res.status(400).json({ success: false, message: preferenceError }); row.items = items; }
     row.activity.push({ action: "UPDATED", actorId: who.userId }); await row.save(); return res.json({ success: true, data: row });
   };
 
@@ -100,6 +114,7 @@ export class RequirementController {
     const who = await actor(req); const row: any = await RequirementModel.findById(req.params.id);
     if (!who || !row || (role(req) !== "admin" && !owns(row, who))) return res.status(row ? 403 : 404).json({ success: false, message: row ? "Not allowed." : "Requirement not found." });
     if (row.status !== "DRAFT") return res.status(409).json({ success: false, message: "Only draft requirements can be published." });
+    const preferenceError = await validatePreferredTransport(row.items); if (preferenceError) return res.status(409).json({ success: false, message: preferenceError });
     const matched = await Promise.all(row.items.map(async (item: any) => item.fulfilmentMethod === "MATCHED_BIDDING"
       ? AssociateCompanyModel.find({ registrationStatus: "APPROVED", providedCapabilities: { $in: providerCapabilities[item.type] || [] }, _id: { $ne: row.ownerCompanyId } }).select("_id").limit(250).lean()
       : []));

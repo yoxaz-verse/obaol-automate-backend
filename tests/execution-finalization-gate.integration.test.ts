@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { Types } from "mongoose";
 import app from "../src/app";
 import { InquiryModel } from "../src/database/models/enquiry";
+import { IncotermModel } from "../src/database/models/incoterm";
+import { PaymentTermModel } from "../src/database/models/paymentTerm";
 import { generateJWTToken } from "../src/utils/tokenUtils";
 import { createAdmin } from "./helpers/authFixtures";
 
@@ -36,6 +38,72 @@ const createExecutionInquiry = (finalized: boolean) => {
 };
 
 describe("execution responsibility-finalization gate", () => {
+  it("persists validated trade terms through the inquiry update endpoint", async () => {
+    const token = await adminToken();
+    const inquiry = await InquiryModel.create({
+      productId: new Types.ObjectId(),
+      buyerAssociateId: new Types.ObjectId(),
+      sellerAssociateId: new Types.ObjectId(),
+      createdBy: new Types.ObjectId(),
+    });
+    const suffix = new Types.ObjectId().toString().slice(-8);
+    const incoterm = await IncotermModel.create({ code: `T${suffix.slice(0, 4)}`, name: `Test ${suffix}` });
+    const paymentTerm = await PaymentTermModel.create({ label: `Test payment ${suffix}` });
+
+    const response = await api
+      .patch(`/api/v1/web/inquiries/${inquiry._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ preferredIncoterm: incoterm._id, paymentTermId: paymentTerm._id });
+
+    expect(response.status).toBe(200);
+    const saved = await InquiryModel.findById(inquiry._id).lean();
+    expect(String((saved as any)?.preferredIncoterm)).toBe(String(incoterm._id));
+    expect(String((saved as any)?.paymentTermId)).toBe(String(paymentTerm._id));
+  });
+
+  it("rejects invalid trade-term references without changing the inquiry", async () => {
+    const token = await adminToken();
+    const inquiry = await InquiryModel.create({
+      productId: new Types.ObjectId(),
+      buyerAssociateId: new Types.ObjectId(),
+      sellerAssociateId: new Types.ObjectId(),
+      createdBy: new Types.ObjectId(),
+    });
+
+    const response = await api
+      .patch(`/api/v1/web/inquiries/${inquiry._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ paymentTermId: new Types.ObjectId() });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe("Selected payment term was not found.");
+    const unchanged = await InquiryModel.findById(inquiry._id).lean();
+    expect((unchanged as any)?.paymentTermId).toBeNull();
+  });
+
+  it("does not allow the workflow action to bypass missing trade terms", async () => {
+    const token = await adminToken();
+    const inquiry = await InquiryModel.create({
+      productId: new Types.ObjectId(),
+      buyerAssociateId: new Types.ObjectId(),
+      sellerAssociateId: new Types.ObjectId(),
+      createdBy: new Types.ObjectId(),
+    });
+
+    const response = await api
+      .patch(`/api/v1/web/inquiries/${inquiry._id}/actions`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ actionKey: "RESPONSIBILITIES_FINALIZED" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      code: "RESPONSIBILITY_FINALIZATION_INCOMPLETE",
+      missingFields: expect.arrayContaining(["preferredIncoterm", "paymentTermId"]),
+    });
+    const unchanged = await InquiryModel.findById(inquiry._id).lean();
+    expect((unchanged as any)?.responsibilitiesFinalizedAt).toBeNull();
+  });
+
   it("reports missing trade terms without finalizing or creating execution tasks", async () => {
     const token = await adminToken();
     const inquiry = await InquiryModel.create({

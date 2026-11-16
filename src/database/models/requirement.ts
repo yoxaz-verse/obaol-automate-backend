@@ -20,6 +20,8 @@ const ItemSchema = new Schema({
   status: { type: String, enum: ["DRAFT", "OPEN", "AWARDED", "IN_EXECUTION", "COMPLETED", "CANCELLED"], default: "DRAFT" },
   invitedCompanyIds: [{ type: Schema.Types.ObjectId, ref: "AssociateCompany" }],
   candidateCompanyIds: [{ type: Schema.Types.ObjectId, ref: "AssociateCompany" }],
+  preferredProviderCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null },
+  preferredVehicleId: { type: Schema.Types.ObjectId, ref: "InlandVehicle", default: null },
   bids: { type: [BidSchema], default: [] },
   awardedCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null },
   awardedAt: { type: Date, default: null },

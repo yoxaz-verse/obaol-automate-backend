@@ -1263,6 +1263,30 @@ export class InquiryController {
                     (inquiry as any).workflowStage = "QUOTATION_REVISION";
                     break;
                 case "RESPONSIBILITIES_FINALIZED":
+                    {
+                        const preferredIncotermId = String((inquiry as any).preferredIncoterm || "");
+                        const paymentTermId = String((inquiry as any).paymentTermId || "");
+                        const [hasValidIncoterm, hasValidPaymentTerm] = await Promise.all([
+                            Types.ObjectId.isValid(preferredIncotermId)
+                                ? IncotermModel.exists({ _id: preferredIncotermId })
+                                : Promise.resolve(null),
+                            Types.ObjectId.isValid(paymentTermId)
+                                ? PaymentTermModel.exists({ _id: paymentTermId })
+                                : Promise.resolve(null),
+                        ]);
+                        const missingFields = [
+                            ...(!hasValidIncoterm ? ["preferredIncoterm"] : []),
+                            ...(!hasValidPaymentTerm ? ["paymentTermId"] : []),
+                        ];
+                        if (missingFields.length) {
+                            return res.status(400).json({
+                                success: false,
+                                code: "RESPONSIBILITY_FINALIZATION_INCOMPLETE",
+                                missingFields,
+                                message: "Select and save valid Incoterms and payment terms before finalization.",
+                            });
+                        }
+                    }
                     (inquiry as any).responsibilitiesFinalizedAt = now;
                     (inquiry as any).workflowStage = "PROFORMA_ISSUED";
                     break;
@@ -2782,6 +2806,7 @@ export class InquiryController {
                     { path: "dealCloserOperatorId", select: "name email phone" },
                     { path: "handlerOperatorId", select: "name email phone" },
                     { path: "pendingHandlerOperatorId", select: "name email phone" },
+                        { path: "order", select: "status workflowStage createdAt updatedAt" },
                         { path: "executionInquiries.candidateProviders", select: "name email phone providedCapabilities" },
                         { path: "executionInquiries.committedProvider", select: "name email phone providedCapabilities" },
                         { path: "executionInquiries.committedLabProfile", select: "published.displayName published.city published.state status" },
@@ -2969,6 +2994,44 @@ export class InquiryController {
             if (typeof req.body?.packagingSpecifications !== "undefined") {
                 (inquiry as any).packagingSpecifications = String(req.body.packagingSpecifications || "");
                 this.setTradeInputAttribution(inquiry, "packagingSpecifications", contributor);
+            }
+            if (
+                typeof req.body?.preferredIncoterm !== "undefined" ||
+                typeof req.body?.paymentTermId !== "undefined"
+            ) {
+                if ((inquiry as any).order) {
+                    return res.status(409).json({
+                        success: false,
+                        message: "Trade terms cannot be changed after order conversion.",
+                    });
+                }
+
+                const preferredIncotermId = req.body?.preferredIncoterm == null
+                    ? ""
+                    : String(req.body.preferredIncoterm).trim();
+                const paymentTermId = req.body?.paymentTermId == null
+                    ? ""
+                    : String(req.body.paymentTermId).trim();
+
+                if (typeof req.body?.preferredIncoterm !== "undefined") {
+                    if (preferredIncotermId && !Types.ObjectId.isValid(preferredIncotermId)) {
+                        return res.status(400).json({ success: false, message: "Invalid preferredIncoterm" });
+                    }
+                    if (preferredIncotermId && !(await IncotermModel.exists({ _id: preferredIncotermId }))) {
+                        return res.status(400).json({ success: false, message: "Selected Incoterm was not found." });
+                    }
+                    (inquiry as any).preferredIncoterm = preferredIncotermId || null;
+                }
+
+                if (typeof req.body?.paymentTermId !== "undefined") {
+                    if (paymentTermId && !Types.ObjectId.isValid(paymentTermId)) {
+                        return res.status(400).json({ success: false, message: "Invalid paymentTermId" });
+                    }
+                    if (paymentTermId && !(await PaymentTermModel.exists({ _id: paymentTermId }))) {
+                        return res.status(400).json({ success: false, message: "Selected payment term was not found." });
+                    }
+                    (inquiry as any).paymentTermId = paymentTermId || null;
+                }
             }
             if (Array.isArray(req.body?.inlandTransportSegments)) {
                 (inquiry as any).inlandTransportSegments = req.body.inlandTransportSegments.map((segment: any) => ({

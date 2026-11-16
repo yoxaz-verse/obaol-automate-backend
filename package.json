@@ -34,6 +34,7 @@
     "migrate:lab-profile-indexes": "ts-node src/scripts/repairLabProfileIndexes.ts",
     "seed:lab-taxonomy": "ts-node src/scripts/seedLabTaxonomy.ts",
     "seed:packaging-taxonomy": "ts-node src/scripts/seedPackagingTaxonomy.ts",
+    "migrate:packaging-units": "ts-node src/scripts/migratePackagingProfilesToUnits.ts",
     "seed:spices-board-quality-labs": "ts-node src/scripts/seedSpicesBoardQualityLabs.ts",
     "normalize:company-capabilities": "ts-node src/scripts/normalize-company-capabilities.ts",
     "integrity:associate-orphans": "ts-node src/scripts/cleanupAssociateOrphans.ts",

@@ -4,7 +4,7 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { InquiryModel } from "../database/models/enquiry";
 import { ServiceOfferModel } from "../database/models/serviceOffer";
-import { ServiceProviderProfileModel } from "../database/models/serviceProviderProfile";
+import { ServiceProviderContactEventModel, ServiceProviderProfileModel } from "../database/models/serviceProviderProfile";
 import { ServiceRequirementModel } from "../database/models/serviceRequirement";
 import { ServiceTaxonomyModel } from "../database/models/serviceTaxonomy";
 import { ServiceWorkOrderModel } from "../database/models/serviceWorkOrder";
@@ -18,6 +18,7 @@ const valid = (v: any) => Types.ObjectId.isValid(id(v));
 const role = (req: Request) => String(req.user?.role || "").toLowerCase();
 const staff = (req: Request) => ["admin", "operator", "team"].includes(role(req));
 const bad = (res: Response, status: number, message: string) => res.status(status).json({ success: false, message });
+const unitKey = () => `unit-${new Types.ObjectId().toString()}`;
 const actor = async (req: Request) => {
   if (role(req) !== "associate") return { id: id(req.user?.id), companyId: id(req.user?.associateCompany) };
   const row: any = await AssociateModel.findById(req.user?.id).select("associateCompany registrationStatus isActive isDeleted").lean();
@@ -91,6 +92,43 @@ export const validateServiceProfile = (snapshot: any) => {
 };
 
 export class ServiceMarketplaceController {
+  async listUnits(req: Request, res: Response) {
+    const who = await actor(req); const companyId = String(req.query.companyId || who?.companyId || "");
+    if (!valid(companyId) || !await canManageCompany(req, companyId, who?.companyId)) return bad(res, 403, "Company access required.");
+    const rows: any[] = await populatedProfile(ServiceProviderProfileModel.find({ department: DEPARTMENT, companyId }), "draft").sort({ createdAt: 1 }).lean();
+    const ids = rows.map((row) => row._id), metrics: any[] = ids.length ? await ServiceProviderContactEventModel.aggregate([{ $match: { department: DEPARTMENT, profileId: { $in: ids } } }, { $group: { _id: { profileId: "$profileId", channel: "$channel" }, count: { $sum: 1 } } }]) : [];
+    return res.json({ success: true, data: rows.map((row) => ({ ...row, contactMetrics: Object.fromEntries(metrics.filter((x) => id(x._id.profileId) === id(row._id)).map((x) => [x._id.channel, x.count])) })) });
+  }
+  async createUnit(req: Request, res: Response) {
+    const who = await actor(req); const companyId = String(req.body.companyId || who?.companyId || "");
+    if (!valid(companyId) || !await canManageCompany(req, companyId, who?.companyId)) return bad(res, 403, "Company access required.");
+    const snapshot = req.body.snapshot; const errors = validateServiceProfile(snapshot); if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors });
+    const taxonomyError = await validateProfileTaxonomyReferences(snapshot); if (taxonomyError) return bad(res, 400, taxonomyError);
+    const row = await ServiceProviderProfileModel.create({ department: DEPARTMENT, companyId, unitKey: unitKey(), draft: snapshot, status: "DRAFT", statusHistory: [{ status: "DRAFT", actorId: req.user?.id, note: "Packaging unit created" }] });
+    return res.status(201).json({ success: true, data: row });
+  }
+  async unitDetail(req: Request, res: Response) {
+    const who = await actor(req); const row: any = await populatedProfile(ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT }), "draft").lean();
+    if (!row || !await canManageCompany(req, row.companyId?._id || row.companyId, who?.companyId)) return bad(res, 404, "Packaging unit not found."); return res.json({ success: true, data: row });
+  }
+  async saveUnit(req: Request, res: Response) {
+    const who = await actor(req); const row: any = await ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT });
+    if (!row || !await canManageCompany(req, row.companyId, who?.companyId)) return bad(res, 404, "Packaging unit not found."); if (row.status === "PENDING_REVIEW" || row.status === "ARCHIVED") return bad(res, 409, "This packaging unit cannot be edited in its current state.");
+    row.draft = req.body.snapshot; row.status = row.published ? "PUBLISHED" : "DRAFT"; row.reviewNotes = ""; row.statusHistory.push({ status: row.status, actorId: req.user?.id, note: "Draft updated" }); await row.save(); return res.json({ success: true, data: row });
+  }
+  async submitUnit(req: Request, res: Response) {
+    const who = await actor(req); const row: any = await ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT }); if (!row || !await canManageCompany(req, row.companyId, who?.companyId)) return bad(res, 404, "Packaging unit not found.");
+    const errors = validateServiceProfile(row.draft); if (errors.length) return res.status(400).json({ success: false, message: errors.join("; "), errors }); const taxonomyError = await validateProfileTaxonomyReferences(row.draft); if (taxonomyError) return bad(res, 400, taxonomyError);
+    row.status = "PENDING_REVIEW"; row.submittedAt = new Date(); row.statusHistory.push({ status: row.status, actorId: req.user?.id, note: "Submitted for review" }); await row.save(); return res.json({ success: true, data: row });
+  }
+  async archiveUnit(req: Request, res: Response) {
+    const who = await actor(req); const row: any = await ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT }); if (!row || !await canManageCompany(req, row.companyId, who?.companyId)) return bad(res, 404, "Packaging unit not found.");
+    row.status = "ARCHIVED"; row.archivedAt = new Date(); row.statusHistory.push({ status: "ARCHIVED", actorId: req.user?.id, note: "Unit archived" }); await row.save(); return res.json({ success: true, data: row });
+  }
+  async restoreUnit(req: Request, res: Response) {
+    const who = await actor(req); const row: any = await ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT }); if (!row || !await canManageCompany(req, row.companyId, who?.companyId)) return bad(res, 404, "Packaging unit not found.");
+    row.status = row.published ? "PUBLISHED" : "DRAFT"; row.archivedAt = null; row.statusHistory.push({ status: row.status, actorId: req.user?.id, note: "Unit restored" }); await row.save(); return res.json({ success: true, data: row });
+  }
   async taxonomy(req: Request, res: Response) {
     const filter: any = { department: DEPARTMENT, isDeleted: { $ne: true } };
     if (role(req) !== "admin") filter.status = "ACTIVE";
@@ -149,17 +187,25 @@ export class ServiceMarketplaceController {
     const verified = new Set((req.body?.verifiedCredentialIds || []).map(String)); profile.draft?.credentials?.forEach((item: any) => { if (verified.has(id(item))) item.verificationStatus = "VERIFIED"; });
     if (action === "APPROVE") { const errors = validateServiceProfile(profile.draft); if (errors.length) return bad(res, 400, errors.join("; ")); const taxonomyError = await validateProfileTaxonomyReferences(profile.draft); if (taxonomyError) return bad(res, 400, taxonomyError); profile.published = profile.draft.toObject(); profile.status = "PUBLISHED"; profile.publishedAt = new Date(); }
     else if (action === "REJECT") profile.status = "REJECTED"; else return bad(res, 400, "Action must be APPROVE or REJECT.");
-    profile.reviewNotes = String(req.body?.notes || ""); profile.reviewedBy = req.user?.id; await profile.save(); return res.json({ success: true, data: profile });
+    profile.reviewNotes = String(req.body?.notes || ""); profile.reviewedBy = req.user?.id; profile.statusHistory.push({ status: profile.status, actorId: req.user?.id, note: profile.reviewNotes || (action === "APPROVE" ? "Packaging unit approved" : "Changes requested") }); await profile.save(); return res.json({ success: true, data: profile });
   }
   async directory(req: Request, res: Response) {
-    const query: any = { department: DEPARTMENT, status: "PUBLISHED", published: { $ne: null } }; const search = String(req.query.search || "").trim();
-    if (search) query.$or = [{ "published.displayName": new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }, { "published.summary": new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }];
+    const query: any = { department: DEPARTMENT, status: { $ne: "ARCHIVED" }, published: { $ne: null } }; const search = String(req.query.search || "").trim();
+    if (search) query.$or = ["displayName", "summary", "locations.name", "locations.address", "locations.city", "locations.state", "locations.country"].map((field) => ({ [`published.${field}`]: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }));
     [["serviceIds", "published.capabilities.serviceIds"], ["formatIds", "published.capabilities.formatIds"], ["materialIds", "published.capabilities.materialIds"], ["commodityIds", "published.capabilities.commodityIds"]].forEach(([input, path]) => { const values = String(req.query[input] || "").split(",").filter(valid); if (values.length) query[path] = { $in: values }; });
     if (req.query.country) query["published.locations.coverageCountries"] = String(req.query.country); if (req.query.state) query["published.locations.coverageStates"] = String(req.query.state);
-    const rows = await populatedProfile(ServiceProviderProfileModel.find(query)).sort({ "published.displayName": 1 }).limit(200).lean(); return res.json({ success: true, data: rows });
+    if (req.query.verifiedOnly === "true") query["published.credentials.verificationStatus"] = "VERIFIED";
+    const page = Math.max(1, Number(req.query.page) || 1), limit = Math.min(100, Math.max(1, Number(req.query.limit) || 18));
+    const [rows,total,all]: any = await Promise.all([populatedProfile(ServiceProviderProfileModel.find(query)).sort({ "published.displayName": 1 }).skip((page-1)*limit).limit(limit).lean(),ServiceProviderProfileModel.countDocuments(query),populatedProfile(ServiceProviderProfileModel.find({ department: DEPARTMENT, status: { $ne: "ARCHIVED" }, published: { $ne: null } })).lean()]);
+    const markers=rows.flatMap((row:any)=>(row.published?.locations||[]).filter((x:any)=>Number.isFinite(Number(x.latitude))&&Number.isFinite(Number(x.longitude))).map((x:any)=>({profileId:row._id,displayName:row.published.displayName,latitude:Number(x.latitude),longitude:Number(x.longitude),label:x.name||[x.city,x.country].filter(Boolean).join(", ")})));
+    const ids=(path:string)=>Array.from(new Set(all.flatMap((row:any)=>(row.published?.capabilities||[]).flatMap((cap:any)=>(cap[path]||[]).map((x:any)=>JSON.stringify({_id:id(x),name:x?.name||String(x)})))))).map((x:any)=>JSON.parse(x));
+    return res.json({ success:true,data:rows,markers,facets:{services:ids("serviceIds"),formats:ids("formatIds"),materials:ids("materialIds"),commodities:ids("commodityIds"),qualityOptions:ids("qualityOptionIds"),countries:Array.from(new Set(all.flatMap((row:any)=>(row.published?.locations||[]).flatMap((x:any)=>x.coverageCountries||[])))).sort()},meta:{page,limit,total,pages:Math.ceil(total/limit)} });
   }
   async profileDetail(req: Request, res: Response) {
-    const row = await populatedProfile(ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT, status: "PUBLISHED" })).lean(); return row ? res.json({ success: true, data: row }) : bad(res, 404, "Packaging provider not found.");
+    const row = await populatedProfile(ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT, status: { $ne: "ARCHIVED" }, published: { $ne: null } })).lean(); return row ? res.json({ success: true, data: row }) : bad(res, 404, "Packaging provider not found.");
+  }
+  async trackContact(req: Request, res: Response) {
+    const row = await ServiceProviderProfileModel.exists({ _id: req.params.id, department: DEPARTMENT, status: { $ne: "ARCHIVED" }, published: { $ne: null } }); if (!row) return bad(res, 404, "Packaging unit not found."); const channel=String(req.body.channel||"").toUpperCase(); if (!["PHONE","EMAIL","WHATSAPP","WEBSITE"].includes(channel)) return bad(res,400,"Unsupported contact channel."); await ServiceProviderContactEventModel.create({department:DEPARTMENT,profileId:req.params.id,actorId:valid(req.user?.id)?req.user?.id:undefined,channel}); return res.status(201).json({success:true});
   }
   async createRequirement(req: Request, res: Response) {
     const who = await actor(req); if (!who?.companyId || role(req) !== "associate") return bad(res, 403, "Approved seeker company required.");
@@ -194,17 +240,16 @@ export class ServiceMarketplaceController {
     if (role(req) === "associate") mode === "seeking" ? filter.requesterCompany = who!.companyId : Object.assign(filter, { requesterCompany: { $ne: who!.companyId }, status: filter.status || { $in: ["OPEN", "CLOSED", "AWARDED"] } });
     else if (["operator", "team"].includes(role(req))) filter.requesterCompany = { $in: await scopedCompanies(req) };
     let requirements: any[] = await ServiceRequirementModel.find(filter).populate("commodityId serviceIds formatIds materialIds qualityOptionIds certificationIds", "name kind").sort({ createdAt: -1 }).limit(200).lean();
-    if (mode === "providing" && role(req) === "associate") { const profile: any = await ServiceProviderProfileModel.findOne({ department: DEPARTMENT, companyId: who!.companyId, status: "PUBLISHED" }).lean(); requirements = requirements.filter((r) => profileMatchesRequirement(profile, r)); }
+    if (mode === "providing" && role(req) === "associate") { const profiles: any[] = await ServiceProviderProfileModel.find({ department: DEPARTMENT, companyId: who!.companyId, status: { $ne: "ARCHIVED" }, published: { $ne: null } }).lean(); requirements = requirements.filter((r) => profiles.some((profile) => profileMatchesRequirement(profile, r))); }
     const offers: any[] = await ServiceOfferModel.find({ requirement: { $in: requirements.map((r) => r._id) } }).populate("providerCompany", "name").populate("proposedMaterialId proposedFormatId", "name").lean();
     return res.json({ success: true, data: requirements.map((r) => redactServiceRequirement(r, offers.filter((o) => id(o.requirement) === id(r)), { companyId: who?.companyId, owner: id(r.requesterCompany) === who?.companyId, provider: mode === "providing", staff: staff(req) })) });
   }
   async submitOffer(req: Request, res: Response) {
     const who = await actor(req); if (!who?.companyId || role(req) !== "associate") return bad(res, 403, "Approved provider company required."); const requirement: any = await ServiceRequirementModel.findById(req.params.id); if (!requirement) return bad(res, 404, "Requirement not found.");
     requirement.status = resolveServiceRequirementStatus(requirement.status, requirement.opensAt, requirement.closesAt); if (requirement.isModified("status")) await requirement.save(); if (requirement.status !== "OPEN" || id(requirement.requesterCompany) === who.companyId) return bad(res, 409, "This requirement is not available for your company.");
-    const profile: any = await ServiceProviderProfileModel.findOne({ department: DEPARTMENT, companyId: who.companyId, status: "PUBLISHED" }).lean(); if (!profile) return bad(res, 403, "Publish your Packaging profile before bidding.");
-    if (!profileMatchesRequirement(profile, requirement)) return bad(res, 403, "Your published packaging capabilities do not match this requirement.");
+    const profiles: any[] = await ServiceProviderProfileModel.find({ department: DEPARTMENT, companyId: who.companyId, status: { $ne: "ARCHIVED" }, published: { $ne: null } }).lean(); const profile = profiles.find((item) => profileMatchesRequirement(item, requirement)); if (!profile) return bad(res, 403, "A published packaging unit matching this requirement is required before bidding.");
     const price = Number(req.body?.price), capacityCommitted = Number(req.body?.capacityCommitted), turnaroundDays = Number(req.body?.turnaroundDays); if (!(price > 0) || !(capacityCommitted > 0) || !(turnaroundDays >= 0) || !String(req.body?.pricingBasis || "").trim()) return bad(res, 400, "Price, pricing basis, capacity, and turnaround are required.");
-    const existing: any = await ServiceOfferModel.findOne({ requirement: requirement._id, providerCompany: who.companyId }); const next = { ...req.body, price, capacityCommitted, turnaroundDays, provider: who.id, providerCompany: who.companyId, status: "SUBMITTED" };
+    const existing: any = await ServiceOfferModel.findOne({ requirement: requirement._id, providerCompany: who.companyId }); const next = { ...req.body, price, capacityCommitted, turnaroundDays, provider: who.id, providerCompany: who.companyId, providerUnit: profile._id, status: "SUBMITTED" };
     let offer: any; if (existing) { existing.revisions.push({ price: existing.price, pricingBasis: existing.pricingBasis, capacityCommitted: existing.capacityCommitted, turnaroundDays: existing.turnaroundDays, validUntil: existing.validUntil, proposedMaterialId: existing.proposedMaterialId, proposedFormatId: existing.proposedFormatId, note: existing.note, attachmentUrls: existing.attachmentUrls, at: new Date(), by: who.id }); Object.assign(existing, next); offer = await existing.save(); } else offer = await ServiceOfferModel.create({ ...next, requirement: requirement._id });
     await notify([requirement.requester], requirement, existing ? "SERVICE_OFFER_UPDATED" : "SERVICE_OFFER_SUBMITTED", "Sealed packaging offer received", `A provider ${existing ? "updated" : "submitted"} a confidential offer for ${requirement.title}.`, who.id); return res.status(existing ? 200 : 201).json({ success: true, data: offer });
   }
@@ -222,7 +267,7 @@ export class ServiceMarketplaceController {
     const who = await actor(req); const requirement: any = await ServiceRequirementModel.findById(req.params.id); if (!requirement || !await canManageCompany(req, requirement.requesterCompany, who?.companyId)) return bad(res, 404, "Requirement not found.");
     requirement.status = resolveServiceRequirementStatus(requirement.status, requirement.opensAt, requirement.closesAt); if (requirement.status === "AWARDED") return res.json({ success: true, data: requirement }); if (requirement.status !== "CLOSED") return bad(res, 409, "Close bidding before selecting a provider.");
     const offer: any = await ServiceOfferModel.findOne({ _id: req.body?.offerId, requirement: requirement._id, status: "SUBMITTED" }); if (!offer) return bad(res, 400, "Select a valid submitted offer.");
-    const work: any = await ServiceWorkOrderModel.create({ department: DEPARTMENT, requirement: requirement._id, offer: offer._id, requester: requirement.requester, requesterCompany: requirement.requesterCompany, provider: offer.provider, providerCompany: offer.providerCompany, agreedPrice: offer.price, pricingBasis: offer.pricingBasis, snapshot: requirement.toObject(), enquiryId: requirement.enquiryId, orderId: requirement.orderId, executionTaskId: requirement.executionTaskId, status: "AWARDED", statusHistory: [{ status: "AWARDED", at: new Date(), by: req.user?.id, note: "Provider selected" }] });
+    const work: any = await ServiceWorkOrderModel.create({ department: DEPARTMENT, requirement: requirement._id, offer: offer._id, requester: requirement.requester, requesterCompany: requirement.requesterCompany, provider: offer.provider, providerCompany: offer.providerCompany, providerUnit: offer.providerUnit, agreedPrice: offer.price, pricingBasis: offer.pricingBasis, snapshot: requirement.toObject(), enquiryId: requirement.enquiryId, orderId: requirement.orderId, executionTaskId: requirement.executionTaskId, status: "AWARDED", statusHistory: [{ status: "AWARDED", at: new Date(), by: req.user?.id, note: "Provider selected" }] });
     await ServiceOfferModel.updateMany({ requirement: requirement._id, status: { $ne: "WITHDRAWN" } }, [{ $set: { status: { $cond: [{ $eq: ["$_id", offer._id] }, "AWARDED", "NOT_SELECTED"] } } }]); requirement.status = "AWARDED"; requirement.winningOffer = offer._id; requirement.workOrder = work._id; await requirement.save();
     if (requirement.enquiryId && requirement.executionTaskId) await InquiryModel.updateOne({ _id: requirement.enquiryId, "executionInquiries._id": requirement.executionTaskId }, { $set: { "executionInquiries.$.committedProvider": offer.providerCompany, "executionInquiries.$.bidAmount": offer.price, "executionInquiries.$.status": "IN_PROGRESS", "executionInquiries.$.committedAt": new Date() } });
     const notSelected = await ServiceOfferModel.find({ requirement: requirement._id, status: "NOT_SELECTED" }).distinct("provider"); await Promise.all([notify([offer.provider], requirement, "SERVICE_REQUIREMENT_AWARDED", "Packaging work awarded", `Your company was selected for ${requirement.title}.`, who?.id), notify(notSelected, requirement, "SERVICE_OFFER_NOT_SELECTED", "Packaging award completed", `Another provider was selected for ${requirement.title}.`, who?.id)]); return res.json({ success: true, data: requirement });

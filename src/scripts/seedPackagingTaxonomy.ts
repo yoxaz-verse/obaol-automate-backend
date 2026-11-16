@@ -5,7 +5,7 @@ import { ServiceTaxonomyModel } from "../database/models/serviceTaxonomy";
 
 export const PACKAGING_DEFAULTS: Record<string, string[]> = {
   COMMODITY: ["Rice", "Wheat", "Maize", "Pulses", "Spices", "Tea", "Coffee", "Nuts", "Seeds", "Processed food ingredients"],
-  SERVICE: ["Bag manufacturing", "Filling and sealing", "Label printing", "Packaging design", "Repacking", "Contract packing"],
+  SERVICE: ["Bulk packing", "Retail packing", "Export packing", "Customized packaging", "Contract packing", "Repacking", "Bag manufacturing", "Filling and sealing", "Label printing", "Packaging design"],
   FORMAT: ["PP woven sack", "FIBC / jumbo bag", "Kraft paper bag", "Laminated pouch", "Liner bag", "Corrugated carton", "Drum", "Jar or container"],
   MATERIAL: ["PP woven", "HDPE", "LDPE", "BOPP laminate", "Kraft paper", "Corrugated board", "Jute", "Metal", "Food-grade plastic"],
   MACHINERY: ["Automatic filling line", "Bag stitching machine", "Heat sealer", "Vacuum packer", "Form-fill-seal machine", "Label printer"],

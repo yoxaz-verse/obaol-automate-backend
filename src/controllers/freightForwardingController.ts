@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
-import { CustomsCaseModel, FreightFinanceModel, FreightOfferModel, FreightProviderProfileModel, FreightRequirementModel, FreightShipmentModel } from "../database/models/freightForwarding";
+import { CustomsCaseModel, FreightContactEventModel, FreightFinanceModel, FreightOfferModel, FreightProviderProfileModel, FreightRequirementModel, FreightShipmentModel } from "../database/models/freightForwarding";
 import { FREIGHT_MODES } from "../interfaces/freightForwarding";
 
 const id = (value: any) => String(value?._id || value || "");
@@ -33,14 +33,18 @@ const profileErrors = (snapshot: any) => {
   if (!String(snapshot?.displayName || "").trim()) errors.push("Display name is required");
   if (!String(snapshot?.contactEmail || "").trim()) errors.push("Contact email is required");
   if (!snapshot?.modes?.length) errors.push("At least one transport mode is required");
-  if (!snapshot?.lanes?.length) errors.push("At least one service lane is required");
+  if (!snapshot?.lanes?.length && !snapshot?.originCountries?.length && !snapshot?.destinationCountries?.length) errors.push("At least one served country or service lane is required");
+  if (snapshot?.customsArrangement === "OWN_LICENSE" && !String(snapshot?.customsDetails?.licenseNumber || "").trim()) errors.push("Customs licence number is required for an own-licence arrangement");
+  if (snapshot?.customsArrangement === "EXTERNAL_AGENT" && !String(snapshot?.customsDetails?.agentName || "").trim()) errors.push("External customs agent name is required");
   return errors;
 };
+const list = (value: any) => String(value || "").split(",").map((x) => x.trim()).filter(Boolean);
+const escaped = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const canSeeShipment = async (req: Request, shipment: any, who: any) => Boolean(shipment && (staff(req) ? await managed(req, shipment.ownerCompany, who?.companyId) : id(shipment.ownerCompany) === who?.companyId || id(shipment.customerCompany) === who?.companyId));
 
 export class FreightForwardingController {
   async taxonomy(_req: Request, res: Response) {
-    return res.json({ success: true, data: { modes: FREIGHT_MODES, movementTypes: ["FCL", "LCL", "BREAK_BULK", "BULK", "ULD", "PARCEL", "FTL", "LTL", "WAGON", "CONSOLIDATED"], equipmentTypes: ["20GP", "40GP", "40HC", "REEFER", "OPEN_TOP", "FLAT_RACK", "TANK", "ULD", "TRUCK", "TRAILER", "WAGON"], services: ["DOOR_TO_DOOR", "PORT_TO_PORT", "CONSOLIDATION", "DECONSOLIDATION", "CUSTOMS_BROKERAGE", "INSURANCE", "WAREHOUSING", "LAST_MILE"], incoterms: ["EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF"] } });
+    return res.json({ success: true, data: { modes: FREIGHT_MODES, movementTypes: ["FCL", "LCL", "BREAK_BULK", "BULK", "ULD", "PARCEL", "FTL", "LTL", "WAGON", "CONSOLIDATED"], equipmentTypes: ["20GP", "40GP", "40HC", "REEFER", "OPEN_TOP", "FLAT_RACK", "TANK", "ULD", "TRUCK", "TRAILER", "WAGON"], services: ["DOOR_TO_DOOR", "PORT_TO_PORT", "AIRPORT_TO_AIRPORT", "CONSOLIDATION", "DECONSOLIDATION", "CUSTOMS_BROKERAGE", "CARGO_INSURANCE", "WAREHOUSING", "FIRST_MILE", "LAST_MILE", "DOCUMENTATION", "TRACKING", "DESTINATION_HANDLING", "CARRIER_BOOKING"], responsibilities: ["SHIPMENT_PLANNING", "CARRIER_COORDINATION", "RATE_NEGOTIATION", "BOOKING", "SHIPPING_DOCUMENTS", "CUSTOMS_COORDINATION", "CARGO_INSURANCE", "CONSOLIDATION", "TRACKING", "DESTINATION_HANDOFF"], specialCargo: ["DANGEROUS_GOODS", "REEFER", "PERISHABLE", "PROJECT_CARGO", "OVERSIZED", "PHARMA"], customsArrangements: ["OWN_LICENSE", "EXTERNAL_AGENT", "NOT_OFFERED"], credentialTypes: ["CHA", "CUSTOMS_BROKER", "IATA", "FIATA", "AEO", "ISO", "MTO", "FMC", "NVOCC", "OTHER"], incoterms: ["EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF"] } });
   }
   async getProfile(req: Request, res: Response) {
     const who = await actor(req); const companyId = String(req.query.companyId || who?.companyId || "");
@@ -73,8 +77,33 @@ export class FreightForwardingController {
     row.reviewNotes = String(req.body.notes || ""); row.reviewedBy = req.user?.id; await row.save(); return res.json({ success: true, data: row });
   }
   async directory(req: Request, res: Response) {
-    const filter: any = { status: "PUBLISHED", published: { $ne: null } }; const search = String(req.query.search || "").trim(); if (search) filter["published.displayName"] = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); if (req.query.mode) filter["published.modes"] = String(req.query.mode).toUpperCase();
-    return res.json({ success: true, data: await FreightProviderProfileModel.find(filter).populate("companyId", "name").sort({ "published.displayName": 1 }).limit(200).lean() });
+    const filter: any = { status: "PUBLISHED", published: { $ne: null } }; const search = String(req.query.search || "").trim();
+    if (search) filter.$or = ["displayName", "summary", "locations.city", "locations.state", "locations.country", "lanes.origin", "lanes.destination"].map((field) => ({ [`published.${field}`]: new RegExp(escaped(search), "i") }));
+    const multi: Record<string, string> = { modes: "modes", movementTypes: "movementTypes", services: "services", originCountries: "originCountries", destinationCountries: "destinationCountries", customsArrangements: "customsArrangement", credentialTypes: "credentials.type" };
+    Object.entries(multi).forEach(([queryKey, field]) => { const values = list(req.query[queryKey]).map((x) => x.toUpperCase()); if (values.length) filter[`published.${field}`] = { $in: values }; });
+    if (String(req.query.verifiedOnly) === "true") filter["published.credentials"] = { $elemMatch: { verified: true } };
+    const page = Math.max(1, Number(req.query.page) || 1), limit = Math.min(100, Math.max(1, Number(req.query.limit) || 18));
+    const [rows, total, all] = await Promise.all([
+      FreightProviderProfileModel.find(filter).populate("companyId", "name").sort({ "published.displayName": 1 }).skip((page - 1) * limit).limit(limit).lean(),
+      FreightProviderProfileModel.countDocuments(filter),
+      FreightProviderProfileModel.find({ status: "PUBLISHED", published: { $ne: null } }).select("published.modes published.services published.originCountries published.destinationCountries published.customsArrangement published.credentials").lean(),
+    ]);
+    const unique = (values: any[]) => Array.from(new Set(values.flat().filter(Boolean))).sort();
+    const markers = rows.flatMap((row: any) => (row.published?.locations || []).filter((x: any) => Number.isFinite(Number(x.latitude)) && Number.isFinite(Number(x.longitude))).map((x: any) => ({ profileId: row._id, displayName: row.published.displayName, latitude: Number(x.latitude), longitude: Number(x.longitude), label: x.label || [x.city, x.country].filter(Boolean).join(", ") })));
+    const published = all.map((x: any) => x.published || {});
+    return res.json({ success: true, data: rows, markers, facets: { modes: unique(published.map((x) => x.modes || [])), services: unique(published.map((x) => x.services || [])), originCountries: unique(published.map((x) => x.originCountries || [])), destinationCountries: unique(published.map((x) => x.destinationCountries || [])), customsArrangements: unique(published.map((x) => x.customsArrangement || [])), credentialTypes: unique(published.map((x) => (x.credentials || []).map((c: any) => c.type))) }, meta: { page, limit, total, pages: Math.ceil(total / limit) } });
+  }
+  async profileDetail(req: Request, res: Response) {
+    if (!valid(req.params.id)) return fail(res, 404, "Freight forwarder not found.");
+    const row = await FreightProviderProfileModel.findOne({ _id: req.params.id, status: "PUBLISHED", published: { $ne: null } }).populate("companyId", "name").lean();
+    if (!row) return fail(res, 404, "Freight forwarder not found.");
+    return res.json({ success: true, data: row });
+  }
+  async trackContact(req: Request, res: Response) {
+    if (!valid(req.params.id) || !await FreightProviderProfileModel.exists({ _id: req.params.id, status: "PUBLISHED" })) return fail(res, 404, "Freight forwarder not found.");
+    const channel = String(req.body.channel || "").toUpperCase(); if (!["PHONE", "EMAIL", "WHATSAPP", "WEBSITE"].includes(channel)) return fail(res, 400, "Unsupported contact channel.");
+    await FreightContactEventModel.create({ profileId: req.params.id, actorId: valid(req.user?.id) ? req.user?.id : undefined, channel });
+    return res.status(201).json({ success: true });
   }
   async requirements(req: Request, res: Response) {
     const who = await actor(req); if (!who && !staff(req)) return fail(res, 403, "Access required."); const mode = String(req.query.mode || "seeking"); const filter: any = { archivedAt: null };

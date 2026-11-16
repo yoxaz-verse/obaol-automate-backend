@@ -7,6 +7,8 @@ router.get("/companies", c.companies.bind(c));
 router.get("/overview", c.overview.bind(c));
 router.get("/profile", c.getProfile.bind(c)); router.put("/profile", c.saveProfile.bind(c));
 router.get("/vehicles", c.listVehicles.bind(c)); router.post("/vehicles", c.saveVehicle.bind(c)); router.patch("/vehicles/:id", c.saveVehicle.bind(c));
+router.post("/vehicles/:id/location", c.updateVehiclePosition.bind(c)); router.get("/vehicles/:id/location-history", c.vehicleLocationHistory.bind(c)); router.get("/vehicles/:id/exact-position", c.exactVehiclePosition.bind(c));
+router.get("/directory", c.publicDirectory.bind(c)); router.get("/directory/:id", c.publicVehicleDetail.bind(c)); router.post("/directory/:id/contact", c.trackContact.bind(c));
 router.get("/drivers", c.listDrivers.bind(c)); router.post("/drivers", c.saveDriver.bind(c)); router.patch("/drivers/:id", c.saveDriver.bind(c));
 router.get("/documents", c.documents.bind(c)); router.get("/trips", c.trips.bind(c)); router.post("/trips", c.createTrip.bind(c)); router.get("/trips/:id", c.trip.bind(c)); router.patch("/trips/:id", c.updateTrip.bind(c));
 router.post("/trips/:id/status", c.transition.bind(c)); router.post("/trips/:id/location", c.location.bind(c)); router.post("/trips/:id/exceptions", c.addException.bind(c)); router.patch("/trips/:id/exceptions/:exceptionId/resolve", c.resolveException.bind(c)); router.post("/trips/:id/attachments", documentUpload.single("file"), c.addAttachment.bind(c)); router.get("/trips/:id/attachments/:attachmentId/download", c.downloadAttachment.bind(c));

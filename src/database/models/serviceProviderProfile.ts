@@ -27,10 +27,18 @@ const SnapshotSchema = new Schema({
 }, { _id: false });
 const ServiceProviderProfileSchema = new Schema({
   department: { type: String, enum: SERVICE_DEPARTMENTS, required: true, index: true }, companyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, index: true },
+  unitKey: { type: String, default: "primary", trim: true, index: true }, legacyProfileId: { type: Schema.Types.ObjectId, default: null },
   draft: { type: SnapshotSchema, default: null }, published: { type: SnapshotSchema, default: null },
   status: { type: String, enum: SERVICE_PROFILE_STATUSES, default: "DRAFT", index: true }, reviewNotes: { type: String, default: "", trim: true },
-  submittedAt: Date, publishedAt: Date, reviewedBy: { type: Schema.Types.ObjectId, default: null },
+  submittedAt: Date, publishedAt: Date, reviewedBy: { type: Schema.Types.ObjectId, default: null }, archivedAt: Date,
+  statusHistory: [{ status: String, at: { type: Date, default: Date.now }, actorId: Schema.Types.ObjectId, note: { type: String, default: "" } }],
 }, { timestamps: true });
-ServiceProviderProfileSchema.index({ department: 1, companyId: 1 }, { unique: true });
+ServiceProviderProfileSchema.index({ department: 1, companyId: 1, unitKey: 1 }, { unique: true });
 ServiceProviderProfileSchema.index({ department: 1, status: 1, "published.displayName": 1 });
 export const ServiceProviderProfileModel = mongoose.model("ServiceProviderProfile", ServiceProviderProfileSchema);
+
+const ServiceProviderContactEventSchema = new Schema({
+  department: { type: String, enum: SERVICE_DEPARTMENTS, required: true, index: true }, profileId: { type: Schema.Types.ObjectId, ref: "ServiceProviderProfile", required: true, index: true },
+  actorId: Schema.Types.ObjectId, channel: { type: String, enum: ["PHONE", "EMAIL", "WHATSAPP", "WEBSITE"], required: true },
+}, { timestamps: true });
+export const ServiceProviderContactEventModel = mongoose.model("ServiceProviderContactEvent", ServiceProviderContactEventSchema);

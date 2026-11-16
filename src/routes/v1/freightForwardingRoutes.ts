@@ -12,6 +12,8 @@ router.post("/profiles/submit", c.submitProfile.bind(c));
 router.get("/profiles/approvals", c.approvals.bind(c));
 router.patch("/profiles/approvals/:id", c.reviewProfile.bind(c));
 router.get("/directory", c.directory.bind(c));
+router.get("/directory/:id", c.profileDetail.bind(c));
+router.post("/directory/:id/contact", c.trackContact.bind(c));
 router.get("/requirements", c.requirements.bind(c));
 router.post("/requirements", c.createRequirement.bind(c));
 router.post("/requirements/:id/publish", c.publishRequirement.bind(c));

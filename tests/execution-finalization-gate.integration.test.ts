@@ -36,6 +36,47 @@ const createExecutionInquiry = (finalized: boolean) => {
 };
 
 describe("execution responsibility-finalization gate", () => {
+  it("reports missing trade terms without finalizing or creating execution tasks", async () => {
+    const token = await adminToken();
+    const inquiry = await InquiryModel.create({
+      productId: new Types.ObjectId(),
+      buyerAssociateId: new Types.ObjectId(),
+      sellerAssociateId: new Types.ObjectId(),
+      createdBy: new Types.ObjectId(),
+      sellerAcceptedAt: new Date(),
+      buyerConfirmedAt: new Date(),
+      responsibilityPlan: {
+        procurementBy: "obaol",
+        qualityTestingBy: "obaol",
+        packagingBy: "obaol",
+        transportBy: "obaol",
+      },
+      executionContext: {
+        tradeType: "DOMESTIC",
+        originState: new Types.ObjectId(),
+        originDistrict: new Types.ObjectId(),
+        destinationState: new Types.ObjectId(),
+        destinationDistrict: new Types.ObjectId(),
+      },
+      packagingSpecifications: "25 kg food-grade bags on pallets",
+    });
+
+    const response = await api
+      .patch(`/api/v1/web/inquiries/${inquiry._id}/finalize-responsibilities`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      success: false,
+      code: "RESPONSIBILITY_FINALIZATION_INCOMPLETE",
+      missingFields: expect.arrayContaining(["preferredIncoterm", "paymentTermId"]),
+    });
+    const unchanged = await InquiryModel.findById(inquiry._id).lean();
+    expect((unchanged as any)?.responsibilitiesFinalizedAt).toBeNull();
+    expect((unchanged as any)?.executionInquiries || []).toHaveLength(0);
+  });
+
   it("returns only finalized enquiries in both execution-panel list endpoints", async () => {
     const token = await adminToken();
     const hidden = await createExecutionInquiry(false);

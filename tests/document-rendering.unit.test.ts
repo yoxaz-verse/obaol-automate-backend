@@ -47,6 +47,17 @@ describe("canonical document HTML rendering", () => {
     expect(html).not.toContain(">-<");
   });
 
+  it("suppresses contact names that duplicate an email while preserving genuine names", () => {
+    const duplicateHtml = renderDocumentHtml({
+      ...document,
+      seller: { ...document.seller, contactName: "  SELLER@example.com " },
+      buyer: { ...document.buyer, contactName: "Buyer Contact" },
+    }, { name: "Classic", version: 1, layoutSchema: { elements: [] } });
+
+    expect(duplicateHtml.match(/seller@example\.com/gi)).toHaveLength(2);
+    expect(duplicateHtml).toContain("<p>Buyer Contact</p>");
+  });
+
   it("renders a dedicated Bill of Lading draft with carrier warning and cargo particulars", () => {
     const html = renderDocumentHtml({ ...document, type: "BILL_OF_LADING", sourceMode: "CREATED", documentData: { shipper: "OBAOL Exporter", consignee: "Overseas Buyer", billNumber: "BL-100", carrier: "Ocean Line", vessel: "MV Trade / 12", portOfLoading: "Cochin", portOfDischarge: "Dubai", cargoDescription: "Bagged cardamom", totalGrossWeight: 1200, packages: [{ description: "Cardamom", packageType: "Bag", packageCount: 40, grossWeight: 1200, netWeight: 1160, marks: "OBL" }], issuePlace: "Cochin", transportIssueDate: "2026-11-04", authorizedSignatory: "Carrier Agent" } }, { name: "Trade", version: 1, layoutSchema: { elements: [] } });
     expect(html).toContain("DRAFT — NOT CARRIER ISSUED");

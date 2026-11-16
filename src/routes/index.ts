@@ -29,6 +29,8 @@ router.use(`${prefix}/verification`, verificationRoutes);
 // Orders
 import orderRoutes from "./v1/orderRoutes";
 router.use(`${prefix}/orders`, orderRoutes);
+import requirementRoutes from "./v1/requirementRoutes";
+router.use(`${prefix}/requirements`, requirementRoutes);
 
 // Inquiries (Clean deterministic engine)
 import inquiryRoutes from "./v1/inquiryRoutes";

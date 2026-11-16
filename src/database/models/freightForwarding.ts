@@ -12,6 +12,15 @@ const FreightProviderProfileSchema = new Schema({
   status: { type: String, enum: FREIGHT_PROFILE_STATUSES, default: "DRAFT", index: true }, draft: Schema.Types.Mixed, published: Schema.Types.Mixed,
   revisions: [{ snapshot: Schema.Types.Mixed, at: { type: Date, default: Date.now }, by: Schema.Types.ObjectId }], reviewNotes: String, submittedAt: Date, publishedAt: Date, reviewedBy: Schema.Types.ObjectId,
 }, { timestamps: true, optimisticConcurrency: true });
+FreightProviderProfileSchema.index({ status: 1, "published.displayName": 1 });
+FreightProviderProfileSchema.index({ status: 1, "published.modes": 1, "published.services": 1 });
+FreightProviderProfileSchema.index({ status: 1, "published.originCountries": 1, "published.destinationCountries": 1 });
+
+const FreightContactEventSchema = new Schema({
+  profileId: { type: Schema.Types.ObjectId, ref: "FreightProviderProfile", required: true, index: true },
+  actorId: { type: Schema.Types.ObjectId, index: true },
+  channel: { type: String, enum: ["PHONE", "EMAIL", "WHATSAPP", "WEBSITE"], required: true },
+}, { timestamps: true });
 
 const FreightRequirementSchema = new Schema({
   requester: { type: Schema.Types.ObjectId, ref: "Associate", required: true }, requesterCompany: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, index: true },
@@ -51,6 +60,7 @@ const FreightFinanceSchema = new Schema({
 FreightFinanceSchema.index({ ownerCompany: 1, kind: 1, number: 1 }, { unique: true });
 
 export const FreightProviderProfileModel = mongoose.model("FreightProviderProfile", FreightProviderProfileSchema);
+export const FreightContactEventModel = mongoose.model("FreightContactEvent", FreightContactEventSchema);
 export const FreightRequirementModel = mongoose.model("FreightRequirement", FreightRequirementSchema);
 export const FreightOfferModel = mongoose.model("FreightOffer", FreightOfferSchema);
 export const FreightShipmentModel = mongoose.model("FreightShipment", FreightShipmentSchema);

@@ -40,6 +40,7 @@ import { DocumentRuleModel } from "../database/models/documentRule";
 import { FlowRuleModel } from "../database/models/flowRule";
 import { OrderSubflowConfigModel } from "../database/models/orderSubflowConfig";
 import { PaymentTermModel } from "../database/models/paymentTerm";
+import { IncotermModel } from "../database/models/incoterm";
 import { buildPaymentPlanFromTermId } from "../utils/paymentPlan";
 import { buildDealSnapshot, validatePaymentPlan } from "../services/orders/dealSnapshot.service";
 import { ensureDefaultFlowRules } from "../utils/flowRules";
@@ -1605,6 +1606,35 @@ export class InquiryController {
                 });
             }
 
+            if ((inquiry as any).responsibilitiesFinalizedAt) {
+                return res.json({
+                    success: true,
+                    data: inquiry,
+                    message: "Responsibilities already finalized"
+                });
+            }
+
+            const missingFields: string[] = [];
+            const preferredIncotermId = String((inquiry as any).preferredIncoterm || "");
+            const paymentTermId = String((inquiry as any).paymentTermId || "");
+            const [hasValidIncoterm, hasValidPaymentTerm] = await Promise.all([
+                Types.ObjectId.isValid(preferredIncotermId)
+                    ? IncotermModel.exists({ _id: preferredIncotermId })
+                    : Promise.resolve(null),
+                Types.ObjectId.isValid(paymentTermId)
+                    ? PaymentTermModel.exists({ _id: paymentTermId })
+                    : Promise.resolve(null),
+            ]);
+            if (!hasValidIncoterm) missingFields.push("preferredIncoterm");
+            if (!hasValidPaymentTerm) missingFields.push("paymentTermId");
+
+            const incomplete = (fields: string[], message: string) => res.status(400).json({
+                success: false,
+                code: "RESPONSIBILITY_FINALIZATION_INCOMPLETE",
+                missingFields: Array.from(new Set(fields)),
+                message,
+            });
+
             const planRaw: any = inquiry.responsibilityPlan || {};
             const plan: any = {
                 ...planRaw,
@@ -1629,10 +1659,7 @@ export class InquiryController {
                 return res.status(400).json({ success: false, message: finalizationViolation.message });
             }
             if (!packagingSpecifications) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Packaging specifications are required before finalizing responsibilities",
-                });
+                missingFields.push("packagingSpecifications");
             }
             const mergedContext: any = {
                 ...(inquiry as any).executionContext,
@@ -1677,7 +1704,7 @@ export class InquiryController {
                 "procurementBy",
                 "qualityTestingBy",
                 "packagingBy",
-                "transportBy",
+                ...((inquiry as any).importDeliveryMode === "PORT_PICKUP" ? [] : ["transportBy"]),
             ];
             const internationalRequiredKeys = [
                 "shippingBy",
@@ -1687,9 +1714,13 @@ export class InquiryController {
                         "importCustomsBy",
                         "dutiesTaxesBy",
                         "portHandlingBy",
-                        "destinationInlandTransportBy",
-                        "destinationInspectionBy",
-                        "finalDeliveryConfirmationBy",
+                        ...((inquiry as any).importDeliveryMode === "PORT_PICKUP"
+                            ? []
+                            : [
+                                "destinationInlandTransportBy",
+                                "destinationInspectionBy",
+                                "finalDeliveryConfirmationBy",
+                            ]),
                     ]
                     : []),
             ];
@@ -1699,25 +1730,18 @@ export class InquiryController {
             for (const key of requiredPlanKeys) {
                 const value = String(plan[key] || "");
                 if (!allowedByKey[key]?.has(value)) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Responsibility plan is incomplete or invalid: ${key}`
-                    });
+                    missingFields.push(`responsibilityPlan.${key}`);
                 }
             }
 
             if (tradeType === "DOMESTIC") {
                 if (!mergedContext.originState || !mergedContext.destinationState) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "Domestic trade requires originState and destinationState"
-                    });
+                    if (!mergedContext.originState) missingFields.push("executionContext.originState");
+                    if (!mergedContext.destinationState) missingFields.push("executionContext.destinationState");
                 }
                 if (!mergedContext.originDistrict || !mergedContext.destinationDistrict) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "Domestic trade requires originDistrict and destinationDistrict"
-                    });
+                    if (!mergedContext.originDistrict) missingFields.push("executionContext.originDistrict");
+                    if (!mergedContext.destinationDistrict) missingFields.push("executionContext.destinationDistrict");
                 }
                 mergedContext.originCountry = null;
                 mergedContext.destinationCountry = null;
@@ -1725,16 +1749,12 @@ export class InquiryController {
                 mergedContext.destinationPort = null;
             } else {
                 if (!mergedContext.originCountry || !mergedContext.destinationCountry) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "International trade requires originCountry and destinationCountry"
-                    });
+                    if (!mergedContext.originCountry) missingFields.push("executionContext.originCountry");
+                    if (!mergedContext.destinationCountry) missingFields.push("executionContext.destinationCountry");
                 }
                 if (!mergedContext.originPort || !mergedContext.destinationPort) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "International trade requires originPort and destinationPort"
-                    });
+                    if (!mergedContext.originPort) missingFields.push("executionContext.originPort");
+                    if (!mergedContext.destinationPort) missingFields.push("executionContext.destinationPort");
                 }
                 mergedContext.originState = null;
                 mergedContext.destinationState = null;
@@ -1742,12 +1762,11 @@ export class InquiryController {
                 mergedContext.destinationDistrict = null;
             }
 
-            if ((inquiry as any).responsibilitiesFinalizedAt) {
-                return res.json({
-                    success: true,
-                    data: inquiry,
-                    message: "Responsibilities already finalized"
-                });
+            if (missingFields.length) {
+                return incomplete(
+                    missingFields,
+                    "Specify and save all trade terms, logistics, packaging, and responsibility owners before finalizing."
+                );
             }
 
             const [originCountryDoc, destinationCountryDoc, originStateDoc, destinationStateDoc, originDistrictDoc, destinationDistrictDoc, originPortDoc, destinationPortDoc] = await Promise.all([

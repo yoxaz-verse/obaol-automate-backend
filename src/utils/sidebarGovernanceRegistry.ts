@@ -23,8 +23,8 @@ export const COMMON_ASSOCIATE_SIDEBAR_ROUTES = [
 export const COMMON_ASSOCIATE_ROUTE_PATHS = new Set(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path));
 
 export const ASSOCIATE_SIDEBAR_ROUTES = [
-  ["bidding", "/dashboard/bidding", "Bidding"],
-  ["my-buying-requests", "/dashboard/bidding/my", "My Buying Requests"],
+  ["bidding", "/dashboard/bidding", "Purchase Opportunities"],
+  ["my-buying-requests", "/dashboard/bidding/my", "My Purchase Requests"],
   ["trade-listings", "/dashboard/marketplace", "Trade Listings"],
   ["my-trade-listings", "/dashboard/product", "My Trade Listings"],
   ["commodity-directory", "/dashboard/catalog", "Commodity Directory"],
@@ -37,6 +37,7 @@ export const ASSOCIATE_SIDEBAR_ROUTES = [
   ["my-import-listings", "/dashboard/imports/my-listings", "My Import Listings"],
   ["my-import-reservations", "/dashboard/imports/reservations", "My Reservations"],
   ["external-orders", "/dashboard/external-orders", "External Orders"],
+  ["requirements", "/dashboard/requirements", "Requirements"],
   ["execution", "/dashboard/execution-enquiries", "Execution Panel"],
   ["warehouse-directory", "/dashboard/warehouse-rent", "Warehouse Directory"],
   ["quality-labs", "/dashboard/quality-labs", "Quality Labs"],
@@ -163,7 +164,7 @@ const LIVE_BY_FUNCTION: Record<string, string[]> = {
   "inland-logistics": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/warehouses", "/dashboard/inland-transportation", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"],
 };
 
-const ALWAYS_LIVE = ["/dashboard/company"];
+const ALWAYS_LIVE = ["/dashboard/company", "/dashboard/requirements"];
 const INLAND_TRANSPORT_ROUTES = new Set(ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath]) => routePath).filter((routePath) => routePath.startsWith("/dashboard/inland-transportation")));
 const SEEKING_ROUTES = new Set(["/dashboard/bidding/my", "/dashboard/quality-labs", "/dashboard/packaging", "/dashboard/imports", "/dashboard/imports/reservations", "/dashboard/warehouse-rent"]);
 const PROVIDING_ROUTES = new Set(["/dashboard/bidding", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/imports/my-listings", "/dashboard/warehouses", "/dashboard/warehouses/operations", "/dashboard/inland-transportation", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"]);

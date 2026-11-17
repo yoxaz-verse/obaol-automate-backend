@@ -93,7 +93,7 @@ export class ProductBiddingController {
     } else if (role !== "associate" || !buyerCompanyId) {
       return fail(res, 403, "An approved buyer company is required.");
     } else if (req.body?.buyer !== undefined || req.body?.buyerCompany !== undefined) {
-      return fail(res, 403, "Associates cannot create buying requests for another company or contact.");
+      return fail(res, 403, "Associates cannot create purchase requests for another company or contact.");
     }
     const input = payloadFrom(req.body);
     if (!input.title || !isId(input.product) || !isId(input.productVariant) || !(Number(input.quantity) > 0) || !["KG", "MT", "Quintal"].includes(String(input.unit))) return fail(res, 400, "Title, product, variant, quantity, and unit are required.");

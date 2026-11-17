@@ -124,11 +124,13 @@ describe("sidebar governance canonical functions", () => {
     await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
     const after: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
     expect(result.state.status).toBe(200);
-    expect(after.matrixMigrationVersion).toBe(8);
+    expect(after.matrixMigrationVersion).toBe(9);
     expect(after.draft.revision).toBe(5);
     expect(after.published.revision).toBe(4);
     expect(after.draft.resolutionVersion).toBe(3);
     expect(after.published.resolutionVersion).toBe(3);
+    expect(after.draft.mappings).toContainEqual(expect.objectContaining({ routePath: "/dashboard/requirements", placement: "BOTH", status: "LIVE" }));
+    expect(after.published.mappings).toContainEqual(expect.objectContaining({ routePath: "/dashboard/requirements", placement: "BOTH", status: "LIVE" }));
     expect(after.draft.sectionOrder.IMPORTANT).toEqual(createDefaultSidebarSectionOrder().IMPORTANT);
     expect(after.published.sectionOrder.IMPORTANT).toEqual(createDefaultSidebarSectionOrder().IMPORTANT);
     expect(after.draft.mappings).toContainEqual(expect.objectContaining({ routePath: "/dashboard/documentation", placement: "SEEKING", status: "COMING_SOON", order: 2 }));
@@ -192,7 +194,7 @@ describe("sidebar governance canonical functions", () => {
     const first = response();
     await sidebarGovernanceController.getAdmin({} as any, first.res);
     const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
-    expect(stored.matrixMigrationVersion).toBe(8);
+    expect(stored.matrixMigrationVersion).toBe(9);
     expect(stored.draft.revision).toBe(5);
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "UNASSIGNED", status: "HIDDEN" }));
@@ -217,7 +219,7 @@ describe("bidding governance migration", () => {
     expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding/my", status: "HIDDEN" }));
   });
 
-  it("moves the buyer setting to My Buying Requests and preserves the seller setting", () => {
+  it("moves the buyer setting to My Purchase Requests and preserves the seller setting", () => {
     const migrated = migrateBiddingSplit([
       { functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "BOTH", status: "COMING_SOON", order: 7 },
       { functionSlug: "seller", routePath: "/dashboard/bidding", placement: "BOTH", status: "LIVE", order: 4 },

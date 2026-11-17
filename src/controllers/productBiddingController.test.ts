@@ -69,6 +69,6 @@ describe("admin buying request ownership", () => {
       body: { buyerCompany: "507f1f77bcf86cd799439014" },
     } as any, res);
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: "Associates cannot create buying requests for another company or contact." }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: "Associates cannot create purchase requests for another company or contact." }));
   });
 });

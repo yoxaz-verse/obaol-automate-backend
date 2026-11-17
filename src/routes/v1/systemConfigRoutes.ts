@@ -7,6 +7,9 @@ import { upload as signatureUpload } from "./companySignatureRoutes";
 const router = Router();
 const obaolSignature = new CompanySignatureController(true);
 
+router.get("/storage", authenticateToken, systemConfigController.getStorage.bind(systemConfigController));
+router.post("/storage/verify", authenticateToken, systemConfigController.verifyStorage.bind(systemConfigController));
+
 router.get("/obaol-company", authenticateToken, (req, res, next) =>
   systemConfigController.getObaolCompany(req, res, next)
 );

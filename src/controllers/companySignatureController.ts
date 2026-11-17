@@ -3,9 +3,11 @@ import sharp from "sharp";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { resolveObaolCompany } from "../utils/obaolCompanyConfig";
+import { deleteObject, getObjectBuffer, putObject } from "../services/objectStorageService";
 
-const publicSignature = (value: any) => value?.imageDataUrl ? {
-  imageDataUrl: value.imageDataUrl,
+const signatureDataUrl = async (value: any) => value?.imageDataUrl || (value?.objectKey ? `data:image/png;base64,${(await getObjectBuffer(value.objectKey)).toString("base64")}` : "");
+const publicSignature = async (value: any) => (value?.imageDataUrl || value?.objectKey) ? {
+  imageDataUrl: await signatureDataUrl(value),
   originalFileName: value.originalFileName || "",
   signerName: value.signerName || "",
   signerDesignation: value.signerDesignation || "",
@@ -48,16 +50,20 @@ export const processSignatureImage = async (file: Express.Multer.File) => {
 
 export class CompanySignatureController {
   constructor(private obaol = false) {}
-  async get(req: Request, res: Response, next: NextFunction) { try { const company: any = await targetCompany(req, this.obaol); return res.json({ success: true, data: publicSignature(company.documentSignature) }); } catch (e) { next(e); } }
+  async get(req: Request, res: Response, next: NextFunction) { try { const company: any = await targetCompany(req, this.obaol); return res.json({ success: true, data: await publicSignature(company.documentSignature) }); } catch (e) { next(e); } }
   async save(req: Request, res: Response, next: NextFunction) { try {
     const company: any = await targetCompany(req, this.obaol);
     const signerName = String(req.body?.signerName || "").trim().slice(0, 150), signerDesignation = String(req.body?.signerDesignation || "").trim().slice(0, 150);
     if (!signerName) return res.status(400).json({ success: false, message: "Signer name is required." });
-    const imageDataUrl = req.file ? await processSignatureImage(req.file) : String(company.documentSignature?.imageDataUrl || "");
+    const imageDataUrl = req.file ? await processSignatureImage(req.file) : await signatureDataUrl(company.documentSignature);
     if (!imageDataUrl) return res.status(400).json({ success: false, message: "Signature image is required." });
-    company.documentSignature = { imageDataUrl, originalFileName: req.file?.originalname || company.documentSignature?.originalFileName || "signature.png", signerName, signerDesignation, updatedAt: new Date(), updatedBy: req.user?.id || null };
+    const previousObjectKey = String(company.documentSignature?.objectKey || "");
+    let storage = previousObjectKey ? { storageProvider: "s3", objectKey: previousObjectKey, checksum: company.documentSignature.checksum } : {};
+    if (req.file) { const buffer = Buffer.from(imageDataUrl.split(",")[1], "base64"); const uploaded = await putObject({ domain: "signatures", body: buffer, originalName: "signature.png", mimeType: "image/png", metadata: { companyId: String(company._id) } }); storage = { storageProvider: "s3", objectKey: uploaded.objectKey, checksum: uploaded.checksum }; }
+    company.documentSignature = { imageDataUrl: "", ...storage, originalFileName: req.file?.originalname || company.documentSignature?.originalFileName || "signature.png", signerName, signerDesignation, updatedAt: new Date(), updatedBy: req.user?.id || null };
     await company.save();
-    return res.json({ success: true, data: publicSignature(company.documentSignature), message: "Document signature saved." });
+    if (req.file && previousObjectKey && previousObjectKey !== (storage as any).objectKey) await deleteObject(previousObjectKey).catch(() => undefined);
+    return res.json({ success: true, data: await publicSignature(company.documentSignature), message: "Document signature saved." });
   } catch (e) { next(e); } }
-  async remove(req: Request, res: Response, next: NextFunction) { try { const company: any = await targetCompany(req, this.obaol); company.documentSignature = undefined; await company.save(); return res.json({ success: true, data: null }); } catch (e) { next(e); } }
+  async remove(req: Request, res: Response, next: NextFunction) { try { const company: any = await targetCompany(req, this.obaol); const key = company.documentSignature?.objectKey; company.documentSignature = undefined; await company.save(); if (key) await deleteObject(key).catch(() => undefined); return res.json({ success: true, data: null }); } catch (e) { next(e); } }
 }

@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 import { DocumentExtractionJobModel } from "../database/models/documentExtractionJob";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
+import { getObjectStream } from "./objectStorageService";
 
 const execFileAsync = promisify(execFile);
 const money = (value: string) => Number(value.replace(/[, ]/g, ""));
@@ -51,11 +52,20 @@ async function extractText(filePath: string, mimeType: string) {
 }
 
 export async function processDocumentExtraction(jobId: string) {
-  const job: any = await DocumentExtractionJobModel.findOneAndUpdate({ _id: jobId, status: "QUEUED" }, { status: "PROCESSING", startedAt: new Date() }, { new: true }).select("+filePath +rawText");
+  const job: any = await DocumentExtractionJobModel.findOneAndUpdate({ _id: jobId, status: "QUEUED" }, { status: "PROCESSING", startedAt: new Date() }, { new: true }).select("+filePath +objectKey +rawText");
   if (!job) return;
   await TradeDocumentModel.findByIdAndUpdate(job.documentId, { extractionStatus: "PROCESSING" });
+  let temporaryPath = "";
   try {
-    const rawText = await extractText(job.filePath, job.mimeType);
+    let sourcePath = job.filePath;
+    if (job.objectKey) {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "obaol-s3-extraction-"));
+      temporaryPath = path.join(tempDir, job.mimeType === "application/pdf" ? "source.pdf" : "source-image");
+      const chunks: Buffer[] = [];
+      for await (const chunk of await getObjectStream(job.objectKey)) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      await fs.writeFile(temporaryPath, Buffer.concat(chunks)); sourcePath = temporaryPath;
+    }
+    const rawText = await extractText(sourcePath, job.mimeType);
     job.rawText = rawText.slice(0, 100000);
     job.extractedFields = parseDocumentFields(rawText);
     job.warnings = job.extractedFields.length ? [] : ["No standard fields were detected. Review and complete the draft manually."];
@@ -64,6 +74,8 @@ export async function processDocumentExtraction(jobId: string) {
   } catch (error: any) {
     job.status = "FAILED"; job.error = String(error?.message || "Extraction failed").slice(0, 1000); job.completedAt = new Date(); await job.save();
     await TradeDocumentModel.findByIdAndUpdate(job.documentId, { extractionStatus: "FAILED" });
+  } finally {
+    if (temporaryPath) await fs.rm(path.dirname(temporaryPath), { recursive: true, force: true });
   }
 }
 

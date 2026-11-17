@@ -7,6 +7,9 @@ const envSchema = Joi.object({
   PORT: Joi.number().default(5000),
   MONGODB_URI: Joi.string().uri().required(),
   UPLOAD_DIR: Joi.string().default("uploads"),
+  AWS_REGION: Joi.string().allow("").optional(),
+  AWS_S3_BUCKET: Joi.string().allow("").optional(),
+  AWS_S3_PREFIX: Joi.string().allow("").optional(),
   BASE_URL: Joi.string().uri().required(),
   FRONTEND_URL: Joi.string().uri().when("NODE_ENV", {
     is: "production",

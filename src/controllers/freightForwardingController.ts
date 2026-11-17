@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { CountryModel } from "../database/models/country";
 import { CustomsCaseModel, FreightContactEventModel, FreightFinanceModel, FreightOfferModel, FreightProviderProfileModel, FreightRequirementModel, FreightShipmentModel } from "../database/models/freightForwarding";
 import { FREIGHT_MODES } from "../interfaces/freightForwarding";
 
@@ -44,7 +45,8 @@ const canSeeShipment = async (req: Request, shipment: any, who: any) => Boolean(
 
 export class FreightForwardingController {
   async taxonomy(_req: Request, res: Response) {
-    return res.json({ success: true, data: { modes: FREIGHT_MODES, movementTypes: ["FCL", "LCL", "BREAK_BULK", "BULK", "ULD", "PARCEL", "FTL", "LTL", "WAGON", "CONSOLIDATED"], equipmentTypes: ["20GP", "40GP", "40HC", "REEFER", "OPEN_TOP", "FLAT_RACK", "TANK", "ULD", "TRUCK", "TRAILER", "WAGON"], services: ["DOOR_TO_DOOR", "PORT_TO_PORT", "AIRPORT_TO_AIRPORT", "CONSOLIDATION", "DECONSOLIDATION", "CUSTOMS_BROKERAGE", "CARGO_INSURANCE", "WAREHOUSING", "FIRST_MILE", "LAST_MILE", "DOCUMENTATION", "TRACKING", "DESTINATION_HANDLING", "CARRIER_BOOKING"], responsibilities: ["SHIPMENT_PLANNING", "CARRIER_COORDINATION", "RATE_NEGOTIATION", "BOOKING", "SHIPPING_DOCUMENTS", "CUSTOMS_COORDINATION", "CARGO_INSURANCE", "CONSOLIDATION", "TRACKING", "DESTINATION_HANDOFF"], specialCargo: ["DANGEROUS_GOODS", "REEFER", "PERISHABLE", "PROJECT_CARGO", "OVERSIZED", "PHARMA"], customsArrangements: ["OWN_LICENSE", "EXTERNAL_AGENT", "NOT_OFFERED"], credentialTypes: ["CHA", "CUSTOMS_BROKER", "IATA", "FIATA", "AEO", "ISO", "MTO", "FMC", "NVOCC", "OTHER"], incoterms: ["EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF"] } });
+    const countries = await CountryModel.find({ isDeleted: { $ne: true } }).select("name code").sort({ name: 1 }).lean();
+    return res.json({ success: true, data: { countries, modes: FREIGHT_MODES, movementTypes: ["FCL", "LCL", "BREAK_BULK", "BULK", "ULD", "PARCEL", "FTL", "LTL", "WAGON", "CONSOLIDATED"], equipmentTypes: ["20GP", "40GP", "40HC", "REEFER", "OPEN_TOP", "FLAT_RACK", "TANK", "ULD", "TRUCK", "TRAILER", "WAGON"], services: ["DOOR_TO_DOOR", "PORT_TO_PORT", "AIRPORT_TO_AIRPORT", "CONSOLIDATION", "DECONSOLIDATION", "CUSTOMS_BROKERAGE", "CARGO_INSURANCE", "WAREHOUSING", "FIRST_MILE", "LAST_MILE", "DOCUMENTATION", "TRACKING", "DESTINATION_HANDLING", "CARRIER_BOOKING"], responsibilities: ["SHIPMENT_PLANNING", "CARRIER_COORDINATION", "RATE_NEGOTIATION", "BOOKING", "SHIPPING_DOCUMENTS", "CUSTOMS_COORDINATION", "CARGO_INSURANCE", "CONSOLIDATION", "TRACKING", "DESTINATION_HANDOFF"], specialCargo: ["DANGEROUS_GOODS", "REEFER", "PERISHABLE", "PROJECT_CARGO", "OVERSIZED", "PHARMA"], customsArrangements: ["OWN_LICENSE", "EXTERNAL_AGENT", "NOT_OFFERED"], credentialTypes: ["CHA", "CUSTOMS_BROKER", "IATA", "FIATA", "AEO", "ISO", "MTO", "FMC", "NVOCC", "OTHER"], incoterms: ["EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF"] } });
   }
   async getProfile(req: Request, res: Response) {
     const who = await actor(req); const companyId = String(req.query.companyId || who?.companyId || "");
@@ -63,9 +65,18 @@ export class FreightForwardingController {
   async submitProfile(req: Request, res: Response) {
     const who = await actor(req); const companyId = String(req.body?.companyId || who?.companyId || "");
     if (!valid(companyId) || !await managed(req, companyId, who?.companyId)) return fail(res, 403, "Company access required.");
-    const row: any = await FreightProviderProfileModel.findOne({ companyId }); if (!row) return fail(res, 404, "Save a profile first.");
-    const errors = profileErrors(row.draft); if (errors.length) return fail(res, 400, errors.join("; "), errors);
-    row.status = "PENDING_REVIEW"; row.submittedAt = new Date(); await row.save(); return res.json({ success: true, data: row });
+    let row: any = await FreightProviderProfileModel.findOne({ companyId });
+    const submittedSnapshot = req.body?.snapshot;
+    const snapshot = submittedSnapshot !== undefined ? submittedSnapshot : row?.draft;
+    if (!snapshot) return fail(res, 404, "Complete the profile before submitting it for review.");
+    const errors = profileErrors(snapshot); if (errors.length) return fail(res, 400, errors.join("; "), errors);
+    if (!row) row = new FreightProviderProfileModel({ companyId, draft: snapshot });
+    else if (submittedSnapshot !== undefined) {
+      if (row.draft) row.revisions.push({ snapshot: row.draft, by: req.user?.id });
+      row.draft = snapshot;
+    }
+    row.status = "PENDING_REVIEW"; row.reviewNotes = ""; row.submittedAt = new Date(); await row.save();
+    return res.json({ success: true, data: row });
   }
   async approvals(req: Request, res: Response) {
     if (!staff(req)) return fail(res, 403, "Staff access required."); const filter: any = { status: { $in: ["PENDING_REVIEW", "REJECTED"] } }; const scope = await scoped(req); if (scope) filter.companyId = { $in: scope };

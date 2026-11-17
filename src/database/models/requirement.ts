@@ -32,10 +32,23 @@ const ItemSchema = new Schema({
 const RequirementSchema = new Schema<IRequirement>({
   reference: { type: String, required: true, unique: true, index: true },
   mode: { type: String, enum: ["TRADE", "SERVICE_ONLY"], required: true, index: true },
+  journeyType: { type: String, enum: ["BUY_PRODUCT", "HIRE_SERVICE", "TRACK_EXISTING"], default: "HIRE_SERVICE", index: true },
+  serviceCategory: { type: String, trim: true, default: "" },
+  customServiceName: { type: String, trim: true, maxlength: 160, default: "" },
   title: { type: String, required: true, trim: true, maxlength: 240 },
   description: { type: String, trim: true, maxlength: 5000, default: "" },
   status: { type: String, enum: ["DRAFT", "PUBLISHED", "SOURCING", "PARTIALLY_AWARDED", "AWARDED", "IN_EXECUTION", "COMPLETED", "CANCELLED"], default: "DRAFT", index: true },
   visibility: { type: String, enum: ["MATCHED", "INVITE_ONLY", "PRIVATE"], default: "MATCHED" },
+  identityVisibility: { type: String, enum: ["IMMEDIATE", "AFTER_AWARD", "PRIVATE"], default: "AFTER_AWARD" },
+  fulfilmentStrategy: { type: String, enum: ["MATCHED_BIDDING", "INVITE_ONLY", "DIRECT_ASSIGN", "TRACK_ONLY"], default: "MATCHED_BIDDING" },
+  budget: { amount: { type: Number, min: 0, default: null }, currency: { type: String, uppercase: true, trim: true, default: "INR" }, flexible: { type: Boolean, default: true } },
+  urgency: { type: String, enum: ["FLEXIBLE", "STANDARD", "URGENT"], default: "STANDARD" },
+  parties: { type: Schema.Types.Mixed, default: {} },
+  trackingPlan: {
+    planKey: { type: String, trim: true, default: "" }, label: { type: String, trim: true, default: "" },
+    feeAmount: { type: Number, min: 0, default: null }, currency: { type: String, uppercase: true, trim: true, default: "INR" },
+    acceptedAt: { type: Date, default: null }, activationStatus: { type: String, enum: ["NOT_REQUIRED", "PENDING", "ACTIVE", "REJECTED"], default: "NOT_REQUIRED" },
+  },
   createdBy: { type: Schema.Types.ObjectId, required: true, index: true },
   ownerCompanyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", default: null, index: true },
   product: { name: String, variant: String, quantity: Number, unit: String },
@@ -44,6 +57,12 @@ const RequirementSchema = new Schema<IRequirement>({
   attachments: [{ name: { type: String, trim: true }, url: { type: String, trim: true } }],
   items: { type: [ItemSchema], validate: [(value: unknown[]) => value.length > 0, "At least one requirement item is required."] },
   activity: [{ action: { type: String, required: true }, actorId: { type: Schema.Types.ObjectId, required: true }, at: { type: Date, default: Date.now }, metadata: Schema.Types.Mixed }],
+  stages: [{
+    key: { type: String, required: true }, label: { type: String, required: true, trim: true }, description: { type: String, default: "" }, sortOrder: { type: Number, required: true },
+    ownerRole: { type: String, default: "PROVIDER" }, expectedAt: { type: Date, default: null }, status: { type: String, enum: ["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"], default: "PENDING" },
+    evidenceUrls: [{ type: String, trim: true }], notes: { type: String, default: "" }, completedAt: { type: Date, default: null }, updatedBy: { type: Schema.Types.ObjectId, default: null },
+  }],
+  conversation: [{ authorId: { type: Schema.Types.ObjectId, required: true }, authorRole: String, body: { type: String, required: true, trim: true, maxlength: 4000 }, attachmentUrls: [String], visibility: { type: String, enum: ["ALL_PARTICIPANTS", "REQUESTER_INTERNAL"], default: "ALL_PARTICIPANTS" }, createdAt: { type: Date, default: Date.now } }],
   legacy: { type: { type: String, enum: ["EXTERNAL_ORDER", "ENQUIRY"] }, id: Schema.Types.ObjectId },
 }, { timestamps: true });
 

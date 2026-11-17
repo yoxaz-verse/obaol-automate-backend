@@ -28,6 +28,7 @@ import { buildTradeDocumentEmail } from "../utils/emailTemplates/tradeDocumentEm
 import { sendTradeDocumentEmail } from "../utils/mailer";
 import { TradeDocumentDecisionOtpModel } from "../database/models/tradeDocumentDecisionOtp";
 import { resolvePublicFrontendUrl } from "../utils/publicFrontendUrl";
+import { getObjectBuffer, getObjectStream, putObject } from "../services/objectStorageService";
 import { featureFlags } from "../config/featureFlags";
 import { notificationService } from "../services/notificationService";
 import { NotificationEntityTypes, NotificationTypes } from "../constants/notificationTypes";
@@ -211,8 +212,9 @@ const issuerSignatureSnapshot = async (ownerCompanyId: unknown) => {
   if (!ownerCompanyId || !Types.ObjectId.isValid(String(ownerCompanyId))) return null;
   const company: any = await AssociateCompanyModel.findById(ownerCompanyId).select("documentSignature").lean();
   const signature = company?.documentSignature;
-  if (!signature?.imageDataUrl) return null;
-  return { imageDataUrl: signature.imageDataUrl, signerName: signature.signerName || "", signerDesignation: signature.signerDesignation || "", sourceUpdatedAt: signature.updatedAt || null, capturedAt: new Date() };
+  if (!signature?.imageDataUrl && !signature?.objectKey) return null;
+  const imageDataUrl = signature.imageDataUrl || `data:image/png;base64,${(await getObjectBuffer(signature.objectKey)).toString("base64")}`;
+  return { imageDataUrl, signerName: signature.signerName || "", signerDesignation: signature.signerDesignation || "", sourceUpdatedAt: signature.updatedAt || null, capturedAt: new Date() };
 };
 
 const commercialItems = (body: any) => {
@@ -609,8 +611,8 @@ export class TradeDocumentController {
         ready && resolved.companyId ? AssociateCompanyModel.findById(resolved.companyId).select("name documentSignature").lean() : null,
       ]);
       const missingSignatures = [
-        !seller?.documentSignature?.imageDataUrl ? { leg: "SELLER_TO_OBAOL", companyId: sellerCompanyId ? String(sellerCompanyId) : null, companyName: seller?.name || "Seller" } : null,
-        !obaol?.documentSignature?.imageDataUrl ? { leg: "OBAOL_TO_BUYER", companyId: resolved.companyId ? String(resolved.companyId) : null, companyName: obaol?.name || "OBAOL" } : null,
+        !seller?.documentSignature?.imageDataUrl && !seller?.documentSignature?.objectKey ? { leg: "SELLER_TO_OBAOL", companyId: sellerCompanyId ? String(sellerCompanyId) : null, companyName: seller?.name || "Seller" } : null,
+        !obaol?.documentSignature?.imageDataUrl && !obaol?.documentSignature?.objectKey ? { leg: "OBAOL_TO_BUYER", companyId: resolved.companyId ? String(resolved.companyId) : null, companyName: obaol?.name || "OBAOL" } : null,
       ].filter(Boolean);
       return res.json({
         success: true,
@@ -948,6 +950,7 @@ export class TradeDocumentController {
       const documentNumber = await generateDocumentNumber(company._id, type, buildCompanyCode(company));
       await ensureDefaultDocumentTemplate(type);
       const template: any = await resolveTemplateForRender(type, String(company._id));
+      const stored = await putObject({ domain: "trade-documents", body: file.buffer, originalName: file.originalname, mimeType: file.mimetype, metadata: { ownerCompanyId: String(company._id) } });
       const created: any = await TradeDocumentModel.create({
         type, status: "DRAFT", documentNumber, ownerCompanyId: company._id, customerId: customer?._id || null,
         revision: previousCarrierOriginal ? Number(previousCarrierOriginal.revision || 1) + 1 : 1,
@@ -955,13 +958,13 @@ export class TradeDocumentController {
         seller: snapshotParty(company, req.user?.id), buyer: customer ? snapshotParty({ ...customer, _id: customer.linkedCompanyId || null }) : {},
         enquiryId: toObjectId(req.body?.enquiryId) || linkedOrder?.enquiry || null, orderId: orderId || null, inventoryReservationId: toObjectId(req.body?.inventoryReservationId),
         sourceMode: "UPLOADED", originalFileName: file.originalname, fileMimeType: file.mimetype, fileSize: file.size,
-        fileUrl: "", uploadedBy: req.user?.id || null, extractionStatus: "QUEUED", verifiedStatus: "PENDING",
+        fileUrl: "", storageProvider: "s3", objectKey: stored.objectKey, fileChecksum: stored.checksum, uploadedBy: req.user?.id || null, extractionStatus: "QUEUED", verifiedStatus: "PENDING",
         createdBy: req.user?.id || null, audienceScope: "OBAOL_BUYER",
         selectedTemplateId: template?._id || null, selectedTemplateVersion: template?.version || null,
         auditEvents: [{ action: previousCarrierOriginal ? "CARRIER_ORIGINAL_REVISED" : "FILE_UPLOADED", actorId: req.user?.id || null, actorRole: role, metadata: { name: file.originalname, mimeType: file.mimetype, size: file.size, orderId: orderId || null, previousDocumentId: previousCarrierOriginal?._id || null } }],
       });
       created.fileUrl = `/v1/web/trade-documents/${created._id}/file`;
-      const job: any = await DocumentExtractionJobModel.create({ documentId: created._id, ownerCompanyId: company._id, requestedBy: req.user?.id, documentType: type, filePath: path.resolve(file.path), mimeType: file.mimetype });
+      const job: any = await DocumentExtractionJobModel.create({ documentId: created._id, ownerCompanyId: company._id, requestedBy: req.user?.id, documentType: type, objectKey: stored.objectKey, mimeType: file.mimetype });
       created.extractionJobId = job._id; await created.save();
       setImmediate(() => { processDocumentExtraction(String(job._id)).catch(() => undefined); });
       return res.status(202).json({ success: true, data: exposeDocument(created), linkedOrder: orderId ? { id: orderId } : null, extractionJob: { id: job._id, status: job.status } });
@@ -1012,16 +1015,17 @@ export class TradeDocumentController {
   async file(req: Request, res: Response, next: NextFunction) {
     try {
       const doc: any = await TradeDocumentModel.findById(req.params.id).lean();
-      if (!doc || !doc.extractionJobId) return res.status(404).json({ success: false, message: "File not found." });
+      if (!doc || (!doc.objectKey && !doc.extractionJobId)) return res.status(404).json({ success: false, message: "File not found." });
       const role = normalizeRole(req.user?.role);
       if (!isAdminRole(role) && String(doc.createdBy || doc.uploadedBy) !== String(req.user?.id)) {
         const associate: any = isAssociateRole(role) ? await AssociateModel.findById(req.user?.id).select("associateCompany").lean() : null;
         const sameCompany = associate?.associateCompany && [doc.ownerCompanyId, doc.buyer?.companyId, doc.seller?.companyId].some((value: any) => String(value || "") === String(associate.associateCompany));
         if (!sameCompany) return res.status(403).json({ success: false, message: "Access denied." });
       }
+      res.type(doc.fileMimeType || "application/octet-stream");
+      if (doc.objectKey) { res.setHeader("Content-Disposition", `inline; filename="${String(doc.originalFileName || "document").replace(/["\r\n]/g, "")}"`); return (await getObjectStream(doc.objectKey)).pipe(res); }
       const job: any = await DocumentExtractionJobModel.findById(doc.extractionJobId).select("+filePath");
       if (!job?.filePath) return res.status(404).json({ success: false, message: "File not found." });
-      res.type(doc.fileMimeType || "application/octet-stream");
       return res.sendFile(path.resolve(job.filePath));
     } catch (error) { next(error); }
   }

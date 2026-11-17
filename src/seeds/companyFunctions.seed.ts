@@ -42,8 +42,14 @@ export const COMPANY_FUNCTION_SEED = [
     subFunctions: [],
   },
   {
-    name: "Finance & Insurance",
+    name: "Finance & Advisory",
     slug: "finance-risk",
+    subFunctions: [],
+  },
+  {
+    name: "Insurance",
+    slug: "insurance-risk",
+    description: "Providing trade-focused insurance, brokerage, and commercial risk coverage.",
     subFunctions: [],
   },
   {

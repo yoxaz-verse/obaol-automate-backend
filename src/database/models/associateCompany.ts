@@ -120,6 +120,9 @@ const AssociateCompanySchema = new mongoose.Schema(
     banner: { type: String },
     documentSignature: {
       imageDataUrl: { type: String, default: "" },
+      storageProvider: { type: String, enum: ["s3", "local"], default: null },
+      objectKey: { type: String, default: "" },
+      checksum: { type: String, default: "" },
       originalFileName: { type: String, default: "" },
       signerName: { type: String, default: "" },
       signerDesignation: { type: String, default: "" },

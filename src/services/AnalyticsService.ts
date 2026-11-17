@@ -28,6 +28,7 @@ export class AnalyticsService {
         "exporting-from-india": ["SHIPPING", "TRANSPORTATION"],
         "inland-logistics": ["TRANSPORTATION"],
         "finance-risk": [],
+        "insurance-risk": [],
     };
 
     /**

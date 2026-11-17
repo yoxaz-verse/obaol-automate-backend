@@ -13,5 +13,8 @@ router.post("/:id/publish", controller.publish);
 router.post("/:id/items/:itemId/bids", controller.bid);
 router.post("/:id/items/:itemId/award", controller.award);
 router.post("/:id/items/:itemId/status", controller.updateItemStatus);
+router.post("/:id/stages/:stageId/status", controller.updateStage);
+router.post("/:id/messages", controller.addMessage);
+router.post("/:id/tracking/activate", controller.activateTracking);
 router.post("/:id/cancel", controller.cancel);
 export default router;

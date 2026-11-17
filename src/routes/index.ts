@@ -4,6 +4,7 @@ import authRoute from "./authRoute";
 import verifyTokenRoute from "./verifyTokenRoute";
 import verificationRoutes from "./verificationRoutes";
 import genericCrudRoute from "./genericCrudRoute";
+import fileRoutes from "./v1/fileRoutes";
 
 // Initialize the main router
 const router = Router();
@@ -19,6 +20,8 @@ const logRouteMount = (message: string) => {
 
 
 // --- Specialized Routes (High Priority) ---
+
+router.use(`${prefix}/upload`, fileRoutes);
 
 // Auth
 router.use(`${prefix}/auth`, authRoute);
@@ -48,6 +51,8 @@ import freightForwardingRoutes from "./v1/freightForwardingRoutes";
 router.use(`${prefix}/freight-forwarding`, freightForwardingRoutes);
 import financialPartnerRoutes from "./v1/financialPartnerRoutes";
 router.use(`${prefix}/financial-partners`, financialPartnerRoutes);
+import insurancePartnerRoutes from "./v1/insurancePartnerRoutes";
+router.use(`${prefix}/insurance-partners`, insurancePartnerRoutes);
 import inlandTransportationRoutes from "./v1/inlandTransportationRoutes";
 router.use(`${prefix}/inland-transportation`, inlandTransportationRoutes);
 

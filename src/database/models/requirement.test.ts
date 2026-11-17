@@ -32,6 +32,20 @@ describe("RequirementModel", () => {
     expect(row.items[0].awardedCompanyId).toBeNull();
   });
 
+  it("stores a tracking-only custom service with editable stages and plan acceptance", async () => {
+    const row = new RequirementModel({
+      ...valid(), journeyType: "TRACK_EXISTING", serviceCategory: "EMPLOYEE_SYSTEMS", customServiceName: "Employee tracking implementation",
+      fulfilmentStrategy: "TRACK_ONLY", identityVisibility: "PRIVATE", parties: { providerName: "External implementation partner" },
+      trackingPlan: { planKey: "TRACK_STANDARD", label: "Standard tracking", feeAmount: 0, currency: "INR", acceptedAt: new Date(), activationStatus: "PENDING" },
+      stages: [{ key: "KICKOFF", label: "Kickoff", sortOrder: 1, ownerRole: "PROVIDER" }, { key: "GO_LIVE", label: "Go live", sortOrder: 2, ownerRole: "PROVIDER" }],
+      items: [{ type: "CUSTOM_SERVICE", title: "Employee tracking implementation", fulfilmentMethod: "DIRECT_ASSIGN" }],
+    });
+    await expect(row.validate()).resolves.toBeUndefined();
+    expect(row.stages).toHaveLength(2);
+    expect(row.trackingPlan?.activationStatus).toBe("PENDING");
+    expect(row.items[0].type).toBe("CUSTOM_SERVICE");
+  });
+
   it("requires at least one supported requirement item", async () => {
     const row = new RequirementModel({ ...valid(), items: [] });
     await expect(row.validate()).rejects.toThrow("At least one requirement item is required");

@@ -107,6 +107,12 @@ export class ServiceMarketplaceController {
     const row = await ServiceProviderProfileModel.create({ department: DEPARTMENT, companyId, unitKey: unitKey(), draft: snapshot, status: "DRAFT", statusHistory: [{ status: "DRAFT", actorId: req.user?.id, note: "Packaging unit created" }] });
     return res.status(201).json({ success: true, data: row });
   }
+  async createUnitDraft(req: Request, res: Response) {
+    const who = await actor(req); const companyId = String(req.body.companyId || who?.companyId || "");
+    if (!valid(companyId) || !await canManageCompany(req, companyId, who?.companyId)) return bad(res, 403, "Company access required.");
+    const row = await ServiceProviderProfileModel.create({ department: DEPARTMENT, companyId, unitKey: unitKey(), draft: req.body.snapshot || {}, status: "DRAFT", statusHistory: [{ status: "DRAFT", actorId: req.user?.id, note: "Packaging unit draft created" }] });
+    return res.status(201).json({ success: true, data: row });
+  }
   async unitDetail(req: Request, res: Response) {
     const who = await actor(req); const row: any = await populatedProfile(ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT }), "draft").lean();
     if (!row || !await canManageCompany(req, row.companyId?._id || row.companyId, who?.companyId)) return bad(res, 404, "Packaging unit not found."); return res.json({ success: true, data: row });

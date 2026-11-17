@@ -5,6 +5,7 @@ import verifyTokenRoute from "./verifyTokenRoute";
 import verificationRoutes from "./verificationRoutes";
 import genericCrudRoute from "./genericCrudRoute";
 import fileRoutes from "./v1/fileRoutes";
+import authenticateToken from "../middlewares/auth";
 
 // Initialize the main router
 const router = Router();
@@ -213,6 +214,8 @@ router.use(`${prefix}/catalog-moderation`, catalogModerationRoutes);
 
 // Company Metrics
 import { CompanyController } from "../controllers/CompanyController";
+import { getCompanyProfileSource } from "../controllers/companyProfileSourceController";
+router.get(`${prefix}/company-profile-source`, authenticateToken, getCompanyProfileSource);
 router.get(`${prefix}/associate-companies/:id/stats`, CompanyController.getTeamStats);
 router.get(`${prefix}/associate-companies/:id/enquiries`, CompanyController.getCompanyEnquiries);
 router.get(`${prefix}/associate-companies/:id/activity`, CompanyController.getCompanyActivity);

@@ -12,6 +12,7 @@ router.post("/profiles/submit", c.submitProfile.bind(c));
 router.get("/profiles/approvals", c.approvals.bind(c));
 router.patch("/profiles/approvals/:id", c.reviewProfile.bind(c));
 router.get("/units", c.listUnits.bind(c));
+router.post("/units/drafts", c.createUnitDraft.bind(c));
 router.post("/units", c.createUnit.bind(c));
 router.get("/units/:id", c.unitDetail.bind(c));
 router.put("/units/:id", c.saveUnit.bind(c));

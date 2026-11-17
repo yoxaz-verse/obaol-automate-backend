@@ -7,7 +7,7 @@ const CredentialSchema = new Schema({
   verificationStatus: { type: String, enum: ["PENDING", "VERIFIED", "REJECTED"], default: "PENDING" }, reviewNotes: { type: String, default: "", trim: true },
 }, { _id: true });
 const CapabilitySchema = new Schema({
-  name: { type: String, required: true, trim: true }, serviceIds: [{ type: Schema.Types.ObjectId, ref: "ServiceTaxonomy" }],
+  name: { type: String, default: "", trim: true }, serviceIds: [{ type: Schema.Types.ObjectId, ref: "ServiceTaxonomy" }],
   formatIds: [{ type: Schema.Types.ObjectId, ref: "ServiceTaxonomy" }], materialIds: [{ type: Schema.Types.ObjectId, ref: "ServiceTaxonomy" }],
   commodityIds: [{ type: Schema.Types.ObjectId, ref: "ServiceTaxonomy" }], machineryIds: [{ type: Schema.Types.ObjectId, ref: "ServiceTaxonomy" }],
   qualityOptionIds: [{ type: Schema.Types.ObjectId, ref: "ServiceTaxonomy" }], credentialIds: [{ type: Schema.Types.ObjectId }],
@@ -15,13 +15,13 @@ const CapabilitySchema = new Schema({
   turnaroundDays: { type: Number, min: 0, default: 0 }, notes: { type: String, default: "", trim: true },
 }, { _id: true });
 const LocationSchema = new Schema({
-  name: { type: String, required: true, trim: true }, address: { type: String, required: true, trim: true }, country: { type: String, required: true, trim: true },
+  name: { type: String, default: "", trim: true }, address: { type: String, default: "", trim: true }, country: { type: String, default: "", trim: true },
   state: { type: String, default: "", trim: true }, city: { type: String, default: "", trim: true }, latitude: Number, longitude: Number,
   coverageCountries: [{ type: String, trim: true }], coverageStates: [{ type: String, trim: true }],
 }, { _id: true });
 const SnapshotSchema = new Schema({
-  displayName: { type: String, required: true, trim: true }, summary: { type: String, default: "", trim: true },
-  contactEmail: { type: String, required: true, trim: true, lowercase: true }, contactPhone: { type: String, required: true, trim: true }, whatsappPhone: { type: String, default: "", trim: true },
+  displayName: { type: String, default: "", trim: true }, summary: { type: String, default: "", trim: true },
+  contactEmail: { type: String, default: "", trim: true, lowercase: true }, contactPhone: { type: String, default: "", trim: true }, whatsappPhone: { type: String, default: "", trim: true },
   website: { type: String, default: "", trim: true }, imageUrls: [{ type: String, trim: true }], locations: { type: [LocationSchema], default: [] },
   credentials: { type: [CredentialSchema], default: [] }, capabilities: { type: [CapabilitySchema], default: [] },
 }, { _id: false });

@@ -5,9 +5,13 @@ export const SIDEBAR_STATUSES = ["LIVE", "COMING_SOON", "HIDDEN"] as const;
 
 export const DOCUMENTATION_ROUTE = "/dashboard/documentation";
 export const LEGACY_DOCUMENT_STUDIO_ROUTE = "/dashboard/commercial-documents";
+export const REQUIREMENTS_ROUTE = "/dashboard/requirements";
+export const LEGACY_EXTERNAL_ORDERS_ROUTE = "/dashboard/external-orders";
 export const canonicalizeSidebarRoutePath = (value: unknown) => {
   const routePath = String(value || "").trim();
-  return routePath === LEGACY_DOCUMENT_STUDIO_ROUTE ? DOCUMENTATION_ROUTE : routePath;
+  if (routePath === LEGACY_DOCUMENT_STUDIO_ROUTE) return DOCUMENTATION_ROUTE;
+  if (routePath === LEGACY_EXTERNAL_ORDERS_ROUTE || routePath === `${LEGACY_EXTERNAL_ORDERS_ROUTE}/new`) return REQUIREMENTS_ROUTE;
+  return routePath;
 };
 
 export type SidebarPlacement = typeof SIDEBAR_PLACEMENTS[number];
@@ -15,6 +19,7 @@ export type SidebarPageStatus = typeof SIDEBAR_STATUSES[number];
 
 export const COMMON_ASSOCIATE_SIDEBAR_ROUTES = [
   ["dashboard", "/dashboard", "Dashboard", "TOP"],
+  ["notifications", "/dashboard/notifications", "Notifications", "BOTTOM"],
   ["guidance", "/dashboard/guidance", "Guidance", "BOTTOM"],
   ["settings", "/dashboard/settings", "Settings", "BOTTOM"],
   ["customer-support", "/dashboard/customer-support", "Customer Support", "BOTTOM"],
@@ -22,42 +27,78 @@ export const COMMON_ASSOCIATE_SIDEBAR_ROUTES = [
 
 export const COMMON_ASSOCIATE_ROUTE_PATHS = new Set(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path));
 
-export const ASSOCIATE_SIDEBAR_ROUTES = [
-  ["bidding", "/dashboard/bidding", "Purchase Opportunities"],
-  ["my-buying-requests", "/dashboard/bidding/my", "My Purchase Requests"],
-  ["trade-listings", "/dashboard/marketplace", "Trade Listings"],
-  ["my-trade-listings", "/dashboard/product", "My Trade Listings"],
-  ["commodity-directory", "/dashboard/catalog", "Commodity Directory"],
-  ["enquiries", "/dashboard/enquiries", "Enquiries"],
-  ["sample-requests", "/dashboard/sample-requests", "Sample Requests"],
-  ["orders", "/dashboard/orders", "Internal Orders"],
-  ["documents", "/dashboard/documents", "Documents"],
-  ["documentation", DOCUMENTATION_ROUTE, "Documentation"],
-  ["import-opportunities", "/dashboard/imports", "Import Opportunities"],
-  ["my-import-listings", "/dashboard/imports/my-listings", "My Import Listings"],
-  ["my-import-reservations", "/dashboard/imports/reservations", "My Reservations"],
-  ["external-orders", "/dashboard/external-orders", "External Orders"],
-  ["requirements", "/dashboard/requirements", "Requirements"],
-  ["execution", "/dashboard/execution-enquiries", "Execution Panel"],
-  ["warehouse-directory", "/dashboard/warehouse-rent", "Warehouse Directory"],
-  ["quality-labs", "/dashboard/quality-labs", "Quality Labs"],
-  ["my-lab", "/dashboard/quality-labs/my", "My Lab"],
-  ["lab-execution", "/dashboard/quality-labs/execution", "Lab Execution"],
-  ["packaging-services", "/dashboard/packaging", "Packaging Services"],
-  ["my-packaging", "/dashboard/packaging/my", "My Packaging"],
-  ["packaging-execution", "/dashboard/packaging/execution", "Packaging Execution"],
-  ["inventory", "/dashboard/inventory", "Inventory"],
-  ["my-warehouses", "/dashboard/warehouses", "My Warehouses"],
-  ["warehouse-operations", "/dashboard/warehouses/operations", "Warehouse Operations"],
-  ["company", "/dashboard/company", "My Company"],
-  ["referrals", "/dashboard/referrals", "Referrals & Earnings"],
-  ["inland-transport-overview", "/dashboard/inland-transportation", "Transport Overview"],
-  ["inland-transport-opportunities", "/dashboard/inland-transportation/opportunities", "Transport Opportunities"],
-  ["inland-transport-trips", "/dashboard/inland-transportation/trips", "Transport Trips"],
-  ["inland-transport-fleet", "/dashboard/inland-transportation/fleet", "Fleet & Drivers"],
-  ["inland-transport-documents", "/dashboard/inland-transportation/documents", "Transport Documents"],
-  ["inland-transport-profile", "/dashboard/inland-transportation/profile", "Transport Profile"],
-] as const;
+export type AssociateNavigationPage = {
+  pageId: string;
+  path: string;
+  label: string;
+  parentPageId?: string;
+  section: "TRADE" | "DOCUMENTATION" | "SERVICES" | "WAREHOUSE" | "ORGANIZATION";
+  permissionKey: string;
+  order: number;
+  active: boolean;
+  governanceMode: "CONFIGURABLE";
+};
+
+const associatePage = (pageId: string, path: string, label: string, section: AssociateNavigationPage["section"], order: number, parentPageId?: string): AssociateNavigationPage => ({
+  pageId, path, label, section, order, parentPageId, permissionKey: `associate.navigation.${pageId}`, active: true, governanceMode: "CONFIGURABLE",
+});
+
+/** Canonical source for every configurable associate sidebar destination. */
+export const ASSOCIATE_NAVIGATION_REGISTRY: AssociateNavigationPage[] = [
+  associatePage("bidding", "/dashboard/bidding", "Purchase Opportunities", "TRADE", 0),
+  associatePage("my-buying-requests", "/dashboard/bidding/my", "My Purchase Requests", "TRADE", 1),
+  associatePage("trade-listings", "/dashboard/marketplace", "Browse Listings", "TRADE", 2),
+  associatePage("my-trade-listings", "/dashboard/product", "My Listings", "TRADE", 3),
+  associatePage("commodity-directory", "/dashboard/catalog", "Commodity Catalog", "TRADE", 4),
+  associatePage("my-catalog-additions", "/dashboard/catalog/additions", "My Catalog Additions", "TRADE", 5, "commodity-directory"),
+  associatePage("enquiries", "/dashboard/enquiries", "Enquiries", "TRADE", 6),
+  associatePage("sample-requests", "/dashboard/sample-requests", "Sample Requests", "TRADE", 7),
+  associatePage("orders", "/dashboard/orders", "Orders", "TRADE", 8),
+  associatePage("documents", "/dashboard/documents", "Documents", "DOCUMENTATION", 9),
+  associatePage("documentation", DOCUMENTATION_ROUTE, "Documentation", "DOCUMENTATION", 10),
+  associatePage("gst-returns", "/dashboard/gst", "GST Returns", "DOCUMENTATION", 11),
+  associatePage("import-opportunities", "/dashboard/imports", "Import Opportunities", "SERVICES", 12),
+  associatePage("my-import-listings", "/dashboard/imports/my-listings", "My Import Listings", "SERVICES", 13, "import-opportunities"),
+  associatePage("my-import-reservations", "/dashboard/imports/reservations", "My Import Reservations", "SERVICES", 14, "import-opportunities"),
+  associatePage("requirements", REQUIREMENTS_ROUTE, "Requirements", "TRADE", 15),
+  associatePage("execution", "/dashboard/execution-enquiries", "Execution Panel", "TRADE", 16),
+  associatePage("service-providers", "/dashboard/services", "Service Providers", "SERVICES", 17),
+  associatePage("warehouse-directory", "/dashboard/warehouse-rent", "Warehouse Directory", "WAREHOUSE", 18),
+  associatePage("quality-labs", "/dashboard/quality-labs", "Quality Labs", "SERVICES", 19),
+  associatePage("my-lab", "/dashboard/quality-labs/my", "My Lab", "SERVICES", 20, "quality-labs"),
+  associatePage("lab-execution", "/dashboard/quality-labs/execution", "Lab Execution", "SERVICES", 21, "quality-labs"),
+  associatePage("agritech-startups", "/dashboard/agritech-startups", "Agritech Startups", "SERVICES", 22),
+  associatePage("my-agritech-startup", "/dashboard/agritech-startups/my", "My Agritech Startup", "SERVICES", 23, "agritech-startups"),
+  associatePage("packaging-services", "/dashboard/packaging", "Packaging Services", "SERVICES", 24),
+  associatePage("my-packaging", "/dashboard/packaging/my", "My Packaging", "SERVICES", 25, "packaging-services"),
+  associatePage("packaging-execution", "/dashboard/packaging/execution", "Packaging Execution", "SERVICES", 26, "packaging-services"),
+  associatePage("financial-partners", "/dashboard/financial-partners", "Financial Partners", "SERVICES", 27),
+  associatePage("my-financial-portfolio", "/dashboard/financial-partners/my", "My Financial Portfolio", "SERVICES", 28, "financial-partners"),
+  associatePage("finance-applications", "/dashboard/financial-partners/applications", "Finance Applications", "SERVICES", 29, "financial-partners"),
+  associatePage("insurance-companies", "/dashboard/insurance-partners", "Insurance Companies", "SERVICES", 30),
+  associatePage("my-insurance-portfolio", "/dashboard/insurance-partners/my", "My Insurance Portfolio", "SERVICES", 31, "insurance-companies"),
+  associatePage("insurance-requests", "/dashboard/insurance-partners/requests", "Insurance Requests", "SERVICES", 32, "insurance-companies"),
+  associatePage("freight-forwarding", "/dashboard/freight-forwarding", "Freight Forwarding", "SERVICES", 33),
+  associatePage("my-freight-profile", "/dashboard/freight-forwarding/my", "My Freight Profile", "SERVICES", 34, "freight-forwarding"),
+  associatePage("freight-shipments", "/dashboard/freight-forwarding/shipments", "Freight Shipments", "SERVICES", 35, "freight-forwarding"),
+  associatePage("freight-customs", "/dashboard/freight-forwarding/customs", "Freight Customs", "SERVICES", 36, "freight-forwarding"),
+  associatePage("freight-finance", "/dashboard/freight-forwarding/finance", "Freight Finance", "SERVICES", 37, "freight-forwarding"),
+  associatePage("freight-eway-bills", "/dashboard/freight-forwarding/eway-bills", "E-Way Bills", "SERVICES", 38, "freight-forwarding"),
+  associatePage("inventory", "/dashboard/inventory", "Inventory", "ORGANIZATION", 39),
+  associatePage("my-warehouses", "/dashboard/warehouses", "My Warehouses", "WAREHOUSE", 40),
+  associatePage("warehouse-operations", "/dashboard/warehouses/operations", "Warehouse Operations", "WAREHOUSE", 41, "my-warehouses"),
+  associatePage("company", "/dashboard/company", "My Company", "ORGANIZATION", 42),
+  associatePage("referrals", "/dashboard/referrals", "Referrals & Earnings", "ORGANIZATION", 43),
+  associatePage("inland-transport-overview", "/dashboard/inland-transportation", "Transport Overview", "SERVICES", 44),
+  associatePage("inland-transport-directory", "/dashboard/inland-transportation/directory", "Truck Directory", "SERVICES", 45, "inland-transport-overview"),
+  associatePage("inland-transport-opportunities", "/dashboard/inland-transportation/opportunities", "Transport Opportunities", "SERVICES", 46, "inland-transport-overview"),
+  associatePage("inland-transport-trips", "/dashboard/inland-transportation/trips", "Transport Trips", "SERVICES", 47, "inland-transport-overview"),
+  associatePage("inland-transport-fleet", "/dashboard/inland-transportation/fleet", "Fleet & Drivers", "SERVICES", 48, "inland-transport-overview"),
+  associatePage("inland-transport-documents", "/dashboard/inland-transportation/documents", "Transport Documents", "SERVICES", 49, "inland-transport-overview"),
+  associatePage("inland-transport-profile", "/dashboard/inland-transportation/profile", "Transport Profile", "SERVICES", 50, "inland-transport-overview"),
+];
+
+export const ASSOCIATE_SIDEBAR_ROUTES = ASSOCIATE_NAVIGATION_REGISTRY.map(({ pageId, path, label }) => [pageId, path, label] as const);
 
 export const SIDEBAR_ROUTE_PATHS = new Set(ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path));
 export const SIDEBAR_RESOLVED_SECTIONS = ["IMPORTANT", "SEEKING", "PROVIDING", "OTHER_SERVICES"] as const;
@@ -161,13 +202,13 @@ const LIVE_BY_FUNCTION: Record<string, string[]> = {
   "importing-to-india": ["/dashboard/imports", "/dashboard/imports/my-listings", "/dashboard/imports/reservations", "/dashboard/orders", "/dashboard/documents", "/dashboard/execution-enquiries"],
   "exporting-from-india": ["/dashboard/product", "/dashboard/orders", "/dashboard/documents", "/dashboard/execution-enquiries"],
   "freight-forwarding": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/documents"],
-  "inland-logistics": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/warehouses", "/dashboard/inland-transportation", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"],
+  "inland-logistics": ["/dashboard/execution-enquiries", "/dashboard/orders", "/dashboard/warehouses", "/dashboard/inland-transportation", "/dashboard/inland-transportation/directory", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"],
 };
 
 const ALWAYS_LIVE = ["/dashboard/company", "/dashboard/requirements"];
 const INLAND_TRANSPORT_ROUTES = new Set(ASSOCIATE_SIDEBAR_ROUTES.map(([, routePath]) => routePath).filter((routePath) => routePath.startsWith("/dashboard/inland-transportation")));
 const SEEKING_ROUTES = new Set(["/dashboard/bidding/my", "/dashboard/quality-labs", "/dashboard/packaging", "/dashboard/imports", "/dashboard/imports/reservations", "/dashboard/warehouse-rent"]);
-const PROVIDING_ROUTES = new Set(["/dashboard/bidding", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/imports/my-listings", "/dashboard/warehouses", "/dashboard/warehouses/operations", "/dashboard/inland-transportation", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"]);
+const PROVIDING_ROUTES = new Set(["/dashboard/bidding", "/dashboard/quality-labs/my", "/dashboard/quality-labs/execution", "/dashboard/packaging/my", "/dashboard/packaging/execution", "/dashboard/imports/my-listings", "/dashboard/warehouses", "/dashboard/warehouses/operations", "/dashboard/inland-transportation", "/dashboard/inland-transportation/directory", "/dashboard/inland-transportation/opportunities", "/dashboard/inland-transportation/trips", "/dashboard/inland-transportation/fleet", "/dashboard/inland-transportation/documents", "/dashboard/inland-transportation/profile"]);
 
 export const createBaselineSidebarMappings = (functionSlugs: string[]) => functionSlugs.flatMap((functionSlug) => {
   const live = new Set([...(LIVE_BY_FUNCTION[functionSlug] || []), ...ALWAYS_LIVE]);

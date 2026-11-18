@@ -46,6 +46,7 @@ const InventorySchema: Schema = new Schema(
         demoTag: { type: String, default: null, index: true },
         demoCreatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
         isDeleted: { type: Boolean, default: false, index: true },
+        reservationVersion: { type: Number, default: 0, select: false },
     },
     { timestamps: true }
 );

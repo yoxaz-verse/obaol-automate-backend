@@ -122,12 +122,20 @@ const TradeDocumentSchema: Schema = new Schema(
     documentData: { type: Schema.Types.Mixed, default: {} },
     issuerSignatureSnapshot: {
       imageDataUrl: { type: String, default: "" },
+      signatureId: { type: Schema.Types.ObjectId, ref: "Signature", default: null },
+      signatureVersion: { type: Number, default: null },
+      signatureChecksum: { type: String, default: "" },
+      ownerType: { type: String, enum: ["USER", "COMPANY", null], default: null },
       signerName: { type: String, default: "" },
       signerDesignation: { type: String, default: "" },
       sourceUpdatedAt: { type: Date, default: null },
       capturedAt: { type: Date, default: null },
     },
     issuedAt: { type: Date, default: null },
+    finalizedAt: { type: Date, default: null },
+    finalizedObjectKey: { type: String, default: "", select: false },
+    finalizedChecksum: { type: String, default: "" },
+    finalizedSize: { type: Number, default: 0 },
     fileUrl: { type: String, default: null },
     sourceMode: { type: String, enum: ["CREATED", "UPLOADED"], default: "CREATED", index: true },
     originalFileName: { type: String, default: "" },
@@ -207,6 +215,7 @@ TradeDocumentSchema.index({ enquiryId: 1, type: 1, direction: 1 });
 TradeDocumentSchema.index({ orderId: 1, type: 1, direction: 1 });
 TradeDocumentSchema.index({ pairLegKey: 1 }, { unique: true, partialFilterExpression: { pairLegKey: { $type: "string" } } });
 TradeDocumentSchema.index({ ownerCompanyId: 1, createdAt: -1 });
+TradeDocumentSchema.index({ finalizedChecksum: 1 }, { sparse: true });
 TradeDocumentSchema.index({ inviteTokenHash: 1 }, { sparse: true });
 TradeDocumentSchema.index({ ownerCompanyId: 1, sourceQuotationId: 1 }, { unique: true, partialFilterExpression: { sourceQuotationId: { $type: "objectId" } } });
 TradeDocumentSchema.index({ ownerCompanyId: 1, sourceDocumentId: 1, conversionRuleId: 1 }, { unique: true, partialFilterExpression: { sourceDocumentId: { $type: "objectId" }, conversionRuleId: { $type: "objectId" } } });

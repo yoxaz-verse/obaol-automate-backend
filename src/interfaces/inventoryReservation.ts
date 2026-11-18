@@ -14,6 +14,8 @@ export interface IInventoryReservation extends Document {
     releasedAt?: Date | null;
     consumedAt?: Date | null;
     isDeleted: boolean;
+    idempotencyKey?: string | null;
+    idempotencyPayloadHash?: string | null;
     createdAt: Date;
     updatedAt: Date;
 }

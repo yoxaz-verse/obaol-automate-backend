@@ -4,7 +4,7 @@ import { ASSOCIATE_SIDEBAR_ROUTES, COMMON_ASSOCIATE_SIDEBAR_ROUTES, SIDEBAR_ROUT
 describe("sidebar governance registry", () => {
   it("registers the complete inland transportation workspace as providing-only defaults", () => {
     const paths = ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path).filter((path) => path.startsWith("/dashboard/inland-transportation"));
-    expect(paths).toHaveLength(6);
+    expect(paths).toHaveLength(7);
     const mappings = createBaselineSidebarMappings(["inland-logistics", "buyer"]);
     for (const path of paths) {
       expect(mappings).toContainEqual(expect.objectContaining({ functionSlug: "inland-logistics", routePath: path, placement: "PROVIDING", status: "LIVE" }));
@@ -32,11 +32,22 @@ describe("sidebar governance registry", () => {
     expect(mappings.every((row) => SIDEBAR_ROUTE_PATHS.has(row.routePath))).toBe(true);
   });
 
+  it("merges legacy External Orders governance into canonical Requirements", () => {
+    expect(canonicalizeSidebarRoutePath("/dashboard/external-orders")).toBe("/dashboard/requirements");
+    expect(canonicalizeSidebarRoutePath("/dashboard/external-orders/new")).toBe("/dashboard/requirements");
+    expect(canonicalizeGovernanceMappings([
+      { functionSlug: "buyer", routePath: "/dashboard/external-orders", placement: "SEEKING", status: "COMING_SOON", order: 9 },
+      { functionSlug: "buyer", routePath: "/dashboard/requirements", placement: "PROVIDING", status: "LIVE", order: 3 },
+    ])).toEqual([
+      { functionSlug: "buyer", routePath: "/dashboard/requirements", placement: "BOTH", status: "LIVE", order: 3 },
+    ]);
+  });
+
   it("keeps common routes outside function baselines and unknown future work hidden", () => {
     const buyer = createBaselineSidebarMappings(["buyer"]);
     const buyerPaths = new Set<string>(buyer.map((row) => row.routePath));
-    expect(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path)).toEqual(["/dashboard", "/dashboard/guidance", "/dashboard/settings", "/dashboard/customer-support"]);
-    expect(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, , , position]) => position)).toEqual(["TOP", "BOTTOM", "BOTTOM", "BOTTOM"]);
+    expect(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, path]) => path)).toEqual(["/dashboard", "/dashboard/notifications", "/dashboard/guidance", "/dashboard/settings", "/dashboard/customer-support"]);
+    expect(COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([, , , position]) => position)).toEqual(["TOP", "BOTTOM", "BOTTOM", "BOTTOM", "BOTTOM"]);
     expect(buyerPaths.has("/dashboard")).toBe(false);
     expect(buyerPaths.has("/dashboard/settings")).toBe(false);
     expect(buyer.find((row) => row.routePath === "/dashboard/quality-labs")?.status).toBe("HIDDEN");

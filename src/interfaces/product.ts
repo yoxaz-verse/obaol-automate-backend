@@ -5,6 +5,7 @@ export interface IProduct extends Document {
   name: string;
   slug?: string;
   description: string;
+  imageUrl?: string;
   subCategory: Types.ObjectId;
   state?: Types.ObjectId[];
   approvalStatus?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -14,6 +15,7 @@ export interface ICreateProduct {
   name: string;
   slug?: string;
   description: string;
+  imageUrl?: string;
   subCategory: Types.ObjectId;
   state?: Types.ObjectId[];
 }
@@ -22,6 +24,7 @@ export interface IUpdateProduct {
   name?: string;
   slug?: string;
   description?: string;
+  imageUrl?: string;
   subCategory?: Types.ObjectId;
   state?: Types.ObjectId[];
 }

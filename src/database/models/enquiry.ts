@@ -486,6 +486,8 @@ InquirySchema.index({ createdBy: 1, status: 1, updatedAt: -1 });
 InquirySchema.index({ supplierOperatorId: 1, updatedAt: -1, createdAt: -1 });
 InquirySchema.index({ dealCloserOperatorId: 1, updatedAt: -1, createdAt: -1 });
 InquirySchema.index({ createdBy: 1, updatedAt: -1, createdAt: -1 });
+InquirySchema.index({ variantRateId: 1, createdAt: -1, status: 1 });
+InquirySchema.index({ productId: 1, sourceProductVariantId: 1, createdAt: -1 });
 
 // Validation: Buyer and seller must be different
 InquirySchema.pre<IInquiry>("save", function (next) {

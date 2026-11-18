@@ -1,10 +1,12 @@
 import { Router } from "express";
 import authenticateToken from "../../middlewares/auth";
 import { RequirementController } from "../../controllers/requirementController";
+import { requireSidebarEntitlement } from "../../middlewares/sidebarEntitlement";
 
 const router = Router();
 const controller = new RequirementController();
 router.use(authenticateToken);
+router.use(requireSidebarEntitlement("/dashboard/requirements"));
 router.post("/", controller.create);
 router.get("/", controller.list);
 router.get("/:id", controller.get);

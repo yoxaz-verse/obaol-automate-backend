@@ -112,11 +112,19 @@ export interface ITradeDocument extends Document {
   documentData?: Record<string, unknown>;
   issuerSignatureSnapshot?: {
     imageDataUrl?: string;
+    signatureId?: Types.ObjectId | null;
+    signatureVersion?: number | null;
+    signatureChecksum?: string;
+    ownerType?: "USER" | "COMPANY" | null;
     signerName?: string;
     signerDesignation?: string;
     sourceUpdatedAt?: Date | null;
     capturedAt?: Date | null;
   };
+  finalizedAt?: Date | null;
+  finalizedObjectKey?: string;
+  finalizedChecksum?: string;
+  finalizedSize?: number;
   inviteIdempotencyKey?: string | null;
   inviteExpiresAt?: Date | null;
   inviteRevokedAt?: Date | null;

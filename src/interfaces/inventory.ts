@@ -21,6 +21,7 @@ export interface IInventory extends Document {
     demoTag?: string;
     demoCreatedBy?: Schema.Types.ObjectId | null;
     isDeleted: boolean;
+    reservationVersion?: number;
     createdAt: Date;
     updatedAt: Date;
 }

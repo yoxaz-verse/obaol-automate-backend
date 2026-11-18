@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { AssociateModel } from "../database/models/associate";
 import { SidebarGovernanceModel } from "../database/models/sidebarGovernance";
 import {
-  ASSOCIATE_SIDEBAR_ROUTES,
+  ASSOCIATE_NAVIGATION_REGISTRY,
   COMMON_ASSOCIATE_SIDEBAR_ROUTES,
   canonicalizeGovernanceMappings,
   deriveSidebarRouteAudience,
@@ -21,6 +21,7 @@ import {
   validateSidebarMappings,
   validateSidebarSectionOrder,
 } from "../services/sidebarGovernanceService";
+import { clearSidebarEntitlementCache } from "../middlewares/sidebarEntitlement";
 
 const mutationError = (res: Response, error: any, fallback: string) => {
   const status = Number(error?.status || 400);
@@ -48,7 +49,7 @@ export class SidebarGovernanceController {
         data: {
           config: { draft: normalized.draft, published: publishedMetadata(normalized.published) },
           functions,
-          routes: ASSOCIATE_SIDEBAR_ROUTES.map(([id, path, label]) => ({ id, path, label })),
+          routes: ASSOCIATE_NAVIGATION_REGISTRY.map(({ pageId, ...route }) => ({ id: pageId, pageId, ...route })),
           commonRoutes: COMMON_ASSOCIATE_SIDEBAR_ROUTES.map(([id, path, label, position]) => ({ id, path, label, position })),
         },
       });
@@ -93,6 +94,7 @@ export class SidebarGovernanceController {
         { new: true, runValidators: true },
       );
       if (!config) await sidebarRevisionConflict(expectedDraft, "draft");
+      clearSidebarEntitlementCache();
       return res.json({ success: true, data: config });
     } catch (error: any) {
       return mutationError(res, error, "Failed to publish sidebar governance.");

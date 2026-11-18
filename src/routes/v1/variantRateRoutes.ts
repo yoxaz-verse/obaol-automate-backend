@@ -7,10 +7,13 @@ import mongoose from "mongoose";
 import { getOperatorCompanyScope } from "../../core/hooks/operatorScope";
 import { recentPastCondition } from "../../services/variantRateFreshnessService";
 import { getEnquiryEligibleVariantRateFilter, getMarketplaceVisibilitySummary } from "../../services/catalogModeration.service";
+import { recordListingInteraction } from "../../controllers/productAnalyticsController";
 
 const router = Router();
 
 router.use(authenticateToken);
+
+router.post("/:listingId/interactions", recordListingInteraction);
 
 router.post("/:id/reveal", async (req: any, res) => {
   try {

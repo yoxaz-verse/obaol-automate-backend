@@ -1,11 +1,8 @@
 import { Router } from "express";
 import authenticateToken from "../../middlewares/auth";
 import { systemConfigController } from "../../controllers/systemConfigController";
-import { CompanySignatureController } from "../../controllers/companySignatureController";
-import { upload as signatureUpload } from "./companySignatureRoutes";
 
 const router = Router();
-const obaolSignature = new CompanySignatureController(true);
 
 router.get("/storage", authenticateToken, systemConfigController.getStorage.bind(systemConfigController));
 router.post("/storage/verify", authenticateToken, systemConfigController.verifyStorage.bind(systemConfigController));
@@ -16,9 +13,7 @@ router.get("/obaol-company", authenticateToken, (req, res, next) =>
 router.post("/obaol-company", authenticateToken, (req, res, next) =>
   systemConfigController.setObaolCompany(req, res, next)
 );
-router.get("/obaol-company/signature", authenticateToken, obaolSignature.get.bind(obaolSignature));
-router.post("/obaol-company/signature", authenticateToken, signatureUpload.single("signature"), obaolSignature.save.bind(obaolSignature));
-router.delete("/obaol-company/signature", authenticateToken, obaolSignature.remove.bind(obaolSignature));
+router.all("/obaol-company/signature", authenticateToken, (_req, res) => res.status(410).json({ success: false, code: "LEGACY_SIGNATURE_RETIRED", message: "Use Signature Management in Settings." }));
 router.get("/calculations", authenticateToken, (req, res, next) =>
   systemConfigController.getCalculations(req, res, next)
 );

@@ -39,6 +39,9 @@ import { WhatsappDeliveryModel } from "../database/models/whatsappDelivery";
 import { sendWhatsappTemplate, uploadWhatsappPdf, usableWhatsappConnection } from "../services/whatsappService";
 import { normalizePhoneInput } from "../utils/phone";
 import { audienceScopeForDirection, isCompleteDocumentPair, PAIRED_TRADE_DOCUMENT_DIRECTIONS, PAIRED_TRADE_DOCUMENT_TYPES } from "../utils/pairedTradeDocuments";
+import { SignatureModel } from "../database/models/signature";
+import { consumeAuthorizationIntent } from "../services/authorizationIntentService";
+import { sensitiveDocumentPayload } from "../utils/sensitiveDocumentAuthorization";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -70,6 +73,8 @@ const exposeDocument = (row: any, includeActivity = true) => {
   const doc = row?.toObject ? row.toObject() : { ...row };
   delete doc.inviteTokenHash;
   delete doc.inviteIdempotencyKey;
+  delete doc.finalizedObjectKey;
+  if (doc.issuerSignatureSnapshot) delete doc.issuerSignatureSnapshot.imageDataUrl;
   const events = Array.isArray(doc.auditEvents) ? doc.auditEvents : [];
   delete doc.auditEvents;
   if (includeActivity) doc.activityTimeline = activityTimeline(events);
@@ -208,13 +213,15 @@ const snapshotParty = (row: any, associateId?: any) => ({
   phone: String(row?.phone || "").trim(), address: String(row?.address || row?.billingAddress || "").trim(), gstin: String(row?.gstin || "").trim(), logo: String(row?.logo || "").trim(),
 });
 
-const issuerSignatureSnapshot = async (ownerCompanyId: unknown) => {
-  if (!ownerCompanyId || !Types.ObjectId.isValid(String(ownerCompanyId))) return null;
-  const company: any = await AssociateCompanyModel.findById(ownerCompanyId).select("documentSignature").lean();
-  const signature = company?.documentSignature;
-  if (!signature?.imageDataUrl && !signature?.objectKey) return null;
-  const imageDataUrl = signature.imageDataUrl || `data:image/png;base64,${(await getObjectBuffer(signature.objectKey)).toString("base64")}`;
-  return { imageDataUrl, signerName: signature.signerName || "", signerDesignation: signature.signerDesignation || "", sourceUpdatedAt: signature.updatedAt || null, capturedAt: new Date() };
+const issuerSignatureSnapshot = async (req: Request, ownerCompanyId: unknown, signatureId: unknown) => {
+  if (!signatureId || !Types.ObjectId.isValid(String(signatureId))) return null;
+  const signature: any = await SignatureModel.findOne({ _id: signatureId, status: "ACTIVE" }).select("+objectKey");
+  if (!signature) return null;
+  const personal = signature.ownerType === "USER" && String(signature.ownerUserId || "") === String(req.user?.id || "");
+  const shared = signature.ownerType === "COMPANY" && String(signature.companyId || "") === String(ownerCompanyId || "");
+  if (!personal && !shared) return null;
+  const imageDataUrl = `data:image/png;base64,${(await getObjectBuffer(signature.objectKey)).toString("base64")}`;
+  return { imageDataUrl, signatureId: signature._id, signatureVersion: signature.version, signatureChecksum: signature.checksum, ownerType: signature.ownerType, signerName: signature.signerName || "", signerDesignation: signature.signerDesignation || "", sourceUpdatedAt: signature.updatedAt || null, capturedAt: new Date() };
 };
 
 const commercialItems = (body: any) => {
@@ -288,7 +295,7 @@ const ownedCommercialDocument = async (req: Request, res: Response, includeInvit
     if (issuer) documentFilter.ownerCompanyId = issuer._id;
   }
   if (!issuer) return null;
-  const query = TradeDocumentModel.findOne(documentFilter);
+  const query = TradeDocumentModel.findOne(documentFilter).select("+finalizedObjectKey");
   if (includeInvite) query.select("+inviteTokenHash +inviteIdempotencyKey");
   const doc: any = await query;
   if (!doc) {
@@ -324,6 +331,7 @@ const resolveDocumentTemplate = async (doc: any, requireActive = false) => {
 };
 
 const renderPdfForDocument = async (doc: any) => {
+  if (doc?.finalizedObjectKey) return getObjectBuffer(doc.finalizedObjectKey);
   const template = await resolveDocumentTemplate(doc);
   const html = renderDocumentHtml(doc?.toObject ? doc.toObject() : doc, template);
   try {
@@ -1352,13 +1360,7 @@ export class TradeDocumentController {
         return res.status(409).json({ success: false, message: "OBAOL-generated transport documents must remain drafts. Upload the carrier-issued original for verification." });
       }
       if (normalizeDocStatus(updatePayload.status) !== "DRAFT" && normalizeDocStatus((existing as any).status) === "DRAFT") {
-        const exposed = exposeDocument(existing);
-        if (!String(exposed.issuer?.name || "").trim() || !String(exposed.recipient?.name || "").trim()) {
-          return res.status(409).json({ success: false, message: "The issuing and receiving legal company names are required before this document can be issued." });
-        }
-        const signature = await issuerSignatureSnapshot((existing as any).ownerCompanyId);
-        if (!signature) return res.status(409).json({ success: false, code: "SIGNATURE_REQUIRED", message: "Configure the issuing company signature before submitting this document." });
-        updatePayload.issuerSignatureSnapshot = signature;
+        return res.status(409).json({ success: false, code: "SENSITIVE_ACTION_ENDPOINT_REQUIRED", message: "Issue this draft through the protected issue action." });
       }
       if (req.body?.fileUrl !== undefined) {
         updatePayload.fileUrl = req.body.fileUrl || null;
@@ -1486,17 +1488,22 @@ export class TradeDocumentController {
       if (!String(result.doc?.issuer?.name || exposeDocument(result.doc).issuer?.name || "").trim() || !String(exposeDocument(result.doc).recipient?.name || "").trim()) {
         return res.status(409).json({ success: false, message: "The issuing and receiving legal company names are required before this document can be issued." });
       }
-      const signature = await issuerSignatureSnapshot(result.doc.ownerCompanyId);
-      if (!signature) return res.status(409).json({ success: false, code: "SIGNATURE_REQUIRED", message: "Configure the issuing company signature before issuing this document." });
+      const signature = await issuerSignatureSnapshot(req, result.doc.ownerCompanyId, req.body?.signatureId);
+      if (!signature) return res.status(409).json({ success: false, code: "SIGNATURE_REQUIRED", message: "Select an active personal or company signature before issuing this document." });
       const template: any = await resolveDocumentTemplate(result.doc, true);
       if (!template) return res.status(409).json({ success: false, message: "Choose an available published template before issuing." });
       if (template._id) {
         result.doc.selectedTemplateId = template._id;
         result.doc.selectedTemplateVersion = template.version;
       }
+      const authorizationPayload = sensitiveDocumentPayload("DOCUMENT_ISSUE", result.doc, { signatureId: signature.signatureId, signatureVersion: signature.signatureVersion, signatureChecksum: signature.signatureChecksum });
+      const authorization: any = await consumeAuthorizationIntent(req, String(req.body?.authorizationIntentId || ""), "DOCUMENT_ISSUE", authorizationPayload);
       result.doc.status = "SENT"; result.doc.issuedAt = new Date(); result.doc.revisionOpenKey = null; result.doc.issuerSignatureSnapshot = signature;
-      result.doc.auditEvents.push({ action: "ISSUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role) });
-      await result.doc.save();
+      result.doc.auditEvents.push({ action: "ISSUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { authorizationIntentId: authorization._id, authenticationMethod: authorization.authenticationMethod, signatureId: signature.signatureId, signatureVersion: signature.signatureVersion } });
+      const finalizedPdf = await renderPdfForDocument(result.doc);
+      const finalized = await putObject({ domain: "finalized-documents", body: finalizedPdf, originalName: `${String(result.doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf`, mimeType: "application/pdf", metadata: { documentId: String(result.doc._id), revision: String(result.doc.revision || 1), contentHash: authorizationPayload.documentContentHash } });
+      result.doc.finalizedObjectKey = finalized.objectKey; result.doc.finalizedChecksum = finalized.checksum; result.doc.finalizedSize = finalized.size; result.doc.finalizedAt = new Date();
+      result.doc.auditEvents.push({ action: "FINALIZED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { checksum: finalized.checksum, contentHash: authorizationPayload.documentContentHash } }); await result.doc.save();
       if (result.doc.enquiryId && await pairIsComplete(result.doc)) {
         const enquiry: any = await InquiryModel.findById(result.doc.enquiryId);
         if (enquiry) {
@@ -1531,12 +1538,14 @@ export class TradeDocumentController {
       if (result.doc.inviteIdempotencyKey === idempotencyKey && result.doc.inviteTokenHash === tokenHash(token) && !result.doc.inviteRevokedAt) {
         return res.json({ success: true, data: exposeDocument(result.doc), inviteUrl, emailDelivery: "notRequested", expiresAt: result.doc.inviteExpiresAt, reused: true });
       }
+      const inviteAuthorizationPayload = sensitiveDocumentPayload("DOCUMENT_INVITE", result.doc, { recipient: sendEmail ? recipientEmail : undefined, message, expiresInDays, channel: sendEmail ? "EMAIL" : "LINK" });
+      const inviteAuthorization: any = await consumeAuthorizationIntent(req, String(req.body?.authorizationIntentId || ""), "DOCUMENT_INVITE", inviteAuthorizationPayload);
       const replacing = Boolean(result.doc.inviteTokenHash && !result.doc.inviteRevokedAt);
       result.doc.inviteIdempotencyKey = idempotencyKey;
       result.doc.inviteTokenHash = tokenHash(token); result.doc.inviteExpiresAt = new Date(Date.now() + expiresInDays * 86400000); result.doc.inviteRevokedAt = null;
       result.doc.invitationSentAt = sendEmail ? new Date() : null;
       result.doc.firstViewedAt = null; result.doc.lastViewedAt = null; result.doc.viewCount = 0; result.doc.lastDownloadedAt = null; result.doc.downloadCount = 0;
-      result.doc.auditEvents.push({ action: replacing ? "INVITE_LINK_REPLACED" : "INVITE_LINK_CREATED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { expiresInDays } });
+      result.doc.auditEvents.push({ action: replacing ? "INVITE_LINK_REPLACED" : "INVITE_LINK_CREATED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { expiresInDays, authorizationIntentId: inviteAuthorization._id, authenticationMethod: inviteAuthorization.authenticationMethod } });
       await result.doc.save();
       let emailDelivery: "notRequested" | "sent" | "failed" = "notRequested", emailWarning = "";
       if (sendEmail) {
@@ -1563,7 +1572,7 @@ export class TradeDocumentController {
     try {
       const token = String(req.params.token || "");
       if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ success: false, message: "Invitation not found." });
-      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: tokenHash(token), isDeleted: { $ne: true } }).select("+inviteTokenHash");
+      const doc: any = await TradeDocumentModel.findOne({ inviteTokenHash: tokenHash(token), isDeleted: { $ne: true } }).select("+inviteTokenHash +finalizedObjectKey");
       if (!doc || !doc.inviteExpiresAt || doc.inviteExpiresAt.getTime() < Date.now() || doc.inviteRevokedAt || doc.status === "DRAFT") return res.status(404).json({ success: false, message: "Invitation expired or unavailable." });
       const now = new Date();
       doc.firstViewedAt = doc.firstViewedAt || now; doc.lastViewedAt = now; doc.viewCount = Number(doc.viewCount || 0) + 1;
@@ -1882,12 +1891,14 @@ export class TradeDocumentController {
       const idempotencyKey = String(req.body?.idempotencyKey || "").trim(); if (!idempotencyKey || idempotencyKey.length > 200) return res.status(400).json({ success: false, message: "A valid idempotency key is required." });
       const existing: any = await WhatsappDeliveryModel.findOne({ companyId: result.issuer._id, idempotencyKey }).lean(); if (existing) return res.json({ success: true, data: existing, reused: true });
       const expiresInDays = Number(req.body?.expiresInDays ?? 30); if (!Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 90) return res.status(400).json({ success: false, message: "Invitation expiry must be between 1 and 90 days." });
+      const whatsappAuthorizationPayload = sensitiveDocumentPayload("DOCUMENT_WHATSAPP", result.doc, { recipient: phone, expiresInDays, channel: "WHATSAPP" });
+      const whatsappAuthorization: any = await consumeAuthorizationIntent(req, String(req.body?.authorizationIntentId || ""), "DOCUMENT_WHATSAPP", whatsappAuthorizationPayload);
       const { connection, token: accessToken } = await usableWhatsappConnection(result.issuer._id);
       const inviteToken = invitationToken(result.doc._id, idempotencyKey), inviteUrl = `${resolvePublicFrontendUrl()}/documents/share/${inviteToken}`;
       result.doc.inviteIdempotencyKey = idempotencyKey; result.doc.inviteTokenHash = tokenHash(inviteToken); result.doc.inviteExpiresAt = new Date(Date.now() + expiresInDays * 86400000); result.doc.inviteRevokedAt = null; result.doc.firstViewedAt = null; result.doc.lastViewedAt = null; result.doc.viewCount = 0; result.doc.lastDownloadedAt = null; result.doc.downloadCount = 0;
       const templateName = String(process.env.META_WHATSAPP_DOCUMENT_TEMPLATE || "obaol_trade_document_v1"), language = String(process.env.META_WHATSAPP_TEMPLATE_LANGUAGE || "en_US");
       delivery = await WhatsappDeliveryModel.create({ companyId: result.issuer._id, documentId: result.doc._id, documentRevision: result.doc.revision || 1, recipient: phone, sender: connection.displayPhoneNumber, templateName, templateLanguage: language, idempotencyKey, status: "SENDING", initiatedBy: req.user?.id || null });
-      result.doc.auditEvents.push({ action: "WHATSAPP_DOCUMENT_QUEUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { deliveryId: delivery._id, recipient: phone } }); await result.doc.save();
+      result.doc.auditEvents.push({ action: "WHATSAPP_DOCUMENT_QUEUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { deliveryId: delivery._id, recipient: phone, authorizationIntentId: whatsappAuthorization._id, authenticationMethod: whatsappAuthorization.authenticationMethod } }); await result.doc.save();
       const pdf = await renderPdfForDocument(result.doc), filename = `${String(result.doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf`, mediaId = await uploadWhatsappPdf(connection.phoneNumberId, accessToken, pdf, filename);
       const metaMessageId = await sendWhatsappTemplate({ phoneNumberId: connection.phoneNumberId, token: accessToken, to: phone, templateName, language, mediaId, filename, bodyParameters: [recipientParty?.contactName || recipientParty?.name || "Customer", documentLabelForWhatsapp(result.doc.type), result.doc.documentNumber], buttonSuffix: `documents/share/${inviteToken}` });
       delivery.mediaId = mediaId; delivery.metaMessageId = metaMessageId; delivery.status = "SENT"; delivery.sentAt = new Date(); await delivery.save();
@@ -1911,13 +1922,17 @@ export class TradeDocumentController {
       if (existing) return res.json({ success: true, data: existing, reused: true });
       const expiresInDays = Number(req.body?.expiresInDays ?? 30); if (!Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 90) return res.status(400).json({ success: false, message: "Invitation expiry must be between 1 and 90 days." });
       const message = cleanText(req.body?.message, 1000), customSubject = cleanText(req.body?.subject, 200);
+      const authorizationTemplate = buildTradeDocumentEmail({ docType: result.doc.type, documentNumber: result.doc.documentNumber, status: result.doc.status, buyerName: result.doc.buyer?.name, sellerName: result.doc.seller?.name, recipientName: recipientParty?.contactName || recipientParty?.name, invitationUrl: "PENDING_AUTHORIZATION", expiresAt: new Date(Date.now() + expiresInDays * 86400000).toISOString(), message });
+      const authorizedSubject = customSubject || authorizationTemplate.subject;
+      const emailAuthorizationPayload = sensitiveDocumentPayload("DOCUMENT_EMAIL", result.doc, { recipient, cc, subject: authorizedSubject, message, expiresInDays, channel: "EMAIL" });
+      const emailAuthorization: any = await consumeAuthorizationIntent(req, String(req.body?.authorizationIntentId || ""), "DOCUMENT_EMAIL", emailAuthorizationPayload);
       const { connection, credentials } = await usableConnection(result.issuer._id);
       const token = invitationToken(result.doc._id, idempotencyKey), inviteUrl = `${resolvePublicFrontendUrl()}/documents/share/${token}`;
       result.doc.inviteIdempotencyKey = idempotencyKey; result.doc.inviteTokenHash = tokenHash(token); result.doc.inviteExpiresAt = new Date(Date.now() + expiresInDays * 86400000); result.doc.inviteRevokedAt = null;
       result.doc.firstViewedAt = null; result.doc.lastViewedAt = null; result.doc.viewCount = 0; result.doc.lastDownloadedAt = null; result.doc.downloadCount = 0;
-      result.doc.auditEvents.push({ action: "COMPANY_EMAIL_QUEUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { recipient, provider: connection.provider } }); await result.doc.save();
+      result.doc.auditEvents.push({ action: "COMPANY_EMAIL_QUEUED", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { recipient, provider: connection.provider, authorizationIntentId: emailAuthorization._id, authenticationMethod: emailAuthorization.authenticationMethod } }); await result.doc.save();
       const template = buildTradeDocumentEmail({ docType: result.doc.type, documentNumber: result.doc.documentNumber, status: result.doc.status, buyerName: result.doc.buyer?.name, sellerName: result.doc.seller?.name, recipientName: recipientParty?.contactName || recipientParty?.name, invitationUrl: inviteUrl, expiresAt: result.doc.inviteExpiresAt.toISOString(), message });
-      const subject = customSubject || template.subject;
+      const subject = authorizedSubject;
       delivery = await DocumentEmailDeliveryModel.create({ companyId: result.issuer._id, documentId: result.doc._id, documentRevision: result.doc.revision || 1, provider: connection.provider, sender: connection.email, recipient, cc, subject, status: "SENDING", idempotencyKey, initiatedBy: req.user?.id || null });
       const pdf = await renderPdfForDocument(result.doc), filename = `${String(result.doc.documentNumber).replace(/[^a-z0-9_-]+/gi, "-")}.pdf`;
       const providerMessageId = await sendCompanyDocumentEmail({ connection, credentials, to: recipient, cc, subject, text: template.textPart, html: template.htmlPart, filename, pdf });

@@ -6,6 +6,7 @@ const ProductSchema = new Schema({
   name: { type: String, required: true },
   slug: { type: String, unique: true, sparse: true, trim: true, lowercase: true, index: true },
   description: { type: String, required: true },
+  imageUrl: { type: String, default: "", trim: true },
   subCategory: {
     type: Schema.Types.ObjectId,
     ref: "SubCategory",

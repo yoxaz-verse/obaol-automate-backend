@@ -49,7 +49,8 @@
     "reconcile:lab-work": "ts-node src/scripts/reconcileLabWorkItems.ts",
     "seed:real-life-scenarios": "ts-node src/scripts/seedRealLifeScenarios.ts --publish",
     "migrate:quality-labs": "ts-node src/scripts/optimizeQualityLabs.ts",
-    "migrate:s3": "ts-node -r tsconfig-paths/register src/scripts/migrateFilesToS3.ts"
+    "migrate:s3": "ts-node -r tsconfig-paths/register src/scripts/migrateFilesToS3.ts",
+    "migrate:signatures": "ts-node -r tsconfig-paths/register src/scripts/migrateLegacySignatures.ts"
   },
   "keywords": [],
   "author": "",

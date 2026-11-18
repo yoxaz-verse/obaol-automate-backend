@@ -39,8 +39,8 @@ describe("sidebar governance canonical functions", () => {
       ["Buyer", "buyer"],
       ["Seller", "seller"],
     ]);
-    expect(state.body.data.commonRoutes.map((row: any) => row.path)).toEqual(["/dashboard", "/dashboard/guidance", "/dashboard/settings", "/dashboard/customer-support"]);
-    expect(state.body.data.commonRoutes.map((row: any) => row.position)).toEqual(["TOP", "BOTTOM", "BOTTOM", "BOTTOM"]);
+    expect(state.body.data.commonRoutes.map((row: any) => row.path)).toEqual(["/dashboard", "/dashboard/notifications", "/dashboard/guidance", "/dashboard/settings", "/dashboard/customer-support"]);
+    expect(state.body.data.commonRoutes.map((row: any) => row.position)).toEqual(["TOP", "BOTTOM", "BOTTOM", "BOTTOM", "BOTTOM"]);
     expect(state.body.data.routes.some((row: any) => row.path === "/dashboard")).toBe(false);
     expect(state.body.data.pageRules).toBeUndefined();
     expect(state.body.data.config.published.mappings).toBeUndefined();
@@ -124,7 +124,7 @@ describe("sidebar governance canonical functions", () => {
     await sidebarGovernanceController.getPublished({ user: { role: "admin" } } as any, result.res);
     const after: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
     expect(result.state.status).toBe(200);
-    expect(after.matrixMigrationVersion).toBe(9);
+    expect(after.matrixMigrationVersion).toBe(10);
     expect(after.draft.revision).toBe(5);
     expect(after.published.revision).toBe(4);
     expect(after.draft.resolutionVersion).toBe(3);
@@ -194,7 +194,7 @@ describe("sidebar governance canonical functions", () => {
     const first = response();
     await sidebarGovernanceController.getAdmin({} as any, first.res);
     const stored: any = await SidebarGovernanceModel.findOne({ key: "associate-sidebar" }).lean();
-    expect(stored.matrixMigrationVersion).toBe(9);
+    expect(stored.matrixMigrationVersion).toBe(10);
     expect(stored.draft.revision).toBe(5);
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "seller", routePath: "/dashboard/bidding", placement: "PROVIDING", status: "LIVE" }));
     expect(stored.draft.mappings).toContainEqual(expect.objectContaining({ functionSlug: "buyer", routePath: "/dashboard/bidding", placement: "UNASSIGNED", status: "HIDDEN" }));

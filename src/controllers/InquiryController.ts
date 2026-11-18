@@ -21,7 +21,8 @@ import {
     UserRole,
     getAssociateRole
 } from "../core/inquiry/inquiryAccessControl";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
+import { createHash } from "crypto";
 import { VariantRateModel } from "../database/models/variantRate";
 import { assertVariantRateEligible } from "../services/catalogModeration.service";
 import { CatalogItemModel } from "../database/models/catalogItem";
@@ -34,6 +35,7 @@ import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { AssociateModel } from "../database/models/associate";
 import { InventoryModel } from "../database/models/inventory";
 import { InventoryReservationModel } from "../database/models/inventoryReservation";
+import { WarehouseModel } from "../database/models/warehouse";
 import { OrderModel } from "../database/models/order";
 import { TradeDocumentModel } from "../database/models/tradeDocument";
 import { DocumentRuleModel } from "../database/models/documentRule";
@@ -211,6 +213,179 @@ export class InquiryController {
         const countryRows = match("country", route.countryIds);
         if (countryRows.length) return { ids: countryRows.map((row: any) => String(row._id)), matchLevel: "country" };
         return { ids: rows.map((row: any) => String(row._id)), matchLevel: "capability_fallback" };
+    }
+
+    private async sellerAcceptAtomic(req: Request, res: Response, next: NextFunction) {
+        const session = await mongoose.startSession();
+        try {
+            const { id } = req.params;
+            const inventoryId = String(req.body?.inventoryId || "").trim();
+            const warehouseId = String(req.body?.warehouseId || "").trim();
+            const idempotencyKey = String(req.body?.idempotencyKey || req.headers["idempotency-key"] || "").trim();
+            const addQuantity = Number(req.body?.addQuantity || 0);
+            const payloadHash = createHash("sha256").update(JSON.stringify({ inventoryId, warehouseId, addQuantity })).digest("hex");
+
+            if (!Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
+            if (!idempotencyKey || idempotencyKey.length > 200) {
+                return res.status(400).json({ success: false, message: "A valid idempotency key is required." });
+            }
+            if (inventoryId && !Types.ObjectId.isValid(inventoryId)) {
+                return res.status(400).json({ success: false, message: "Invalid inventory selection." });
+            }
+            if (!inventoryId && (!warehouseId || !Types.ObjectId.isValid(warehouseId))) {
+                return res.status(400).json({ success: false, message: "Inventory or warehouse selection is required for supplier acceptance." });
+            }
+            if (!Number.isFinite(addQuantity) || addQuantity < 0) {
+                return res.status(400).json({ success: false, message: "Added stock quantity cannot be negative." });
+            }
+
+            const initialInquiry = await InquiryModel.findById(id);
+            if (!initialInquiry) return res.status(404).json({ success: false, message: "Inquiry not found" });
+            const context: InquiryAccessContext = this.buildAccessContext(req);
+            if (!canAccessInquiry(initialInquiry as any, context)) return res.status(403).json({ success: false, message: "Access denied" });
+            const associateRole = req.user!.role === UserRole.ASSOCIATE && context.associateId
+                ? getAssociateRole(initialInquiry as any, context.associateId)
+                : null;
+            const allowed = associateRole === "seller" || req.user!.role === UserRole.ADMIN || this.canOperatorAct(req, initialInquiry as any, "supplier");
+            if (!allowed) return res.status(403).json({ success: false, message: "Only the supplier, supplier-side operator, or admin can accept this inquiry" });
+
+            let committedInquiry: any = null;
+            let committedReservation: any = null;
+            let replayed = false;
+
+            await session.withTransaction(async () => {
+                const inquiry: any = await InquiryModel.findById(id).session(session);
+                if (!inquiry) throw Object.assign(new Error("Inquiry not found"), { statusCode: 404 });
+
+                const existingReservation: any = await InventoryReservationModel.findOne({ enquiryId: inquiry._id, status: "RESERVED" })
+                    .select("+idempotencyKey +idempotencyPayloadHash")
+                    .session(session);
+                if (existingReservation || inquiry.sellerAcceptedAt) {
+                    if (!existingReservation) {
+                        throw Object.assign(new Error("Inquiry is already accepted, but its inventory reservation could not be found."), { statusCode: 409 });
+                    }
+                    if (existingReservation.idempotencyKey === idempotencyKey && existingReservation.idempotencyPayloadHash && existingReservation.idempotencyPayloadHash !== payloadHash) {
+                        throw Object.assign(new Error("This idempotency key was already used with different supplier acceptance details."), { statusCode: 409 });
+                    }
+                    committedInquiry = inquiry;
+                    committedReservation = existingReservation;
+                    replayed = true;
+                    return;
+                }
+
+                const sellerAssociate: any = await AssociateModel.findById(inquiry.sellerAssociateId)
+                    .select("_id associateCompany")
+                    .session(session)
+                    .lean();
+                const sellerCompanyId = sellerAssociate?.associateCompany;
+                if (!sellerCompanyId) throw Object.assign(new Error("Supplier company is missing for this inquiry."), { statusCode: 400 });
+
+                const variantRate: any = inquiry.variantRateId
+                    ? await VariantRateModel.findById(inquiry.variantRateId).select("productVariant").session(session).lean()
+                    : null;
+                const productVariantId = variantRate?.productVariant;
+                if (!productVariantId) throw Object.assign(new Error("Product variant is required to reserve inventory."), { statusCode: 400 });
+
+                let inventory: any = null;
+                if (inventoryId) {
+                    inventory = await InventoryModel.findById(inventoryId).session(session);
+                    if (!inventory || inventory.isDeleted) throw Object.assign(new Error("Selected inventory not found."), { statusCode: 404 });
+                    if (String(inventory.associateCompany || "") !== String(sellerCompanyId)) {
+                        throw Object.assign(new Error("Selected inventory does not belong to the supplier company."), { statusCode: 400 });
+                    }
+                    if (String(inventory.productVariant || "") !== String(productVariantId)) {
+                        throw Object.assign(new Error("Selected inventory is for a different product variant."), { statusCode: 400 });
+                    }
+                    if (addQuantity > 0) inventory.quantity = Number(inventory.quantity || 0) + addQuantity;
+                } else {
+                    const warehouse: any = await WarehouseModel.findById(warehouseId).session(session).lean();
+                    if (!warehouse || warehouse.isActive === false) throw Object.assign(new Error("Selected warehouse not found."), { statusCode: 404 });
+                    if (String(warehouse.ownerCompanyId || "") !== String(sellerCompanyId)) {
+                        throw Object.assign(new Error("Selected warehouse does not belong to the supplier company."), { statusCode: 400 });
+                    }
+                    if (addQuantity <= 0) throw Object.assign(new Error("Enter stock quantity for the selected warehouse."), { statusCode: 400 });
+                    inventory = new InventoryModel({
+                        product: inquiry.productId,
+                        productVariant: productVariantId,
+                        associate: inquiry.sellerAssociateId,
+                        associateCompany: sellerCompanyId,
+                        storageLocation: "MY",
+                        warehouseId: warehouse._id,
+                        warehouseName: warehouse.name,
+                        quantity: addQuantity,
+                        unit: "MT",
+                    });
+                }
+
+                const qty = Number(inquiry.quantity || 0);
+                if (!Number.isFinite(qty) || qty <= 0) throw Object.assign(new Error("Inquiry quantity must be greater than 0 to reserve inventory."), { statusCode: 400 });
+                const reservedRows = await InventoryReservationModel.aggregate([
+                    { $match: { inventoryId: inventory._id, status: "RESERVED", isDeleted: { $ne: true } } },
+                    { $group: { _id: "$inventoryId", qty: { $sum: "$quantity" } } },
+                ]).session(session);
+                const availableQty = Math.max(0, Number(inventory.quantity || 0) - Number(reservedRows?.[0]?.qty || 0));
+                if (qty > availableQty) throw Object.assign(new Error(`Only ${availableQty} MT is available in the selected inventory.`), { statusCode: 400 });
+
+                inventory.reservationVersion = Number(inventory.reservationVersion || 0) + 1;
+                await inventory.save({ session });
+                const created = await InventoryReservationModel.create([{
+                    inventoryId: inventory._id,
+                    enquiryId: inquiry._id,
+                    productVariant: productVariantId,
+                    associateCompany: sellerCompanyId,
+                    quantity: qty,
+                    status: "RESERVED",
+                    reservedAt: new Date(),
+                    idempotencyKey,
+                    idempotencyPayloadHash: payloadHash,
+                }], { session });
+
+                inquiry.sellerAcceptedAt = new Date();
+                inquiry.supplierQtyConfirmedAt = new Date();
+                const stage = String(inquiry.workflowStage || "").trim().toUpperCase();
+                if (!stage || stage === "ENQUIRY_CREATED" || stage === "LOI_ACCEPTED_QTY_CONFIRMED") inquiry.workflowStage = "QUOTATION_REVISION";
+                await inquiry.save({ session });
+                committedInquiry = inquiry;
+                committedReservation = created[0];
+            });
+
+            if (!committedInquiry || !committedReservation) throw new Error("Supplier acceptance did not complete.");
+            if (!replayed) {
+                if (String(req.user?.role || "").toLowerCase() === "associate") {
+                    await AssociateReferralService.activateForAssociate(req.user!.id, "INQUIRY_TAKEN", committedInquiry._id).catch(() => undefined);
+                }
+                try { await this.tradeDocController.autoCreateQuotationForInquiry(committedInquiry._id, committedReservation._id); } catch { /* non-blocking */ }
+                await createInquiryEvent(committedInquiry._id, InquiryEventType.UPDATED, req.user!.id, { metadata: { action: "SELLER_ACCEPTED" } }).catch(() => undefined);
+                await this.notifyInquiryParticipants({
+                    inquiry: committedInquiry,
+                    actorId: req.user!.id,
+                    type: NotificationTypes.INQUIRY_SUPPLIER_ACCEPTED,
+                    title: "Supplier accepted inquiry",
+                    message: "Supplier has accepted the inquiry. Move to next confirmation steps.",
+                    payload: { action: "SELLER_ACCEPTED" },
+                    priority: "high",
+                }).catch(() => undefined);
+            }
+            return res.json({
+                success: true,
+                data: committedInquiry,
+                reservation: committedReservation,
+                replayed,
+                message: replayed ? "Inquiry already accepted by supplier" : "Inquiry accepted by supplier",
+            });
+        } catch (error: any) {
+            if (error?.code === 11000) {
+                const existing = await InventoryReservationModel.findOne({ enquiryId: req.params.id, status: "RESERVED" }).lean();
+                const inquiry = await InquiryModel.findById(req.params.id).lean();
+                if (existing && inquiry?.sellerAcceptedAt) {
+                    return res.json({ success: true, data: inquiry, reservation: existing, replayed: true, message: "Inquiry already accepted by supplier" });
+                }
+            }
+            if (error?.statusCode) return res.status(error.statusCode).json({ success: false, message: error.message });
+            next(error);
+        } finally {
+            await session.endSession();
+        }
     }
 
     /**
@@ -651,6 +826,8 @@ export class InquiryController {
      * PATCH /api/v1/web/inquiries/:id/seller-accept
      */
     async sellerAccept(req: Request, res: Response, next: NextFunction) {
+        return this.sellerAcceptAtomic(req, res, next);
+        /* Legacy implementation retained temporarily below for a low-risk rollout; unreachable by design.
         try {
             const { id } = req.params;
             const { inventoryId } = req.body || {};
@@ -825,7 +1002,7 @@ export class InquiryController {
             });
         } catch (error: any) {
             next(error);
-        }
+        } */
     }
 
     /**

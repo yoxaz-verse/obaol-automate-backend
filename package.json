@@ -92,6 +92,7 @@
     "node-mailjet": "^6.0.8",
     "nodemailer": "^6.9.15",
     "puppeteer-core": "^24.26.1",
+    "redis": "^4.7.0",
     "sanitize-filename": "^1.6.3",
     "sharp": "^0.33.5",
     "swagger-jsdoc": "^6.2.8",

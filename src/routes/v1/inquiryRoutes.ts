@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { InquiryController } from "../../controllers/InquiryController";
 import authenticateToken from "../../middlewares/auth";
+import { requireActiveSignature } from "../../middlewares/requireActiveSignature";
 
 const router = Router();
 const inquiryController = new InquiryController();
@@ -14,7 +15,7 @@ router.use(authenticateToken);
  * Create inquiry
  * POST /api/v1/web/inquiries
  */
-router.post("/", inquiryController.create.bind(inquiryController));
+router.post("/", requireActiveSignature, inquiryController.create.bind(inquiryController));
 
 /**
  * List inquiries with role-based filtering
@@ -40,83 +41,83 @@ router.get("/:id", inquiryController.getById.bind(inquiryController));
  * Update inquiry (responsibility/specifications/context)
  * PATCH /api/v1/web/inquiries/:id
  */
-router.patch("/:id", inquiryController.update.bind(inquiryController));
+router.patch("/:id", requireActiveSignature, inquiryController.update.bind(inquiryController));
 
 /**
  * Update inquiry status (validates state transitions)
  * PATCH /api/v1/web/inquiries/:id/status
  * Body: { status: "CONTACTED" }
  */
-router.patch("/:id/status", inquiryController.updateStatus.bind(inquiryController));
+router.patch("/:id/status", requireActiveSignature, inquiryController.updateStatus.bind(inquiryController));
 
 /**
  * Update inquiry workflow stage (industry flow)
  * PATCH /api/v1/web/inquiries/:id/workflow-stage
  * Body: { workflowStage: "ORDER_CONFIRMED" }
  */
-router.patch("/:id/workflow-stage", inquiryController.updateWorkflowStage.bind(inquiryController));
+router.patch("/:id/workflow-stage", requireActiveSignature, inquiryController.updateWorkflowStage.bind(inquiryController));
 
 /**
  * Request volunteer as handler (supplier owner/deal closer)
  * POST /api/v1/web/inquiries/:id/handler-volunteer
  */
-router.post("/:id/handler-volunteer", inquiryController.requestHandlerVolunteer.bind(inquiryController));
+router.post("/:id/handler-volunteer", requireActiveSignature, inquiryController.requestHandlerVolunteer.bind(inquiryController));
 
 /**
  * Review volunteer request (admin only)
  * PATCH /api/v1/web/inquiries/:id/handler-volunteer
  */
-router.patch("/:id/handler-volunteer", inquiryController.reviewHandlerVolunteer.bind(inquiryController));
+router.patch("/:id/handler-volunteer", requireActiveSignature, inquiryController.reviewHandlerVolunteer.bind(inquiryController));
 
 /**
  * Assign operator to inquiry (admin only)
  * PATCH /api/v1/web/inquiries/:id/assign
  * Body: { operatorId: "..." }
  */
-router.patch("/:id/assign", inquiryController.assignOperator.bind(inquiryController));
+router.patch("/:id/assign", requireActiveSignature, inquiryController.assignOperator.bind(inquiryController));
 
 /**
  * Seller commits inquiry until a date
  * PATCH /api/v1/web/inquiries/:id/commit
  */
-router.patch("/:id/commit", inquiryController.commitUntil.bind(inquiryController));
+router.patch("/:id/commit", requireActiveSignature, inquiryController.commitUntil.bind(inquiryController));
 
 /**
  * Seller accepts inquiry
  * PATCH /api/v1/web/inquiries/:id/seller-accept
  */
-router.patch("/:id/seller-accept", inquiryController.sellerAccept.bind(inquiryController));
+router.patch("/:id/seller-accept", requireActiveSignature, inquiryController.sellerAccept.bind(inquiryController));
 
 /**
  * Buyer confirms inquiry (all good to go)
  * PATCH /api/v1/web/inquiries/:id/buyer-confirm
  */
-router.patch("/:id/buyer-confirm", inquiryController.buyerConfirm.bind(inquiryController));
+router.patch("/:id/buyer-confirm", requireActiveSignature, inquiryController.buyerConfirm.bind(inquiryController));
 
 /**
  * Buyer requests clarification on quotation
  * PATCH /api/v1/web/inquiries/:id/request-clarification
  */
-router.patch("/:id/request-clarification", inquiryController.requestClarification.bind(inquiryController));
-router.patch("/:id/revision-reply", inquiryController.replyToRevision.bind(inquiryController));
+router.patch("/:id/request-clarification", requireActiveSignature, inquiryController.requestClarification.bind(inquiryController));
+router.patch("/:id/revision-reply", requireActiveSignature, inquiryController.replyToRevision.bind(inquiryController));
 
 /**
  * Apply workflow action
  * PATCH /api/v1/web/inquiries/:id/actions
  */
-router.patch("/:id/actions", inquiryController.applyAction.bind(inquiryController));
+router.patch("/:id/actions", requireActiveSignature, inquiryController.applyAction.bind(inquiryController));
 
 /**
  * Finalize responsibility plan and generate execution inquiries
  * PATCH /api/v1/web/inquiries/:id/finalize-responsibilities
  */
-router.patch("/:id/finalize-responsibilities", inquiryController.finalizeResponsibilities.bind(inquiryController));
+router.patch("/:id/finalize-responsibilities", requireActiveSignature, inquiryController.finalizeResponsibilities.bind(inquiryController));
 
 /**
  * Update execution inquiry (bid/commit/status)
  * PATCH /api/v1/web/inquiries/:id/execution-inquiries/:type
  */
-router.patch("/:id/execution-inquiries/:type", inquiryController.updateExecutionInquiry.bind(inquiryController));
+router.patch("/:id/execution-inquiries/:type", requireActiveSignature, inquiryController.updateExecutionInquiry.bind(inquiryController));
 
 /**
  * Get inquiry event history (admin/assigned operator only)

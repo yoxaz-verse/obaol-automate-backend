@@ -10,6 +10,7 @@ import { WarehouseAssignmentModel } from "../database/models/warehouseAssignment
 import { getOperatorCompanyScope } from "../core/hooks/operatorScope";
 import { getCalculationConfig } from "../utils/calculationConfig";
 import { AssociateReferralService } from "../services/associateReferral.service";
+import { normalizePhoneInput } from "../utils/phone";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -45,6 +46,19 @@ const toPositiveNumber = (value: any, fallback: number) => {
 const normalizeUnit = (value: any, fallback: "KG" | "MT") => {
   const unit = String(value || fallback).toUpperCase();
   return unit === "KG" ? "KG" : "MT";
+};
+
+const normalizeOptionalWhatsapp = (input: { phone?: unknown; countryCode?: unknown; national?: unknown; fallbackCountryCode?: string }) => {
+  const hasValue = Boolean(String(input.phone || "").trim() || String(input.national || "").trim());
+  if (!hasValue) return null;
+  const normalized = normalizePhoneInput({
+    rawPhone: input.phone,
+    rawCountryCode: input.countryCode,
+    rawNational: input.national,
+    fallbackCountryCode: input.fallbackCountryCode,
+  });
+  if (!/^\+[1-9]\d{7,14}$/.test(normalized.e164)) return undefined;
+  return normalized;
 };
 
 const toLocation = (value: any) => {
@@ -163,6 +177,9 @@ export class WarehouseController {
       const contactPhoneSecondary = String(req.body?.contactPhoneSecondary || "").trim();
       const contactPhoneSecondaryCountryCode = String(req.body?.contactPhoneSecondaryCountryCode || "").trim();
       const contactPhoneSecondaryNational = String(req.body?.contactPhoneSecondaryNational || "").trim();
+      const whatsappPhone = String(req.body?.whatsappPhone || "").trim();
+      const whatsappPhoneCountryCode = String(req.body?.whatsappPhoneCountryCode || "").trim();
+      const whatsappPhoneNational = String(req.body?.whatsappPhoneNational || "").trim();
       const address = String(req.body?.address || "").trim();
       const category = String(req.body?.category || "GENERAL").trim().toUpperCase();
       let storageRatePerUnit = toNumber(req.body?.storageRatePerUnit);
@@ -180,6 +197,15 @@ export class WarehouseController {
       }
       if (!contactPhone && !contactPhoneNational) {
         return res.status(400).json({ success: false, message: "Warehouse contact phone is required." });
+      }
+      const normalizedWhatsapp = normalizeOptionalWhatsapp({
+        phone: whatsappPhone,
+        countryCode: whatsappPhoneCountryCode,
+        national: whatsappPhoneNational,
+        fallbackCountryCode: contactPhoneCountryCode || "+91",
+      });
+      if (normalizedWhatsapp === undefined) {
+        return res.status(400).json({ success: false, message: "Enter a valid WhatsApp number with country code." });
       }
       const normalizedStorageRate = storageRatePerUnit === null || storageRatePerUnit < 0 ? 0 : storageRatePerUnit;
       const normalizedCapacity = totalCapacity === null || totalCapacity < 0 ? 0 : totalCapacity;
@@ -209,6 +235,11 @@ export class WarehouseController {
         ...(contactPhoneSecondary ? { contactPhoneSecondary } : {}),
         ...(contactPhoneSecondaryCountryCode ? { contactPhoneSecondaryCountryCode } : {}),
         ...(contactPhoneSecondaryNational ? { contactPhoneSecondaryNational } : {}),
+        ...(normalizedWhatsapp ? {
+          whatsappPhone: normalizedWhatsapp.e164,
+          whatsappPhoneCountryCode: normalizedWhatsapp.countryCode,
+          whatsappPhoneNational: normalizedWhatsapp.national,
+        } : {}),
         address,
         ...(location ? { location } : {}),
         category: allowedCategories.includes(category) ? category : "GENERAL",
@@ -324,6 +355,24 @@ export class WarehouseController {
       }
       if (req.body?.contactPhoneSecondaryNational !== undefined) {
         payload.contactPhoneSecondaryNational = String(req.body?.contactPhoneSecondaryNational || "").trim();
+      }
+      if (
+        req.body?.whatsappPhone !== undefined ||
+        req.body?.whatsappPhoneCountryCode !== undefined ||
+        req.body?.whatsappPhoneNational !== undefined
+      ) {
+        const normalizedWhatsapp = normalizeOptionalWhatsapp({
+          phone: req.body?.whatsappPhone,
+          countryCode: req.body?.whatsappPhoneCountryCode,
+          national: req.body?.whatsappPhoneNational,
+          fallbackCountryCode: req.body?.contactPhoneCountryCode || "+91",
+        });
+        if (normalizedWhatsapp === undefined) {
+          return res.status(400).json({ success: false, message: "Enter a valid WhatsApp number with country code." });
+        }
+        payload.whatsappPhone = normalizedWhatsapp?.e164 || "";
+        payload.whatsappPhoneCountryCode = normalizedWhatsapp?.countryCode || "+91";
+        payload.whatsappPhoneNational = normalizedWhatsapp?.national || "";
       }
       if (req.body?.address !== undefined) payload.address = String(req.body?.address || "").trim();
       if (req.body?.location !== undefined) {

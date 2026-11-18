@@ -13,6 +13,7 @@ import { seedIncoterms } from "./seeds/incoterms.seed";
 import { seedPaymentTerms } from "./seeds/paymentTerms.seed";
 import { verifySmtpTransport } from "./utils/mailer";
 import { resumeDocumentExtractionJobs } from "./services/documentExtractionService";
+import { notificationStreamService } from "./services/notificationStreamService";
 const PORTD = Number(PORT) || 5001;
 const shouldRunStartupSeeds = process.env.RUN_STARTUP_SEEDS === "true";
 const shouldLogStartupDiagnostics = NODE_ENV !== "production" || process.env.STARTUP_DEBUG_LOGS === "true";
@@ -47,6 +48,7 @@ async function startServer() {
       await verifySmtpTransport("auth");
     }
     await connectDB();
+    await notificationStreamService.connect();
     void resumeDocumentExtractionJobs().catch((error) => console.error("Document extraction recovery failed:", error));
     // Canonical company functions are application schema, not optional demo data.
     await seedCompanyFunctions();
@@ -71,6 +73,7 @@ async function shutdown(signal: string) {
   shuttingDown = true;
   console.log(`${signal} received; shutting down gracefully.`);
   stopCronJobs();
+  await notificationStreamService.disconnect();
 
   const forceExitTimer = setTimeout(() => {
     console.error("Graceful shutdown timed out; forcing exit.");

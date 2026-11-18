@@ -42,6 +42,7 @@ import { audienceScopeForDirection, isCompleteDocumentPair, PAIRED_TRADE_DOCUMEN
 import { SignatureModel } from "../database/models/signature";
 import { consumeAuthorizationIntent } from "../services/authorizationIntentService";
 import { sensitiveDocumentPayload } from "../utils/sensitiveDocumentAuthorization";
+import { buildQuotationSignatureWarning, MissingQuotationSignature } from "../utils/quotationSignatureDisclosure";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -614,22 +615,39 @@ export class TradeDocumentController {
       const enquiry: any = await InquiryModel.findById(enquiryId).lean();
       const snapshot = enquiry ? await buildSnapshotFromEnquiry(enquiry) : null;
       const sellerCompanyId = snapshot?.seller?.companyId || null;
-      const [seller, obaol]: any[] = await Promise.all([
-        sellerCompanyId ? AssociateCompanyModel.findById(sellerCompanyId).select("name documentSignature").lean() : null,
-        ready && resolved.companyId ? AssociateCompanyModel.findById(resolved.companyId).select("name documentSignature").lean() : null,
+      const [seller, obaol, viewerAssociate, sellerCompanySignature, obaolCompanySignature]: any[] = await Promise.all([
+        sellerCompanyId ? AssociateCompanyModel.findById(sellerCompanyId).select("name registrationStatus isDeleted").lean() : null,
+        ready && resolved.companyId ? AssociateCompanyModel.findById(resolved.companyId).select("name").lean() : null,
+        isAssociateRole(normalizeRole(req.user?.role))
+          ? AssociateModel.findById(req.user?.id).select("associateCompany").lean()
+          : null,
+        sellerCompanyId ? SignatureModel.exists({ ownerType: "COMPANY", companyId: sellerCompanyId, status: "ACTIVE" }) : null,
+        ready && resolved.companyId ? SignatureModel.exists({ ownerType: "COMPANY", companyId: resolved.companyId, status: "ACTIVE" }) : null,
       ]);
-      const missingSignatures = [
-        !seller?.documentSignature?.imageDataUrl && !seller?.documentSignature?.objectKey ? { leg: "SELLER_TO_OBAOL", companyId: sellerCompanyId ? String(sellerCompanyId) : null, companyName: seller?.name || "Seller" } : null,
-        !obaol?.documentSignature?.imageDataUrl && !obaol?.documentSignature?.objectKey ? { leg: "OBAOL_TO_BUYER", companyId: resolved.companyId ? String(resolved.companyId) : null, companyName: obaol?.name || "OBAOL" } : null,
-      ].filter(Boolean);
+      const viewerOwnsSellerCompany = String(viewerAssociate?.associateCompany || "") === String(sellerCompanyId || "");
+      const sellerPersonalSignature = viewerOwnsSellerCompany
+        ? await SignatureModel.exists({ ownerType: "USER", ownerUserId: req.user?.id, status: "ACTIVE" })
+        : null;
+      const missingSignatures: MissingQuotationSignature[] = [
+        !sellerCompanySignature && !sellerPersonalSignature ? { leg: "SELLER_TO_OBAOL", companyId: sellerCompanyId ? String(sellerCompanyId) : null, companyName: seller?.name || "Seller" } : null,
+        !obaolCompanySignature ? { leg: "OBAOL_TO_BUYER", companyId: resolved.companyId ? String(resolved.companyId) : null, companyName: obaol?.name || "OBAOL" } : null,
+      ].filter((item): item is MissingQuotationSignature => Boolean(item));
+      const signatureWarning = buildQuotationSignatureWarning({
+        viewerRole: req.user?.role,
+        viewerCompanyId: viewerAssociate?.associateCompany,
+        sellerCompanyId,
+        sellerRegistrationStatus: seller?.registrationStatus,
+        sellerIsDeleted: seller?.isDeleted,
+        missingSignatures,
+      });
       return res.json({
         success: true,
         data: {
-          canCreate: ready,
+          canCreate: ready && missingSignatures.length === 0,
           canIssue: ready && missingSignatures.length === 0,
           reasonCode: !ready ? (resolved.status === "MISSING" ? "CONFIG_MISSING" : "CONFIG_INVALID") : missingSignatures.length ? "SIGNATURE_REQUIRED" : "READY",
-          missingSignatures,
-          message: !ready ? obaolConfigMessage(resolved.status) : missingSignatures.length ? "Configure the issuing-company signatures before submitting the quotation." : "Quotation creation is ready.",
+          message: !ready ? obaolConfigMessage(resolved.status) : missingSignatures.length ? "Verify the required signatures before creating the quotation." : "Quotation creation is ready.",
+          signatureWarning,
         },
       });
     } catch (error) {

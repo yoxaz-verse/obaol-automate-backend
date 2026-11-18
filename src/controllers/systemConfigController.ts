@@ -16,7 +16,7 @@ import {
 } from "../utils/authEmailTemplates";
 import { sendAuthTemplateTestEmail } from "../utils/mailer";
 import { OBAOL_COMPANY_KEY, resolveObaolCompany } from "../utils/obaolCompanyConfig";
-import { storageConfiguration, verifyStorage } from "../services/objectStorageService";
+import { storageConfiguration, verifySignatureStorage, verifyStorage } from "../services/objectStorageService";
 
 const isAdmin = (role: unknown) => String(role || "").toLowerCase() === "admin";
 const isFiniteNonNegative = (value: any) => Number.isFinite(Number(value)) && Number(value) >= 0;
@@ -37,6 +37,15 @@ class SystemConfigController {
       const result = await verifyStorage();
       await SystemConfigModel.findOneAndUpdate({ key: "AWS_S3_LAST_VERIFICATION" }, { value: result, updatedBy: req.user?.id || null }, { upsert: true });
       return res.status(result.success ? 200 : 502).json({ success: result.success, data: result, message: result.success ? "S3 upload, read, and delete verification succeeded." : result.message });
+    } catch (error) { next(error); }
+  }
+  async verifySignatureStorage(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!isAdmin(req.user?.role)) return res.status(403).json({ success: false, message: "Admin access required." });
+      if (!storageConfiguration().configured) return res.status(409).json({ success: false, code: "S3_NOT_CONFIGURED", message: "AWS S3 storage is not configured.", data: storageConfiguration() });
+      const result = await verifySignatureStorage();
+      await SystemConfigModel.findOneAndUpdate({ key: "AWS_SIGNATURE_STORAGE_LAST_VERIFICATION" }, { value: result, updatedBy: req.user?.id || null }, { upsert: true });
+      return res.status(result.success ? 200 : 502).json({ success: result.success, data: result, message: result.success ? "Signature upload, read-back, checksum, and delete verification succeeded." : "Signature storage verification failed." });
     } catch (error) { next(error); }
   }
   private normalizeTemplateType(input: unknown): AuthEmailTemplateType | null {

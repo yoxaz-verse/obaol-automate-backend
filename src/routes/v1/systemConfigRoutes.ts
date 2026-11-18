@@ -6,6 +6,7 @@ const router = Router();
 
 router.get("/storage", authenticateToken, systemConfigController.getStorage.bind(systemConfigController));
 router.post("/storage/verify", authenticateToken, systemConfigController.verifyStorage.bind(systemConfigController));
+router.post("/storage/verify-signatures", authenticateToken, systemConfigController.verifySignatureStorage.bind(systemConfigController));
 
 router.get("/obaol-company", authenticateToken, (req, res, next) =>
   systemConfigController.getObaolCompany(req, res, next)

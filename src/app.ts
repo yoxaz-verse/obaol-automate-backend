@@ -13,6 +13,7 @@ import apiLogger from "./middlewares/apiLogger";
 import { registerAllHooks } from "./core/hooks"; // Ensure this path is correct
 import mongoose from "mongoose";
 import { requestContext } from "./middlewares/requestContext";
+import { workflowRealtime } from "./middlewares/workflowRealtime";
 
 const app = express();
 app.use(requestContext);
@@ -100,7 +101,7 @@ app.use(
 );
 
 // Main API routes
-app.use("/api", routes);
+app.use("/api", workflowRealtime, routes);
 
 // Process health is intentionally outside the versioned API and authentication.
 app.get("/health/live", (_req, res) => {

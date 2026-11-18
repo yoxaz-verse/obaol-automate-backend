@@ -15,6 +15,7 @@ import { getCalculationConfig } from "../utils/calculationConfig";
 import { getImportReservationExpiryCutoff } from "../utils/importReservationExpiry";
 import { AssociateReferralService } from "../services/associateReferral.service";
 import { resolveImportListingAvailabilityStatus } from "../utils/importListingState";
+import { canCompanyCreateImportListing, IMPORTER_COMPANY_CAPABILITY } from "../utils/importAuthorization";
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 const isAdminRole = (role: string) => role === "admin";
@@ -97,21 +98,24 @@ export class ImportController {
 
   private async isImporterCompany(companyId: string | null): Promise<boolean> {
     if (!companyId || !Types.ObjectId.isValid(companyId)) return false;
-    const importerFunctions = await CompanyFunctionModel.find({
-      slug: "importing-to-india",
-      isActive: true,
-    })
-      .select("_id")
-      .lean();
-    if (!importerFunctions.length) return false;
-    const functionIds = importerFunctions.map((fn) => fn._id);
-    const mapping = await CompanyFunctionMappingModel.findOne({
-      companyId,
-      functionId: { $in: functionIds },
-    })
-      .select("_id")
-      .lean();
-    return !!mapping;
+    const [company, importerFunctions] = await Promise.all([
+      AssociateCompanyModel.findOne({ _id: companyId, isDeleted: { $ne: true } })
+        .select("providedCapabilities")
+        .lean(),
+      CompanyFunctionModel.find({ slug: IMPORTER_COMPANY_CAPABILITY, isActive: true })
+        .select("_id")
+        .lean(),
+    ]);
+
+    if (!company) return false;
+    const mapping = importerFunctions.length
+      ? await CompanyFunctionMappingModel.exists({
+          companyId,
+          functionId: { $in: importerFunctions.map((fn) => fn._id) },
+        })
+      : null;
+
+    return canCompanyCreateImportListing((company as any).providedCapabilities, !!mapping);
   }
 
   private async recomputeListingState(listingId: Types.ObjectId) {

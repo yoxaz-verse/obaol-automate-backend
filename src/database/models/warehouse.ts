@@ -11,6 +11,9 @@ const WarehouseSchema = new Schema(
         contactPhoneSecondary: { type: String, default: "" },
         contactPhoneSecondaryCountryCode: { type: String, default: "+91" },
         contactPhoneSecondaryNational: { type: String, default: "" },
+        whatsappPhone: { type: String, default: "", trim: true },
+        whatsappPhoneCountryCode: { type: String, default: "+91" },
+        whatsappPhoneNational: { type: String, default: "" },
         address: { type: String, default: "" },
         location: {
             latitude: { type: Number },
@@ -88,6 +91,19 @@ WarehouseSchema.pre("save", function (next) {
         (this as any).contactPhoneSecondaryNational = normalizedSecondary.national;
     }
 
+    const whatsappRaw = String((this as any).whatsappPhone || "").trim();
+    if (whatsappRaw || String((this as any).whatsappPhoneNational || "").trim()) {
+        const normalizedWhatsapp = normalizePhoneInput({
+            rawPhone: whatsappRaw,
+            rawCountryCode: (this as any).whatsappPhoneCountryCode,
+            rawNational: (this as any).whatsappPhoneNational,
+            fallbackCountryCode: (this as any).contactPhoneCountryCode,
+        });
+        (this as any).whatsappPhone = normalizedWhatsapp.e164;
+        (this as any).whatsappPhoneCountryCode = normalizedWhatsapp.countryCode;
+        (this as any).whatsappPhoneNational = normalizedWhatsapp.national;
+    }
+
     next();
 });
 
@@ -102,6 +118,10 @@ WarehouseSchema.pre("findOneAndUpdate", function (next) {
         Object.prototype.hasOwnProperty.call(payload, "contactPhoneSecondary") ||
         Object.prototype.hasOwnProperty.call(payload, "contactPhoneSecondaryCountryCode") ||
         Object.prototype.hasOwnProperty.call(payload, "contactPhoneSecondaryNational");
+    const hasWhatsappPhone =
+        Object.prototype.hasOwnProperty.call(payload, "whatsappPhone") ||
+        Object.prototype.hasOwnProperty.call(payload, "whatsappPhoneCountryCode") ||
+        Object.prototype.hasOwnProperty.call(payload, "whatsappPhoneNational");
 
     if (hasPrimaryPhone) {
         const normalizedPrimary = normalizePhoneInput({
@@ -124,6 +144,25 @@ WarehouseSchema.pre("findOneAndUpdate", function (next) {
         payload.contactPhoneSecondary = normalizedSecondary.e164;
         payload.contactPhoneSecondaryCountryCode = normalizedSecondary.countryCode;
         payload.contactPhoneSecondaryNational = normalizedSecondary.national;
+    }
+
+
+    if (hasWhatsappPhone) {
+        const hasWhatsappValue = String(payload.whatsappPhone || "").trim() || String(payload.whatsappPhoneNational || "").trim();
+        if (hasWhatsappValue) {
+            const normalizedWhatsapp = normalizePhoneInput({
+                rawPhone: payload.whatsappPhone,
+                rawCountryCode: payload.whatsappPhoneCountryCode,
+                rawNational: payload.whatsappPhoneNational,
+                fallbackCountryCode: payload.contactPhoneCountryCode || "+91",
+            });
+            payload.whatsappPhone = normalizedWhatsapp.e164;
+            payload.whatsappPhoneCountryCode = normalizedWhatsapp.countryCode;
+            payload.whatsappPhoneNational = normalizedWhatsapp.national;
+        } else {
+            payload.whatsappPhone = "";
+            payload.whatsappPhoneNational = "";
+        }
     }
 
     if (update.$set) {

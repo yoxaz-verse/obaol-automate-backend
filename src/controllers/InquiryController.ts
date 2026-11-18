@@ -1624,8 +1624,28 @@ export class InquiryController {
                 return res.status(409).json({ success: false, message: "The supplier response for this revision round has already been submitted." });
             }
 
+            const requestedKeys = new Set(items.map((item: any) => String(item?.key || "").toUpperCase()));
+            const soleRequestedKey = requestedKeys.size === 1 ? [...requestedKeys][0] : "";
+            const replyKeys = replies.map((reply: any) => {
+                const key = String(reply?.key || "").toUpperCase();
+                return !key && replies.length === 1 ? soleRequestedKey : key;
+            });
+            if (replyKeys.some((key: string) => !requestedKeys.has(key))) {
+                return res.status(400).json({ success: false, message: "A revision reply references an unknown item." });
+            }
+            if (new Set(replyKeys).size !== replyKeys.length) {
+                return res.status(400).json({ success: false, message: "Only one reply is allowed for each revision item." });
+            }
+            if (replyKeys.length !== requestedKeys.size || [...requestedKeys].some((key) => !replyKeys.includes(key))) {
+                return res.status(400).json({ success: false, message: "Choose accept or provide a valid counter for every revision item before submitting." });
+            }
+
             for (const rawReply of replies) {
                 const replyKey = String(rawReply?.key || "").toUpperCase();
+                const explicitDecision = String(rawReply?.decision || "").toUpperCase();
+                if (explicitDecision && !["ACCEPTED", "COUNTERED"].includes(explicitDecision)) {
+                    return res.status(400).json({ success: false, message: `Invalid response decision for ${replyKey}.` });
+                }
                 const hasPaymentCounterField =
                     rawReply?.counterPaymentTermId !== undefined &&
                     rawReply?.counterPaymentTermId !== null &&
@@ -1659,6 +1679,18 @@ export class InquiryController {
                         return res.status(400).json({ success: false, message: "Valid counter delivery date is required for timeline counter." });
                     }
                 }
+                if (explicitDecision === "COUNTERED") {
+                    const hasRateCounter = rawReply?.counterRate !== undefined && rawReply?.counterRate !== null && String(rawReply.counterRate).trim() !== "";
+                    if (replyKey === "RATE" && (!hasRateCounter || !Number.isFinite(Number(rawReply.counterRate)) || Number(rawReply.counterRate) <= 0)) {
+                        return res.status(400).json({ success: false, message: "Counter rate must be a positive number." });
+                    }
+                    if (replyKey === "PAYMENT_TERMS" && !hasPaymentCounterField) {
+                        return res.status(400).json({ success: false, message: "Valid counter payment term is required for payment-term counter." });
+                    }
+                    if (replyKey === "DELIVERY_TIMELINE" && (!hasCounterDeliveryMode || !hasCounterDeliveryDate)) {
+                        return res.status(400).json({ success: false, message: "Valid counter delivery mode and date are required for timeline counter." });
+                    }
+                }
             }
 
             const now = new Date();
@@ -1669,17 +1701,21 @@ export class InquiryController {
                     reply = replies[0];
                 }
                 if (!reply) return item;
+                const explicitDecision = String(reply?.decision || "").toUpperCase();
+                const isExplicitAccept = explicitDecision === "ACCEPTED";
+                const isExplicitCounter = explicitDecision === "COUNTERED";
                 const hasAck = typeof reply?.acknowledged !== "undefined";
-                const hasRateCounter = reply?.counterRate !== undefined && reply?.counterRate !== null && String(reply?.counterRate).trim() !== "";
-                const hasPaymentCounter = reply?.counterPaymentTermId !== undefined && reply?.counterPaymentTermId !== null && String(reply?.counterPaymentTermId).trim() !== "";
+                const hasRateCounter = !isExplicitAccept && reply?.counterRate !== undefined && reply?.counterRate !== null && String(reply?.counterRate).trim() !== "";
+                const hasPaymentCounter = !isExplicitAccept && reply?.counterPaymentTermId !== undefined && reply?.counterPaymentTermId !== null && String(reply?.counterPaymentTermId).trim() !== "";
                 const hasTimelineCounter =
+                    !isExplicitAccept &&
                     reply?.counterDeliveryMode !== undefined &&
                     reply?.counterDeliveryMode !== null &&
                     String(reply?.counterDeliveryMode).trim() !== "" &&
                     reply?.counterDeliveryDate !== undefined &&
                     reply?.counterDeliveryDate !== null &&
                     String(reply?.counterDeliveryDate).trim() !== "";
-                let acknowledged = hasAck ? Boolean(reply?.acknowledged) : Boolean(item?.supplierAcknowledged);
+                let acknowledged = explicitDecision ? true : hasAck ? Boolean(reply?.acknowledged) : Boolean(item?.supplierAcknowledged);
                 if (hasRateCounter || hasPaymentCounter || hasTimelineCounter) acknowledged = true;
                 const counterRate = hasRateCounter ? Number(reply.counterRate) : item?.supplierCounterRate ?? null;
                 const counterPaymentTermIdRaw = hasPaymentCounter ? String(reply.counterPaymentTermId).trim() : "";
@@ -1702,28 +1738,28 @@ export class InquiryController {
                     }
                 }
 
-                const supplierReplyStatus = hasRateCounter || hasPaymentCounter || hasTimelineCounter
+                const supplierReplyStatus = isExplicitCounter || hasRateCounter || hasPaymentCounter || hasTimelineCounter
                     ? "COUNTERED"
-                    : acknowledged
+                    : isExplicitAccept || acknowledged
                         ? "ACCEPTED"
                         : item?.supplierReplyStatus ?? null;
                 return {
                     ...item,
                     supplierAcknowledged: acknowledged,
                     supplierReplyStatus,
-                    supplierCounterRate: normalizedKey === "RATE" ? counterRate : item?.supplierCounterRate ?? null,
+                    supplierCounterRate: normalizedKey === "RATE" ? (isExplicitAccept ? null : counterRate) : item?.supplierCounterRate ?? null,
                     supplierCounterPaymentTermId:
                         normalizedKey === "PAYMENT_TERMS" && hasPaymentCounter
                             ? new Types.ObjectId(counterPaymentTermIdRaw)
-                            : item?.supplierCounterPaymentTermId ?? null,
+                            : normalizedKey === "PAYMENT_TERMS" && isExplicitAccept ? null : item?.supplierCounterPaymentTermId ?? null,
                     supplierCounterDeliveryMode:
                         normalizedKey === "DELIVERY_TIMELINE" && hasTimelineCounter
                             ? counterDeliveryModeRaw
-                            : item?.supplierCounterDeliveryMode ?? null,
+                            : normalizedKey === "DELIVERY_TIMELINE" && isExplicitAccept ? null : item?.supplierCounterDeliveryMode ?? null,
                     supplierCounterDeliveryDate:
                         normalizedKey === "DELIVERY_TIMELINE" && hasTimelineCounter
                             ? counterDeliveryDateRaw
-                            : item?.supplierCounterDeliveryDate ?? null,
+                            : normalizedKey === "DELIVERY_TIMELINE" && isExplicitAccept ? null : item?.supplierCounterDeliveryDate ?? null,
                     repliedAt: acknowledged ? now : item?.repliedAt || null,
                 };
             });

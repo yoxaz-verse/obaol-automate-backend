@@ -19,7 +19,7 @@ const InlandVehicleSchema = new Schema({
   vehicleType: { type: String, required: true, trim: true }, capacity: { type: Number, min: 0, default: 0 }, capacityUnit: { type: String, default: "MT" },
   publicAlias: { type: String, trim: true, default: "" }, manufacturer: { type: String, trim: true, default: "" }, model: { type: String, trim: true, default: "" }, modelYear: { type: Number, min: 1900, max: 2200, default: null },
   bodyType: { type: String, trim: true, default: "" }, axleConfiguration: { type: String, trim: true, default: "" }, fuelType: { type: String, trim: true, default: "" }, supportedCargo: [{ type: String, trim: true }], imageUrls: [{ type: String, trim: true }],
-  baseLocation: { label: { type: String, default: "" }, address: { type: String, default: "" }, city: { type: String, default: "" }, state: { type: String, default: "" }, country: { type: String, default: "India" }, latitude: Number, longitude: Number },
+  baseLocation: { label: { type: String, default: "" }, address: { type: String, default: "" }, city: { type: String, default: "" }, district: { type: String, default: "" }, state: { type: String, default: "" }, country: { type: String, default: "India" }, postalCode: { type: String, default: "" }, latitude: Number, longitude: Number },
   carrierName: { type: String, trim: true, default: "" }, complianceExpiresAt: { type: Date, default: null },
   compliance: { insuranceExpiresAt: Date, permitExpiresAt: Date, fitnessExpiresAt: Date, pollutionExpiresAt: Date },
   publiclyListed: { type: Boolean, default: false, index: true },

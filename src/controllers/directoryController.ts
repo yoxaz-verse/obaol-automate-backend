@@ -84,6 +84,7 @@ export class DirectoryController {
       unit: 1,
       contactPhone: 1,
       contactPhoneSecondary: 1,
+      whatsappPhone: 1,
       location: 1,
     };
 

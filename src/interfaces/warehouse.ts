@@ -8,6 +8,9 @@ export interface IWarehouse extends Document {
     contactPhoneSecondary?: string;
     contactPhoneSecondaryCountryCode?: string;
     contactPhoneSecondaryNational?: string;
+    whatsappPhone?: string;
+    whatsappPhoneCountryCode?: string;
+    whatsappPhoneNational?: string;
     address?: string;
     location?: {
         latitude?: number;

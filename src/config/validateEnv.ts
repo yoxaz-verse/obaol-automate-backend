@@ -10,6 +10,10 @@ const envSchema = Joi.object({
   AWS_REGION: Joi.string().allow("").optional(),
   AWS_S3_BUCKET: Joi.string().allow("").optional(),
   AWS_S3_PREFIX: Joi.string().allow("").optional(),
+  AWS_S3_SSE: Joi.string().valid("BUCKET_DEFAULT", "NONE", "AES256", "aws:kms").default("BUCKET_DEFAULT"),
+  AWS_S3_KMS_KEY_ID: Joi.string().allow("").optional(),
+  AWS_S3_ENDPOINT: Joi.string().uri().allow("").optional(),
+  AWS_S3_FORCE_PATH_STYLE: Joi.alternatives().try(Joi.boolean(), Joi.string().valid("true", "false")).optional(),
   BASE_URL: Joi.string().uri().required(),
   FRONTEND_URL: Joi.string().uri().when("NODE_ENV", {
     is: "production",
@@ -22,6 +26,7 @@ const envSchema = Joi.object({
     otherwise: Joi.optional(),
   }),
   JWT_SECRET: Joi.string().min(6).required(),
+  REDIS_URL: Joi.string().uri().allow("").optional(),
   SMTP_HOST: Joi.string().hostname().required(),
   SMTP_PORT: Joi.number().port().required(),
   SMTP_SECURE: Joi.alternatives().try(Joi.boolean(), Joi.string().valid("true", "false", "1", "0", "yes", "no")).required(),

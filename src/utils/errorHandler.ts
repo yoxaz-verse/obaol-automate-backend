@@ -45,7 +45,23 @@ export const errorHandler = async (err: unknown, req: Request, res: Response, _n
   const status = details ? 400 : Number(error.statusCode || error.status || 500);
   const appError = error instanceof AppError ? error : null;
   const legacyCode = typeof error.code === "string" ? error.code : undefined;
-  const message = status >= 500 && process.env.NODE_ENV === "production" ? "Something went wrong. Please try again later." : error.message || "Something went wrong. Please try again later.";
+  const safeOperationalMessages: Record<string, string> = {
+    S3_NOT_CONFIGURED: "Private file storage is not configured. Ask an administrator to configure the AWS S3 bucket and region before uploading a signature.",
+    S3_ACCESS_DENIED: "AWS denied access to the private storage bucket. Ask an administrator to check the application's S3 IAM permissions.",
+    S3_KMS_DENIED: "AWS denied access to the bucket encryption key. Ask an administrator to grant KMS encrypt and decrypt permissions.",
+    S3_REGION_MISMATCH: "The configured AWS region does not match the private storage bucket region.",
+    S3_CREDENTIALS_INVALID: "The backend AWS credentials are invalid or expired.",
+    S3_BUCKET_NOT_FOUND: "The configured private storage bucket was not found.",
+    S3_NETWORK_ERROR: "The backend could not reach AWS private storage. Please retry shortly.",
+    S3_WRITE_FAILED: "The signature could not be written to private storage.",
+    S3_ENCRYPTION_INVALID: "The backend private-storage encryption setting is invalid.",
+    SIGNATURE_IMAGE_INVALID: "Upload a valid transparent PNG signature.",
+    SIGNATURE_NORMALIZATION_FAILED: "The PNG could not be processed. Export it again as a non-animated transparent PNG.",
+    SIGNATURE_STORAGE_VERIFY_FAILED: "The signature reached private storage, but the read-back verification failed. Ask an administrator to run the signature storage check.",
+    SIGNATURE_RECORD_FAILED: "The signature file was verified, but its database record could not be saved.",
+  };
+  const safeOperationalMessage = legacyCode ? safeOperationalMessages[legacyCode] : undefined;
+  const message = safeOperationalMessage || (status >= 500 && process.env.NODE_ENV === "production" ? "Something went wrong. Please try again later." : error.message || "Something went wrong. Please try again later.");
   res.status(status).json({
     success: false,
     status,

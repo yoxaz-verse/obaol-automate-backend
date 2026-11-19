@@ -11,8 +11,23 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const bucket = String(process.env.AWS_S3_BUCKET || process.env.AWS_BUCKET_NAME || "").trim();
-const region = String(process.env.AWS_REGION || "").trim();
+const cleanEnvValue = (value: unknown) => String(value || "").trim().replace(/^(['"])(.*)\1$/, "$2").trim();
+const normalizeBucket = (value: unknown) => {
+  const raw = cleanEnvValue(value).replace(/^s3:\/\//i, "").replace(/\/+$/, "");
+  if (!raw) return "";
+  try {
+    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    const virtualHosted = url.hostname.match(/^([a-z0-9.-]+)\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/i)?.[1];
+    const pathStyle = url.hostname.startsWith("s3") ? url.pathname.split("/").filter(Boolean)[0] : "";
+    return virtualHosted || pathStyle || (raw.includes("://") ? "" : raw.split("/")[0]);
+  } catch { return raw.split("/")[0]; }
+};
+const primaryBucket = normalizeBucket(process.env.AWS_S3_BUCKET);
+const legacyBucket = normalizeBucket(process.env.AWS_BUCKET_NAME);
+const bucket = primaryBucket || legacyBucket;
+const bucketSource = primaryBucket ? "AWS_S3_BUCKET" : legacyBucket ? "AWS_BUCKET_NAME" : null;
+const bucketAliasConflict = Boolean(primaryBucket && legacyBucket && primaryBucket !== legacyBucket);
+const region = cleanEnvValue(process.env.AWS_REGION);
 const prefix = String(process.env.AWS_S3_PREFIX || process.env.NODE_ENV || "development")
   .trim().replace(/^\/+|\/+$/g, "");
 const endpoint = String(process.env.AWS_S3_ENDPOINT || "").trim();
@@ -64,6 +79,8 @@ export const storageConfiguration = () => ({
   provider: "s3" as const,
   configured: Boolean(bucket && region),
   bucket: bucket || null,
+  bucketSource,
+  bucketAliasConflict,
   region: region || null,
   prefix: prefix || null,
   credentialSource: "AWS default credential provider chain",

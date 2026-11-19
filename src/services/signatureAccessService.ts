@@ -13,9 +13,19 @@ export const activeSignatureAvailability = async (input: { userId?: any; company
   const clauses: any[] = [];
   if (!input.requireCompany && input.userId) clauses.push({ ownerType: "USER", ownerUserId: input.userId });
   if (input.companyId) clauses.push({ ownerType: "COMPANY", companyId: input.companyId });
-  if (!clauses.length) return { available: false, signature: null };
+  if (!clauses.length) return { available: false, state: "MISSING" as const, signature: null };
   const signature: any = await SignatureModel.findOne({ status: "ACTIVE", $or: clauses }).sort({ ownerType: 1, version: -1 }).select("_id ownerType ownerUserId companyId version checksum signerName").lean();
-  return { available: Boolean(signature), signature };
+  if (signature) return { available: true, state: "ACTIVE" as const, signature };
+
+  const pendingSignature: any = await SignatureModel.findOne({ status: "PENDING_VERIFICATION", $or: clauses })
+    .sort({ updatedAt: -1, version: -1 })
+    .select("_id ownerType ownerUserId companyId version checksum signerName")
+    .lean();
+  return {
+    available: false,
+    state: pendingSignature ? "PENDING_VERIFICATION" as const : "MISSING" as const,
+    signature: pendingSignature || null,
+  };
 };
 
 export const workflowSignatureAvailability = async (req: Request) => {

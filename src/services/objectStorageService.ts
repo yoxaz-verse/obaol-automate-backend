@@ -51,9 +51,21 @@ const storageError = (error: any) => {
   if (/accessdenied|forbidden/.test(name.toLowerCase()) || error?.$metadata?.httpStatusCode === 403) code = /kms|key/.test(message) ? "S3_KMS_DENIED" : "S3_ACCESS_DENIED";
   else if (/nosuchbucket|notfound/.test(name.toLowerCase())) code = "S3_BUCKET_NOT_FOUND";
   else if (/authorizationheadermalformed|permanentredirect|incorrectendpoint/.test(name.toLowerCase()) || /region/.test(message)) code = "S3_REGION_MISMATCH";
-  else if (/invalidaccesskeyid|signaturedoesnotmatch|expiredtoken|credentialsprovidererror/.test(name.toLowerCase())) code = "S3_CREDENTIALS_INVALID";
+  else if (/invalidaccesskeyid|signaturedoesnotmatch|expiredtoken|invalidtoken|credentialsprovidererror|unrecognizedclient/.test(name.toLowerCase())) code = "S3_CREDENTIALS_INVALID";
+  else if (/invalidrequest|invalidargument|malformedxml|invaliddigest|badrequest/.test(name.toLowerCase()) || error?.$metadata?.httpStatusCode === 400) code = "S3_REQUEST_INVALID";
+  else if (/slowdown|throttl|serviceunavailable/.test(name.toLowerCase()) || error?.$metadata?.httpStatusCode === 429) { code = "S3_THROTTLED"; statusCode = 503; }
   else if (/timeout|network|enotfound|econnreset/.test(`${name} ${message}`)) { code = "S3_NETWORK_ERROR"; statusCode = 503; }
-  return Object.assign(new Error("Private storage operation failed."), { code, statusCode, cause: error });
+  return Object.assign(new Error("Private storage operation failed."), {
+    code,
+    statusCode,
+    cause: error,
+    storageDiagnostic: {
+      providerCode: name || "UNKNOWN",
+      httpStatusCode: Number(error?.$metadata?.httpStatusCode || 0) || null,
+      providerRequestId: String(error?.$metadata?.requestId || "") || null,
+      providerExtendedRequestId: String(error?.$metadata?.extendedRequestId || "") || null,
+    },
+  });
 };
 
 const encryptionOptions = () => {

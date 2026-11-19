@@ -51,6 +51,8 @@ export const errorHandler = async (err: unknown, req: Request, res: Response, _n
     S3_KMS_DENIED: "AWS denied access to the bucket encryption key. Ask an administrator to grant KMS encrypt and decrypt permissions.",
     S3_REGION_MISMATCH: "The configured AWS region does not match the private storage bucket region.",
     S3_CREDENTIALS_INVALID: "The backend AWS credentials are invalid or expired.",
+    S3_REQUEST_INVALID: "AWS rejected the storage request. Check the bucket encryption requirements and storage configuration.",
+    S3_THROTTLED: "AWS private storage is temporarily throttling requests. Please retry shortly.",
     S3_BUCKET_NOT_FOUND: "The configured private storage bucket was not found. Check that AWS_S3_BUCKET contains the bare bucket name (not an s3:// URL) and is not overriding AWS_BUCKET_NAME.",
     S3_NETWORK_ERROR: "The backend could not reach AWS private storage. Please retry shortly.",
     S3_WRITE_FAILED: "The signature could not be written to private storage.",

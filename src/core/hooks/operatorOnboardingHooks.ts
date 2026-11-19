@@ -1,6 +1,4 @@
 import { ExecutionMode, HookFunction } from "../types";
-import { AssociateCompanyModel } from "../../database/models/associateCompany";
-import mongoose from "mongoose";
 
 const isOperatorActor = (req: any) => {
   const role = String(req?.user?.role || "").toLowerCase();
@@ -44,35 +42,27 @@ export const operatorAssociateCreatePreWriteHook: HookFunction = async (payload,
         throw err;
       }
 
+      const editableFields = new Set([
+        "name",
+        "phone",
+        "phoneCountryCode",
+        "phoneNational",
+        "address",
+        "geoType",
+        "country",
+        "state",
+        "district",
+        "division",
+        "pincodeEntry",
+      ]);
       const submittedFields = Object.keys(payload || {});
-      if (submittedFields.length !== 1 || submittedFields[0] !== "associateCompany") {
-        const err: any = new Error("Associates can only change their associate company.");
+      if (submittedFields.length === 0 || submittedFields.some((field) => !editableFields.has(field))) {
+        const err: any = new Error("Associates can only update their name, primary phone, and personal location.");
         err.status = 403;
         err.statusCode = 403;
         throw err;
       }
-
-      if (!mongoose.Types.ObjectId.isValid(String(payload.associateCompany || ""))) {
-        const err: any = new Error("Select an approved associate company.");
-        err.status = 400;
-        err.statusCode = 400;
-        throw err;
-      }
-
-      const company = await AssociateCompanyModel.exists({
-        _id: payload.associateCompany,
-        registrationStatus: "APPROVED",
-        isApproved: true,
-        isDeleted: { $ne: true },
-        isExternalDirectoryListing: { $ne: true },
-      });
-      if (!company) {
-        const err: any = new Error("Select an approved associate company.");
-        err.status = 400;
-        err.statusCode = 400;
-        throw err;
-      }
-      return { associateCompany: payload.associateCompany };
+      return Object.fromEntries(submittedFields.map((field) => [field, payload[field]]));
     }
 
     rejectAdminControlledAssociateFields(payload, req);

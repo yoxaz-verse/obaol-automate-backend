@@ -100,7 +100,12 @@ export const EntityRegistry: Record<string, EntityConfig> = {
             "associateCompany.district": "districts",
             "associateCompany.division": "divisions",
             "associateCompany.pincodeEntry": "pincode-entries",
-            designation: "designations"
+            designation: "designations",
+            country: "countries",
+            state: "states",
+            district: "districts",
+            division: "divisions",
+            pincodeEntry: "pincode-entries"
         },
     },
     "operators": {

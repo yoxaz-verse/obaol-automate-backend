@@ -648,6 +648,9 @@ export class TradeDocumentController {
           reasonCode: !ready ? (resolved.status === "MISSING" ? "CONFIG_MISSING" : "CONFIG_INVALID") : missingSignatures.length ? "SIGNATURE_REQUIRED" : "READY",
           message: !ready ? obaolConfigMessage(resolved.status) : missingSignatures.length ? "Verify the required signatures before creating the quotation." : "Quotation creation is ready.",
           signatureWarning,
+          missingSignatures,
+          configurationUrl: "/dashboard/companies?configureObaol=1",
+          obaolSignatureUrl: "/dashboard/settings/signature-management?scope=obaol",
         },
       });
     } catch (error) {

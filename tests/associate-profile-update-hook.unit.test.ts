@@ -1,50 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/database/models/associateCompany", () => ({
-  AssociateCompanyModel: {
-    exists: vi.fn(),
-  },
-}));
+import { describe, expect, it } from "vitest";
 
 import { ExecutionMode } from "../src/core/types";
 import { operatorAssociateCreatePreWriteHook } from "../src/core/hooks/operatorOnboardingHooks";
-import { AssociateCompanyModel } from "../src/database/models/associateCompany";
 
-const companyId = "507f1f77bcf86cd799439011";
 const associateRequest = {
   user: { id: "associate-1", role: "Associate" },
 };
 
 describe("associate profile update hook", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("allows an associate to change only their own approved company", async () => {
-    vi.mocked(AssociateCompanyModel.exists).mockResolvedValueOnce({ _id: companyId } as any);
-
+  it("allows an associate to update their own personal details", async () => {
+    const payload = {
+      name: "Updated Associate",
+      phone: "+917306096941",
+      phoneCountryCode: "+91",
+      phoneNational: "7306096941",
+      address: "Personal address",
+      geoType: "INDIAN",
+      state: "507f1f77bcf86cd799439011",
+      district: "507f191e810c19729de860ea",
+    };
     await expect(
       operatorAssociateCreatePreWriteHook(
-        { associateCompany: companyId },
+        payload,
         ExecutionMode.UPDATE,
         "associate-1",
         associateRequest
       )
-    ).resolves.toEqual({ associateCompany: companyId });
-
-    expect(AssociateCompanyModel.exists).toHaveBeenCalledWith({
-      _id: companyId,
-      registrationStatus: "APPROVED",
-      isApproved: true,
-      isDeleted: { $ne: true },
-      isExternalDirectoryListing: { $ne: true },
-    });
+    ).resolves.toEqual(payload);
   });
 
   it("blocks updates to another associate", async () => {
     await expect(
       operatorAssociateCreatePreWriteHook(
-        { associateCompany: companyId },
+        { name: "Updated Associate" },
         ExecutionMode.UPDATE,
         "associate-2",
         associateRequest
@@ -52,10 +40,10 @@ describe("associate profile update hook", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
-  it("blocks personal fields in an associate update", async () => {
+  it("blocks company changes in an associate update", async () => {
     await expect(
       operatorAssociateCreatePreWriteHook(
-        { associateCompany: companyId, name: "Changed" },
+        { associateCompany: "507f1f77bcf86cd799439011" },
         ExecutionMode.UPDATE,
         "associate-1",
         associateRequest
@@ -63,16 +51,14 @@ describe("associate profile update hook", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
-  it("rejects a company that is not approved and available", async () => {
-    vi.mocked(AssociateCompanyModel.exists).mockResolvedValueOnce(null);
-
+  it("blocks email, designation, and secondary phone changes", async () => {
     await expect(
       operatorAssociateCreatePreWriteHook(
-        { associateCompany: companyId },
+        { email: "changed@example.com", designation: "role-1", phoneSecondary: "+919999999999" },
         ExecutionMode.UPDATE,
         "associate-1",
         associateRequest
       )
-    ).rejects.toMatchObject({ statusCode: 400 });
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 });

@@ -6,15 +6,33 @@ import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
 import { deleteObject, getObjectBuffer, putObject, storageConfiguration, verifyObjectRoundTrip } from "../services/objectStorageService";
 import { consumeAuthorizationIntent } from "../services/authorizationIntentService";
+import { resolveObaolCompany } from "../utils/obaolCompanyConfig";
 
 const companyFor = async (req: Request) => {
   const associate: any = await AssociateModel.findById(req.user?.id).select("associateCompany").lean();
   if (!associate?.associateCompany) return null;
   return AssociateCompanyModel.findOne({ _id: associate.associateCompany, registrationStatus: "APPROVED", isDeleted: { $ne: true } }).select("_id name").lean();
 };
+const isObaolScope = (req: Request) => String(req.query?.scope || req.body?.scope || "").trim().toLowerCase() === "obaol";
+const obaolCompanyForAdmin = async (req: Request) => {
+  if (String(req.user?.role || "").toLowerCase() !== "admin") {
+    throw Object.assign(new Error("Admin access is required for the OBAOL company signature."), { statusCode: 403 });
+  }
+  const resolved = await resolveObaolCompany();
+  if (resolved.status !== "CONFIGURED" || !resolved.companyId) {
+    throw Object.assign(new Error("Configure a valid OBAOL company before managing its signature."), { statusCode: 409, code: "OBAOL_COMPANY_REQUIRED" });
+  }
+  const company: any = await AssociateCompanyModel.findOne({ _id: resolved.companyId, isDeleted: { $ne: true } }).select("_id name").lean();
+  if (!company) throw Object.assign(new Error("The configured OBAOL company was not found."), { statusCode: 404 });
+  return company;
+};
+const scopedCompanyFor = async (req: Request) => isObaolScope(req) ? obaolCompanyForAdmin(req) : companyFor(req);
 const scopeFor = async (req: Request, ownerType: string) => {
+  if (isObaolScope(req) && ownerType !== "COMPANY") {
+    throw Object.assign(new Error("The OBAOL configuration accepts company signatures only."), { statusCode: 400 });
+  }
   if (ownerType === "USER") return { ownerType: "USER", ownerUserId: new mongoose.Types.ObjectId(req.user!.id), companyId: null };
-  const company: any = await companyFor(req);
+  const company: any = await scopedCompanyFor(req);
   if (!company) throw Object.assign(new Error("An approved company account is required."), { statusCode: 403 });
   return { ownerType: "COMPANY", ownerUserId: null, companyId: company._id };
 };
@@ -41,10 +59,12 @@ export const normalizeSignaturePng = async (file: Express.Multer.File) => {
 
 export class SignatureController {
   async list(req: Request, res: Response, next: NextFunction) { try {
-    const company: any = await companyFor(req); const clauses: any[] = [{ ownerType: "USER", ownerUserId: req.user?.id }];
+    const obaolScope = isObaolScope(req);
+    const company: any = await scopedCompanyFor(req);
+    const clauses: any[] = obaolScope ? [] : [{ ownerType: "USER", ownerUserId: req.user?.id }];
     if (company) clauses.push({ ownerType: "COMPANY", companyId: company._id });
     const rows = await SignatureModel.find({ $or: clauses, status: { $ne: "REVOKED" } }).sort({ ownerType: 1, version: -1 }).lean();
-    return res.json({ success: true, data: rows.map(expose), company: company ? { id: company._id, name: company.name } : null, storage: { configured: storageConfiguration().configured } });
+    return res.json({ success: true, data: rows.map(expose), company: company ? { id: company._id, name: company.name } : null, scope: obaolScope ? "OBAOL" : "OWN", storage: { configured: storageConfiguration().configured } });
   } catch (e) { next(e); } }
   async upload(req: Request, res: Response, next: NextFunction) { try {
     const ownerType = String(req.body?.ownerType || "USER").toUpperCase(); if (!["USER", "COMPANY"].includes(ownerType)) return res.status(400).json({ success: false, message: "Choose a personal or company signature." });

@@ -41,6 +41,18 @@ describe("canonical document HTML rendering", () => {
     expect(html).toContain("Director");
   });
 
+  it("omits the complete signature section when no signature snapshot is applied", () => {
+    const html = renderDocumentHtml(document, { name: "Classic", version: 1, layoutSchema: { elements: [] } });
+    expect(html).not.toContain("<section class=\"signature\">");
+    expect(html).not.toContain("Authorized Signatory</small>");
+  });
+
+  it("omits custom signature elements from unsigned documents", () => {
+    const html = renderDocumentHtml(document, { name: "Custom", version: 1, layoutSchema: { elements: [{ id: "signature", type: "SIGNATURE", content: "Authorized Signatory", x: 400, y: 900, width: 250, height: 100, visible: true }] } });
+    expect(html).not.toContain("custom-element positioned\" style=\"left:400px;top:900px");
+    expect(html).not.toContain("Authorized Signatory</small>");
+  });
+
   it("leaves missing document values blank instead of rendering dash placeholders", () => {
     const html = renderDocumentHtml({ ...document, buyer: {}, seller: {}, documentData: {}, terms: {} }, { name: "Classic", version: 1, layoutSchema: { elements: [] } });
     expect(html).not.toContain(">—<");

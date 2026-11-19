@@ -21,6 +21,7 @@ export interface IOperator extends mongoose.Document {
     phoneCountryCode?: string;
     phoneNational?: string;
     password: string;
+    profilePicture?: { objectKey: string; mimeType: string; size: number; checksum?: string; updatedAt?: Date | null };
     authProvider?: "LOCAL" | "GOOGLE" | "APPLE";
     googleSub?: string | null;
     googleEmailVerified?: boolean;
@@ -85,6 +86,13 @@ const operatorSchema = new mongoose.Schema(
         phoneCountryCode: { type: String, default: "+91" },
         phoneNational: { type: String, default: "" },
         password: { type: String, required: true },
+        profilePicture: {
+            objectKey: { type: String, default: "" },
+            mimeType: { type: String, default: "" },
+            size: { type: Number, default: 0 },
+            checksum: { type: String, default: "" },
+            updatedAt: { type: Date, default: null },
+        },
         authProvider: { type: String, enum: ["LOCAL", "GOOGLE", "APPLE"], default: "LOCAL" },
         googleSub: { type: String, default: null },
         googleEmailVerified: { type: Boolean, default: false },

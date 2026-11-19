@@ -45,7 +45,7 @@ const profileMatchesRequirement = (profile: any, requirement: any) => (profile?.
     && (!(requirement.qualityOptionIds || []).length || requirement.qualityOptionIds.some((value: any) => includes(capability.qualityOptionIds, value)));
 });
 
-const taxonomyFields: Record<string, string> = { commodityId: "COMMODITY", commodityIds: "COMMODITY", serviceIds: "SERVICE", formatIds: "FORMAT", materialIds: "MATERIAL", qualityOptionIds: "QUALITY_OPTION", certificationIds: "CERTIFICATION" };
+const taxonomyFields: Record<string, string> = { commodityId: "COMMODITY", commodityIds: "COMMODITY", serviceIds: "SERVICE", formatIds: "FORMAT", materialIds: "MATERIAL", machineryIds: "MACHINERY", qualityOptionIds: "QUALITY_OPTION", certificationIds: "CERTIFICATION" };
 export const validatePackagingRequirementInput = (body: any) => {
   const errors: string[] = [];
   if (!String(body?.title || "").trim()) errors.push("Title is required");
@@ -73,7 +73,7 @@ const validateTaxonomyReferences = async (body: any) => {
 };
 const validateProfileTaxonomyReferences = async (snapshot: any) => {
   for (const capability of snapshot?.capabilities || []) {
-    const error = await validateTaxonomyReferences({ commodityIds: capability.commodityIds, serviceIds: capability.serviceIds, formatIds: capability.formatIds, materialIds: capability.materialIds, qualityOptionIds: capability.qualityOptionIds });
+    const error = await validateTaxonomyReferences({ commodityIds: capability.commodityIds, serviceIds: capability.serviceIds, formatIds: capability.formatIds, materialIds: capability.materialIds, machineryIds: capability.machineryIds, qualityOptionIds: capability.qualityOptionIds });
     if (error) return error;
   }
   return "";
@@ -87,6 +87,10 @@ export const validateServiceProfile = (snapshot: any) => {
   snapshot?.capabilities?.forEach((capability: any, index: number) => {
     if (!String(capability.name || "").trim()) errors.push(`Capability ${index + 1} requires a name`);
     if (!capability.serviceIds?.length || !capability.formatIds?.length || !capability.materialIds?.length || !capability.commodityIds?.length) errors.push(`Capability ${index + 1} requires services, formats, materials, and commodities`);
+    if (!(Number(capability.minimumQuantity ?? 0) >= 0)) errors.push(`Capability ${index + 1} minimum quantity must be zero or greater`);
+    if (!(Number(capability.capacityPerDay ?? 0) >= 0)) errors.push(`Capability ${index + 1} capacity per day must be zero or greater`);
+    if (!(Number.isInteger(Number(capability.turnaroundDays ?? 0)) && Number(capability.turnaroundDays ?? 0) >= 0)) errors.push(`Capability ${index + 1} turnaround days must be a positive whole number or zero`);
+    if (capability.quantityUnit && !["KG", "MT", "Quintal", "UNIT"].includes(capability.quantityUnit)) errors.push(`Capability ${index + 1} quantity unit is invalid`);
   });
   return errors;
 };

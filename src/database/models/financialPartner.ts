@@ -43,7 +43,8 @@ const FinancialPartnerProfileSchema = new Schema({
   statusHistory: [{ status: String, at: { type: Date, default: Date.now }, actorId: Schema.Types.ObjectId, note: { type: String, default: "" } }],
 }, { timestamps: true });
 
-FinancialPartnerProfileSchema.index({ status: 1, "published.partnerTypes": 1, "published.offerings.type": 1 });
+FinancialPartnerProfileSchema.index({ status: 1, "published.partnerTypes": 1 }, { name: "financial_partner_types" });
+FinancialPartnerProfileSchema.index({ status: 1, "published.offerings.type": 1 }, { name: "financial_offering_types" });
 export const FinancialPartnerProfileModel = mongoose.model("FinancialPartnerProfile", FinancialPartnerProfileSchema);
 
 const FinancialApplicationSchema = new Schema({

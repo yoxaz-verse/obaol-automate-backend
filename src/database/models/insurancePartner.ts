@@ -19,7 +19,8 @@ const SnapshotSchema = new Schema({
   locations: { type: [LocationSchema], default: [] }, credentials: { type: [CredentialSchema], default: [] }, products: { type: [ProductSchema], default: [] },
 }, { _id: false });
 const InsurancePartnerProfileSchema = new Schema({ companyId: { type: Schema.Types.ObjectId, ref: "AssociateCompany", required: true, unique: true, index: true }, draft: { type: SnapshotSchema, default: null }, published: { type: SnapshotSchema, default: null }, status: { type: String, enum: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED", "ARCHIVED"], default: "DRAFT", index: true }, reviewNotes: { type: String, default: "", trim: true }, submittedAt: Date, publishedAt: Date, reviewedBy: Schema.Types.ObjectId, statusHistory: [{ status: String, at: { type: Date, default: Date.now }, actorId: Schema.Types.ObjectId, note: String }] }, { timestamps: true });
-InsurancePartnerProfileSchema.index({ status: 1, "published.partnerTypes": 1, "published.products.type": 1 });
+InsurancePartnerProfileSchema.index({ status: 1, "published.partnerTypes": 1 }, { name: "insurance_partner_types" });
+InsurancePartnerProfileSchema.index({ status: 1, "published.products.type": 1 }, { name: "insurance_product_types" });
 export const InsurancePartnerProfileModel = mongoose.model("InsurancePartnerProfile", InsurancePartnerProfileSchema);
 
 const InsuranceRequestSchema = new Schema({

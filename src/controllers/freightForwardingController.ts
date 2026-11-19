@@ -58,6 +58,8 @@ export class FreightForwardingController {
     const who = await actor(req); const companyId = String(req.body?.companyId || who?.companyId || "");
     if (!valid(companyId) || !await managed(req, companyId, who?.companyId)) return fail(res, 403, "Company access required.");
     const current: any = await FreightProviderProfileModel.findOne({ companyId });
+    if (current?.status === "PENDING_REVIEW") return fail(res, 409, "This profile is pending review and cannot be edited until the review is complete.");
+    if (!req.body?.snapshot || typeof req.body.snapshot !== "object") return fail(res, 400, "A freight profile draft is required.");
     const revisions = current?.draft ? [...(current.revisions || []), { snapshot: current.draft, by: req.user?.id }] : current?.revisions || [];
     const row = await FreightProviderProfileModel.findOneAndUpdate({ companyId }, { $set: { draft: req.body.snapshot, status: "DRAFT", reviewNotes: "", revisions } }, { upsert: true, new: true, runValidators: true });
     return res.json({ success: true, data: row });
@@ -149,7 +151,7 @@ export class FreightForwardingController {
     requirement.status = "AWARDED"; requirement.winningOffer = offer._id; requirement.shipment = shipment._id; requirement.audit.push({ action: "AWARDED", by: req.user?.id, detail: { offerId: offer._id } }); await requirement.save(); offer.status = "AWARDED"; await offer.save(); await FreightOfferModel.updateMany({ requirement: requirement._id, _id: { $ne: offer._id }, status: "SUBMITTED" }, { $set: { status: "NOT_SELECTED" } }); return res.status(201).json({ success: true, data: requirement, shipment });
   }
   async shipments(req: Request, res: Response) {
-    const who = await actor(req); if (!who && !staff(req)) return fail(res, 403, "Access required."); const filter: any = { archivedAt: null }; if (role(req) === "associate") filter.$or = [{ ownerCompany: who!.companyId }, { customerCompany: who!.companyId }]; else { const scope = await scoped(req); if (scope) filter.ownerCompany = { $in: scope }; } if (req.query.state === "history") filter.status = { $in: ["CLOSED", "CANCELLED"] }; else if (req.query.state === "active") filter.status = { $nin: ["CLOSED", "CANCELLED"] }; if (req.query.workflowMode) filter.workflowMode = req.query.workflowMode;
+    const who = await actor(req); if (!who && !staff(req)) return fail(res, 403, "Access required."); const filter: any = { archivedAt: null }; const financeEligible = req.query.eligibleFor === "finance"; if (role(req) === "associate") { if (financeEligible) filter.ownerCompany = who!.companyId; else filter.$or = [{ ownerCompany: who!.companyId }, { customerCompany: who!.companyId }]; } else { const scope = await scoped(req); if (scope) filter.ownerCompany = { $in: scope }; } if (financeEligible) filter.status = { $nin: ["CLOSED", "CANCELLED"] }; else if (req.query.state === "history") filter.status = { $in: ["CLOSED", "CANCELLED"] }; else if (req.query.state === "active") filter.status = { $nin: ["CLOSED", "CANCELLED"] }; if (req.query.workflowMode) filter.workflowMode = req.query.workflowMode;
     return res.json({ success: true, data: await FreightShipmentModel.find(filter).populate("ownerCompany customerCompany", "name").sort({ updatedAt: -1 }).limit(300).lean() });
   }
   async createShipment(req: Request, res: Response) {

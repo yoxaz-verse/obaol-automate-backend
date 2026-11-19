@@ -12,6 +12,8 @@ import { sendWhatsappTemplate, usableWhatsappConnection } from "../services/what
 import { AssociateReferralShareModel, REFERRAL_SHARE_TYPES, ReferralShareType } from "../database/models/associateReferralShare";
 import { AssociateReferralShareService } from "../services/associateReferralShare.service";
 import { featureFlags } from "../config/featureFlags";
+import { sendReferralInvitationEmail } from "../utils/mailer";
+import { buildReferralInvitationEmail } from "../utils/emailTemplates/referralInvitationEmail";
 
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
@@ -53,7 +55,7 @@ export class AssociateReferralController {
         AssociateReferralInvitationModel.find({ referrerCompanyId: company._id })
           .sort({ createdAt: -1 }).limit(100)
           .populate("joinedCompanyId", "name registrationStatus referralActivatedAt")
-          .select("recipientName channel destination joinedCompanyId joinedAt createdAt").lean(),
+          .select("recipientName channel destination joinedCompanyId joinedAt createdAt emailDeliveryStatus emailMessageId emailAttemptedAt emailSentAt emailFailedAt emailFailureCode emailFailureMessage").lean(),
         CommissionRuleModel.findOne({ isDefault: true, isActive: { $ne: false } }).select("associateReferralPercent").lean(),
       ]);
 
@@ -97,6 +99,12 @@ export class AssociateReferralController {
           id: row._id, recipientName: row.recipientName, channel: row.channel, destination: row.destination,
           status, joinedAt: row.joinedAt, createdAt: row.createdAt,
           whatsappDelivery: whatsappByInvitation.get(String(row._id)) || null,
+          emailDelivery: row.channel === "EMAIL" ? {
+            status: row.emailDeliveryStatus || "UNKNOWN", messageId: row.emailMessageId || null,
+            attemptedAt: row.emailAttemptedAt || null, sentAt: row.emailSentAt || null,
+            failedAt: row.emailFailedAt || null, failureCode: row.emailFailureCode || null,
+            failureMessage: row.emailFailureMessage || null,
+          } : null,
           company: joinedId ? {
             id: joined._id, name: joined.name, registrationStatus: joined.registrationStatus,
             activeThisMonth: activeCompanyIds.has(joinedId),
@@ -174,7 +182,41 @@ export class AssociateReferralController {
       });
       const registrationPath = `/auth/register?role=associate&ref=${encodeURIComponent(String(referralCode))}&invite=${encodeURIComponent(token)}`;
       const frontendUrl = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
+      const invitationUrl = frontendUrl ? `${frontendUrl}${registrationPath}` : registrationPath;
       let whatsappDelivery: any = null;
+      let emailDelivery: any = null;
+      if (String(invitation.channel) === "EMAIL") {
+        const currentStatus = String(invitation.emailDeliveryStatus || "PENDING");
+        if (currentStatus === "SENT") {
+          emailDelivery = { status: "SENT", messageId: invitation.emailMessageId || null, sentAt: invitation.emailSentAt || null };
+        } else {
+          const claimed: any = await AssociateReferralInvitationModel.findOneAndUpdate(
+            { _id: invitation._id, $or: [
+              { emailDeliveryStatus: { $in: ["PENDING", "FAILED"] } },
+              { emailDeliveryStatus: { $exists: false } },
+              { emailDeliveryStatus: "SENDING", emailAttemptedAt: { $lt: new Date(Date.now() - 5 * 60 * 1000) } },
+            ] },
+            { $set: { emailDeliveryStatus: "SENDING", emailAttemptedAt: new Date(), emailFailedAt: null, emailFailureCode: "", emailFailureMessage: "" } },
+            { new: true }
+          );
+          if (!claimed) throw Object.assign(new Error("This email invitation is already being sent. Please wait before retrying."), { status: 409 });
+          try {
+            const commissionRule: any = await CommissionRuleModel.findOne({ isDefault: true, isActive: { $ne: false } }).select("associateReferralPercent").lean();
+            const template = buildReferralInvitationEmail({ recipientName: invitation.recipientName, companyName: company.name, invitationUrl, rewardPercent: Number(commissionRule?.associateReferralPercent ?? 10) });
+            const result: any = await sendReferralInvitationEmail(invitation.destination, template.subject, template.html, template.text);
+            const sentAt = new Date(), messageId = String(result?.messageId || "").slice(0, 500);
+            await AssociateReferralInvitationModel.updateOne({ _id: invitation._id }, { $set: { emailDeliveryStatus: "SENT", emailMessageId: messageId, emailSentAt: sentAt, emailFailedAt: null, emailFailureCode: "", emailFailureMessage: "" } });
+            emailDelivery = { status: "SENT", messageId: messageId || null, sentAt };
+            console.info("Referral email accepted by SMTP", { invitationId: String(invitation._id), companyId, messageId: messageId || null });
+          } catch (sendError: any) {
+            const failureCode = String(sendError?.code || "SMTP_SEND_FAILED").slice(0, 100);
+            const failureMessage = String(sendError?.message || "Referral email could not be sent").slice(0, 300);
+            await AssociateReferralInvitationModel.updateOne({ _id: invitation._id }, { $set: { emailDeliveryStatus: "FAILED", emailFailedAt: new Date(), emailFailureCode: failureCode, emailFailureMessage: failureMessage } });
+            console.error("Referral email SMTP failure", { invitationId: String(invitation._id), companyId, failureCode, failureMessage });
+            throw Object.assign(new Error("The referral invitation could not be sent. Please try again."), { status: 502 });
+          }
+        }
+      }
       if (String(invitation.channel) === "WHATSAPP") {
         const templateName = String(process.env.META_WHATSAPP_INVITATION_TEMPLATE || "obaol_participation_invitation_v1"), language = String(process.env.META_WHATSAPP_TEMPLATE_LANGUAGE || "en_US");
         whatsappDelivery = await WhatsappDeliveryModel.findOne({ companyId, idempotencyKey: String(req.body?.idempotencyKey) });
@@ -190,7 +232,8 @@ export class AssociateReferralController {
           destination: invitation.destination, status: invitation.joinedCompanyId ? "JOINED" : "INVITED", createdAt: invitation.createdAt,
         },
         registrationPath,
-        invitationUrl: frontendUrl ? `${frontendUrl}${registrationPath}` : registrationPath,
+        invitationUrl,
+        emailDelivery,
         whatsappDelivery,
       } });
     } catch (error: any) {

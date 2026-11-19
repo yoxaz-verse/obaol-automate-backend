@@ -16,6 +16,11 @@ export class GenericCrudController {
 
             const engine = new CrudEngine(model, entity);
             const method = req.method;
+            const payload = { ...(req.body || {}) };
+            if (["associate", "associates", "operator", "operators", "admin", "admins"].includes(String(entity).toLowerCase())) {
+                delete payload.profilePicture;
+                delete payload.profilePictureUrl;
+            }
 
             let result;
             switch (method) {
@@ -32,14 +37,14 @@ export class GenericCrudController {
                     break;
 
                 case "POST":
-                    result = await engine.create(req, req.body);
+                    result = await engine.create(req, payload);
                     res.status(201);
                     break;
 
                 case "PUT":
                 case "PATCH":
                     if (!req.params.id) return res.status(400).json({ success: false, message: "ID required" });
-                    result = await engine.update(req, req.params.id, req.body);
+                    result = await engine.update(req, req.params.id, payload);
                     if (!result) return res.status(404).json({ success: false, message: "Not found" });
                     break;
 

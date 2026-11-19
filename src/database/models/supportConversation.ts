@@ -22,6 +22,6 @@ const supportConversationSchema = new Schema(
 
 supportConversationSchema.index({ status: 1, createdAt: 1 });
 supportConversationSchema.index({ assignedAgent: 1, status: 1, lastMessageAt: -1 });
-supportConversationSchema.index({ requesterId: 1 }, { unique: true, partialFilterExpression: { isOpen: true } });
+supportConversationSchema.index({ requesterId: 1, lastMessageAt: -1 });
 
 export const SupportConversationModel = mongoose.model("SupportConversation", supportConversationSchema);

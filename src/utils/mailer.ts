@@ -260,6 +260,21 @@ export async function sendTradeDocumentEmail(
   }
 }
 
+export async function sendReferralInvitationEmail(
+  toEmail: string,
+  subject: string,
+  htmlPart: string,
+  textPart: string
+) {
+  return sendEmail("notify", {
+    toEmail,
+    subject,
+    textPart,
+    htmlPart,
+    fromNameOverride: "OBAOL Referrals",
+  });
+}
+
 const escapeHtml = (value: string) =>
   String(value || "")
     .replace(/&/g, "&amp;")

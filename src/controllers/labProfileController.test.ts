@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Types } from "mongoose";
-import { buildLabOfferingFilter, hasCapabilityFilters, legacyProfile, normalizeSnapshot, validateLabSnapshot } from "./labProfileController";
+import { buildLabOfferingFilter, directoryMarker, hasCapabilityFilters, legacyProfile, normalizeSnapshot, validateLabSnapshot } from "./labProfileController";
 
 const id = () => new Types.ObjectId().toString();
 const base = () => ({ displayName: "Lab", contactEmail: "lab@example.com", contactPhone: "1", address: "Address", physicalCountryId: id(), location: { latitude: 10.25, longitude: 76.5, label: "Lab" }, credentials: [] });
@@ -66,5 +66,10 @@ describe("country-first lab profile rules", () => {
     expect(profile.published.legacyCapabilities.requiresMapping).toBe(true);
     expect(profile.published.countryAssignments).toEqual([]);
     expect(profile.published.location).toMatchObject({ latitude: 19.1, longitude: 72.8 });
+  });
+
+  it("includes the complete public description in directory map markers", () => {
+    const summary = "Food and agricultural testing.\n\nSpecialist residue analysis and export compliance.";
+    expect(directoryMarker({ _id: id(), published: { displayName: "Description Lab", summary, location: { latitude: 22.5, longitude: 88.3 } }, capabilityStatus: "STRUCTURED" })).toMatchObject({ name: "Description Lab", summary, location: { latitude: 22.5, longitude: 88.3 } });
   });
 });

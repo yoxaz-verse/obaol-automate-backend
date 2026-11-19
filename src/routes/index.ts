@@ -5,6 +5,7 @@ import verifyTokenRoute from "./verifyTokenRoute";
 import verificationRoutes from "./verificationRoutes";
 import genericCrudRoute from "./genericCrudRoute";
 import fileRoutes from "./v1/fileRoutes";
+import profilePictureRoutes from "./v1/profilePictureRoutes";
 import authenticateToken from "../middlewares/auth";
 
 // Initialize the main router
@@ -23,6 +24,7 @@ const logRouteMount = (message: string) => {
 // --- Specialized Routes (High Priority) ---
 
 router.use(`${prefix}/upload`, fileRoutes);
+router.use(`${prefix}`, profilePictureRoutes);
 
 // Auth
 router.use(`${prefix}/auth`, authRoute);

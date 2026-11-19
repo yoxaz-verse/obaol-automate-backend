@@ -26,4 +26,13 @@ describe("packaging unit validation", () => {
   it("requires every capability to describe service, format, material, and commodity", () => {
     expect(validateServiceProfile({ displayName: "Kochi Unit", contactEmail: "unit@example.com", contactPhone: "123", locations: [{}], capabilities: [{ ...capability, serviceIds: [] }] })).toContain("Capability 1 requires services, formats, materials, and commodities");
   });
+  it("validates capability quantities, turnaround, and units", () => {
+    const errors = validateServiceProfile({ displayName: "Kochi Unit", contactEmail: "unit@example.com", contactPhone: "123", locations: [{}], capabilities: [{ ...capability, minimumQuantity: -1, capacityPerDay: -2, turnaroundDays: 1.5, quantityUnit: "BOX" }] });
+    expect(errors).toEqual(expect.arrayContaining([
+      "Capability 1 minimum quantity must be zero or greater",
+      "Capability 1 capacity per day must be zero or greater",
+      "Capability 1 turnaround days must be a positive whole number or zero",
+      "Capability 1 quantity unit is invalid",
+    ]));
+  });
 });

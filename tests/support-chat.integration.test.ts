@@ -193,7 +193,7 @@ describe("Customer support chat", () => {
     expect((await CustomerSupportAgentModel.findById(agent!._id).lean())?.lastSeenAt).toBeTruthy();
   });
 
-  it("queues one open conversation, atomically claims it, and enforces participant access", async () => {
+  it("keeps multiple requester conversations independent, atomically claims them, and enforces participant access", async () => {
     await SupportConversationModel.syncIndexes();
     const requester = await createAssociate();
     const stranger = await createAssociate();
@@ -207,11 +207,22 @@ describe("Customer support chat", () => {
     expect(created.status).toBe(201);
     const id = created.body?.data?._id;
 
-    const duplicate = await api.post("/api/v1/web/support/conversations")
+    const second = await api.post("/api/v1/web/support/conversations")
       .set("Authorization", `Bearer ${requesterToken}`)
       .send({ subject: "Another", message: "Second request" });
-    expect(duplicate.status).toBe(409);
-    expect(duplicate.body?.data?._id).toBe(id);
+    expect(second.status).toBe(201);
+    const secondId = second.body?.data?._id;
+    expect(secondId).not.toBe(id);
+
+    const requesterList = await api.get("/api/v1/web/support/conversations")
+      .set("Authorization", `Bearer ${requesterToken}`);
+    expect(requesterList.body.data.map((row: any) => row._id)).toEqual(expect.arrayContaining([id, secondId]));
+    const firstMessages = await api.get(`/api/v1/web/support/conversations/${id}/messages`)
+      .set("Authorization", `Bearer ${requesterToken}`);
+    const secondMessages = await api.get(`/api/v1/web/support/conversations/${secondId}/messages`)
+      .set("Authorization", `Bearer ${requesterToken}`);
+    expect(firstMessages.body.data.map((message: any) => message.body)).toEqual(["Please help with my order."]);
+    expect(secondMessages.body.data.map((message: any) => message.body)).toEqual(["Second request"]);
 
     const [firstClaim, secondClaim] = await Promise.all([
       api.post(`/api/v1/web/support/conversations/${id}/claim`).set("Authorization", `Bearer ${agentToken}`).send({}),
@@ -236,6 +247,7 @@ describe("Customer support chat", () => {
       .set("Authorization", `Bearer ${requesterToken}`).send({});
     expect(reopened.status).toBe(200);
     expect(reopened.body?.data?.status).toBe("WAITING");
+    expect(await SupportConversationModel.countDocuments({ requesterId: requester._id, isOpen: true })).toBe(2);
   });
 
   it("limits an agent to three chats and requeues stale assignments", async () => {

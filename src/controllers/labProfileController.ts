@@ -23,6 +23,12 @@ const coordinates = (value: any) => {
   const longitude = Number(value?.location?.longitude ?? value?.pincodeEntry?.longitude);
   return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude, label: value?.location?.label || value?.pincodeEntry?.officename || "" } : undefined;
 };
+
+export const directoryMarker = (row: any) => {
+  const point = coordinates(row.published);
+  if (!point) return null;
+  return { _id: row._id, name: row.published.displayName, summary: row.published.summary || "", contactPhone: row.published.contactPhone, whatsappPhone: row.published.whatsappPhone, contactEmail: row.published.contactEmail, location: point, capabilityStatus: row.capabilityStatus, source: row.companyId?.externalListingSource || "" };
+};
 const distanceKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
   const radians = (degrees: number) => degrees * Math.PI / 180;
   const dLat = radians(bLat - aLat), dLng = radians(bLng - aLng);
@@ -599,8 +605,8 @@ export class LabProfileController {
     const total = allRows.length;
     const rows = allRows.slice((page - 1) * limit, page * limit);
     const allMarkers = allRows.flatMap((row: any) => {
-      const point = coordinates(row.published);
-      return point ? [{ _id: row._id, name: row.published.displayName, contactPhone: row.published.contactPhone, whatsappPhone: row.published.whatsappPhone, contactEmail: row.published.contactEmail, location: point, capabilityStatus: row.capabilityStatus, source: row.companyId?.externalListingSource || "" }] : [];
+      const marker = directoryMarker(row);
+      return marker ? [marker] : [];
     });
     const markerLimit = Math.min(1000, Math.max(50, Number(req.query.markerLimit) || 500));
     const markers = allMarkers.slice(0, markerLimit);

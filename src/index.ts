@@ -14,6 +14,7 @@ import { seedPaymentTerms } from "./seeds/paymentTerms.seed";
 import { verifySmtpTransport } from "./utils/mailer";
 import { resumeDocumentExtractionJobs } from "./services/documentExtractionService";
 import { notificationStreamService } from "./services/notificationStreamService";
+import { repairPartnerProfileIndexes } from "./utils/partnerProfileIndexes";
 const PORTD = Number(PORT) || 5001;
 const shouldRunStartupSeeds = process.env.RUN_STARTUP_SEEDS === "true";
 const shouldLogStartupDiagnostics = NODE_ENV !== "production" || process.env.STARTUP_DEBUG_LOGS === "true";
@@ -48,6 +49,9 @@ async function startServer() {
       await verifySmtpTransport("auth");
     }
     await connectDB();
+    const partnerIndexRepairs = await repairPartnerProfileIndexes(mongoose.connection, true);
+    const changedPartnerIndexes = partnerIndexRepairs.filter((report) => report.droppedIndexes.length || report.createdIndexes.length);
+    if (changedPartnerIndexes.length) console.log("Partner profile indexes repaired:", JSON.stringify(changedPartnerIndexes));
     await notificationStreamService.connect();
     void resumeDocumentExtractionJobs().catch((error) => console.error("Document extraction recovery failed:", error));
     // Canonical company functions are application schema, not optional demo data.

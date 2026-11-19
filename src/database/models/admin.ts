@@ -9,6 +9,7 @@ interface IAdmin extends mongoose.Document {
   isActive: boolean;
   isDeleted: boolean;
   role: string;
+  profilePicture?: { objectKey: string; mimeType: string; size: number; checksum?: string; updatedAt?: Date | null };
   failedLoginAttempts?: number;
   loginLockedUntil?: Date | null;
   lastFailedLoginAt?: Date | null;
@@ -29,6 +30,13 @@ const adminSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
     role: { type: String, default: "admin" },
+    profilePicture: {
+      objectKey: { type: String, default: "" },
+      mimeType: { type: String, default: "" },
+      size: { type: Number, default: 0 },
+      checksum: { type: String, default: "" },
+      updatedAt: { type: Date, default: null },
+    },
     failedLoginAttempts: { type: Number, default: 0 },
     loginLockedUntil: { type: Date, default: null },
     lastFailedLoginAt: { type: Date, default: null },

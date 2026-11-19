@@ -128,8 +128,6 @@ export class SupportChatController {
       const subject = String(req.body?.subject || "").trim();
       const body = String(req.body?.message || "").trim();
       if (!subject || !body) return res.status(400).json({ success: false, message: "Subject and message are required." });
-      const existing = await SupportConversationModel.findOne({ requesterId: userId(req), status: { $in: ["WAITING", "ACTIVE"] } });
-      if (existing) return res.status(409).json({ success: false, message: "You already have an unresolved support conversation.", data: await serializeConversation(existing, false, true) });
 
       const now = new Date();
       const conversation = await SupportConversationModel.create({
@@ -139,10 +137,7 @@ export class SupportChatController {
       await SupportMessageModel.create({ conversationId: conversation._id, senderId: userId(req), senderRole: role(req), body });
       await notifyAvailableAgents(conversation, userId(req));
       return res.status(201).json({ success: true, data: await serializeConversation(conversation) });
-    } catch (error: any) {
-      if (Number(error?.code) === 11000) return res.status(409).json({ success: false, message: "You already have an unresolved support conversation." });
-      next(error);
-    }
+    } catch (error) { next(error); }
   }
 
   async listConversations(req: Request, res: Response, next: NextFunction) {
@@ -251,8 +246,6 @@ export class SupportChatController {
   async reopen(req: Request, res: Response, next: NextFunction) {
     try {
       const now = new Date();
-      const anotherOpen = await SupportConversationModel.findOne({ requesterId: userId(req), isOpen: true, _id: { $ne: req.params.id } }).select("_id").lean();
-      if (anotherOpen) return res.status(409).json({ success: false, message: "Resolve your current support conversation before reopening this one." });
       const conversation: any = await SupportConversationModel.findOneAndUpdate(
         { _id: req.params.id, requesterId: userId(req), status: "RESOLVED", reopenUntil: { $gte: now } },
         { $set: { status: "WAITING", isOpen: true, assignedAgent: null, claimedAt: null, resolvedAt: null, resolvedBy: null, reopenUntil: null } },
@@ -262,10 +255,7 @@ export class SupportChatController {
       await notifyAvailableAgents(conversation, userId(req));
       await syncSupportAgentLoads();
       return res.json({ success: true, data: conversation });
-    } catch (error: any) {
-      if (Number(error?.code) === 11000) return res.status(409).json({ success: false, message: "You already have an unresolved support conversation." });
-      next(error);
-    }
+    } catch (error) { next(error); }
   }
 
   async listMessages(req: Request, res: Response, next: NextFunction) {

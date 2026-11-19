@@ -23,6 +23,7 @@ export interface IAssociate {
   division?: Types.ObjectId | string | null;
   pincodeEntry?: Types.ObjectId | string | null;
   password: string;
+  profilePicture?: { objectKey: string; mimeType: string; size: number; checksum?: string; updatedAt?: Date | null };
   authProvider?: "LOCAL" | "GOOGLE" | "APPLE";
   googleSub?: string | null;
   googleEmailVerified?: boolean;

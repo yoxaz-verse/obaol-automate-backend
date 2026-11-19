@@ -32,6 +32,13 @@ const associateSchema = new mongoose.Schema(
         division: { type: mongoose.Types.ObjectId, ref: "Division", required: false },
         pincodeEntry: { type: mongoose.Types.ObjectId, ref: "PincodeEntry", required: false },
         password: { type: String, required: true },
+        profilePicture: {
+            objectKey: { type: String, default: "" },
+            mimeType: { type: String, default: "" },
+            size: { type: Number, default: 0 },
+            checksum: { type: String, default: "" },
+            updatedAt: { type: Date, default: null },
+        },
         authProvider: { type: String, enum: ["LOCAL", "GOOGLE", "APPLE"], default: "LOCAL" },
         googleSub: { type: String, default: null },
         googleEmailVerified: { type: Boolean, default: false },

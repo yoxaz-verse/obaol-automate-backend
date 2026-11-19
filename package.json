@@ -43,6 +43,8 @@
     "migrate:company-capability-requests": "ts-node src/scripts/migrateCompanyCapabilityRequests.ts",
     "migrate:insurance-partners": "ts-node src/scripts/migrateInsurancePartners.ts",
     "repair:company-capability-requests": "ts-node src/scripts/repairSupersededCapabilityRequests.ts",
+    "repair:partner-profile-indexes": "ts-node -r tsconfig-paths/register src/scripts/repairPartnerProfileIndexes.ts",
+    "repair:support-conversation-indexes": "ts-node -r tsconfig-paths/register src/scripts/repairSupportConversationIndexes.ts",
     "migrate:buyer-seller-taxonomy": "ts-node src/scripts/migrateBuyerSellerTaxonomy.ts",
     "migrate:sidebar-common-routes": "ts-node src/scripts/migrateSidebarCommonRoutes.ts",
     "migrate:sidebar-unassigned": "ts-node src/scripts/migrateSidebarUnassigned.ts",

@@ -130,7 +130,10 @@ LabProfileSchema.index({ "published.productCapabilityTemplates.commodityId": 1, 
 LabProfileSchema.index({ "published.productCapabilityTemplates.parameterIds": 1 });
 LabProfileSchema.index({ "published.productCapabilityTemplates.qualityClassifications": 1 });
 LabProfileSchema.index({ "published.credentials.accreditationId": 1, "published.credentials.verificationStatus": 1 });
-LabProfileSchema.index({ "published.displayName": "text", "published.address": "text", "published.city": "text", "published.state": "text" });
+LabProfileSchema.index(
+  { "published.displayName": "text", "published.summary": "text", "published.address": "text", "published.city": "text", "published.state": "text" },
+  { name: "published_lab_public_search" },
+);
 LabProfileSchema.index({ "published.location.point": "2dsphere" }, { sparse: true });
 LabProfileSchema.index({ companyId: 1, updatedAt: -1 });
 LabProfileSchema.index({ companyId: 1, status: 1, updatedAt: -1 });

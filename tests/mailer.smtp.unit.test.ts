@@ -76,6 +76,25 @@ describe("mailer smtp sender mapping", () => {
     );
   });
 
+  it("uses the notify sender for referral invitation emails and returns the SMTP receipt", async () => {
+    sendMailMock.mockResolvedValueOnce({ messageId: "referral-msg-1", accepted: ["invitee@example.com"] });
+    const { sendReferralInvitationEmail } = await import("../src/utils/mailer");
+
+    const result = await sendReferralInvitationEmail(
+      "invitee@example.com",
+      "You are invited",
+      "<p>Join us</p>",
+      "Join us"
+    );
+
+    expect(result.messageId).toBe("referral-msg-1");
+    expect(sendMailMock).toHaveBeenCalledWith(expect.objectContaining({
+      to: "invitee@example.com",
+      from: expect.stringContaining("OBAOL Referrals"),
+      subject: "You are invited",
+    }));
+  });
+
   it("uses notify sender for approval notification emails", async () => {
     process.env.BASE_URL = "https://obaol.example";
     sendMailMock.mockResolvedValueOnce({ messageId: "approval-msg-1" });

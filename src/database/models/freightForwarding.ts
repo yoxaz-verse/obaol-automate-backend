@@ -13,8 +13,10 @@ const FreightProviderProfileSchema = new Schema({
   revisions: [{ snapshot: Schema.Types.Mixed, at: { type: Date, default: Date.now }, by: Schema.Types.ObjectId }], reviewNotes: String, submittedAt: Date, publishedAt: Date, reviewedBy: Schema.Types.ObjectId,
 }, { timestamps: true, optimisticConcurrency: true });
 FreightProviderProfileSchema.index({ status: 1, "published.displayName": 1 });
-FreightProviderProfileSchema.index({ status: 1, "published.modes": 1, "published.services": 1 });
-FreightProviderProfileSchema.index({ status: 1, "published.originCountries": 1, "published.destinationCountries": 1 });
+FreightProviderProfileSchema.index({ status: 1, "published.modes": 1 }, { name: "freight_modes" });
+FreightProviderProfileSchema.index({ status: 1, "published.services": 1 }, { name: "freight_services" });
+FreightProviderProfileSchema.index({ status: 1, "published.originCountries": 1 }, { name: "freight_origin_countries" });
+FreightProviderProfileSchema.index({ status: 1, "published.destinationCountries": 1 }, { name: "freight_destination_countries" });
 
 const FreightContactEventSchema = new Schema({
   profileId: { type: Schema.Types.ObjectId, ref: "FreightProviderProfile", required: true, index: true },

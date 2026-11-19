@@ -15,4 +15,9 @@ describe("public truck privacy", () => {
     expect(complianceValid({ compliance: { insuranceExpiresAt: "2027-01-01" } }, now)).toBe(true);
     expect(complianceValid({ compliance: { insuranceExpiresAt: "2027-01-01", permitExpiresAt: "2025-01-01" } }, now)).toBe(false);
   });
+  it("keeps a public truck displayable when its approximate location is unavailable", () => {
+    const row: any = publicVehicle({ _id: "507f1f77bcf86cd799439011", registrationNumber: "KL 07 AB 1234", publicAlias: "Green Hauler 12", vehicleType: "Truck", capacity: 20, capacityUnit: "MT", status: "AVAILABLE", companyId: { _id: "507f1f77bcf86cd799439012", name: "Carrier" } }, {});
+    expect(row.publicAlias).toBe("Green Hauler 12");
+    expect(row.approximateLocation).toBeNull();
+  });
 });

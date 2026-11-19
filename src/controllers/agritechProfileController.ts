@@ -102,11 +102,12 @@ export class AgritechProfileController {
   }
   async review(req: Request, res: Response) {
     if (!admin(req)) return bad(res, 403, "Admin access required.");
-    const row: any = await AgritechProfileModel.findById(req.params.id); if (!row) return bad(res, 404, "Profile not found.");
-    const action = String(req.body?.action || "").toUpperCase(), notes = String(req.body?.notes || "").trim();
+    const row: any = await AgritechProfileModel.findOne({ _id: req.params.id, status: "PENDING_REVIEW" }); if (!row) return bad(res, 409, "This agritech profile is no longer pending review. Refresh the approval queue.");
+    const action = String(req.body?.action || "").toUpperCase(), notes = String(req.body?.notes ?? req.body?.reviewNotes ?? "").trim();
     if (action === "REJECT" && !notes) return bad(res, 400, "Rejection notes are required.");
-    if (action === "APPROVE") { const errors = validateAgritechSnapshot(row.draft); if (errors.length) return bad(res, 400, errors.join("; ")); row.published = row.draft.toObject(); row.status = "PUBLISHED"; row.publishedAt = new Date(); }
-    else if (action === "REJECT") row.status = "REJECTED"; else return bad(res, 400, "Action must be APPROVE or REJECT.");
-    row.reviewNotes = notes; row.reviewedBy = req.user?.id; row.revision += 1; row.statusHistory.push({ status: row.status, actorId: req.user?.id, note: notes || "Profile approved" }); await row.save(); return res.json({ success: true, data: row });
+    const now = new Date(); const update: any = { reviewNotes: notes, reviewedBy: req.user?.id, status: action === "APPROVE" ? "PUBLISHED" : "REJECTED" };
+    if (action === "APPROVE") { const errors = validateAgritechSnapshot(row.draft); if (errors.length) return res.status(400).json({ success: false, code: "REVIEW_VALIDATION_FAILED", message: errors.join("; "), errors }); update.published = row.draft.toObject(); update.publishedAt = now; }
+    else if (action !== "REJECT") return bad(res, 400, "Action must be APPROVE or REJECT.");
+    const reviewed = await AgritechProfileModel.findOneAndUpdate({ _id: row._id, status: "PENDING_REVIEW" }, { $set: update, $inc: { revision: 1 }, $push: { statusHistory: { status: update.status, actorId: req.user?.id, note: notes || "Profile approved", at: now } } }, { new: true, runValidators: true }); if (!reviewed) return bad(res, 409, "This agritech profile was already reviewed. Refresh the approval queue."); return res.json({ success: true, data: reviewed });
   }
 }

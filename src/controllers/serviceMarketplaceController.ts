@@ -184,16 +184,17 @@ export class ServiceMarketplaceController {
   }
   async approvals(req: Request, res: Response) {
     if (!staff(req)) return bad(res, 403, "Staff access required.");
-    const filter: any = { department: DEPARTMENT, status: { $in: ["PENDING_REVIEW", "REJECTED"] } }; const scope = await scopedCompanies(req); if (scope) filter.companyId = { $in: scope };
+    const filter: any = { department: DEPARTMENT, status: "PENDING_REVIEW" }; const scope = await scopedCompanies(req); if (scope) filter.companyId = { $in: scope };
     return res.json({ success: true, data: await populatedProfile(ServiceProviderProfileModel.find(filter), "draft").sort({ submittedAt: 1 }).lean() });
   }
   async reviewProfile(req: Request, res: Response) {
-    if (role(req) !== "admin") return bad(res, 403, "Admin access required."); const profile: any = await ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT });
-    if (!profile || !await canManageCompany(req, profile.companyId)) return bad(res, 404, "Profile not found."); const action = String(req.body?.action || "").toUpperCase();
-    const verified = new Set((req.body?.verifiedCredentialIds || []).map(String)); profile.draft?.credentials?.forEach((item: any) => { if (verified.has(id(item))) item.verificationStatus = "VERIFIED"; });
-    if (action === "APPROVE") { const errors = validateServiceProfile(profile.draft); if (errors.length) return bad(res, 400, errors.join("; ")); const taxonomyError = await validateProfileTaxonomyReferences(profile.draft); if (taxonomyError) return bad(res, 400, taxonomyError); profile.published = profile.draft.toObject(); profile.status = "PUBLISHED"; profile.publishedAt = new Date(); }
-    else if (action === "REJECT") profile.status = "REJECTED"; else return bad(res, 400, "Action must be APPROVE or REJECT.");
-    profile.reviewNotes = String(req.body?.notes || ""); profile.reviewedBy = req.user?.id; profile.statusHistory.push({ status: profile.status, actorId: req.user?.id, note: profile.reviewNotes || (action === "APPROVE" ? "Packaging unit approved" : "Changes requested") }); await profile.save(); return res.json({ success: true, data: profile });
+    if (role(req) !== "admin") return bad(res, 403, "Admin access required."); const profile: any = await ServiceProviderProfileModel.findOne({ _id: req.params.id, department: DEPARTMENT, status: "PENDING_REVIEW" });
+    if (!profile || !await canManageCompany(req, profile.companyId)) return bad(res, 409, "This packaging profile is no longer pending review. Refresh the approval queue."); const action = String(req.body?.action || "").toUpperCase(); const notes = String(req.body?.notes ?? req.body?.reviewNotes ?? "").trim();
+    if (!["APPROVE", "REJECT"].includes(action)) return bad(res, 400, "Action must be APPROVE or REJECT."); if (action === "REJECT" && !notes) return bad(res, 400, "Review notes are required when requesting changes.");
+    const draft = profile.draft.toObject(); const verified = new Set((req.body?.verifiedCredentialIds || []).map(String)); draft.credentials = (draft.credentials || []).map((item: any) => verified.has(id(item)) ? { ...item, verificationStatus: "VERIFIED" } : item);
+    const now = new Date(); const update: any = { reviewNotes: notes, reviewedBy: req.user?.id, status: action === "APPROVE" ? "PUBLISHED" : "REJECTED" };
+    if (action === "APPROVE") { const errors = validateServiceProfile(draft); if (errors.length) return res.status(400).json({ success: false, code: "REVIEW_VALIDATION_FAILED", message: errors.join("; "), errors }); const taxonomyError = await validateProfileTaxonomyReferences(draft); if (taxonomyError) return bad(res, 400, taxonomyError); update.draft = draft; update.published = draft; update.publishedAt = now; }
+    const reviewed = await ServiceProviderProfileModel.findOneAndUpdate({ _id: profile._id, department: DEPARTMENT, status: "PENDING_REVIEW" }, { $set: update, $push: { statusHistory: { status: update.status, actorId: req.user?.id, note: notes || (action === "APPROVE" ? "Packaging unit approved" : "Changes requested"), at: now } } }, { new: true, runValidators: true }); if (!reviewed) return bad(res, 409, "This packaging profile was already reviewed. Refresh the approval queue."); return res.json({ success: true, data: reviewed });
   }
   async directory(req: Request, res: Response) {
     const query: any = { department: DEPARTMENT, status: { $ne: "ARCHIVED" }, published: { $ne: null } }; const search = String(req.query.search || "").trim();

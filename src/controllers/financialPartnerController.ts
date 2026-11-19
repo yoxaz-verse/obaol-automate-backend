@@ -66,15 +66,20 @@ export class FinancialPartnerController {
   }
   async approvals(req: Request, res: Response) {
     if (role(req) !== "admin") return fail(res, 403, "Admin access required.");
-    return res.json({ success: true, data: await FinancialPartnerProfileModel.find({ status: { $in: ["PENDING_REVIEW", "REJECTED"] } }).populate("companyId", "name").sort({ submittedAt: 1 }).lean() });
+    return res.json({ success: true, data: await FinancialPartnerProfileModel.find({ status: "PENDING_REVIEW" }).populate("companyId", "name").sort({ submittedAt: 1 }).lean() });
   }
   async review(req: Request, res: Response) {
-    if (role(req) !== "admin") return fail(res, 403, "Admin access required."); const row: any = await FinancialPartnerProfileModel.findById(req.params.id); if (!row) return fail(res, 404, "Portfolio not found.");
+    if (role(req) !== "admin") return fail(res, 403, "Admin access required."); const row: any = await FinancialPartnerProfileModel.findOne({ _id: req.params.id, status: "PENDING_REVIEW" }); if (!row) return fail(res, 409, "This financial portfolio is no longer pending review. Refresh the approval queue.");
     const action = String(req.body?.action || "").toUpperCase();
-    if (action === "APPROVE") { const errors = validateFinancialProfile(row.draft); if (errors.length) return fail(res, 400, errors.join("; ")); row.published = row.draft.toObject(); row.published.offerings.forEach((offering: any) => { if (offering.status === "DRAFT") offering.status = "PUBLISHED"; }); row.status = "PUBLISHED"; row.publishedAt = new Date(); }
-    else if (action === "REJECT") row.status = "REJECTED"; else return fail(res, 400, "Action must be APPROVE or REJECT.");
-    row.reviewNotes = String(req.body?.reviewNotes || ""); row.reviewedBy = req.user?.id; row.statusHistory.push({ status: row.status, actorId: req.user?.id, note: row.reviewNotes }); await row.save();
-    return res.json({ success: true, data: row });
+    const notes = String(req.body?.notes ?? req.body?.reviewNotes ?? "").trim();
+    if (!["APPROVE", "REJECT"].includes(action)) return fail(res, 400, "Action must be APPROVE or REJECT.");
+    if (action === "REJECT" && !notes) return fail(res, 400, "Review notes are required when requesting changes.");
+    const now = new Date(); const update: any = { reviewNotes: notes, reviewedBy: req.user?.id };
+    if (action === "APPROVE") { const errors = validateFinancialProfile(row.draft); if (errors.length) return res.status(400).json({ success: false, code: "REVIEW_VALIDATION_FAILED", message: errors.join("; "), errors }); const published = row.draft.toObject(); published.offerings = (published.offerings || []).map((offering: any) => ({ ...offering, status: offering.status === "DRAFT" ? "PUBLISHED" : offering.status })); Object.assign(update, { published, status: "PUBLISHED", publishedAt: now }); }
+    else update.status = "REJECTED";
+    const reviewed = await FinancialPartnerProfileModel.findOneAndUpdate({ _id: row._id, status: "PENDING_REVIEW" }, { $set: update, $push: { statusHistory: { status: update.status, actorId: req.user?.id, note: notes || "Financial portfolio approved", at: now } } }, { new: true, runValidators: true });
+    if (!reviewed) return fail(res, 409, "This financial portfolio was already reviewed. Refresh the approval queue.");
+    return res.json({ success: true, data: reviewed });
   }
   async directory(req: Request, res: Response) {
     const query: any = { status: "PUBLISHED", published: { $ne: null } };

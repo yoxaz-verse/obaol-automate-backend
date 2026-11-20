@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Request, Response } from "express";
 import { AssociateModel } from "../database/models/associate";
 import { AssociateCompanyModel } from "../database/models/associateCompany";
+import { OperatorModel } from "../database/models/operator";
 import { AssociateReferralEarningModel } from "../database/models/associateReferralEarning";
 import { AssociateReferralInvitationModel } from "../database/models/associateReferralInvitation";
 import { CommissionRuleModel } from "../database/models/commissionRule";
@@ -18,6 +19,60 @@ import { buildReferralInvitationEmail } from "../utils/emailTemplates/referralIn
 const round2 = (value: number) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 export class AssociateReferralController {
+  static async getCompanyReferralLink(req: Request, res: Response) {
+    try {
+      const role = String(req.user?.role || "").trim().toLowerCase();
+      const userId = String(req.user?.id || "").trim();
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(403).json({ success: false, message: "A valid user account is required." });
+      }
+
+      let referralCode = "";
+      let referrerType: "associate_company" | "operator";
+      if (role === "associate") {
+        const associate: any = await AssociateModel.findById(userId).select("associateCompany").lean();
+        const companyId = String(associate?.associateCompany || "");
+        if (!mongoose.Types.ObjectId.isValid(companyId)) {
+          return res.status(403).json({ success: false, message: "Link a company before inviting another company." });
+        }
+        referralCode = String(await AssociateReferralService.ensureCompanyCode(companyId) || "");
+        referrerType = "associate_company";
+      } else if (role === "operator" || role === "team") {
+        const operator: any = await OperatorModel.findOne({ _id: userId, isDeleted: { $ne: true } }).select("referralCode").lean();
+        if (!operator) return res.status(404).json({ success: false, message: "Operator account not found." });
+        referralCode = String(operator.referralCode || "").trim();
+        if (!referralCode) {
+          referralCode = await AssociateReferralService.generateCompanyReferralCode();
+          const updated: any = await OperatorModel.findOneAndUpdate(
+            { _id: operator._id, $or: [{ referralCode: null }, { referralCode: "" }, { referralCode: { $exists: false } }] },
+            { $set: { referralCode } },
+            { new: true }
+          ).select("referralCode").lean();
+          if (updated?.referralCode) referralCode = String(updated.referralCode);
+          else {
+            const current: any = await OperatorModel.findById(operator._id).select("referralCode").lean();
+            referralCode = String(current?.referralCode || referralCode);
+          }
+        }
+        referrerType = "operator";
+      } else {
+        return res.status(403).json({ success: false, message: "Company invitations are available to associates and operators." });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          referralCode,
+          registrationPath: `/auth/register?role=associate&ref=${encodeURIComponent(referralCode)}`,
+          referrerType,
+          targetRole: "associate",
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error?.message || "Unable to prepare the company invitation link." });
+    }
+  }
+
   private static async resolveCompanyId(req: Request) {
     const role = String(req.user?.role || "").toLowerCase();
     if (role === "admin" && req.params.companyId) return String(req.params.companyId);

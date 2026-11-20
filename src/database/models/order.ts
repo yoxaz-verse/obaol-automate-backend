@@ -65,6 +65,8 @@ const PaymentPlanSchema = new Schema(
             {
                 label: { type: String, required: true },
                 percent: { type: Number, required: true },
+                amount: { type: Number, default: null },
+                currency: { type: String, default: "INR" },
                 dueAtDocType: { type: String, default: null },
                 dueAtStageKey: { type: String, default: null },
                 status: { type: String, enum: ["PENDING", "DUE", "PAID"], default: "PENDING" },

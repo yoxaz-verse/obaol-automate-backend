@@ -14,6 +14,6 @@ const DEFAULT_INCOTERMS = [
 
 export const seedIncoterms = async () => {
     const existing = await IncotermModel.countDocuments();
-    if (existing > 0) return;
-    await IncotermModel.insertMany(DEFAULT_INCOTERMS);
+    if (existing === 0) await IncotermModel.insertMany(DEFAULT_INCOTERMS.map((item) => ({ ...item, isActive: true })));
+    await IncotermModel.updateMany({ isActive: { $exists: false } }, { $set: { isActive: true } });
 };

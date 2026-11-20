@@ -14,6 +14,8 @@ export interface IPaymentTerm extends Document {
         triggerValue: string;
     }>;
     isDefault?: boolean;
+    defaultForIncoterms?: string[];
+    isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -90,7 +92,6 @@ const PaymentTermSchema: Schema = new Schema(
             validate: {
                 validator: function (value: any) {
                     if (!Array.isArray(value) || value.length === 0) return true;
-                    if (value.length < 1 || value.length > 3) return false;
                     let total = 0;
                     for (const item of value) {
                         const percent = Number(item?.percent || 0);
@@ -99,12 +100,24 @@ const PaymentTermSchema: Schema = new Schema(
                     }
                     return Math.round(total * 100) / 100 === 100;
                 },
-                message: "Milestones must contain 1-3 items with positive percent values that sum to 100.",
+                message: "Milestones must contain positive percent values that sum to 100.",
             },
         },
         isDefault: {
             type: Boolean,
             default: false,
+        },
+        defaultForIncoterms: {
+            type: [String],
+            default: [],
+            set: (value: any) => Array.isArray(value)
+                ? [...new Set(value.map((v) => String(v).trim().toUpperCase()).filter(Boolean))]
+                : [],
+        },
+        isActive: {
+            type: Boolean,
+            default: true,
+            index: true,
         },
     },
     {

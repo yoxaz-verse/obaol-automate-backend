@@ -1841,11 +1841,12 @@ export class TradeDocumentController {
       if (!prepared.ok) return res.status(422).json({ success: false, code: "CONVERSION_REVIEW_REQUIRED", message: prepared.message });
       await ensureDefaultFlowRules();
       const firstStage: any = await FlowRuleModel.findOne({ flowType: "TRADE_ORDER", isDeleted: { $ne: true }, isActive: true, tradeType: { $in: [prepared.tradeType, "BOTH"] } }).sort({ sortOrder: 1 }).lean();
-      const paymentPlan = prepared.paymentTermId ? await buildPaymentPlanFromTermId(new Types.ObjectId(String(prepared.paymentTermId)), prepared.tradeType) : null;
+      const orderPayload: any = { ...prepared.payload, workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"), associateCompanyId: result.issuer._id, sourceTradeDocumentId: result.doc._id, documentConversionRuleId: rule._id };
+      orderPayload.dealSnapshot = buildExternalDealSnapshot(orderPayload);
+      const paymentPlan = prepared.paymentTermId ? await buildPaymentPlanFromTermId(new Types.ObjectId(String(prepared.paymentTermId)), prepared.tradeType, orderPayload.dealSnapshot?.commercial) : null;
       const paymentPlanError = validatePaymentPlan(paymentPlan);
       if (paymentPlanError) return res.status(422).json({ success: false, code: "CONVERSION_REVIEW_REQUIRED", message: paymentPlanError });
-      const orderPayload: any = { ...prepared.payload, paymentPlan, workflowStage: String(firstStage?.stageKey || "ORDER_CREATED"), associateCompanyId: result.issuer._id, sourceTradeDocumentId: result.doc._id, documentConversionRuleId: rule._id };
-      orderPayload.dealSnapshot = buildExternalDealSnapshot(orderPayload);
+      orderPayload.paymentPlan = paymentPlan;
       const order = await OrderModel.create(orderPayload);
       result.doc.orderId = order._id;
       result.doc.auditEvents.push({ action: "CONVERTED_TO_ORDER", actorId: req.user?.id || null, actorRole: normalizeRole(req.user?.role), metadata: { orderId: order._id, conversionRuleId: rule._id } }); await result.doc.save();

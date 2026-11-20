@@ -48,7 +48,11 @@ describe("execution responsibility-finalization gate", () => {
     });
     const suffix = new Types.ObjectId().toString().slice(-8);
     const incoterm = await IncotermModel.create({ code: `T${suffix.slice(0, 4)}`, name: `Test ${suffix}` });
-    const paymentTerm = await PaymentTermModel.create({ label: `Test payment ${suffix}` });
+    const paymentTerm = await PaymentTermModel.create({
+      label: `Test payment ${suffix}`,
+      applicableIncoterms: [incoterm.code],
+      milestones: [{ label: "Advance", percent: 100, triggerType: "DOC", triggerValue: "PROFORMA_INVOICE" }],
+    });
 
     const response = await api
       .patch(`/api/v1/web/inquiries/${inquiry._id}`)

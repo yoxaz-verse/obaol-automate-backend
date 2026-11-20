@@ -182,14 +182,14 @@ export class OrderController {
             if (!req.body.incotermId && (enquiry as any).preferredIncoterm) {
                 req.body.incotermId = (enquiry as any).preferredIncoterm;
             }
+            req.body.dealSnapshot = await buildDealSnapshot(enquiry._id, "CONVERSION");
             if (!req.body.paymentPlan) {
                 const termId = req.body.paymentTermId ? new Types.ObjectId(String(req.body.paymentTermId)) : null;
-                const paymentPlan = await buildPaymentPlanFromTermId(termId, tradeType);
+                const paymentPlan = await buildPaymentPlanFromTermId(termId, tradeType, req.body.dealSnapshot?.commercial);
                 if (paymentPlan) req.body.paymentPlan = paymentPlan;
             }
             const paymentPlanError = validatePaymentPlan(req.body.paymentPlan);
             if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
-            req.body.dealSnapshot = await buildDealSnapshot(enquiry._id, "CONVERSION");
             req.body.participantCompanyIds = await AssociateReferralService.getParticipantCompanyIds(enquiry);
 
             const order = await this.engine.create(req, req.body);
@@ -257,16 +257,16 @@ export class OrderController {
 
             const payload: any = prepared.payload;
             payload.workflowStage = String(firstStage?.stageKey || "ORDER_CREATED");
+            payload.dealSnapshot = buildExternalDealSnapshot(payload);
 
             if (prepared.paymentTermId) {
                 const termId = new Types.ObjectId(String(prepared.paymentTermId));
-                const paymentPlan = await buildPaymentPlanFromTermId(termId, prepared.tradeType);
+                const paymentPlan = await buildPaymentPlanFromTermId(termId, prepared.tradeType, payload.dealSnapshot?.commercial);
                 if (paymentPlan) payload.paymentPlan = paymentPlan;
             }
 
             const paymentPlanError = validatePaymentPlan(payload.paymentPlan);
             if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
-            payload.dealSnapshot = buildExternalDealSnapshot(payload);
 
             const order = await this.engine.create(req, payload);
             return res.status(201).json({ success: true, data: order });

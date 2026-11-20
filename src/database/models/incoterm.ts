@@ -4,6 +4,7 @@ export interface IIncoterm extends Document {
     code: string;
     name: string;
     description?: string;
+    isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -29,6 +30,11 @@ const IncotermSchema: Schema = new Schema(
             type: String,
             trim: true,
             maxlength: 1000
+        },
+        isActive: {
+            type: Boolean,
+            default: true,
+            index: true,
         }
     },
     {

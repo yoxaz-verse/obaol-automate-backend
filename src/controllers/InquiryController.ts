@@ -590,6 +590,22 @@ export class InquiryController {
             const normalizedPreferredIncoterm = hasValue(preferredIncoterm) ? normalizeId(preferredIncoterm) : null;
             const normalizedPaymentTermId = hasValue(paymentTermId) ? normalizeId(paymentTermId) : null;
 
+            if (normalizedPreferredIncoterm) {
+                const activeIncoterm = await IncotermModel.exists({ _id: normalizedPreferredIncoterm, isActive: { $ne: false } });
+                if (!activeIncoterm) return res.status(400).json({ success: false, message: "Selected Incoterm was not found or is inactive." });
+            }
+            if (normalizedPaymentTermId) {
+                const activePaymentTerm: any = await PaymentTermModel.findOne({ _id: normalizedPaymentTermId, isActive: { $ne: false } }).lean();
+                if (!activePaymentTerm) return res.status(400).json({ success: false, message: "Selected payment term was not found or is inactive." });
+                if (normalizedPreferredIncoterm) {
+                    const selectedIncoterm: any = await IncotermModel.findById(normalizedPreferredIncoterm).lean();
+                    const applicable = Array.isArray(activePaymentTerm.applicableIncoterms) ? activePaymentTerm.applicableIncoterms.map((value: any) => String(value).toUpperCase()) : [];
+                    if (!applicable.includes(String(selectedIncoterm?.code || "").toUpperCase())) {
+                        return res.status(400).json({ success: false, message: "The selected payment term is not available for this Incoterm." });
+                    }
+                }
+            }
+
             let autoSupplierOperatorId: any = null;
             try {
                 const sellerAssociate = await AssociateModel.findById(normalizedSellerAssociateId).select("associateCompany").lean();
@@ -1296,7 +1312,7 @@ export class InquiryController {
                         if (!Types.ObjectId.isValid(revisionPaymentTermIdRaw)) {
                             return res.status(400).json({ success: false, message: "Valid payment term is required when Payment Terms is selected." });
                         }
-                        const paymentTermExists = await PaymentTermModel.exists({ _id: revisionPaymentTermIdRaw });
+                        const paymentTermExists = await PaymentTermModel.exists({ _id: revisionPaymentTermIdRaw, isActive: { $ne: false } });
                         if (!paymentTermExists) {
                             return res.status(400).json({ success: false, message: "Selected payment term was not found." });
                         }
@@ -1529,7 +1545,8 @@ export class InquiryController {
                             ? new Types.ObjectId(String((inquiry as any).preferredIncoterm))
                             : null;
                         const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
-                        const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
+                        const dealSnapshot = await buildDealSnapshot(inquiry._id, "CONVERSION");
+                        const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType, dealSnapshot?.commercial);
                         const paymentPlanError = validatePaymentPlan(paymentPlan);
                         if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
                         const createdOrder = await OrderModel.create({
@@ -1539,7 +1556,7 @@ export class InquiryController {
                             paymentTermId,
                             incotermId,
                             paymentPlan,
-                            dealSnapshot: await buildDealSnapshot(inquiry._id, "CONVERSION"),
+                            dealSnapshot,
                             subflowInstances: inlandTransportInstances,
                             supplierOperatorId: (inquiry as any).supplierOperatorId || null,
                             dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,
@@ -1655,7 +1672,7 @@ export class InquiryController {
                     if (!Types.ObjectId.isValid(paymentId)) {
                         return res.status(400).json({ success: false, message: "Valid counter payment term is required for payment-term counter." });
                     }
-                    const exists = await PaymentTermModel.exists({ _id: paymentId });
+                    const exists = await PaymentTermModel.exists({ _id: paymentId, isActive: { $ne: false } });
                     if (!exists) {
                         return res.status(400).json({ success: false, message: "Counter payment term not found." });
                     }
@@ -3226,12 +3243,40 @@ export class InquiryController {
                     ? ""
                     : String(req.body.paymentTermId).trim();
 
+                const currentIncotermId = String((inquiry as any).preferredIncoterm || "");
+                const currentPaymentTermId = String((inquiry as any).paymentTermId || "");
+                const nextIncotermId = typeof req.body?.preferredIncoterm !== "undefined" ? preferredIncotermId : currentIncotermId;
+                const nextPaymentTermId = typeof req.body?.paymentTermId !== "undefined" ? paymentTermId : currentPaymentTermId;
+                const incotermChanged = nextIncotermId !== currentIncotermId;
+                const paymentTermChanged = nextPaymentTermId !== currentPaymentTermId;
+
+                if ((incotermChanged || paymentTermChanged) && nextIncotermId && nextPaymentTermId && Types.ObjectId.isValid(nextIncotermId) && Types.ObjectId.isValid(nextPaymentTermId)) {
+                    const [nextIncoterm, nextPaymentTerm]: any[] = await Promise.all([
+                        IncotermModel.findById(nextIncotermId).lean(),
+                        PaymentTermModel.findById(nextPaymentTermId).lean(),
+                    ]);
+                    if (!nextIncoterm || nextIncoterm.isActive === false) {
+                        return res.status(400).json({ success: false, message: "Select an active Incoterm." });
+                    }
+                    if (!nextPaymentTerm || nextPaymentTerm.isActive === false) {
+                        return res.status(400).json({ success: false, message: "Select an active payment term." });
+                    }
+                    const applicable = Array.isArray(nextPaymentTerm.applicableIncoterms)
+                        ? nextPaymentTerm.applicableIncoterms.map((value: any) => String(value).toUpperCase())
+                        : [];
+                    if (!applicable.includes(String(nextIncoterm.code || "").toUpperCase())) {
+                        return res.status(400).json({ success: false, message: "The selected payment term is not available for this Incoterm." });
+                    }
+                }
+
                 if (typeof req.body?.preferredIncoterm !== "undefined") {
                     if (preferredIncotermId && !Types.ObjectId.isValid(preferredIncotermId)) {
                         return res.status(400).json({ success: false, message: "Invalid preferredIncoterm" });
                     }
-                    if (preferredIncotermId && !(await IncotermModel.exists({ _id: preferredIncotermId }))) {
-                        return res.status(400).json({ success: false, message: "Selected Incoterm was not found." });
+                    if (preferredIncotermId && incotermChanged) {
+                        const selectedIncoterm: any = await IncotermModel.findById(preferredIncotermId).select("isActive").lean();
+                        if (!selectedIncoterm) return res.status(400).json({ success: false, message: "Selected Incoterm was not found." });
+                        if (selectedIncoterm.isActive === false) return res.status(400).json({ success: false, message: "Selected Incoterm is inactive." });
                     }
                     (inquiry as any).preferredIncoterm = preferredIncotermId || null;
                 }
@@ -3240,8 +3285,10 @@ export class InquiryController {
                     if (paymentTermId && !Types.ObjectId.isValid(paymentTermId)) {
                         return res.status(400).json({ success: false, message: "Invalid paymentTermId" });
                     }
-                    if (paymentTermId && !(await PaymentTermModel.exists({ _id: paymentTermId }))) {
-                        return res.status(400).json({ success: false, message: "Selected payment term was not found." });
+                    if (paymentTermId && paymentTermChanged) {
+                        const selectedPaymentTerm: any = await PaymentTermModel.findById(paymentTermId).select("isActive").lean();
+                        if (!selectedPaymentTerm) return res.status(400).json({ success: false, message: "Selected payment term was not found." });
+                        if (selectedPaymentTerm.isActive === false) return res.status(400).json({ success: false, message: "Selected payment term is inactive." });
                     }
                     (inquiry as any).paymentTermId = paymentTermId || null;
                 }
@@ -3479,7 +3526,8 @@ export class InquiryController {
                         ? new Types.ObjectId(String((inquiry as any).preferredIncoterm))
                         : null;
                     const tradeType = String((inquiry as any)?.executionContext?.tradeType || "DOMESTIC").toUpperCase();
-                    const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType);
+                    const dealSnapshot = await buildDealSnapshot(inquiry._id, "CONVERSION");
+                    const paymentPlan = await buildPaymentPlanFromTermId(paymentTermId, tradeType, dealSnapshot?.commercial);
                     const paymentPlanError = validatePaymentPlan(paymentPlan);
                     if (paymentPlanError) return res.status(400).json({ success: false, message: paymentPlanError });
                         const createdOrder = await OrderModel.create({
@@ -3489,7 +3537,7 @@ export class InquiryController {
                             paymentTermId,
                             incotermId,
                             paymentPlan,
-                            dealSnapshot: await buildDealSnapshot(inquiry._id, "CONVERSION"),
+                            dealSnapshot,
                             subflowInstances: inlandTransportInstances,
                             supplierOperatorId: (inquiry as any).supplierOperatorId || null,
                             dealCloserOperatorId: (inquiry as any).dealCloserOperatorId || null,

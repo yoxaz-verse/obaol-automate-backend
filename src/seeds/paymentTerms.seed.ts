@@ -96,12 +96,18 @@ export const seedPaymentTerms = async () => {
     for (const term of DEFAULT_PAYMENT_TERMS) {
         await PaymentTermModel.updateOne(
             { label: term.label },
-            { $set: term, $setOnInsert: { createdAt: new Date() } },
+            { $setOnInsert: { ...term, isActive: true, createdAt: new Date() } },
             { upsert: true }
         );
     }
-    await PaymentTermModel.updateMany(
-        { label: { $ne: "Advance + LLR (10/90)" } },
-        { $set: { isDefault: false } }
-    );
+    await PaymentTermModel.updateMany({ isActive: { $exists: false } }, { $set: { isActive: true } });
+    const legacyDefaults: any[] = await PaymentTermModel.find({ isDefault: true, defaultForIncoterms: { $size: 0 } })
+        .select("applicableIncoterms")
+        .lean();
+    for (const term of legacyDefaults) {
+        await PaymentTermModel.updateOne(
+            { _id: term._id, defaultForIncoterms: { $size: 0 } },
+            { $set: { defaultForIncoterms: term.applicableIncoterms || [] } },
+        );
+    }
 };

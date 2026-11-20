@@ -7,6 +7,8 @@ export type PaymentMilestoneStatus = "PENDING" | "DUE" | "PAID";
 export interface PaymentMilestone {
     label: string;
     percent: number;
+    amount: number | null;
+    currency: string;
     dueAtDocType: string | null;
     dueAtStageKey?: string | null;
     status: PaymentMilestoneStatus;
@@ -25,9 +27,17 @@ export const resolveMilestoneDocType = (milestoneText: string | null | undefined
     return normalizedTrade === "INTERNATIONAL" ? "BILL_OF_LADING" : "LORRY_RECEIPT";
 };
 
-export const buildPaymentPlan = (paymentTerm: any, tradeType?: string | null) => {
+export const buildPaymentPlan = (
+    paymentTerm: any,
+    tradeType?: string | null,
+    commercial?: { totalValue?: number | null; currency?: string | null } | null,
+) => {
     if (!paymentTerm) return null;
     const milestones: PaymentMilestone[] = [];
+    const totalValue = Number(commercial?.totalValue);
+    const hasTotal = Number.isFinite(totalValue) && totalValue >= 0;
+    const currency = String(commercial?.currency || "INR").toUpperCase();
+    const withAmount = (percent: number) => hasTotal ? Number((totalValue * percent / 100).toFixed(2)) : null;
     const explicitMilestones = Array.isArray(paymentTerm?.milestones) ? paymentTerm.milestones : [];
     if (explicitMilestones.length > 0) {
         explicitMilestones.forEach((milestone: any) => {
@@ -39,6 +49,8 @@ export const buildPaymentPlan = (paymentTerm: any, tradeType?: string | null) =>
                 milestones.push({
                     label: String(milestone?.label || "Milestone").trim() || "Milestone",
                     percent,
+                    amount: withAmount(percent),
+                    currency,
                     dueAtDocType: null,
                     dueAtStageKey: String(triggerValue || "").toUpperCase(),
                     status: "PENDING",
@@ -51,10 +63,16 @@ export const buildPaymentPlan = (paymentTerm: any, tradeType?: string | null) =>
             milestones.push({
                 label: String(milestone?.label || "Milestone").trim() || "Milestone",
                 percent,
+                amount: withAmount(percent),
+                currency,
                 dueAtDocType: resolvedDocType,
                 status: "PENDING",
             });
         });
+        if (hasTotal && milestones.length > 0) {
+            const allocated = milestones.slice(0, -1).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            milestones[milestones.length - 1].amount = Number((totalValue - allocated).toFixed(2));
+        }
         return { milestones };
     }
 
@@ -65,6 +83,8 @@ export const buildPaymentPlan = (paymentTerm: any, tradeType?: string | null) =>
         milestones.push({
             label: "Advance",
             percent: advancePercent,
+            amount: withAmount(advancePercent),
+            currency,
             dueAtDocType: "PROFORMA_INVOICE",
             status: "PENDING",
         });
@@ -75,19 +95,29 @@ export const buildPaymentPlan = (paymentTerm: any, tradeType?: string | null) =>
         milestones.push({
             label: milestoneLabel,
             percent: balancePercent,
+            amount: withAmount(balancePercent),
+            currency,
             dueAtDocType: resolveMilestoneDocType(milestoneLabel, tradeType),
             status: "PENDING",
         });
     }
 
+    if (hasTotal && milestones.length > 0) {
+        const allocated = milestones.slice(0, -1).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        milestones[milestones.length - 1].amount = Number((totalValue - allocated).toFixed(2));
+    }
     return { milestones };
 };
 
-export const buildPaymentPlanFromTermId = async (paymentTermId?: Types.ObjectId | null, tradeType?: string | null) => {
+export const buildPaymentPlanFromTermId = async (
+    paymentTermId?: Types.ObjectId | null,
+    tradeType?: string | null,
+    commercial?: { totalValue?: number | null; currency?: string | null } | null,
+) => {
     if (!paymentTermId) return null;
     const paymentTerm = await PaymentTermModel.findById(paymentTermId).lean();
     if (!paymentTerm) return null;
-    return buildPaymentPlan(paymentTerm, tradeType);
+    return buildPaymentPlan(paymentTerm, tradeType, commercial);
 };
 
 export const applyPaymentPlanDocUpdate = async (orderId: Types.ObjectId, docType: string, verifiedStatus?: string | null) => {

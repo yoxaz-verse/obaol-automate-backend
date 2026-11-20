@@ -48,6 +48,8 @@ export interface IOrderSubflowInstance {
 export interface IOrderPaymentMilestone {
     label: string;
     percent: number;
+    amount?: number | null;
+    currency?: string;
     dueAtDocType?: string | null;
     dueAtStageKey?: string | null;
     status: "PENDING" | "DUE" | "PAID";

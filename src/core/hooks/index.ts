@@ -43,8 +43,13 @@ import {
     orderNotificationPreWriteHook,
 } from "./operationalNotificationHooks";
 import { associateVariantRateModerationPreWriteHook, catalogModerationPreReadHook, catalogModerationPreWriteHook, variantRateModerationPreReadHook } from "./catalogModerationHooks";
+import { activeConfigurationReadHook, incotermConfigurationWriteHook, paymentTermConfigurationWriteHook } from "./paymentConfigurationHooks";
 
 export const registerAllHooks = () => {
+    HookDispatcher.registerPreRead("incoterms", activeConfigurationReadHook);
+    HookDispatcher.registerPreRead("payment-terms", activeConfigurationReadHook);
+    HookDispatcher.registerPreWrite("incoterms", incotermConfigurationWriteHook);
+    HookDispatcher.registerPreWrite("payment-terms", paymentTermConfigurationWriteHook);
     // RBAC Hooks for Operators (Overseers)
     HookDispatcher.registerPreRead("associate-companies", async (query, mode, id, req) => {
         let q = await operatorFilterHook(query, mode, id, req);
